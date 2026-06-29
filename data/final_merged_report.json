@@ -1,0 +1,653 @@
+{
+  "student": {
+    "name": "Samson",
+    "grade": "高一",
+    "test_date": "2026-03-14",
+    "birth_date": "2008-10-7",
+    "school": "SGS"
+  },
+  "text_items": [
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "认知能力",
+      "label": "感知觉",
+      "value": 92,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "认知能力",
+      "label": "记忆力",
+      "value": 72,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "认知能力",
+      "label": "注意力",
+      "value": 66,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "情绪稳定性",
+      "label": "情绪稳定性总分",
+      "value": 32.5,
+      "unit": "分",
+      "mean": 40.0
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "大五人格",
+      "label": "开放性",
+      "value": 3.3,
+      "unit": "分",
+      "mean": 3.0
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "大五人格",
+      "label": "宜人性",
+      "value": 3.2,
+      "unit": "分",
+      "mean": 3.0
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "大五人格",
+      "label": "责任心",
+      "value": 2.5,
+      "unit": "分",
+      "mean": 3.0
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "大五人格",
+      "label": "外倾性",
+      "value": 4.0,
+      "unit": "分",
+      "mean": 3.0
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "大五人格",
+      "label": "神经质",
+      "value": 3.4,
+      "unit": "分",
+      "mean": 3.0
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "依恋关系",
+      "label": "信任-母亲",
+      "value": 47,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "依恋关系",
+      "label": "信任-父亲",
+      "value": 32,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "依恋关系",
+      "label": "信任-同伴",
+      "value": 22,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "依恋关系",
+      "label": "沟通-母亲",
+      "value": 41,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "依恋关系",
+      "label": "沟通-父亲",
+      "value": 29,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "依恋关系",
+      "label": "沟通-同伴",
+      "value": 19,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "依恋关系",
+      "label": "亲近-母亲",
+      "value": 19,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "依恋关系",
+      "label": "亲近-父亲",
+      "value": 12,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "依恋关系",
+      "label": "亲近-同伴",
+      "value": 14,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "体质健康",
+      "label": "每日睡眠时长",
+      "value": 7.1,
+      "unit": "小时/天"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "体质健康",
+      "label": "每周运动时长",
+      "value": 11.0,
+      "unit": "小时/周"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "体质健康",
+      "label": "身高",
+      "value": 178,
+      "unit": "CM"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "体质健康",
+      "label": "体重",
+      "value": 73,
+      "unit": "KG"
+    },
+    {
+      "source_pdf": "A2-核心素养",
+      "category": "体质健康",
+      "label": "BMI",
+      "value": 23.0,
+      "unit": "KG/M²"
+    },
+    {
+      "source_pdf": "B3-核心学习能力",
+      "category": "执行功能",
+      "label": "抑制控制",
+      "value": 50,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B3-核心学习能力",
+      "category": "执行功能",
+      "label": "工作记忆",
+      "value": 77,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B3-核心学习能力",
+      "category": "执行功能",
+      "label": "认知灵活性",
+      "value": 90,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B3-核心学习能力",
+      "category": "学习动机",
+      "label": "深层动机",
+      "value": 4.8,
+      "unit": "分",
+      "mean": 7.4
+    },
+    {
+      "source_pdf": "B3-核心学习能力",
+      "category": "学习动机",
+      "label": "表面动机",
+      "value": 7.6,
+      "unit": "分",
+      "mean": 4.7
+    },
+    {
+      "source_pdf": "B3-核心学习能力",
+      "category": "学习动机",
+      "label": "自我效能感",
+      "value": 8.7,
+      "unit": "分",
+      "mean": 8.1
+    },
+    {
+      "source_pdf": "B3-核心学习能力",
+      "category": "学习方法与策略",
+      "label": "学习深层方法与策略",
+      "value": 4.4,
+      "unit": "分",
+      "mean": 7.8
+    },
+    {
+      "source_pdf": "B3-核心学习能力",
+      "category": "学习方法与策略",
+      "label": "学习表面方法与策略",
+      "value": 6.8,
+      "unit": "分",
+      "mean": 4.7
+    },
+    {
+      "source_pdf": "B3-核心学习能力",
+      "category": "学习方法与策略",
+      "label": "学习自我调节",
+      "value": 7.3,
+      "unit": "分",
+      "mean": 6.3
+    },
+    {
+      "source_pdf": "B4-核心认知能力",
+      "category": "认知能力",
+      "label": "认知能力总得分",
+      "value": 115,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B4-核心认知能力",
+      "category": "认知能力",
+      "label": "认知能力百分位",
+      "value": 84,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B4-核心认知能力",
+      "category": "认知能力-子指标",
+      "label": "感知觉",
+      "value": 92,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B4-核心认知能力",
+      "category": "认知能力-子指标",
+      "label": "注意力",
+      "value": 66,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B4-核心认知能力",
+      "category": "认知能力-子指标",
+      "label": "记忆力",
+      "value": 72,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B4-核心认知能力",
+      "category": "认知能力-子指标",
+      "label": "推理能力",
+      "value": 83,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B4-核心认知能力",
+      "category": "认知能力-子指标",
+      "label": "空间能力",
+      "value": 52,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B4-核心认知能力",
+      "category": "认知能力-子指标",
+      "label": "加工速度",
+      "value": 86,
+      "unit": "%"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "职业兴趣",
+      "label": "现实型",
+      "value": 2,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "职业兴趣",
+      "label": "研究型",
+      "value": 4,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "职业兴趣",
+      "label": "艺术型",
+      "value": 4,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "职业兴趣",
+      "label": "社会型",
+      "value": 7,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "职业兴趣",
+      "label": "事业型",
+      "value": 9,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "职业兴趣",
+      "label": "常规型",
+      "value": 4,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "能力优势",
+      "label": "自然能力",
+      "value": 3,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "能力优势",
+      "label": "音乐能力",
+      "value": 3,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "能力优势",
+      "label": "逻辑数学能力",
+      "value": 5,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "能力优势",
+      "label": "语言能力",
+      "value": 8,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "能力优势",
+      "label": "内省能力",
+      "value": 6,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "能力优势",
+      "label": "人际关系能力",
+      "value": 7,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "能力优势",
+      "label": "身体运动能力",
+      "value": 5,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "能力优势",
+      "label": "空间能力",
+      "value": 4,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "职业价值观",
+      "label": "生活方式",
+      "value": 9.39,
+      "unit": "分"
+    },
+    {
+      "source_pdf": "B6-职业发展",
+      "category": "职业价值观",
+      "label": "美的追求",
+      "value": 3.29,
+      "unit": "分"
+    }
+  ],
+  "vision_items": [
+    {
+      "label": "总得分",
+      "value": 32.5,
+      "unit": "分",
+      "mean": 40
+    },
+    {
+      "label": "自卑",
+      "value": 8,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "自尊",
+      "value": 8,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "抑郁",
+      "value": 7.5,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "愉快",
+      "value": 7.5,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "焦虑",
+      "value": 6.5,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "安详",
+      "value": 6.5,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "无力感",
+      "value": 10.5,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "掌控感",
+      "value": 10.5,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "姓名",
+      "value": "Samson",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "档案ID",
+      "value": "M5574454",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "测试时间",
+      "value": "2026-03-14",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "出生日期",
+      "value": "2008-10-7",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "指导师",
+      "value": "DAN11537",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "报告编码",
+      "value": "15314850446",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "母亲信任得分",
+      "value": 47,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "父亲信任得分",
+      "value": 32,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "同伴信任得分",
+      "value": 22,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "母亲沟通得分",
+      "value": 41,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "父亲沟通得分",
+      "value": 29,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "同伴沟通得分",
+      "value": 19,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "母亲亲近得分",
+      "value": 19,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "父亲亲近得分",
+      "value": 12,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "同伴亲近得分",
+      "value": 14,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "BMI得分",
+      "value": 23,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "BMI等级",
+      "value": "正常",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "BMI指数",
+      "value": 23,
+      "unit": "KG/M²",
+      "mean": null
+    },
+    {
+      "label": "均衡饮食",
+      "value": "优",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "睡眠时长",
+      "value": 7.1,
+      "unit": "小时/每天",
+      "mean": null
+    },
+    {
+      "label": "睡眠质量",
+      "value": "中等",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "运动时长",
+      "value": 11,
+      "unit": "小时/周",
+      "mean": null
+    },
+    {
+      "label": "运动习惯",
+      "value": "优秀",
+      "unit": null,
+      "mean": null
+    },
+    {
+      "label": "自我概念",
+      "value": 68,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "行为表现",
+      "value": 9,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "能力与学校表现",
+      "value": 8,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "躯体外貌",
+      "value": 7,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "情绪状态",
+      "value": 4,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "合群",
+      "value": 6,
+      "unit": "分",
+      "mean": null
+    },
+    {
+      "label": "幸福与满足",
+      "value": 7,
+      "unit": "分",
+      "mean": null
+    }
+  ],
+  "total_items": 95,
+  "summary": "文本 56 项 + 视觉 39 项"
+}

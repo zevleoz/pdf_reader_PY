@@ -1,0 +1,194 @@
+/* ===================== 学生综合测评报告 · 样式 ===================== */
+
+@page {
+  size: A4;
+  margin: 1.8cm 1.6cm 2.2cm 1.6cm;
+
+  @bottom-center {
+    content: "第 " counter(page) " 页 / 共 " counter(pages) " 页";
+    font-size: 9pt;
+    color: #888;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB",
+               "Noto Sans CJK SC", "SimSun", serif;
+  color: #222;
+  font-size: 10.5pt;
+  line-height: 1.55;
+}
+
+/* ===================== 总封面 ===================== */
+.cover {
+  text-align: center;
+  padding: 5cm 0 4cm 0;
+  page-break-after: always;
+  border-bottom: 4px solid #2b6cb0;
+}
+.cover h1 {
+  font-size: 32pt;
+  color: #1a365d;
+  margin: 0 0 0.6em 0;
+  letter-spacing: 3pt;
+}
+.cover .subtitle {
+  font-size: 13pt;
+  color: #4a5568;
+  margin: 0 0 2em 0;
+}
+.cover .meta {
+  font-size: 10.5pt;
+  color: #718096;
+  margin: 0.2em 0;
+}
+.cover .small { font-size: 9.5pt; color: #a0aec0; }
+
+/* ===================== 目录 ===================== */
+.toc {
+  page-break-after: always;
+  padding: 1cm 0;
+}
+.toc h2 {
+  color: #1a365d;
+  font-size: 18pt;
+  border-bottom: 2px solid #cbd5e0;
+  padding-bottom: 4px;
+}
+.toc ol {
+  font-size: 12pt;
+  line-height: 2;
+  padding-left: 1.6cm;
+  color: #2d3748;
+}
+
+/* ===================== 章节：每个 section 独占若干页 ===================== */
+.pdf-section {
+  page-break-before: always;
+}
+
+/* --- 章节小封面 --- */
+.section-cover {
+  background: linear-gradient(135deg, #2b6cb0, #1a365d);
+  color: #fff;
+  padding: 1.4cm 1.2cm;
+  border-radius: 6px;
+  margin-bottom: 0.8cm;
+}
+.section-cover .sec-no {
+  font-size: 40pt;
+  font-weight: 700;
+  opacity: 0.75;
+  letter-spacing: 2pt;
+}
+.section-cover h2 {
+  margin: 0.1cm 0 0 0;
+  font-size: 20pt;
+  font-weight: 600;
+}
+
+/* --- 子分组块 --- */
+.group-block {
+  margin: 0.6cm 0 1cm 0;
+}
+.group-block h3 {
+  font-size: 13pt;
+  color: #1a365d;
+  border-left: 5px solid #2b6cb0;
+  padding: 3px 10px;
+  margin: 0 0 6px 0;
+  background: #ebf4ff;
+}
+
+/* ===================== 指标数据表 ===================== */
+table.metrics {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10pt;
+}
+table.metrics thead th {
+  background: #2b6cb0;
+  color: #fff;
+  padding: 6px 6px;
+  text-align: left;
+  font-weight: 600;
+  border: 1px solid #2b6cb0;
+}
+table.metrics tbody td {
+  padding: 5px 6px;
+  border: 1px solid #cbd5e0;
+  background: #fff;
+  vertical-align: top;
+}
+table.metrics tbody tr:nth-child(even) td {
+  background: #f7fafc;
+}
+table.metrics tbody tr.missing td {
+  color: #a0aec0;
+  font-style: italic;
+  background: #fffaf0;
+}
+table.metrics tbody tr.ranking td {
+  background: #f0fff4;
+}
+table.metrics td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: "Menlo", "Consolas", monospace;
+  font-size: 10pt;
+}
+table.metrics td.center { text-align: center; }
+table.metrics td.grade {
+  text-align: center;
+  color: #2b6cb0;
+  font-weight: 600;
+}
+table.metrics td.small {
+  font-size: 8.5pt;
+  color: #4a5568;
+}
+.rank-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  background: #d69e2e;
+  color: #fff;
+  font-size: 8pt;
+  border-radius: 10px;
+  font-style: normal;
+}
+
+/* ===================== 原始图表区块 ===================== */
+.charts-block {
+  margin-top: 1.2cm;
+}
+.charts-block h3 {
+  font-size: 12pt;
+  color: #2d3748;
+  border-bottom: 2px solid #cbd5e0;
+  padding-bottom: 4px;
+}
+.charts-block figure {
+  margin: 0.8cm 0;
+  text-align: center;
+}
+.charts-block img {
+  max-width: 100%;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+}
+.charts-block figcaption {
+  font-size: 9pt;
+  color: #718096;
+  margin-top: 4px;
+}
+
+/* ===================== 页脚 ===================== */
+.doc-footer {
+  margin-top: 1.5cm;
+  text-align: center;
+  color: #a0aec0;
+  font-size: 9pt;
+}

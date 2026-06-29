@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Y4 评测报告</title>
+<link rel="stylesheet" href="../static/css/fontawesome.min.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+@page { size: A4; margin: 0; }
+html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; color:#1A1A1A; font-size:10pt; line-height:1.6; background:#FAF7F2; -webkit-font-smoothing: antialiased; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+.page { width:210mm; height:297mm; padding:12mm 16mm; page-break-after:always; position:relative; overflow:hidden; background:#FAF7F2; -webkit-print-color-adjust: exact; }
+.page:last-child { page-break-after:auto; }
+
+.page::before { content:""; position:absolute; top:0; left:0; width:210mm; height:297mm; background-image:url('../branding/watermark.png'); background-size:45mm 45mm; background-repeat:repeat; opacity:0.15; z-index:0; pointer-events:none; }
+.page > * { position:relative; z-index:1; }
+
+.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4mm; font-size:8.5pt; color:#8C8C8C; letter-spacing:0.5px; }
+.page-header .left { display:flex; align-items:center; gap:2.5mm; }
+.page-header .logo-mini { width:22px; height:22px; background-image:url('../branding/logo_red.png'); background-size:contain; background-repeat:no-repeat; background-position:center; }
+.page-header .tag { font-size:8.5pt; color:#B33A3A; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; }
+.page-header .right { color:#8C8C8C; font-size:8.5pt; text-align:right; }
+
+.page-title { font-size:22pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:1mm; }
+.page-title-en { font-size:9pt; color:#8C8C8C; letter-spacing:1.5px; margin-bottom:5mm; font-weight:400; text-transform:uppercase; }
+
+.intro-card { background:#FFFFFF; border:1px solid #EAEAEA; border-left:3px solid #B33A3A; border-radius:14px; padding:4mm 5mm; margin-bottom:5mm; font-size:9.5pt; line-height:1.8; color:#4B5563; position:relative; }
+
+.dark-score-card { background:#2A3B4C; color:white; border-radius:14px; padding:6mm 8mm; display:flex; align-items:center; justify-content:space-between; }
+.dark-score-card .left { display:flex; align-items:center; gap:4mm; }
+.dark-score-card .title { font-size:11pt; font-weight:700; margin-bottom:1mm; }
+.dark-score-card .subtitle { font-size:7.5pt; letter-spacing:1px; opacity:0.7; }
+.dark-score-card .right { display:flex; gap:8mm; align-items:center; }
+.dark-score-card .value-block { text-align:center; }
+.dark-score-card .big-val { font-size:22pt; font-weight:700; line-height:1.1; color:#FFD166; font-variant-numeric:tabular-nums; }
+.dark-score-card .level-val { font-size:18pt; font-weight:700; color:#FFD166; line-height:1.1; }
+.dark-score-card .label { font-size:7.5pt; letter-spacing:1px; opacity:0.7; margin-top:1mm; }
+
+.two-col-top { display:grid; grid-template-columns:1fr 1fr; gap:5mm; margin-bottom:6mm; align-items:stretch; }
+.two-col-top .intro-card { margin-bottom:0; display:flex; gap:4mm; align-items:center; }
+
+.progress-item { display:flex; align-items:center; padding:3.5mm 0; margin-bottom:0; }
+.progress-item .label-wrap { flex:0 0 40mm; padding-right:4mm; }
+.progress-item .zh-label { font-size:10.5pt; font-weight:700; color:#1A1A1A; letter-spacing:0.5px; line-height:1.3; }
+.progress-item .en-label { font-size:7pt; color:#8C8C8C; letter-spacing:1px; margin-top:1mm; text-transform:uppercase; }
+.progress-item .val-wrap { flex:0 0 auto; font-size:13pt; font-weight:700; color:#1A1A1A; text-align:right; min-width:22mm; font-variant-numeric:tabular-nums; }
+.progress-item .val-wrap small { font-size:8pt; color:#8C8C8C; font-weight:400; }
+.progress-item .slider-wrap { flex:1; position:relative; margin:0 5mm; height:22px; }
+.progress-item .slider-bar { height:8px; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:4px; position:relative; }
+.progress-item .slider-bar.red-only { background:linear-gradient(90deg, #E76F51 0%, #B33A3A 100%); }
+.progress-item .slider-bar::before, .progress-item .slider-bar::after { content:""; position:absolute; top:50%; transform:translateY(-50%); width:3px; height:16px; background:#C5C5C5; border-radius:1.5px; }
+.progress-item .slider-bar::before { left:-3mm; }
+.progress-item .slider-bar::after { right:-3mm; }
+.progress-item .slider-bar .tick-min, .progress-item .slider-bar .tick-max { position:absolute; font-size:8pt; color:#8C8C8C; font-weight:500; top:-7mm; }
+.progress-item .slider-bar .tick-min { left:-5mm; }
+.progress-item .slider-bar .tick-max { right:-5mm; }
+.progress-item .value-dot { position:absolute; width:28px; height:28px; background:#1F2937; border-radius:50%; top:50%; left:50%; margin-left:-14px; margin-top:-14px; display:flex; align-items:center; justify-content:center; z-index:2; }
+.progress-item .value-dot span { color:white; font-size:9pt; font-weight:700; }
+.progress-item .peer-marker { position:absolute; top:-4mm; width:2px; height:16px; background:#F4A261; }
+.progress-item .peer-marker::before { content:"同龄"; position:absolute; bottom:18px; left:-5mm; font-size:7pt; color:#F4A261; font-weight:600; white-space:nowrap; width:10mm; text-align:center; }
+
+.cover { display:flex; flex-direction:column; align-items:center; justify-content:center; height:267mm; text-align:center; padding: 0 18mm; }
+.cover .cover-logo { width:80mm; height:80mm; background-image:url('../branding/shield_logo.png'); background-size:contain; background-repeat:no-repeat; background-position:center; margin-bottom:5mm; }
+.cover .red-line { width:40mm; height:2px; background:#B33A3A; margin:3mm 0; }
+.cover .cover-title { font-size:36pt; font-weight:700; color:#B33A3A; letter-spacing:4px; margin:2mm 0; }
+.cover .cover-subtitle { font-size:10pt; letter-spacing:3px; color:#4B5563; text-transform:uppercase; margin-bottom:5mm; }
+.cover .info-card { background:white; border-radius:14px; padding:6mm 15mm; margin-top:10mm; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+.cover .info-card .row { display:flex; padding:1.5mm 0; font-size:10pt; justify-content:center; gap:4mm; }
+.cover .info-card .row .label { color:#B33A3A; font-weight:600; }
+.cover .info-card .row .value { color:#1A1A1A; font-weight:500; }
+
+.section-intro { padding-top:25mm; }
+.section-intro .sec-num { font-size:20pt; font-weight:700; color:#1A1A1A; margin-bottom:2mm; }
+.section-intro .sec-en { font-size:10pt; color:#2A9D8F; letter-spacing:2px; text-transform:uppercase; margin-bottom:8mm; }
+.section-intro .sep { width:30mm; height:1.5px; background:#2A9D8F; margin-bottom:8mm; }
+.section-intro .sec-content { font-size:11pt; color:#4B5563; line-height:1.9; }
+.section-intro .sec-content p { margin-bottom:4mm; }
+.section-intro .bullet-item { position:relative; padding-left:7mm; margin:3mm 0; }
+.section-intro .bullet-item::before { content:""; position:absolute; left:0; top:8px; width:7px; height:7px; border-radius:50%; background:#2A9D8F; }
+
+.y4-intro { padding-top:30mm; }
+.y4-intro .y4-title { font-size:22pt; color:#1A1A1A; font-weight:700; letter-spacing:1px; margin-bottom:3mm; }
+.y4-intro .y4-en { font-size:10pt; color:#8C8C8C; letter-spacing:2px; text-transform:uppercase; margin-bottom:10mm; }
+.y4-intro .y4-sep { width:30mm; height:1.5px; background:#B33A3A; margin-bottom:8mm; }
+.y4-intro .y4-content { font-size:11pt; color:#4B5563; line-height:2; }
+.y4-intro .y4-content p { margin-bottom:5mm; }
+.y4-intro .bullet-item { position:relative; padding-left:7mm; margin:3mm 0; }
+.y4-intro .bullet-item::before { content:""; position:absolute; left:0; top:8px; width:7px; height:7px; border-radius:50%; background:#B33A3A; }
+
+.gauge-wrap { display:flex; flex-direction:column; align-items:center; text-align:center; margin-bottom:2mm; }
+.gauge-svg { width:140mm; height:70mm; }
+.gauge-value-line { margin:2mm 0; }
+.gauge-value-line .g-val { font-size:28pt; font-weight:700; color:#1A1A1A; font-variant-numeric:tabular-nums; }
+.gauge-value-line .g-max { font-size:12pt; color:#8C8C8C; font-weight:500; }
+.gauge-labels { display:flex; justify-content:space-around; width:100%; margin-bottom:4mm; padding:0 15mm; }
+.gauge-labels .gl { text-align:center; }
+.gauge-labels .gl .big { font-size:10pt; font-weight:700; }
+.gauge-labels .gl .small { font-size:7pt; letter-spacing:1px; color:#8C8C8C; margin-top:1mm; }
+.gauge-labels .red .big { color:#B33A3A; }
+.gauge-labels .amber .big { color:#F4A261; }
+.gauge-labels .teal .big { color:#2A9D8F; }
+
+.emotion-gauge-section { text-align:center; margin-bottom:6mm; }
+.emotion-gauge { display:flex; justify-content:center; }
+.emotion-score-row { margin:2mm 0; }
+.emotion-total { font-size:28pt; font-weight:700; color:#1A1A1A; font-variant-numeric:tabular-nums; }
+.emotion-total-max { font-size:12pt; color:#8C8C8C; font-weight:500; }
+.emotion-labels { display:flex; justify-content:space-around; width:100%; padding:0 10mm; }
+.emotion-l { text-align:left; }
+.emotion-l-zh { font-size:10pt; font-weight:700; color:#2A9D8F; }
+.emotion-l-en { font-size:7pt; letter-spacing:1px; color:#8C8C8C; margin-top:1mm; text-transform:uppercase; }
+.emotion-r { text-align:right; }
+.emotion-r-label { font-size:8pt; color:#8C8C8C; letter-spacing:0.5px; }
+.emotion-r-val { font-size:12pt; font-weight:700; color:#F4A261; }
+
+.polarity-item { margin-bottom:6mm; }
+.polarity-labels { display:flex; justify-content:space-between; margin-bottom:2mm; }
+.pol-left { text-align:left; }
+.pol-right { text-align:right; }
+.pol-zh { font-size:10.5pt; font-weight:700; color:#1A1A1A; }
+.pol-en { font-size:7pt; color:#8C8C8C; letter-spacing:1px; margin-top:0.5mm; text-transform:uppercase; }
+.polarity-bar-wrap { display:flex; align-items:center; gap:3mm; }
+.pol-tick-min, .pol-tick-max { font-size:8pt; color:#8C8C8C; font-weight:500; flex:0 0 auto; }
+.polarity-bar { flex:1; position:relative; height:8px; background:linear-gradient(90deg, #B33A3A 0%, #F4A261 50%, #2A9D8F 100%); border-radius:4px; }
+.pol-dot { position:absolute; width:28px; height:28px; background:#1F2937; border-radius:50%; top:50%; left:0; margin-left:-14px; margin-top:-14px; display:flex; align-items:center; justify-content:center; z-index:2; }
+.pol-dot span { color:white; font-size:9pt; font-weight:700; }
+
+.bmi-section { margin-top:3mm; background:white; border-radius:14px; padding:6mm; border:1px solid #EAEAEA; margin-bottom:5mm; }
+.bmi-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; margin-bottom:2mm; letter-spacing:0.5px; }
+.bmi-section-subtitle { font-size:8pt; color:#8C8C8C; letter-spacing:0.5px; margin-bottom:5mm; }
+.bmi-figures { display:grid; grid-template-columns:repeat(4, 1fr); gap:3mm; text-align:center; }
+.bmi-figure { display:flex; flex-direction:column; align-items:center; padding:2mm 0; position:relative; }
+.bmi-figure .body-icon-wrap { width:30mm; height:50mm; display:flex; align-items:center; justify-content:center; margin-bottom:3mm; }
+.bmi-figure .body-icon { font-size:40mm; }
+.bmi-figure .level-label { font-size:10pt; font-weight:700; color:#1A1A1A; margin-bottom:1mm; padding:1mm 3mm; border-radius:4px; background:#F4F4F4; }
+.bmi-figure .level-en { font-size:7pt; color:#8C8C8C; letter-spacing:1px; text-transform:uppercase; }
+.bmi-figure .current-tag { position:absolute; top:-2mm; right:6mm; background:#F4A261; color:white; font-size:8pt; font-weight:700; padding:1mm 3mm; border-radius:4px; white-space:nowrap; }
+
+.habit-cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:4mm; margin-top:3mm; }
+.habit-card { background:white; border:1px solid #EAEAEA; border-left:3px solid #2A9D8F; border-radius:12px; padding:4mm 5mm; }
+.habit-card.amber { border-left-color:#F4A261; }
+.habit-card.red { border-left-color:#B33A3A; }
+.habit-card .habit-title { font-size:11pt; font-weight:700; color:#1A1A1A; margin-bottom:1mm; }
+.habit-card .habit-en { font-size:7pt; color:#8C8C8C; letter-spacing:1px; margin-bottom:3mm; }
+.habit-card .habit-score-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:3mm; }
+.habit-card .habit-score { font-size:14pt; font-weight:700; color:#2A9D8F; }
+.habit-card.amber .habit-score { color:#F4A261; }
+.habit-card.red .habit-score { color:#B33A3A; }
+.habit-card .habit-level { font-size:9pt; color:#8C8C8C; font-weight:700; }
+.habit-card .habit-text { font-size:8.5pt; color:#4B5563; line-height:1.7; }
+
+.card-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:3mm; margin-top:3mm; }
+.exec-card { background:white; border-radius:12px; padding:4mm 3mm; text-align:center; border:1px solid #EAEAEA; word-break:keep-all; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.exec-card .card-icon { width:28px; height:28px; border-radius:50%; background:#E8F5F3; color:#2A9D8F; margin:0 auto 2mm; display:flex; align-items:center; justify-content:center; font-size:10pt; font-weight:700; }
+.exec-card.red .card-icon { background:#FDECEA; color:#B33A3A; }
+.exec-card.amber .card-icon { background:#FEF3E7; color:#F4A261; }
+.exec-card .zh { font-size:10pt; font-weight:700; color:#1A1A1A; margin-bottom:0.5mm; word-break:keep-all; white-space:nowrap; }
+.exec-card .en { font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px; margin-bottom:2mm; word-break:keep-all; white-space:nowrap; }
+.exec-card .val { font-size:22pt; font-weight:700; color:#2A9D8F; font-variant-numeric:tabular-nums; }
+.exec-card.red .val { color:#B33A3A; }
+.exec-card.amber .val { color:#F4A261; }
+.exec-row { margin-top:3mm; }
+
+.cog-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:4mm; margin-top:4mm; }
+.cog-grid .cog-item { background:white; border:1px solid #EAEAEA; border-radius:12px; padding:5mm 4mm; text-align:left; }
+.cog-grid .cog-item .zh { font-size:10pt; font-weight:700; color:#1A1A1A; margin-bottom:1mm; }
+.cog-grid .cog-item .en { font-size:7pt; color:#8C8C8C; letter-spacing:0.5px; margin-bottom:3mm; }
+.cog-grid .cog-item .bar { position:relative; height:8px; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:4px; margin-bottom:3mm; }
+.cog-grid .cog-item .bar .tick-min, .cog-grid .cog-item .bar .tick-max { position:absolute; font-size:7pt; color:#8C8C8C; top:-5mm; }
+.cog-grid .cog-item .bar .tick-min { left:0; }
+.cog-grid .cog-item .bar .tick-max { right:0; }
+.cog-grid .cog-item .bar .value-dot { position:absolute; width:22px; height:22px; background:#1F2937; border-radius:50%; top:50%; transform:translate(-50%, -50%); display:flex; align-items:center; justify-content:center; z-index:2; }
+.cog-grid .cog-item .bar .value-dot span { color:white; font-size:8pt; font-weight:700; }
+.cog-grid .cog-item .pct { text-align:right; font-size:12pt; font-weight:700; color:#2A9D8F; font-variant-numeric:tabular-nums; }
+
+.dist-chart { background:white; border:1px solid #EAEAEA; border-radius:14px; padding:6mm; margin-bottom:5mm; }
+.dist-chart .chart-title { font-size:11pt; font-weight:700; color:#1A1A1A; margin-bottom:1mm; letter-spacing:0.5px; }
+.dist-chart .chart-subtitle { font-size:8pt; color:#8C8C8C; margin-bottom:4mm; }
+
+.holland-code-card { background:#2A9D8F; color:white; border-radius:14px; padding:6mm; text-align:center; margin-bottom:4mm; }
+.holland-code-card .label { font-size:8pt; letter-spacing:2px; text-transform:uppercase; opacity:0.9; margin-bottom:3mm; }
+.holland-code-card .code { font-size:30pt; font-weight:700; letter-spacing:3mm; margin-bottom:2mm; }
+.holland-code-card .sub { font-size:10pt; opacity:0.9; }
+
+.holland-items { margin-top:3mm; }
+.holland-items .h-item { display:flex; align-items:center; padding:2.5mm 3mm; border-radius:10px; background:white; margin-bottom:2.5mm; border:1px solid #EAEAEA; }
+.holland-items .h-item .hl { width:26px; height:26px; background:#2A9D8F; color:white; border-radius:6px; font-size:12pt; font-weight:700; text-align:center; line-height:26px; margin-right:4mm; flex-shrink:0; }
+.holland-items .h-item .text { flex:1; min-width:30mm; }
+.holland-items .h-item .text .zh { font-size:10.5pt; font-weight:700; color:#1A1A1A; }
+.holland-items .h-item .text .en { font-size:7.5pt; color:#8C8C8C; }
+.holland-items .h-item .bar { flex:2; position:relative; height:8px; background:#E5E5E5; border-radius:4px; margin:0 4mm; overflow:visible; }
+.holland-items .h-item .bar .bar-fill { height:100%; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:4px; }
+.holland-items .h-item .bar .value-dot { position:absolute; width:22px; height:22px; background:#1F2937; border-radius:50%; top:50%; left:0; margin-left:-11px; margin-top:-11px; display:flex; align-items:center; justify-content:center; z-index:2; }
+.holland-items .h-item .bar .value-dot span { color:white; font-size:8pt; font-weight:700; }
+
+/* 内驱力页面 P07 */
+.mindset-section { background:white; border:1px solid #EAEAEA; border-radius:14px; padding:5mm 6mm; margin-bottom:5mm; }
+.mindset-header { display:flex; align-items:center; gap:4mm; margin-bottom:4mm; }
+.mindset-title { font-size:11pt; font-weight:700; color:#1A1A1A; }
+.mindset-title-en { font-size:8pt; color:#8C8C8C; letter-spacing:1px; text-transform:uppercase; }
+.mindset-score-row { margin:3mm 0 5mm; text-align:center; }
+.mindset-score { font-size:28pt; font-weight:700; color:#1A1A1A; font-variant-numeric:tabular-nums; }
+.mindset-max { font-size:12pt; color:#8C8C8C; }
+.mindset-slider-wrap { margin-top:4mm; }
+.mindset-slider { position:relative; height:10px; background:linear-gradient(90deg, #B33A3A 0%, #F4A261 50%, #2A9D8F 100%); border-radius:5px; margin-bottom:6mm; }
+.mindset-dot { position:absolute; width:28px; height:28px; background:#1F2937; border-radius:50%; top:50%; left:0; margin-left:-14px; margin-top:-14px; display:flex; align-items:center; justify-content:center; z-index:2; }
+.mindset-labels { display:flex; justify-content:space-between; align-items:flex-start; }
+.mindset-left { text-align:left; }
+.mindset-right { text-align:right; }
+.mindset-center { text-align:center; flex:1; }
+.ms-zh { font-size:9pt; font-weight:600; color:#4B5563; }
+.ms-en { font-size:7pt; color:#8C8C8C; margin-top:0.5mm; }
+.ms-type { font-size:11pt; font-weight:700; color:#2A9D8F; }
+.ms-type-en { font-size:8pt; color:#2A9D8F; margin-top:0.5mm; }
+
+.core-dim-header { display:flex; align-items:center; gap:4mm; margin-bottom:4mm; }
+.core-dim-title { font-size:10pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; }
+.core-dim-en { font-size:8pt; color:#8C8C8C; letter-spacing:1px; }
+.core-dim-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:4mm; }
+.core-dim-card { background:white; border:1px solid #EAEAEA; border-radius:12px; padding:4mm; text-align:center; }
+.cd-label { font-size:10.5pt; font-weight:700; color:#1A1A1A; margin-bottom:1mm; }
+.cd-en { font-size:7pt; color:#8C8C8C; letter-spacing:0.5px; margin-bottom:2mm; }
+.cd-mean { font-size:8pt; color:#F4A261; font-weight:600; margin-bottom:3mm; }
+.cd-slider-wrap { display:flex; align-items:center; gap:2mm; }
+.cd-slider { flex:1; position:relative; height:8px; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:4px; }
+.cd-dot { position:absolute; width:24px; height:24px; background:#1F2937; border-radius:50%; top:50%; left:0; margin-left:-12px; margin-top:-12px; display:flex; align-items:center; justify-content:center; z-index:2; }
+.cd-dot span { color:white; font-size:8pt; font-weight:700; }
+.cd-range { font-size:8pt; color:#8C8C8C; flex-shrink:0; }
+
+/* 能力优势页面 P17 - 纵向进度条 */
+.ability-section { background:white; border:1px solid #EAEAEA; border-radius:14px; padding:4mm 5mm; margin-top:4mm; }
+.ability-list { display:flex; flex-direction:column; gap:2mm; }
+.ability-item { display:flex; align-items:center; }
+.ability-rank { width:28px; height:28px; border-radius:50%; background:#E5E5E5; color:#1A1A1A; font-size:10pt; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ability-rank.max { background:#2A9D8F; color:white; }
+.ability-rank.min { background:#E76F51; color:white; }
+.ability-info { width:38mm; flex-shrink:0; padding:0 3mm; }
+.ability-name { font-size:10pt; font-weight:700; color:#1A1A1A; }
+.ability-en { font-size:7pt; color:#8C8C8C; letter-spacing:0.3px; }
+.ability-bar-wrap { flex:1; }
+.ability-bar { position:relative; height:10px; background:#E5E5E5; border-radius:5px; overflow:visible; }
+.ability-fill { height:100%; background:#F4A261; border-radius:5px; }
+.ability-dot { position:absolute; width:26px; height:26px; background:#1F2937; border-radius:50%; top:50%; left:0; margin-left:-13px; margin-top:-13px; display:flex; align-items:center; justify-content:center; z-index:2; }
+.ability-score { width:18mm; font-size:14pt; font-weight:700; color:#1A1A1A; text-align:right; flex-shrink:0; font-variant-numeric:tabular-nums; }
+.holland-items .h-item .val-wrap { flex:0 0 auto; font-size:12pt; font-weight:700; color:#1A1A1A; min-width:15mm; text-align:right; font-variant-numeric:tabular-nums; }
+.holland-items .h-item .val-wrap small { font-size:8pt; color:#8C8C8C; font-weight:400; }
+
+.top-value-row { display:grid; grid-template-columns:repeat(5, 1fr); gap:3mm; margin-bottom:5mm; }
+.top-value-card { background:#F4A261; border-radius:10px; padding:4mm 3mm; text-align:center; color:white; }
+.top-value-card .rank { font-size:7pt; letter-spacing:1px; opacity:0.95; margin-bottom:1mm; font-weight:600; }
+.top-value-card .name { font-size:9pt; font-weight:700; margin-bottom:2mm; }
+.top-value-card .score { font-size:12pt; font-weight:700; }
+.top-value-card .score small { font-size:8pt; font-weight:500; opacity:0.9; }
+
+.two-col-page { display:grid; grid-template-columns:1fr 1fr; gap:6mm; }
+.two-col-page .col-radar { display:flex; flex-direction:column; }
+.two-col-page .col-list { display:flex; flex-direction:column; }
+
+.radar-chart-wrap { text-align:center; margin:3mm 0; }
+.radar-chart-wrap svg { max-width:100%; margin:0 auto; }
+
+.attachment-types { display:grid; grid-template-columns:repeat(3, 1fr); gap:4mm; margin-bottom:6mm; }
+.attachment-type-card { background:white; border:1px solid #EAEAEA; border-left:3px solid #B33A3A; border-radius:12px; padding:5mm 4mm; text-align:center; }
+.attachment-type-card .role { font-size:11pt; font-weight:700; color:#1A1A1A; margin-bottom:2mm; }
+.attachment-type-card .type { font-size:11pt; color:#B33A3A; font-weight:700; }
+
+.attachment-dim { margin-bottom:5mm; padding-bottom:4mm; border-bottom:1px solid #EAEAEA; }
+.attachment-dim:last-child { border-bottom:none; }
+.dim-header { display:flex; align-items:center; gap:3mm; margin-bottom:3mm; }
+.dim-name { font-size:11pt; font-weight:700; color:#2A9D8F; }
+.dim-en { font-size:8pt; color:#8C8C8C; letter-spacing:1px; }
+
+.attachment-row { display:flex; align-items:center; padding:2mm 0; }
+.ar-label { flex:0 0 25mm; font-size:9.5pt; color:#4B5563; font-weight:500; }
+.ar-who { flex:0 0 18mm; font-size:9.5pt; color:#1A1A1A; font-weight:700; }
+.ar-level { flex:0 0 22mm; font-size:9pt; color:#B33A3A; font-weight:600; }
+.ar-bar-wrap { flex:1; display:flex; align-items:center; gap:2mm; }
+.ar-tick { font-size:7.5pt; color:#8C8C8C; font-weight:500; flex:0 0 auto; }
+.ar-bar { flex:1; height:6px; background:#E5E5E5; border-radius:3px; overflow:hidden; }
+.ar-fill { height:100%; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:3px; }
+
+/* 职业价值观页面 P18 */
+.values-content { margin-top:4mm; }
+.values-col-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
+.values-row { display:flex; align-items:center; padding:1.5mm 0; }
+.values-rank { flex:0 0 28px; width:28px; height:28px; border-radius:50%; background:#E8F5F3; color:#2A9D8F; font-size:10pt; font-weight:700; display:flex; align-items:center; justify-content:center; margin-right:3mm; }
+.values-label { flex:0 0 30mm; }
+.values-label .zh { font-size:9.5pt; font-weight:600; color:#1A1A1A; display:block; }
+.values-label .en { font-size:6.5pt; color:#8C8C8C; letter-spacing:0.3px; }
+.values-slider-wrap { flex:1; margin:0 3mm; }
+.values-bar { position:relative; height:8px; background:#E5E5E5; border-radius:4px; overflow:visible; }
+.values-fill { height:100%; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:4px; }
+.values-dot { position:absolute; width:24px; height:24px; background:#1F2937; border-radius:50%; top:50%; left:0; margin-left:-12px; margin-top:-12px; display:flex; align-items:center; justify-content:center; z-index:2; }
+.values-dot span { color:white; font-size:9pt; font-weight:700; }
+.values-score { flex:0 0 18mm; font-size:12pt; font-weight:700; color:#1A1A1A; text-align:right; font-variant-numeric:tabular-nums; }
+.values-score small { font-size:8pt; color:#8C8C8C; font-weight:400; }
+</style>
+</head>
+<body>
+
+{% for page in pages %}
+<div class="page" data-layout="{{ page.layout }}">
+
+<!-- ============ P01 COVER ============ -->
+{% if page.layout == 'cover' %}
+<div class="cover">
+    <div class="cover-logo"></div>
+    <div class="red-line"></div>
+    <div class="cover-title">{{ page.page_title }}</div>
+    <div class="cover-subtitle">{{ page.subtitle }}</div>
+    <div class="red-line"></div>
+    <div class="info-card">
+        <div class="row"><span class="label">姓　名：</span><span class="value">{{ student.name }}</span></div>
+        <div class="row"><span class="label">年　级：</span><span class="value">{{ student.grade }}</span></div>
+        <div class="row"><span class="label">学　校：</span><span class="value">{{ student.school }}</span></div>
+        <div class="row"><span class="label">测评日期：</span><span class="value" style="color:#B33A3A; font-weight:700;">{{ student.test_date }}</span></div>
+    </div>
+</div>
+
+<!-- ============ P02 Y4 INTRO (文字段落版) ============ -->
+{% elif page.layout == 'y4_intro' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">INTRODUCTION</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="y4-intro">
+    <div class="y4-title">{{ page.page_title }}</div>
+    <div class="y4-en">{{ page.subtitle }}</div>
+    <div class="y4-sep"></div>
+    <div class="y4-content">
+        {% for para in page.paragraphs %}
+        <p>{{ para }}</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ============ SECTION INTRO (P03/P09/P11/P15) ============ -->
+{% elif page.layout == 'section_intro' %}
+<div class="section-intro">
+    <div class="sec-num">{{ page.section_num }}　{{ page.page_title }}</div>
+    <div class="sec-en">{{ page.subtitle }}</div>
+    <div class="sep"></div>
+    <div class="sec-content">
+        {% for para in page.paragraphs %}
+        <p>{{ para }}</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ============ EMOTIONAL STABILITY (P04) ============ -->
+{% elif page.layout == 'emotional_stability' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.subtitle }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.page_en }}</div>
+{% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
+
+<div class="emotion-gauge-section">
+    <div class="emotion-gauge">
+        <svg viewBox="0 0 400 150" style="width:130mm; height:50mm;">
+            <defs>
+                <linearGradient id="emotionGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#B33A3A;stop-opacity:1"/>
+                    <stop offset="50%" style="stop-color:#F4A261;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#2A9D8F;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <path d="{{ page.gauge.full_path }}" fill="none" stroke="#E0E0E0" stroke-width="16" stroke-linecap="round"/>
+            <path d="{{ page.gauge.arc_path }}" fill="none" stroke="url(#emotionGrad)" stroke-width="16" stroke-linecap="round"/>
+            <circle cx="200" cy="130" r="7" fill="#1F2937"/>
+            <circle cx="200" cy="130" r="3.5" fill="#FFFFFF"/>
+            <line x1="200" y1="130" x2="{{ page.gauge.needle_x }}" y2="{{ page.gauge.needle_y }}" stroke="#1F2937" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+    </div>
+    <div class="emotion-score-row">
+        <span class="emotion-total">{{ page.total_score }}</span>
+        <span class="emotion-total-max">/ {{ page.total_max }}</span>
+    </div>
+    <div class="emotion-labels">
+        <div class="emotion-l">
+            <div class="emotion-l-zh">{{ page.level }}</div>
+            <div class="emotion-l-en">Emotional Stability</div>
+        </div>
+        <div class="emotion-r">
+            <div class="emotion-r-label">同龄平均</div>
+            <div class="emotion-r-val">{{ page.peer_avg }}</div>
+        </div>
+    </div>
+</div>
+
+{% for item in page.polarity_items %}
+<div class="polarity-item">
+    <div class="polarity-labels">
+        <div class="pol-left">
+            <div class="pol-zh">{{ item.left }}</div>
+            <div class="pol-en">{{ item.left_en }}</div>
+        </div>
+        <div class="pol-right">
+            <div class="pol-zh">{{ item.right }}</div>
+            <div class="pol-en">{{ item.right_en }}</div>
+        </div>
+    </div>
+    <div class="polarity-bar-wrap">
+        <span class="pol-tick-min">1</span>
+        <div class="polarity-bar">
+            <div class="pol-dot" style="left:{{ item.pct }}%;">
+                <span>{{ item.value }}</span>
+            </div>
+        </div>
+        <span class="pol-tick-max">{{ item.max }}</span>
+    </div>
+</div>
+{% endfor %}
+
+<!-- ============ LIST (P04 情绪稳定性 等) ============ -->
+{% elif page.layout == 'list' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+{% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
+{% for item in page.rows %}
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">{{ item.label }}</div>
+        {% if item.en %}<div class="en-label">{{ item.en }}</div>{% endif %}
+    </div>
+    {% if item.pct is defined %}
+    <div class="slider-wrap">
+        <div class="slider-bar">
+            <span class="tick-min">1</span><span class="tick-max">10</span>
+            <span class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">{{ item.value }}<small> /10.0</small></div>
+    {% else %}
+    <div class="slider-wrap" style="display:none;"></div>
+    <div class="val-wrap" style="font-size:14pt; color:#B33A3A;">{{ item.value }}</div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<!-- ============ SELF CONCEPT (P05) ============ -->
+{% elif page.layout == 'self_concept' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+{% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
+
+<div class="gauge-wrap">
+    <svg class="gauge-svg" viewBox="0 0 400 180">
+        <defs>
+            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
+                <stop offset="50%" style="stop-color:#F4A261;stop-opacity:1"/>
+                <stop offset="100%" style="stop-color:#2A9D8F;stop-opacity:1"/>
+            </linearGradient>
+        </defs>
+        <path d="{{ page.gauge.full_path }}" fill="none" stroke="#E0E0E0" stroke-width="18" stroke-linecap="round"/>
+        <path d="{{ page.gauge.arc_path }}" fill="none" stroke="url(#gaugeGrad)" stroke-width="18" stroke-linecap="round"/>
+        <circle cx="200" cy="160" r="8" fill="#1F2937"/>
+        <circle cx="200" cy="160" r="4" fill="#FFFFFF"/>
+        <line x1="200" y1="160" x2="{{ page.gauge.needle_x }}" y2="{{ page.gauge.needle_y }}" stroke="#1F2937" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+    <div class="gauge-value-line"><span class="g-val">{{ page.gauge.value }}</span><span class="g-max"> / {{ page.gauge.max }}</span></div>
+</div>
+
+{% for item in page.sub_items %}
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">{{ item.label }}</div>
+        {% if item.en %}<div class="en-label">{{ item.en }}</div>{% endif %}
+    </div>
+    <div class="slider-wrap">
+        <div class="slider-bar">
+            <span class="tick-min">1</span><span class="tick-max">10</span>
+            <span class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">{{ item.value }}<small> /10.0</small></div>
+</div>
+{% endfor %}
+
+<!-- ============ ATTACHMENT (P06) ============ -->
+{% elif page.layout == 'attachment' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+{% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
+
+<div class="attachment-types" style="gap:3mm; margin-bottom:4mm;">
+    {% for t in page.types %}
+    <div class="attachment-type-card" style="padding:4mm 3mm;">
+        <div class="role" style="font-size:10pt; margin-bottom:1.5mm;">{{ t.role }}</div>
+        <div class="type" style="font-size:10pt;">{{ t.type }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:4mm; margin-bottom:3mm; letter-spacing:1px;">依恋模式测评详情</div>
+
+{% for dim in page.dimensions %}
+<div class="attachment-dim" style="margin-bottom:3mm; padding-bottom:3mm;">
+    <div class="dim-header" style="margin-bottom:2mm;">
+        <span class="dim-name" style="font-size:10pt;">{{ dim.name }}</span>
+        <span class="dim-en" style="font-size:7.5pt;">{{ dim.en }}</span>
+    </div>
+    {% for item in dim.dim_items %}
+    <div class="progress-item" style="padding:1.5mm 0;">
+        <div class="label-wrap" style="flex:0 0 32mm;">
+            <div class="zh-label" style="font-size:9.5pt;">{{ item.who }}</div>
+        </div>
+        <div class="slider-wrap">
+            <div class="slider-bar">
+                <span class="tick-min">0</span><span class="tick-max">50</span>
+                <span class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></span>
+            </div>
+        </div>
+        <div class="val-wrap" style="font-size:11pt;">{{ item.value }}<small> /50</small></div>
+        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">{{ item.level }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+
+<!-- ============ INNER DRIVE (P07) ============ -->
+{% elif page.layout == 'inner_drive' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.subtitle }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.page_en }}</div>
+{% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
+
+<!-- 思维模式部分 -->
+<div class="mindset-section">
+    <div class="mindset-header">
+        <span class="mindset-title">思维模式</span>
+        <span class="mindset-title-en">MODE OF THINKING</span>
+    </div>
+    <div class="mindset-gauge-wrap" style="text-align:center; margin:4mm 0;">
+        <svg viewBox="0 0 400 180" style="width:100mm; height:45mm;">
+            {% for seg in page.mindset_gauge.arc_segments %}
+            <path d="{{ seg.path }}" fill="none" stroke="{{ seg.color }}" stroke-width="20" stroke-linecap="round"/>
+            {% endfor %}
+            {% for tick in page.mindset_gauge.ticks %}
+            <line x1="{{ tick.x1 }}" y1="{{ tick.y1 }}" x2="{{ tick.x2 }}" y2="{{ tick.y2 }}" stroke="#FFFFFF" stroke-width="{{ 3 if tick.long else 1.5 }}"/>
+            {% endfor %}
+            {% for lbl in page.mindset_gauge.labels %}
+            <text x="{{ lbl.x }}" y="{{ lbl.y }}" text-anchor="middle" font-size="9" fill="#1A1A1A" font-weight="600">{{ lbl.text }}</text>
+            {% endfor %}
+            <line x1="{{ page.mindset_gauge.needle_start_x }}" y1="{{ page.mindset_gauge.needle_start_y }}" x2="{{ page.mindset_gauge.needle_x }}" y2="{{ page.mindset_gauge.needle_y }}" stroke="#1F2937" stroke-width="4" stroke-linecap="round"/>
+            <circle cx="{{ page.mindset_gauge.needle_start_x }}" cy="{{ page.mindset_gauge.needle_start_y }}" r="7" fill="#1F2937"/>
+            <circle cx="{{ page.mindset_gauge.needle_start_x }}" cy="{{ page.mindset_gauge.needle_start_y }}" r="3" fill="#FFFFFF"/>
+            <circle cx="{{ page.mindset_gauge.needle_x }}" cy="{{ page.mindset_gauge.needle_y }}" r="7" fill="#1F2937"/>
+            <circle cx="{{ page.mindset_gauge.needle_x }}" cy="{{ page.mindset_gauge.needle_y }}" r="3" fill="#FFFFFF"/>
+        </svg>
+    </div>
+    <div style="display:flex; justify-content:space-between; margin-top:2mm; padding:0 8mm;">
+        <div style="text-align:left;">
+            <div style="font-size:9.5pt; font-weight:700; color:#2A9D8F;">固定型思维模式</div>
+            <div style="font-size:7pt; color:#2A9D8F; margin-top:0.5mm;">FIXED MINDSET</div>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:9.5pt; font-weight:700; color:#E76F51;">成长型思维模式</div>
+            <div style="font-size:7pt; color:#E76F51; margin-top:0.5mm;">GROWTH MINDSET</div>
+        </div>
+    </div>
+</div>
+
+<!-- 三个核心维度 -->
+<div class="core-dim-header">
+    <span class="core-dim-title">三个核心维度</span>
+    <span class="core-dim-en">THREE CORE DIMENSIONS</span>
+</div>
+<div class="core-dim-grid">
+{% for item in page.core_items %}
+<div class="core-dim-card">
+    <div class="cd-label">{{ item.label }}</div>
+    <div class="cd-en">{{ item.en }}</div>
+    <div class="cd-gauge-wrap">
+        <svg viewBox="0 0 120 120" style="width:28mm; height:28mm;">
+            <path d="{{ item.gauge.full_path }}" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
+            <path d="{{ item.gauge.arc_path }}" fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round"/>
+            <text x="{{ item.gauge.cx }}" y="{{ item.gauge.cy + 5 }}" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A">{{ item.value }}</text>
+        </svg>
+    </div>
+    <div class="cd-range">/ {{ item.max }}</div>
+</div>
+{% endfor %}
+</div>
+
+<!-- ============ BIG FIVE (P08) ============ -->
+{% elif page.layout == 'big_five' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+{% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
+
+<div class="radar-chart-wrap">
+    <svg viewBox="{{ page.radar.viewBox }}">
+        {% for ring in page.radar.rings %}<polygon points="{{ ring }}" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/>{% endfor %}
+        <polygon points="{{ page.radar.polygon_points }}" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2.5"/>
+        {% for ax in page.radar.axes %}<line x1="{{ page.radar.cx }}" y1="{{ page.radar.cy }}" x2="{{ ax.x2 }}" y2="{{ ax.y2 }}" stroke="#E0E0E0" stroke-width="1"/>{% endfor %}
+        {% for dot in page.radar.dots %}<circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="3" fill="#2A9D8F"/>{% endfor %}
+        {% for lbl in page.radar.labels %}<text x="{{ lbl.x }}" y="{{ lbl.y }}" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">{{ lbl.label }}</text><text x="{{ lbl.x }}" y="{{ lbl.y }}" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">{{ lbl.en }}</text><text x="{{ lbl.x }}" y="{{ lbl.y }}" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">{{ lbl.value }}/5.0</text>{% endfor %}
+    </svg>
+</div>
+
+<!-- ============ PHYSICAL HEALTH / BMI (P10) ============ -->
+{% elif page.layout == 'physical_health' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+
+<div class="dark-score-card" style="margin-bottom:5mm;">
+    <div class="left"><div><div class="title">体质健康测评结果</div><div class="subtitle">BMI RESULT</div></div></div>
+    <div class="right">
+        <div class="value-block"><div class="big-val">{{ page.bmi_score }}</div><div class="label">BMI</div></div>
+        <div class="value-block"><div class="level-val">{{ page.bmi_level }}</div><div class="label">LEVEL</div></div>
+    </div>
+</div>
+
+<div class="bmi-section">
+    <div class="bmi-section-title">身体形态等级图</div>
+    <div class="bmi-section-subtitle">· 身高：{{ page.height_cm }}CM　· 体重：{{ page.weight_kg }}KG　· BMI：{{ page.bmi_score }} KG/M²</div>
+    <div class="bmi-figures">
+        {% for fg in page.figures %}
+        <div class="bmi-figure">
+            {% if fg.active %}<span class="current-tag">当前</span>{% endif %}
+            <div class="body-icon-wrap">
+                <i class="fa-solid fa-person body-icon" style="color:{{ fg.color }}; transform: scaleX({{ fg.scale }});"></i>
+            </div>
+            <div class="level-label">{{ fg.level }}</div>
+            <div class="level-en">{{ fg.level_en }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if page.health_description %}
+<div style="font-size:9pt; color:#4B5563; line-height:1.6; margin-top:3mm; padding:3mm; background:#F9FAFB; border-radius:6px;">
+    {{ page.health_description }}
+</div>
+{% endif %}
+
+<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:4mm; margin-bottom:2mm; letter-spacing:1px;">影响体质健康的生活习惯</div>
+<div class="habit-cards">
+    {% for item in page.health_items %}
+    <div class="habit-card{% if loop.index == 1 %} amber{% elif loop.index == 2 %}{% elif loop.index == 3 %} red{% endif %}">
+        <div class="habit-title">{{ item.label }}</div>
+        <div class="habit-en">{{ item.en }}</div>
+        {% if loop.index == 1 %}
+        <div style="font-size:9pt; color:#4B5563; margin-top:2mm;">{{ item.level }}</div>
+        {% else %}
+        <div class="habit-score-row"><span class="habit-score">{{ item.score }}</span><small style="font-size:8pt; color:#8C8C8C;"> /10</small><span class="habit-level" style="margin-left:3mm;">{{ item.level }}</span></div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ============ COGNITIVE (P12) ============ -->
+{% elif page.layout == 'cognitive' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+
+<div class="dark-score-card" style="margin-bottom:5mm;">
+    <div class="left"><div><div class="title">认知能力测评结果</div><div class="subtitle">COGNITIVE ABILITY</div></div></div>
+    <div class="right">
+        <div class="value-block"><div class="big-val">{{ page.total_score }}</div><div class="label">TOTAL</div></div>
+        <div class="value-block"><div class="level-val">{{ page.percentile }}%</div><div class="label">PERCENTILE</div></div>
+    </div>
+</div>
+
+<div class="intro-card" style="margin-bottom:5mm;">{{ page.intro }}</div>
+
+<div class="dist-chart">
+    <div class="chart-title">正态分布图</div>
+    <div class="chart-subtitle">以下为您在同龄群体分数分布上的位置，您在认知能力上的总分超过了 {{ page.percentile }}% 的同龄人</div>
+    <svg viewBox="0 0 500 130" style="width:100%;">
+        <defs>
+            <linearGradient id="distGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#2A9D8F;stop-opacity:0.9"/>
+                <stop offset="100%" style="stop-color:#2A9D8F;stop-opacity:0.4"/>
+            </linearGradient>
+        </defs>
+        <line x1="10" y1="{{ page.dist_svg.base_y }}" x2="490" y2="{{ page.dist_svg.base_y }}" stroke="#D8D8D8" stroke-width="1.5"/>
+        {% for b in page.dist_svg.bars %}<rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="url(#distGrad)" rx="4"/>{% endfor %}
+        <polygon points="{{ page.dist_svg.marker_x - 12 }},{{ page.dist_svg.base_y - 10 }} {{ page.dist_svg.marker_x + 12 }},{{ page.dist_svg.base_y - 10 }} {{ page.dist_svg.marker_x }},{{ page.dist_svg.base_y - 28 }}" fill="#E76F51"/>
+        <rect x="{{ page.dist_svg.marker_x - 35 }}" y="{{ page.dist_svg.base_y - 2 }}" width="70" height="20" rx="5" fill="#E76F51"/>
+        <text x="{{ page.dist_svg.marker_x }}" y="{{ page.dist_svg.base_y + 12 }}" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">{{ page.percentile }}%</text>
+    </svg>
+</div>
+
+<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:3mm; margin-bottom:2mm; letter-spacing:1.5px;">六项子指标百分位</div>
+<div class="cog-grid" style="grid-template-columns:repeat(3, 1fr); gap:3mm;">
+    {% for item in page.cognitive_items %}
+    <div class="cog-item" style="text-align:center; padding:3mm;">
+        <svg viewBox="0 0 140 85" style="width:40mm; height:24mm;">
+            <defs>
+                <linearGradient id="cogGrad{{ loop.index }}" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
+                    <stop offset="50%" style="stop-color:#F4A261;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#2A9D8F;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <path d="{{ item.gauge.full_path }}" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
+            <path d="{{ item.gauge.arc_path }}" fill="none" stroke="url(#cogGrad{{ loop.index }})" stroke-width="8" stroke-linecap="round"/>
+            <circle cx="70" cy="50" r="4" fill="#1F2937"/>
+            <line x1="70" y1="50" x2="{{ item.gauge.needle_x }}" y2="{{ item.gauge.needle_y }}" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <div style="margin-top:1mm;">
+            <div style="font-size:9.5pt; font-weight:700; color:#1A1A1A;">{{ item.label }}</div>
+            <div style="font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px;">{{ item.en }}</div>
+            <div style="font-size:11pt; font-weight:700; color:#2A9D8F; margin-top:0.5mm;">{{ item.value }}<small style="font-size:7pt; color:#8C8C8C;">%</small></div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ============ EXECUTIVE FUNCTIONS (P13) ============ -->
+{% elif page.layout == 'executive' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+
+<div class="radar-chart-wrap" style="margin:3mm 0;">
+    <svg viewBox="{{ page.radar.viewBox }}">
+        {% for ring in page.radar.rings %}<polygon points="{{ ring }}" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/>{% endfor %}
+        <polygon points="{{ page.radar.polygon_points }}" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2"/>
+        {% for ax in page.radar.axes %}<line x1="{{ page.radar.cx }}" y1="{{ page.radar.cy }}" x2="{{ ax.x2 }}" y2="{{ ax.y2 }}" stroke="#E0E0E0" stroke-width="1"/>{% endfor %}
+        {% for dot in page.radar.dots %}<circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="2.5" fill="#2A9D8F"/>{% endfor %}
+        {% for lbl in page.radar.labels %}<text x="{{ lbl.x }}" y="{{ lbl.y }}" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">{{ lbl.label }}</text><text x="{{ lbl.x }}" y="{{ lbl.y }}" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">{{ lbl.en }}</text><text x="{{ lbl.x }}" y="{{ lbl.y }}" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">{{ lbl.value }}%</text>{% endfor %}
+    </svg>
+</div>
+
+<div class="card-row exec-row" style="margin-top:1mm;">
+    {% for item in page.exec_items %}
+    <div class="exec-card {{ item.color }}" style="padding:3mm 2mm;">
+        <div class="card-icon" style="width:24px; height:24px; font-size:9pt; margin:0 auto 1.5mm;">{{ item.label[:1] }}</div>
+        <div class="zh" style="font-size:9pt; margin-bottom:0.3mm;">{{ item.label }}</div>
+        <div class="en" style="font-size:6.5pt; margin-bottom:1.5mm;">{{ item.en }}</div>
+        <div class="val" style="font-size:18pt;">{{ item.value }}<small style="font-size:8pt; color:#8C8C8C;">%</small></div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ============ LEARNING MOTIVATION (P14) ============ -->
+{% elif page.layout == 'learning_motivation' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+{% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
+
+<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:2mm; margin-bottom:2mm; letter-spacing:1.5px;">学习动机　LEARNING MOTIVATION</div>
+{% for item in page.motivation_items %}
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">{{ item.label }}</div>
+        {% if item.en %}<div class="en-label">{{ item.en }}</div>{% endif %}
+    </div>
+    <div class="slider-wrap">
+        <div class="slider-bar red-only">
+            <span class="tick-min">1</span><span class="tick-max">10</span>
+            <span class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">{{ item.value }}<small> /10.0</small></div>
+</div>
+{% endfor %}
+
+<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:4mm; margin-bottom:2mm; letter-spacing:1.5px;">学习方法与策略　LEARNING METHODS</div>
+{% for item in page.strategy_items %}
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">{{ item.label }}</div>
+        {% if item.en %}<div class="en-label">{{ item.en }}</div>{% endif %}
+    </div>
+    <div class="slider-wrap">
+        <div class="slider-bar">
+            <span class="tick-min">1</span><span class="tick-max">10</span>
+            <span class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">{{ item.value }}<small> /10.0</small></div>
+</div>
+{% endfor %}
+
+<!-- ============ HOLLAND (P16) ============ -->
+{% elif page.layout == 'holland' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+{% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
+
+<div class="holland-code-card">
+    <div class="label">YOUR HOLLAND CODE</div>
+    <div class="code">{{ page.code }}</div>
+</div>
+<div class="holland-items">
+{% for item in page.holland_items %}
+<div class="h-item">
+    <div class="hl">{{ item.letter }}</div>
+    <div class="text">
+        <div class="zh">{{ item.label }}</div>
+        <div class="en">{{ item.en }}</div>
+    </div>
+    <div class="bar">
+        <div class="bar-fill" style="width:{{ item.pct }}%;"></div>
+        <div class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></div>
+    </div>
+    <div class="val-wrap">{{ item.value }}<small> /10</small></div>
+</div>
+{% endfor %}
+</div>
+
+<!-- ============ INTELLIGENCES (P17) ============ -->
+{% elif page.layout == 'intelligences' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.subtitle }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.page_en }}</div>
+{% if page.intro %}<div class="intro-card" style="font-size:9pt; line-height:1.5;">{{ page.intro }}</div>{% endif %}
+
+<div class="ability-section">
+    <div class="ability-list">
+        {% for item in page.intelligence_items %}
+        <div class="ability-item">
+            <div class="ability-rank {% if item.is_max %}max{% elif item.is_min %}min{% endif %}">{{ loop.index }}</div>
+            <div class="ability-info">
+                <div class="ability-name">{{ item.label }}</div>
+                <div class="ability-en">{{ item.en }}</div>
+            </div>
+            <div class="ability-bar-wrap">
+                <div class="ability-bar">
+                    <div class="ability-fill" style="width:{{ item.pct }}%;{% if item.is_max %}background:#2A9D8F;{% elif item.is_min %}background:#E76F51;{% else %}background:#F4A261;{% endif %}"></div>
+                    <div class="ability-dot" style="left:{{ item.pct }}%;"></div>
+                </div>
+            </div>
+            <div class="ability-score">{{ item.value }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ============ VALUES TWO COL (P18) ============ -->
+{% elif page.layout == 'values_two_col' %}
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
+    <div class="right">{{ student.name }} · {{ student.test_date }}</div>
+</div>
+<div class="page-title">{{ page.page_title }}</div>
+<div class="page-title-en">{{ page.subtitle_en }}</div>
+{% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
+
+<div class="top-value-row">
+    {% for item in page.top_items %}
+    <div class="top-value-card">
+        <div class="rank">TOP {{ item.rank }}</div>
+        <div class="name">{{ item.label }}</div>
+        <div class="score">{{ item.value }}<small> /10.0</small></div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="values-content">
+    {% for col in page.columns %}
+    <div class="values-col">
+        <div class="values-col-title">{{ col.title }}</div>
+        {% for item in col.rows %}
+        <div class="values-row">
+            <div class="values-rank">{{ item.rank }}</div>
+            <div class="values-label">
+                <span class="zh">{{ item.label }}</span>
+                <span class="en">{{ item.en }}</span>
+            </div>
+            <div class="values-slider-wrap">
+                <div class="values-bar">
+                    <div class="values-fill" style="width:{{ item.pct }}%;"></div>
+                    <div class="values-dot" style="left:{{ item.pct }}%;"></div>
+                </div>
+            </div>
+            <div class="values-score">{{ item.value }}<small>/10.0</small></div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+{% endif %}
+
+</div>
+{% endfor %}
+
+</body>
+</html>

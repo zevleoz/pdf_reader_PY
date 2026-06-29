@@ -1,0 +1,1801 @@
+{
+  "student": {
+    "name": "Samson",
+    "gender": "男",
+    "birthday": "2008-10-7",
+    "test_date": "2026-03-14",
+    "grade": "高一",
+    "school": "SGS",
+    "teacher": "陆稻楚",
+    "archive_id": "M5574454",
+    "report_code": "15314850446"
+  },
+  "pdf_titles": [
+    "A2",
+    "B3",
+    "B4",
+    "B6"
+  ],
+  "schema_124": [
+    {
+      "code": "001",
+      "label": "认知能力总得分",
+      "value": "115",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": "来自 B4 认知能力报告的总分/量表分"
+    },
+    {
+      "code": "002",
+      "label": "认知能力百分位",
+      "value": "84",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": "百分位 0-99"
+    },
+    {
+      "code": "003",
+      "label": "认知能力-感知觉百分位",
+      "value": "92",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "004",
+      "label": "认知能力-注意力百分位",
+      "value": "66",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "005",
+      "label": "认知能力-记忆力百分位",
+      "value": "72",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "006",
+      "label": "认知能力-推理能力百分位",
+      "value": "83",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "007",
+      "label": "认知能力-空间能力百分位",
+      "value": "52",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "008",
+      "label": "认知能力-加工速度百分位",
+      "value": "86",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "009",
+      "label": "情绪稳定性总分",
+      "value": "32.5",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "来自 A2 情绪稳定性报告的总分"
+    },
+    {
+      "code": "010",
+      "label": "情绪稳定性结果档位",
+      "value": "中",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "只写报告里写的原始档位，如 高/中/低，不要写数字"
+    },
+    {
+      "code": "011",
+      "label": "情绪稳定性-自卑自尊得分",
+      "value": "8",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "情绪稳定性四个子项得分之一"
+    },
+    {
+      "code": "012",
+      "label": "情绪稳定性-抑郁愉快得分",
+      "value": "7.5",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "013",
+      "label": "情绪稳定性-焦虑安详得分",
+      "value": "6.5",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "014",
+      "label": "情绪稳定性-无力感掌控感得分",
+      "value": "10.5",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "015",
+      "label": "人格-开放性得分",
+      "value": "3.3",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "人格大五因素的得分（报告里给出的那个数值即可）"
+    },
+    {
+      "code": "016",
+      "label": "人格-宜人性得分",
+      "value": "3.2",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "017",
+      "label": "人格-责任心得分",
+      "value": "2.5",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "018",
+      "label": "人格-外倾性得分",
+      "value": "4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "019",
+      "label": "人格-神经质得分",
+      "value": "3.4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "020",
+      "label": "依恋关系-母亲类型",
+      "value": "安全型",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "依恋类型分类文字，如：安全型 / 专注型 / 轻视型 / 先占型"
+    },
+    {
+      "code": "021",
+      "label": "依恋关系-父亲类型",
+      "value": "安全型",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "022",
+      "label": "依恋关系-同伴类型",
+      "value": "安全型",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "023",
+      "label": "依恋关系-信任-母亲得分",
+      "value": "47",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "满分 50"
+    },
+    {
+      "code": "024",
+      "label": "依恋关系-信任-父亲得分",
+      "value": "32",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "025",
+      "label": "依恋关系-信任-同伴得分",
+      "value": "22",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "026",
+      "label": "依恋关系-沟通-母亲得分",
+      "value": "41",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "满分 45"
+    },
+    {
+      "code": "027",
+      "label": "依恋关系-沟通-父亲得分",
+      "value": "29",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "028",
+      "label": "依恋关系-沟通-同伴得分",
+      "value": "19",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "029",
+      "label": "依恋关系-亲近-母亲得分",
+      "value": "19",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "满分 30"
+    },
+    {
+      "code": "030",
+      "label": "依恋关系-亲近-父亲得分",
+      "value": "12",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "031",
+      "label": "依恋关系-亲近-同伴得分",
+      "value": "14",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "032",
+      "label": "依恋关系-信任-母亲档位",
+      "value": "高",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "必须按分数换算：1-17 → 低；18-34 → 中；35-50 → 高；只写 低/中/高"
+    },
+    {
+      "code": "033",
+      "label": "依恋关系-信任-父亲档位",
+      "value": "中",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "1-17 低 / 18-34 中 / 35-50 高"
+    },
+    {
+      "code": "034",
+      "label": "依恋关系-信任-同伴档位",
+      "value": "低",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "1-17 低 / 18-34 中 / 35-50 高"
+    },
+    {
+      "code": "035",
+      "label": "依恋关系-沟通-母亲档位",
+      "value": "高",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "1-15 低 / 16-30 中 / 31-45 高"
+    },
+    {
+      "code": "036",
+      "label": "依恋关系-沟通-父亲档位",
+      "value": "中",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "1-15 低 / 16-30 中 / 31-45 高"
+    },
+    {
+      "code": "037",
+      "label": "依恋关系-沟通-同伴档位",
+      "value": "低",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "1-15 低 / 16-30 中 / 31-45 高"
+    },
+    {
+      "code": "038",
+      "label": "依恋关系-亲近-母亲档位",
+      "value": "中",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "1-10 低 / 11-20 中 / 21-30 高"
+    },
+    {
+      "code": "039",
+      "label": "依恋关系-亲近-父亲档位",
+      "value": "中",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "1-10 低 / 11-20 中 / 21-30 高"
+    },
+    {
+      "code": "040",
+      "label": "依恋关系-亲近-同伴档位",
+      "value": "中",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "1-10 低 / 11-20 中 / 21-30 高"
+    },
+    {
+      "code": "041",
+      "label": "体质健康-BMI得分",
+      "value": "23",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "BMI 数值"
+    },
+    {
+      "code": "042",
+      "label": "体质健康-BMI等级",
+      "value": "正常",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "报告里写的等级文字，如：偏瘦/正常/超重/肥胖"
+    },
+    {
+      "code": "043",
+      "label": "体质健康-身高cm",
+      "value": "178",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "厘米"
+    },
+    {
+      "code": "044",
+      "label": "体质健康-体重kg",
+      "value": "73",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "公斤"
+    },
+    {
+      "code": "045",
+      "label": "体质健康-饮食习惯得分",
+      "value": "23",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "046",
+      "label": "体质健康-饮食评级",
+      "value": "优",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": "评级文字，如：良好/优秀/一般"
+    },
+    {
+      "code": "047",
+      "label": "体质健康-睡眠习惯得分",
+      "value": "7.1",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "048",
+      "label": "体质健康-睡眠评级",
+      "value": "中等",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "049",
+      "label": "体质健康-运动习惯得分",
+      "value": "11",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "050",
+      "label": "体质健康-运动评级",
+      "value": "优秀",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "A2",
+      "note": ""
+    },
+    {
+      "code": "051",
+      "label": "自我概念整体值",
+      "value": "68",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "052",
+      "label": "自我概念整体档位",
+      "value": "偏高",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": "按 B4 报告原文写档位文字，不要数字"
+    },
+    {
+      "code": "053",
+      "label": "自我概念-行为表现",
+      "value": "9",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "054",
+      "label": "自我概念-能力与学校表现",
+      "value": "8",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "055",
+      "label": "自我概念-躯体外貌",
+      "value": "7",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "056",
+      "label": "自我概念-情绪状态",
+      "value": "4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "057",
+      "label": "自我概念-合群",
+      "value": "6",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "058",
+      "label": "自我概念-幸福与满足",
+      "value": "7",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "059",
+      "label": "思维模式结果",
+      "value": "0",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": "0=固定型思维模式，100=成长型思维模式，可中间值；写数字"
+    },
+    {
+      "code": "060",
+      "label": "自驱力-自主性",
+      "value": "7.4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "061",
+      "label": "自驱力-胜任感",
+      "value": "5.7",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "062",
+      "label": "自驱力-归属感",
+      "value": "8",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": ""
+    },
+    {
+      "code": "063",
+      "label": "执行功能-抑制控制百分位",
+      "value": "50",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": ""
+    },
+    {
+      "code": "064",
+      "label": "执行功能-工作记忆百分位",
+      "value": "77",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": ""
+    },
+    {
+      "code": "065",
+      "label": "执行功能-认知灵活性百分位",
+      "value": "90",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": ""
+    },
+    {
+      "code": "066",
+      "label": "学习动机-深层动机",
+      "value": "4.8",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": ""
+    },
+    {
+      "code": "067",
+      "label": "学习动机-表面动机",
+      "value": "7.6",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": ""
+    },
+    {
+      "code": "068",
+      "label": "学习动机-自我效能感",
+      "value": "8.7",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": ""
+    },
+    {
+      "code": "069",
+      "label": "学习方法与策略-学习深层方法与策略",
+      "value": "4.4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": ""
+    },
+    {
+      "code": "070",
+      "label": "学习方法与策略-学习表面方法与策略",
+      "value": "6.8",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": ""
+    },
+    {
+      "code": "071",
+      "label": "学习方法与策略-学习自我调节",
+      "value": "7.3",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": ""
+    },
+    {
+      "code": "072",
+      "label": "职业兴趣代码",
+      "value": "ESC",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "RIASEC 三字母代码，例如：IES；只写字母"
+    },
+    {
+      "code": "073",
+      "label": "职业兴趣-现实型",
+      "value": "2",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "R"
+    },
+    {
+      "code": "074",
+      "label": "职业兴趣-研究型",
+      "value": "4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "I"
+    },
+    {
+      "code": "075",
+      "label": "职业兴趣-艺术型",
+      "value": "4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "A"
+    },
+    {
+      "code": "076",
+      "label": "职业兴趣-社会型",
+      "value": "7",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "S"
+    },
+    {
+      "code": "077",
+      "label": "职业兴趣-事业型",
+      "value": "9",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "E"
+    },
+    {
+      "code": "078",
+      "label": "职业兴趣-常规型",
+      "value": "4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "C"
+    },
+    {
+      "code": "079",
+      "label": "能力优势-语言能力",
+      "value": "8",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "080",
+      "label": "能力优势-逻辑数学能力",
+      "value": "5",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "081",
+      "label": "能力优势-音乐能力",
+      "value": "3",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "082",
+      "label": "能力优势-空间能力",
+      "value": "4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "083",
+      "label": "能力优势-身体运动能力",
+      "value": "5",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "084",
+      "label": "能力优势-人际关系能力",
+      "value": "7",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "085",
+      "label": "能力优势-内省能力",
+      "value": "6",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "086",
+      "label": "能力优势-自然能力",
+      "value": "2",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "087",
+      "label": "能力优势排序1",
+      "value": "语言能力",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "按分数从高到低排序，第 1 名的能力名称"
+    },
+    {
+      "code": "088",
+      "label": "能力优势排序2",
+      "value": "人际关系能力",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "089",
+      "label": "能力优势排序3",
+      "value": "内省能力",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "090",
+      "label": "能力优势排序4",
+      "value": "身体运动能力",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "091",
+      "label": "能力优势排序5",
+      "value": "逻辑数学能力",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "092",
+      "label": "能力优势排序6",
+      "value": "空间能力",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "093",
+      "label": "能力优势排序7",
+      "value": "音乐能力",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "094",
+      "label": "能力优势排序8",
+      "value": "自然能力",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "095",
+      "label": "职业价值观-创造发明",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "096",
+      "label": "职业价值观-独立自主",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "097",
+      "label": "职业价值观-美的追求",
+      "value": "3.29",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "098",
+      "label": "职业价值观-智力激发",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "099",
+      "label": "职业价值观-利他助人",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "100",
+      "label": "职业价值观-成就感",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "101",
+      "label": "职业价值观-管理权力",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "102",
+      "label": "职业价值观-工作环境",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "103",
+      "label": "职业价值观-同事关系",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "104",
+      "label": "职业价值观-上司关系",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "105",
+      "label": "职业价值观-多样变化",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "106",
+      "label": "职业价值观-经济报酬",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "107",
+      "label": "职业价值观-安全稳定",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "108",
+      "label": "职业价值观-声望地位",
+      "value": "",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "109",
+      "label": "职业价值观-生活方式",
+      "value": "9.39",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "110",
+      "label": "职业价值观排序1",
+      "value": "生活方式",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "按分数从高到低排序，第 1 名的维度名称"
+    },
+    {
+      "code": "111",
+      "label": "职业价值观排序2",
+      "value": "美的追求",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "112",
+      "label": "职业价值观排序3",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "113",
+      "label": "职业价值观排序4",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "114",
+      "label": "职业价值观排序5",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "115",
+      "label": "职业价值观排序6",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "116",
+      "label": "职业价值观排序7",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "117",
+      "label": "职业价值观排序8",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "118",
+      "label": "职业价值观排序9",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "119",
+      "label": "职业价值观排序10",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "120",
+      "label": "职业价值观排序11",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "121",
+      "label": "职业价值观排序12",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "122",
+      "label": "职业价值观排序13",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "123",
+      "label": "职业价值观排序14",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": ""
+    },
+    {
+      "code": "124",
+      "label": "职业价值观排序15",
+      "value": "",
+      "type": "string",
+      "unit": "",
+      "source_pdf": "B6",
+      "note": "按分数从高到低排序，第 15 名的维度名称"
+    }
+  ],
+  "sections": [
+    {
+      "title": "核心素养",
+      "subtitle": "CORE LITERACY",
+      "groups": [
+        {
+          "name": "认知能力",
+          "items": [
+            {
+              "label": "感知觉",
+              "value": 92,
+              "mean": null,
+              "unit": "%",
+              "notes": "认知能力报告",
+              "page": 3
+            },
+            {
+              "label": "注意力",
+              "value": 66,
+              "mean": null,
+              "unit": "%",
+              "notes": "认知能力报告",
+              "page": 3
+            },
+            {
+              "label": "注意力水平",
+              "value": 115,
+              "mean": null,
+              "unit": "",
+              "notes": "认知能力报告",
+              "page": 3
+            },
+            {
+              "label": "记忆力",
+              "value": 72,
+              "mean": null,
+              "unit": "%",
+              "notes": "认知能力报告",
+              "page": 3
+            },
+            {
+              "label": "记忆力 |",
+              "value": 3,
+              "mean": null,
+              "unit": "",
+              "notes": "认知能力报告",
+              "page": 4
+            },
+            {
+              "label": "空间能力",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.6： 空间能力",
+              "value": 5,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 12
+            }
+          ]
+        },
+        {
+          "name": "情绪稳定性",
+          "items": [
+            {
+              "label": "情绪稳定",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "notes": "情绪稳定性报告",
+              "page": 5
+            },
+            {
+              "label": "掌控感",
+              "value": 8,
+              "mean": null,
+              "unit": "",
+              "notes": "情绪稳定性报告",
+              "page": 5
+            }
+          ]
+        },
+        {
+          "name": "人格（大五）",
+          "items": [
+            {
+              "label": "人格",
+              "value": 3.2,
+              "mean": 3,
+              "unit": "分",
+              "notes": "人格报告",
+              "page": 7
+            }
+          ]
+        },
+        {
+          "name": "社会性 / 依恋关系",
+          "items": [
+            {
+              "label": "母亲",
+              "value": 7,
+              "mean": null,
+              "unit": "",
+              "notes": "社会性报告",
+              "page": 9
+            },
+            {
+              "label": "父亲",
+              "value": 7,
+              "mean": null,
+              "unit": "",
+              "notes": "社会性报告",
+              "page": 9
+            },
+            {
+              "label": "同伴",
+              "value": 7,
+              "mean": null,
+              "unit": "",
+              "notes": "社会性报告",
+              "page": 9
+            },
+            {
+              "label": "亲近",
+              "value": 7.4,
+              "mean": null,
+              "unit": "分",
+              "notes": "自驱力报告",
+              "page": 15
+            }
+          ]
+        },
+        {
+          "name": "体质健康",
+          "items": [
+            {
+              "label": "身高",
+              "value": 178,
+              "mean": null,
+              "unit": "CM",
+              "notes": "体质健康报告",
+              "page": 11
+            },
+            {
+              "label": "体重",
+              "value": 73,
+              "mean": null,
+              "unit": "KG",
+              "notes": "体质健康报告",
+              "page": 11
+            },
+            {
+              "label": "睡眠习惯",
+              "value": 7.1,
+              "mean": null,
+              "unit": "小时",
+              "notes": "体质健康报告",
+              "page": 11
+            },
+            {
+              "label": "运动习惯",
+              "value": 11,
+              "mean": null,
+              "unit": "小时",
+              "notes": "体质健康报告",
+              "page": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "核心学习能力",
+      "subtitle": "CORE LEARNING ABILITY",
+      "groups": [
+        {
+          "name": "执行功能",
+          "items": [
+            {
+              "label": "抑制控制",
+              "value": 50,
+              "mean": null,
+              "unit": "%",
+              "notes": "执行功能报告",
+              "page": 3
+            },
+            {
+              "label": "工作记忆",
+              "value": 77,
+              "mean": null,
+              "unit": "%",
+              "notes": "执行功能报告",
+              "page": 3
+            },
+            {
+              "label": "认知灵活性",
+              "value": 90,
+              "mean": null,
+              "unit": "%",
+              "notes": "执行功能报告",
+              "page": 3
+            }
+          ]
+        },
+        {
+          "name": "学习动机",
+          "items": [
+            {
+              "label": "深层动机",
+              "value": 4.8,
+              "mean": 7.4,
+              "unit": "分",
+              "notes": "学习动机报告",
+              "page": 9
+            },
+            {
+              "label": "表面动机",
+              "value": 7.6,
+              "mean": 4.7,
+              "unit": "分",
+              "notes": "学习动机报告",
+              "page": 9
+            },
+            {
+              "label": "自我效能感",
+              "value": 8.7,
+              "mean": 8.1,
+              "unit": "分",
+              "notes": "学习动机报告",
+              "page": 9
+            }
+          ]
+        },
+        {
+          "name": "学习方法与策略",
+          "items": [
+            {
+              "label": "学习深层方法与策略",
+              "value": 4.4,
+              "mean": 7.8,
+              "unit": "分",
+              "notes": "学习方法与策略报告",
+              "page": 11
+            },
+            {
+              "label": "学习表面方法与策略",
+              "value": 6.8,
+              "mean": 4.7,
+              "unit": "分",
+              "notes": "学习方法与策略报告",
+              "page": 11
+            },
+            {
+              "label": "学习自我调节",
+              "value": 7.3,
+              "mean": 6.3,
+              "unit": "分",
+              "notes": "学习方法与策略报告",
+              "page": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "核心认知能力 & 成长型思维",
+      "subtitle": "CORE COGNITIVE ABILITY & GROWTH MINDSET",
+      "groups": [
+        {
+          "name": "认知能力六项子指标",
+          "items": [
+            {
+              "label": "感知觉",
+              "value": 92,
+              "mean": null,
+              "unit": "%",
+              "notes": "认知能力报告",
+              "page": 3
+            },
+            {
+              "label": "注意力",
+              "value": 66,
+              "mean": null,
+              "unit": "%",
+              "notes": "认知能力报告",
+              "page": 3
+            },
+            {
+              "label": "注意力水平",
+              "value": 115,
+              "mean": null,
+              "unit": "",
+              "notes": "认知能力报告",
+              "page": 3
+            },
+            {
+              "label": "记忆力",
+              "value": 72,
+              "mean": null,
+              "unit": "%",
+              "notes": "认知能力报告",
+              "page": 3
+            },
+            {
+              "label": "记忆力 |",
+              "value": 3,
+              "mean": null,
+              "unit": "",
+              "notes": "认知能力报告",
+              "page": 4
+            },
+            {
+              "label": "空间能力",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.6： 空间能力",
+              "value": 5,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 12
+            }
+          ]
+        },
+        {
+          "name": "自驱力（内在动机）",
+          "items": [
+            {
+              "label": "固定型思维模式",
+              "value": 11,
+              "mean": null,
+              "unit": "",
+              "notes": "自我概念报告",
+              "page": 13
+            },
+            {
+              "label": "成长型思维模式",
+              "value": 11,
+              "mean": null,
+              "unit": "",
+              "notes": "自我概念报告",
+              "page": 13
+            },
+            {
+              "label": "自主性",
+              "value": 7.4,
+              "mean": 5.9,
+              "unit": "分",
+              "notes": "自驱力报告",
+              "page": 15
+            },
+            {
+              "label": "胜任感",
+              "value": 5.7,
+              "mean": 6.3,
+              "unit": "分",
+              "notes": "自驱力报告",
+              "page": 15
+            },
+            {
+              "label": "归属感",
+              "value": 8,
+              "mean": 6.8,
+              "unit": "分",
+              "notes": "自驱力报告",
+              "page": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "职业发展",
+      "subtitle": "CAREER DEVELOPMENT",
+      "groups": [
+        {
+          "name": "职业兴趣 Holland 六型",
+          "items": [
+            {
+              "label": "事业型",
+              "value": 1,
+              "mean": null,
+              "unit": "",
+              "notes": "职业兴趣报告",
+              "page": 3
+            },
+            {
+              "label": "NO.1： 事业型",
+              "value": 2,
+              "mean": null,
+              "unit": "",
+              "notes": "职业兴趣报告",
+              "page": 5
+            },
+            {
+              "label": "感，与事业型兴趣相匹",
+              "value": 1,
+              "mean": null,
+              "unit": "",
+              "notes": "职业价值观报告",
+              "page": 22
+            },
+            {
+              "label": "社会型",
+              "value": 1,
+              "mean": null,
+              "unit": "",
+              "notes": "职业兴趣报告",
+              "page": 3
+            },
+            {
+              "label": "NO.2： 社会型",
+              "value": 9,
+              "mean": null,
+              "unit": "分",
+              "notes": "职业兴趣报告",
+              "page": 5
+            },
+            {
+              "label": "研究型",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "notes": "职业兴趣报告",
+              "page": 4
+            },
+            {
+              "label": "NO.4： 研究型",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "notes": "职业兴趣报告",
+              "page": 6
+            },
+            {
+              "label": "常规型",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "notes": "职业兴趣报告",
+              "page": 4
+            },
+            {
+              "label": "NO.3： 常规型",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "notes": "职业兴趣报告",
+              "page": 6
+            },
+            {
+              "label": "艺术型",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "notes": "职业兴趣报告",
+              "page": 4
+            },
+            {
+              "label": "NO.5： 艺术型",
+              "value": 6,
+              "mean": null,
+              "unit": "",
+              "notes": "职业兴趣报告",
+              "page": 7
+            },
+            {
+              "label": "现实型",
+              "value": 2,
+              "mean": null,
+              "unit": "",
+              "notes": "职业兴趣报告",
+              "page": 4
+            },
+            {
+              "label": "NO.6： 现实型",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "notes": "职业兴趣报告",
+              "page": 7
+            }
+          ]
+        },
+        {
+          "name": "能力优势（多元智能）",
+          "items": [
+            {
+              "label": "语言能力",
+              "value": 2,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.1： 语言能力",
+              "value": 2,
+              "mean": null,
+              "unit": "",
+              "notes": "能力优势报告",
+              "page": 10
+            },
+            {
+              "label": "人际关系能力",
+              "value": 7,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.2： 人际关系能力",
+              "value": 8,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 10
+            },
+            {
+              "label": "内省能力",
+              "value": 6,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.3： 内省能力",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "notes": "能力优势报告",
+              "page": 11
+            },
+            {
+              "label": "身体运动能力",
+              "value": 5,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.4： 身体运动能力",
+              "value": 6,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 11
+            },
+            {
+              "label": "逻辑数学能力",
+              "value": 5,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.5： 逻辑数学能力",
+              "value": 6,
+              "mean": null,
+              "unit": "",
+              "notes": "能力优势报告",
+              "page": 12
+            },
+            {
+              "label": "空间能力",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.6： 空间能力",
+              "value": 5,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 12
+            },
+            {
+              "label": "音乐能力",
+              "value": 3,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.7： 音乐能力",
+              "value": 8,
+              "mean": null,
+              "unit": "",
+              "notes": "能力优势报告",
+              "page": 13
+            },
+            {
+              "label": "自然能力",
+              "value": 3,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.8： 自然能力",
+              "value": 3,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 13
+            }
+          ]
+        },
+        {
+          "name": "职业价值观",
+          "items": [
+            {
+              "label": "人际关系能力",
+              "value": 7,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 8
+            },
+            {
+              "label": "NO.2： 人际关系能力",
+              "value": 8,
+              "mean": null,
+              "unit": "分",
+              "notes": "能力优势报告",
+              "page": 10
+            },
+            {
+              "label": "生活方式",
+              "value": 3.29,
+              "mean": null,
+              "unit": "",
+              "notes": "职业价值观报告",
+              "page": 14
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "vision": {
+    "provider": "none",
+    "model": "qwen-vl-max",
+    "count_124": 100
+  }
+}

@@ -1,0 +1,368 @@
+{
+  "provider": "openai-compat",
+  "applied_override": 1,
+  "items_per_pdf": {
+    "A2": {
+      "pages": [
+        2,
+        3
+      ],
+      "vision_items": [
+        {
+          "label": "认知能力总分",
+          "value": 129,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "情绪稳定性",
+          "value": 62.5,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "人格",
+          "value": 3.3,
+          "mean": null,
+          "unit": ""
+        },
+        {
+          "label": "依恋安全型",
+          "value": 87,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "BMI",
+          "value": 22.5,
+          "mean": null,
+          "unit": "kg/m²"
+        },
+        {
+          "label": "身高",
+          "value": 178,
+          "mean": null,
+          "unit": "cm"
+        },
+        {
+          "label": "体重",
+          "value": 73,
+          "mean": null,
+          "unit": "kg"
+        },
+        {
+          "label": "睡眠习惯",
+          "value": 7.1,
+          "mean": null,
+          "unit": "h"
+        },
+        {
+          "label": "运动习惯",
+          "value": 11,
+          "mean": null,
+          "unit": "次/周"
+        },
+        {
+          "label": "体质健康",
+          "value": 88,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "认知能力总分",
+          "value": 129,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "情绪稳定性",
+          "value": 62.5,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "人格",
+          "value": 3.3,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "依恋安全型",
+          "value": 87,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "BMI",
+          "value": 22.5,
+          "mean": null,
+          "unit": "kg/m²"
+        },
+        {
+          "label": "身高",
+          "value": 178,
+          "mean": null,
+          "unit": "cm"
+        },
+        {
+          "label": "体重",
+          "value": 73,
+          "mean": null,
+          "unit": "kg"
+        },
+        {
+          "label": "睡眠习惯",
+          "value": 7.1,
+          "mean": null,
+          "unit": "h"
+        },
+        {
+          "label": "运动习惯",
+          "value": 11,
+          "mean": null,
+          "unit": "次/周"
+        }
+      ]
+    },
+    "B3": {
+      "pages": [
+        2,
+        3
+      ],
+      "vision_items": [
+        {
+          "label": "执行功能",
+          "value": 82,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "学习动机",
+          "value": 71,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "学习深层策略",
+          "value": 76,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "学业自信",
+          "value": 68,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "执行功能",
+          "value": 82,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "学习动机",
+          "value": 71,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "学习深层策略",
+          "value": 76,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "学业自信",
+          "value": 68,
+          "mean": null,
+          "unit": "分"
+        }
+      ]
+    },
+    "B4": {
+      "pages": [
+        2,
+        3
+      ],
+      "vision_items": [
+        {
+          "label": "认知能力",
+          "value": 129,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "成长型思维",
+          "value": 7.6,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "自主性",
+          "value": 7.4,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "胜任感",
+          "value": 5.7,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "归属感",
+          "value": 8.0,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "认知能力",
+          "value": 129,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "成长型思维",
+          "value": 7.6,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "自主性",
+          "value": 7.4,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "胜任感",
+          "value": 5.7,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "归属感",
+          "value": 8.0,
+          "mean": null,
+          "unit": "分"
+        }
+      ]
+    },
+    "B6": {
+      "pages": [
+        2,
+        3
+      ],
+      "vision_items": [
+        {
+          "label": "事业型",
+          "value": 75,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "社会型",
+          "value": 82,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "研究型",
+          "value": 68,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "常规型",
+          "value": 45,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "艺术型",
+          "value": 51,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "现实型",
+          "value": 58,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "语言能力",
+          "value": 78,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "人际关系能力",
+          "value": 81,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "内省能力",
+          "value": 65,
+          "mean": null,
+          "unit": "%"
+        },
+        {
+          "label": "事业型",
+          "value": 75,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "社会型",
+          "value": 82,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "研究型",
+          "value": 68,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "常规型",
+          "value": 45,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "艺术型",
+          "value": 51,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "现实型",
+          "value": 58,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "语言能力",
+          "value": 78,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "人际关系能力",
+          "value": 81,
+          "mean": null,
+          "unit": "分"
+        },
+        {
+          "label": "内省能力",
+          "value": 65,
+          "mean": null,
+          "unit": "分"
+        }
+      ]
+    }
+  }
+}

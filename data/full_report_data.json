@@ -1,0 +1,2038 @@
+{
+  "student": {
+    "name": "Samson",
+    "gender": "男",
+    "birthday": "2008-10-7",
+    "test_date": "2026-03-14",
+    "grade": "高一",
+    "school": "SGS",
+    "teacher": "陆稻楚",
+    "archive_id": "M5574454",
+    "report_code": "15314850446"
+  },
+  "pdf_titles": [
+    "A2 核心素养_Samson_2026031415314850446(1)",
+    "B3 核心学习能力_Samson_2026031417084772022(1)",
+    "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)",
+    "B6 职业发展_Samson_2026031417271196372(1)"
+  ],
+  "total_metrics": 97,
+  "sections": [
+    {
+      "title": "A2 核心素养_Samson_2026031415314850446(1)",
+      "subtitle": "A2 核心素养_SAMSON_2026031415314850446(1)",
+      "groups": [
+        {
+          "name": "主要指标",
+          "items": [
+            {
+              "label": "BMI",
+              "value": 5,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "体质健康报告",
+              "page": 11,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "个分测验中的总得",
+              "value": 32.5,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "情绪稳定性报告",
+              "page": 5,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "人的平均",
+              "value": 40,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "情绪稳定性报告",
+              "page": 5,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "体重",
+              "value": 73,
+              "mean": null,
+              "unit": "KG",
+              "grade": "",
+              "notes": "体质健康报告",
+              "page": 11,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "均分是",
+              "value": 3.2,
+              "mean": 3,
+              "unit": "分",
+              "grade": "",
+              "notes": "人格报告",
+              "page": 7,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "大五人格测验包括开放性",
+              "value": 3.3,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "人格报告",
+              "page": 7,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "得分分别是",
+              "value": 12,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "社会性报告",
+              "page": 9,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "您和母亲",
+              "value": 41,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "社会性报告",
+              "page": 9,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "您在",
+              "value": 2.5,
+              "mean": 3,
+              "unit": "分",
+              "grade": "",
+              "notes": "人格报告",
+              "page": 7,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "情绪不稳定性测验包括总分",
+              "value": 32.5,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "情绪稳定性报告",
+              "page": 5,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "情绪不稳定性测验包括自卑",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "情绪稳定性报告",
+              "page": 5,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "情绪稳定",
+              "value": 8,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "情绪稳定性报告",
+              "page": 5,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "感知觉",
+              "value": 92,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 3,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "注意力",
+              "value": 66,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 3,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "注意力水平。",
+              "value": 115,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 3,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "睡眠习惯（每天小时）",
+              "value": 7.1,
+              "mean": null,
+              "unit": "小时",
+              "grade": "",
+              "notes": "体质健康报告",
+              "page": 11,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "能力上的总",
+              "value": 84,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 3,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "记忆力",
+              "value": 72,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 3,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "身高",
+              "value": 178,
+              "mean": null,
+              "unit": "CM",
+              "grade": "",
+              "notes": "体质健康报告",
+              "page": 11,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "运动习惯（每周小时）",
+              "value": 11,
+              "mean": null,
+              "unit": "小时",
+              "grade": "",
+              "notes": "体质健康报告",
+              "page": 11,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "运动量情况。",
+              "value": 23,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "体质健康报告",
+              "page": 11,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+            },
+            {
+              "label": "总得分",
+              "value": 84,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 3,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "B3 核心学习能力_Samson_2026031417084772022(1)",
+      "subtitle": "B3 核心学习能力_SAMSON_2026031417084772022(1)",
+      "groups": [
+        {
+          "name": "主要指标",
+          "items": [
+            {
+              "label": "学习深层方法与策略",
+              "value": 4.4,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习方法与策略报告",
+              "page": 11,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "学习自我调节",
+              "value": 7.3,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习方法与策略报告",
+              "page": 11,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "学习表面方法与策略",
+              "value": 6.8,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习方法与策略报告",
+              "page": 11,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "工作记忆",
+              "value": 77,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "执行功能报告",
+              "page": 3,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "您在工作记忆上的总",
+              "value": 77,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "工作记忆报告",
+              "page": 5,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "您在抑制控制上的总",
+              "value": 50,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "抑制控制报告",
+              "page": 4,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "您在认知灵活性上的总",
+              "value": 90,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "认知灵活性报告",
+              "page": 6,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "我的得分",
+              "value": 8.1,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习动机报告",
+              "page": 9,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "抑制控制",
+              "value": 50,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "执行功能报告",
+              "page": 3,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "深层动机",
+              "value": 4.8,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习动机报告",
+              "page": 9,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "自我效能感",
+              "value": 8.7,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习动机报告",
+              "page": 9,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "表面动机",
+              "value": 7.6,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习动机报告",
+              "page": 9,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "认知灵活性",
+              "value": 90,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "执行功能报告",
+              "page": 3,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+            },
+            {
+              "label": "平均得",
+              "value": 7.4,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习动机报告",
+              "page": 9,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            },
+            {
+              "label": "我的得",
+              "value": 4.8,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习动机报告",
+              "page": 9,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)",
+      "subtitle": "B4 核心认知能力和成长型思维_SAMSON_2026031416112834275(1)",
+      "groups": [
+        {
+          "name": "主要指标",
+          "items": [
+            {
+              "label": "总得分",
+              "value": 84,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 3,
+              "pdf": "A2 核心素养_Samson_2026031415314850446(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            },
+            {
+              "label": "平均得",
+              "value": 7.4,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习动机报告",
+              "page": 9,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            },
+            {
+              "label": "我的得",
+              "value": 4.8,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "学习动机报告",
+              "page": 9,
+              "pdf": "B3 核心学习能力_Samson_2026031417084772022(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            },
+            {
+              "label": "--反应时--正确率",
+              "value": 38,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "加工速度报告",
+              "page": 10,
+              "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            },
+            {
+              "label": "偏高",
+              "value": 68,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "自我概念报告",
+              "page": 11,
+              "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            },
+            {
+              "label": "兴趣狭窄，词汇匮乏，语言简单",
+              "value": 115,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 3,
+              "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            },
+            {
+              "label": "幸福与满足",
+              "value": 9,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "自我概念报告",
+              "page": 11,
+              "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            },
+            {
+              "label": "百分位（%）",
+              "value": 92,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 4,
+              "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            },
+            {
+              "label": "认知能力上的总",
+              "value": 84,
+              "mean": null,
+              "unit": "%",
+              "grade": "",
+              "notes": "认知能力报告",
+              "page": 3,
+              "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "B6 职业发展_Samson_2026031417271196372(1)",
+      "subtitle": "B6 职业发展_SAMSON_2026031417271196372(1)",
+      "groups": [
+        {
+          "name": "主要指标",
+          "items": [
+            {
+              "label": "NO.2： 社会型 Social",
+              "value": 9,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "职业兴趣报告",
+              "page": 5,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "NO.4： 研究型 Investigative",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "职业兴趣报告",
+              "page": 6,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "NO.6： 现实型 Realistic",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "职业兴趣报告",
+              "page": 7,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "事业型（领导者）",
+              "value": 9,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业兴趣报告",
+              "page": 4,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "人际关系能力",
+              "value": 7,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "能力优势报告",
+              "page": 8,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "企业家/创业者",
+              "value": 2,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 20,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "公共演讲与辩论课程",
+              "value": 5,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 21,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "公关专员",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 18,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "公关经理/品牌经理",
+              "value": 5,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 20,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "内省能力",
+              "value": 6,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "能力优势报告",
+              "page": 8,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "写作工作坊",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 19,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "分情况如下：",
+              "value": 9.39,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 14,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "创业家/企业家",
+              "value": 1,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 22,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "动能力、人际关系能力、内省能力和自然能力。",
+              "value": 8,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "能力优势报告",
+              "page": 8,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "医生/外科医生",
+              "value": 8,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 22,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "哲学思维班",
+              "value": 5,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 23,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "商业模拟与挑战班",
+              "value": 2,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 19,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "商业策划与管理班",
+              "value": 3,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 23,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "市场营销专员",
+              "value": 3,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 18,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "市场营销经理",
+              "value": 6,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 20,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "师）",
+              "value": 3,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 20,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "常规型（遵循者）",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业兴趣报告",
+              "page": 4,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "广告文案策划",
+              "value": 2,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 18,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "律师",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 22,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "律师或律师助理",
+              "value": 7,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 18,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "心理学探究班",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 23,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "情商与领导力课程",
+              "value": 1,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 23,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "战略咨询）",
+              "value": 7,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 20,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "投资银行家",
+              "value": 2,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 22,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "教育咨询师",
+              "value": 8,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 18,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "模拟联合国/国际关系班",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 21,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "演讲与辩论班",
+              "value": 1,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 19,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "现实型（实干家）",
+              "value": 2,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业兴趣报告",
+              "page": 4,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "生活方式",
+              "value": 3.29,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 14,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "生涯规划与自我探索",
+              "value": 6,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 23,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "研究型（思想家）",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业兴趣报告",
+              "page": 4,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "社交礼仪班",
+              "value": 3,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 21,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "社会型（助人者）",
+              "value": 7,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业兴趣报告",
+              "page": 4,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "空间能力",
+              "value": 4,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "能力优势报告",
+              "page": 8,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "管理顾问",
+              "value": 3,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 22,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "翻译/口译员",
+              "value": 5,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 18,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "自然能力",
+              "value": 2,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "能力优势报告",
+              "page": 8,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "艺术型（创造者）",
+              "value": 4,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业兴趣报告",
+              "page": 4,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "记者",
+              "value": 1,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 18,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "语言能力",
+              "value": 2,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "能力优势报告",
+              "page": 8,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "财务分析师",
+              "value": 7,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 22,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "身体运动能力",
+              "value": 5,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "能力优势报告",
+              "page": 8,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "软件工程师",
+              "value": 6,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 22,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "逻辑数学能力",
+              "value": 5,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "能力优势报告",
+              "page": 8,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "销售代表",
+              "value": 6,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 18,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "销售经理/销售总监",
+              "value": 1,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 20,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "青年领袖训练营",
+              "value": 2,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 23,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "音乐能力",
+              "value": 3,
+              "mean": null,
+              "unit": "分",
+              "grade": "",
+              "notes": "能力优势报告",
+              "page": 8,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            },
+            {
+              "label": "领导力培训课程",
+              "value": 3,
+              "mean": null,
+              "unit": "",
+              "grade": "",
+              "notes": "职业价值观报告",
+              "page": 19,
+              "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "flat_metrics": [
+    {
+      "label": "BMI",
+      "value": 5,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "体质健康报告",
+      "page": 11,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "个分测验中的总得",
+      "value": 32.5,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "情绪稳定性报告",
+      "page": 5,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "人的平均",
+      "value": 40,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "情绪稳定性报告",
+      "page": 5,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "体重",
+      "value": 73,
+      "mean": null,
+      "unit": "KG",
+      "grade": "",
+      "notes": "体质健康报告",
+      "page": 11,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "均分是",
+      "value": 3.2,
+      "mean": 3,
+      "unit": "分",
+      "grade": "",
+      "notes": "人格报告",
+      "page": 7,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "大五人格测验包括开放性",
+      "value": 3.3,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "人格报告",
+      "page": 7,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "得分分别是",
+      "value": 12,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "社会性报告",
+      "page": 9,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "您和母亲",
+      "value": 41,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "社会性报告",
+      "page": 9,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "您在",
+      "value": 2.5,
+      "mean": 3,
+      "unit": "分",
+      "grade": "",
+      "notes": "人格报告",
+      "page": 7,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "情绪不稳定性测验包括总分",
+      "value": 32.5,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "情绪稳定性报告",
+      "page": 5,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "情绪不稳定性测验包括自卑",
+      "value": 4,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "情绪稳定性报告",
+      "page": 5,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "情绪稳定",
+      "value": 8,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "情绪稳定性报告",
+      "page": 5,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "感知觉",
+      "value": 92,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "认知能力报告",
+      "page": 3,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "注意力",
+      "value": 66,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "认知能力报告",
+      "page": 3,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "注意力水平。",
+      "value": 115,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "认知能力报告",
+      "page": 3,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "睡眠习惯（每天小时）",
+      "value": 7.1,
+      "mean": null,
+      "unit": "小时",
+      "grade": "",
+      "notes": "体质健康报告",
+      "page": 11,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "能力上的总",
+      "value": 84,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "认知能力报告",
+      "page": 3,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "记忆力",
+      "value": 72,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "认知能力报告",
+      "page": 3,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "身高",
+      "value": 178,
+      "mean": null,
+      "unit": "CM",
+      "grade": "",
+      "notes": "体质健康报告",
+      "page": 11,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "运动习惯（每周小时）",
+      "value": 11,
+      "mean": null,
+      "unit": "小时",
+      "grade": "",
+      "notes": "体质健康报告",
+      "page": 11,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "运动量情况。",
+      "value": 23,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "体质健康报告",
+      "page": 11,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1)"
+    },
+    {
+      "label": "总得分",
+      "value": 84,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "认知能力报告",
+      "page": 3,
+      "pdf": "A2 核心素养_Samson_2026031415314850446(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+    },
+    {
+      "label": "学习深层方法与策略",
+      "value": 4.4,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "学习方法与策略报告",
+      "page": 11,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "学习自我调节",
+      "value": 7.3,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "学习方法与策略报告",
+      "page": 11,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "学习表面方法与策略",
+      "value": 6.8,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "学习方法与策略报告",
+      "page": 11,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "工作记忆",
+      "value": 77,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "执行功能报告",
+      "page": 3,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "您在工作记忆上的总",
+      "value": 77,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "工作记忆报告",
+      "page": 5,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "您在抑制控制上的总",
+      "value": 50,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "抑制控制报告",
+      "page": 4,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "您在认知灵活性上的总",
+      "value": 90,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "认知灵活性报告",
+      "page": 6,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "我的得分",
+      "value": 8.1,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "学习动机报告",
+      "page": 9,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "抑制控制",
+      "value": 50,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "执行功能报告",
+      "page": 3,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "深层动机",
+      "value": 4.8,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "学习动机报告",
+      "page": 9,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "自我效能感",
+      "value": 8.7,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "学习动机报告",
+      "page": 9,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "表面动机",
+      "value": 7.6,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "学习动机报告",
+      "page": 9,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "认知灵活性",
+      "value": 90,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "执行功能报告",
+      "page": 3,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1)"
+    },
+    {
+      "label": "平均得",
+      "value": 7.4,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "学习动机报告",
+      "page": 9,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+    },
+    {
+      "label": "我的得",
+      "value": 4.8,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "学习动机报告",
+      "page": 9,
+      "pdf": "B3 核心学习能力_Samson_2026031417084772022(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1) | B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+    },
+    {
+      "label": "--反应时--正确率",
+      "value": 38,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "加工速度报告",
+      "page": 10,
+      "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+    },
+    {
+      "label": "偏高",
+      "value": 68,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "自我概念报告",
+      "page": 11,
+      "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+    },
+    {
+      "label": "兴趣狭窄，词汇匮乏，语言简单",
+      "value": 115,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "认知能力报告",
+      "page": 3,
+      "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+    },
+    {
+      "label": "幸福与满足",
+      "value": 9,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "自我概念报告",
+      "page": 11,
+      "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+    },
+    {
+      "label": "百分位（%）",
+      "value": 92,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "认知能力报告",
+      "page": 4,
+      "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+    },
+    {
+      "label": "认知能力上的总",
+      "value": 84,
+      "mean": null,
+      "unit": "%",
+      "grade": "",
+      "notes": "认知能力报告",
+      "page": 3,
+      "pdf": "B4 核心认知能力和成长型思维_Samson_2026031416112834275(1)"
+    },
+    {
+      "label": "NO.2： 社会型 Social",
+      "value": 9,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "职业兴趣报告",
+      "page": 5,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "NO.4： 研究型 Investigative",
+      "value": 4,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "职业兴趣报告",
+      "page": 6,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "NO.6： 现实型 Realistic",
+      "value": 4,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "职业兴趣报告",
+      "page": 7,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "事业型（领导者）",
+      "value": 9,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业兴趣报告",
+      "page": 4,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "人际关系能力",
+      "value": 7,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "能力优势报告",
+      "page": 8,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "企业家/创业者",
+      "value": 2,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 20,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "公共演讲与辩论课程",
+      "value": 5,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 21,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "公关专员",
+      "value": 4,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 18,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "公关经理/品牌经理",
+      "value": 5,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 20,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "内省能力",
+      "value": 6,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "能力优势报告",
+      "page": 8,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "写作工作坊",
+      "value": 4,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 19,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "分情况如下：",
+      "value": 9.39,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 14,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "创业家/企业家",
+      "value": 1,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 22,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "动能力、人际关系能力、内省能力和自然能力。",
+      "value": 8,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "能力优势报告",
+      "page": 8,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "医生/外科医生",
+      "value": 8,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 22,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "哲学思维班",
+      "value": 5,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 23,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "商业模拟与挑战班",
+      "value": 2,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 19,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "商业策划与管理班",
+      "value": 3,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 23,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "市场营销专员",
+      "value": 3,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 18,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "市场营销经理",
+      "value": 6,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 20,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "师）",
+      "value": 3,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 20,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "常规型（遵循者）",
+      "value": 4,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业兴趣报告",
+      "page": 4,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "广告文案策划",
+      "value": 2,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 18,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "律师",
+      "value": 4,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 22,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "律师或律师助理",
+      "value": 7,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 18,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "心理学探究班",
+      "value": 4,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 23,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "情商与领导力课程",
+      "value": 1,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 23,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "战略咨询）",
+      "value": 7,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 20,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "投资银行家",
+      "value": 2,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 22,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "教育咨询师",
+      "value": 8,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 18,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "模拟联合国/国际关系班",
+      "value": 4,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 21,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "演讲与辩论班",
+      "value": 1,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 19,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "现实型（实干家）",
+      "value": 2,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业兴趣报告",
+      "page": 4,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "生活方式",
+      "value": 3.29,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 14,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "生涯规划与自我探索",
+      "value": 6,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 23,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "研究型（思想家）",
+      "value": 4,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业兴趣报告",
+      "page": 4,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "社交礼仪班",
+      "value": 3,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 21,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "社会型（助人者）",
+      "value": 7,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业兴趣报告",
+      "page": 4,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "空间能力",
+      "value": 4,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "能力优势报告",
+      "page": 8,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "管理顾问",
+      "value": 3,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 22,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "翻译/口译员",
+      "value": 5,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 18,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "自然能力",
+      "value": 2,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "能力优势报告",
+      "page": 8,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "艺术型（创造者）",
+      "value": 4,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业兴趣报告",
+      "page": 4,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "记者",
+      "value": 1,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 18,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "语言能力",
+      "value": 2,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "能力优势报告",
+      "page": 8,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "财务分析师",
+      "value": 7,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 22,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "身体运动能力",
+      "value": 5,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "能力优势报告",
+      "page": 8,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "软件工程师",
+      "value": 6,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 22,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "逻辑数学能力",
+      "value": 5,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "能力优势报告",
+      "page": 8,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "销售代表",
+      "value": 6,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 18,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "销售经理/销售总监",
+      "value": 1,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 20,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "青年领袖训练营",
+      "value": 2,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 23,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "音乐能力",
+      "value": 3,
+      "mean": null,
+      "unit": "分",
+      "grade": "",
+      "notes": "能力优势报告",
+      "page": 8,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    },
+    {
+      "label": "领导力培训课程",
+      "value": 3,
+      "mean": null,
+      "unit": "",
+      "grade": "",
+      "notes": "职业价值观报告",
+      "page": 19,
+      "pdf": "B6 职业发展_Samson_2026031417271196372(1)"
+    }
+  ]
+}

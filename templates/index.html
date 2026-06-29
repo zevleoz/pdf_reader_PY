@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>综合测评报告 — 上传 4 份 PDF 生成合并报告</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                   "Microsoft YaHei", sans-serif;
+      background: #f6f8fb;
+      margin: 0;
+      padding: 36px 20px 80px;
+      color: #1f2937;
+    }
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+      padding: 36px 40px;
+    }
+    h1 { margin: 0 0 10px; color: #111827; font-size: 26px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 6px; }
+    .hint {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      color: #0c4a6e;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.8;
+      margin: 22px 0 8px;
+    }
+    .hint strong { color: #0c4a6e; }
+
+    .slots {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+      margin: 20px 0;
+    }
+    .slot {
+      border: 2px dashed #cbd5e0;
+      border-radius: 14px;
+      padding: 22px 24px;
+      transition: all .2s;
+      background: #fafbfc;
+      cursor: pointer;
+      min-height: 150px;
+    }
+    .slot:hover { border-color: #38bdf8; background: #eff6ff; transform: translateY(-1px); }
+    .slot.has-file { border-color: #2563eb; background: #eff6ff; }
+    .slot .head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .slot .tag {
+      display: inline-block;
+      background: #1d4ed8;
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .slot .slot-sub { color: #6b7280; font-size: 12px; }
+    .slot .title {
+      font-weight: 700;
+      color: #111827;
+      margin-top: 14px;
+      font-size: 18px;
+    }
+    .slot .desc {
+      font-size: 13px;
+      color: #4b5563;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+    .slot .fname {
+      font-size: 13px;
+      color: #1f2937;
+      margin-top: 18px;
+      word-break: break-all;
+      min-height: 18px;
+    }
+    .slot .placeholder { color: #a0aec0; font-style: italic; }
+    .slot input[type=file] { display: none; }
+
+    .bottom-bar {
+      margin-top: 26px;
+      padding-top: 22px;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .count { color: #374151; font-size: 14px; }
+    .count b { color: #1d4ed8; font-size: 16px; }
+    button {
+      background: #1d4ed8;
+      color: #fff;
+      border: 0;
+      padding: 14px 30px;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: background .2s;
+    }
+    button:hover:not(:disabled) { background: #1e40af; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
+    .status {
+      margin-top: 20px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      display: none;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .status.loading { display: block; background: #eff6ff; border: 1px solid #93c5fd; color: #1e3a8a; }
+    .status.error   { display: block; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .status.ok      { display: block; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #60a5fa;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>📄 综合测评报告生成器</h1>
+    <p class="sub">分别上传 4 份 PDF → 服务端调用视觉 OCR API 解析 124 项数据 → 生成并下载综合报告 PDF。</p>
+
+    <div class="hint">
+      <strong>上传说明</strong><br/>
+      1. 每个上传框都标了对应报告：<strong>上传 A2</strong> · <strong>上传 B3</strong> · <strong>上传 B4</strong> · <strong>上传 B6</strong>。请按标签上传对应 PDF，不要混放。<br/>
+      2. 4 份都上传后底部按钮亮起，点击即可生成；生成过程需要几秒到几十秒（视觉大模型读取图表数值）。<br/>
+      3. <strong style="color:#b91c1c;">本系统强制依赖视觉 OCR API：</strong>若未配置 API Key 或调用失败，会弹窗提示，无法回退到纯文本模式（因为报告中的柱状图、雷达图数值只有视觉 API 能读取）。
+    </div>
+
+    <div class="slots" id="slots"></div>
+
+    <div class="bottom-bar">
+      <div class="count">已选择 <b id="count">0</b> / 4 份 PDF</div>
+      <button id="genBtn" onclick="generate()" disabled>🚀 生成并下载综合报告 PDF</button>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+
+<script>
+const SLOTS = [
+  { key: "A2", title: "上传 A2 — 核心素养",
+    sub: "CORE LITERACY（认知能力 · 情绪稳定性 · 人格 · 依恋关系 · 体质健康）" },
+  { key: "B3", title: "上传 B3 — 核心学习能力",
+    sub: "CORE LEARNING ABILITY（执行功能 · 学习动机 · 学习方法与策略）" },
+  { key: "B4", title: "上传 B4 — 核心认知能力 & 成长型思维",
+    sub: "CORE COGNITIVE ABILITY & GROWTH MINDSET（认知能力六项子指标 · 自驱力）" },
+  { key: "B6", title: "上传 B6 — 职业发展",
+    sub: "CAREER DEVELOPMENT（职业兴趣 Holland · 多元智能 · 职业价值观）" },
+];
+const files = {};
+const names = {};
+
+function renderSlots() {
+  const root = document.getElementById('slots');
+  root.innerHTML = '';
+  SLOTS.forEach(s => {
+    const f = files[s.key];
+    const div = document.createElement('div');
+    div.className = 'slot' + (f ? ' has-file' : '');
+    div.innerHTML = `
+      <div class="head">
+        <div class="tag">${s.key}</div>
+        <div class="slot-sub">点击选择 PDF 上传</div>
+      </div>
+      <div class="title">${s.title}</div>
+      <div class="desc">${s.sub}</div>
+      <div class="fname">${
+        f
+          ? '📎 已选择文件：' + escapeHtml(f.name)
+          : '<span class="placeholder">📁 未选择文件 — 点击此处选择 ' + s.key + ' 报告 PDF…</span>'
+      }</div>
+      <input type="file" accept="application/pdf"
+             onchange="onPickFile('${s.key}', this)" />
+    `;
+    div.addEventListener('click', () => {
+      div.querySelector('input[type=file]').click();
+    });
+    root.appendChild(div);
+  });
+  const picked = Object.keys(files).length;
+  document.getElementById('count').textContent = picked;
+  document.getElementById('genBtn').disabled = picked !== 4;
+}
+
+function onPickFile(key, input) {
+  const f = input.files[0];
+  if (f) files[key] = f;
+  renderSlots();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;',
+    '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function setStatus(text, type) {
+  const el = document.getElementById('status');
+  el.className = 'status ' + (type || '');
+  if (type === 'loading') {
+    el.innerHTML = '<span class="spinner"></span>' + escapeHtml(text);
+  } else {
+    el.textContent = text;
+  }
+}
+
+async function generate() {
+  if (Object.keys(files).length !== 4) {
+    alert('请先上传全部 4 份 PDF（A2 / B3 / B4 / B6）');
+    return;
+  }
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  setStatus('上传 4 份 PDF 并解析数据…（若启用视觉 API，约 30-120 秒）', 'loading');
+
+  const fd = new FormData();
+  for (const s of SLOTS) fd.append(s.key, files[s.key], files[s.key].name);
+
+  try {
+    const resp = await fetch('/api/generate', { method: 'POST', body: fd });
+    if (!resp.ok) {
+      let msg = '生成失败 (HTTP ' + resp.status + ')';
+      let detail = '';
+      try {
+        const err = await resp.json();
+        if (err && err.error) {
+          msg = err.error;
+          if (err.trace) detail = '\n\n完整错误堆栈：\n' + err.trace;
+        }
+      } catch (_) {}
+      setStatus('❌ ' + msg, 'error');
+      // ⚠️  弹窗：让用户明确知道发生了什么（尤其是视觉 API 未配置的情况）
+      alert('❌ 生成失败：\n\n' + msg + detail);
+      btn.disabled = false;
+      return;
+    }
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = resp.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+    a.download = m ? decodeURIComponent(m[1]) : '综合测评报告.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    const extra = resp.headers.get('X-Applied-Items') && resp.headers.get('X-Total-Items')
+      ? '（回填了 ' + resp.headers.get('X-Applied-Items') + ' / ' + resp.headers.get('X-Total-Items') + ' 项数据）'
+      : '';
+    setStatus('✅ 完成！综合测评报告 PDF 已开始下载' + extra, 'ok');
+  } catch (err) {
+    setStatus('❌ 网络错误: ' + err, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+renderSlots();
+</script>
+</body>
+</html>
