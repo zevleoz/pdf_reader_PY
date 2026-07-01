@@ -1235,13 +1235,27 @@ SCHEMA_124: List[Dict[str, Any]] = [
     {"code": "124", "label": "职业价值观排序15", "type": "string",
      "source_pdf": "B6", "note": "按分数从高到低排序，第 15 名的维度名称"},
 
-    # 13) 内驱力平均数（B4）——共 1 项
-    {"code": "125", "label": "内驱力-平均数", "type": "number",
-     "source_pdf": "B4", "note": "自驱力三个维度（自主性、胜任感、归属感）的算术平均数"},
+    # 13) 内驱力常模平均数（B4）——共 3 项（PDF中直接提供的同龄常模均值）
+    {"code": "125", "label": "自驱力-自主性常模平均数", "type": "number",
+     "source_pdf": "B4", "note": "自驱力-自主性维度对应的同龄常模平均数，PDF中直接提供"},
+    {"code": "126", "label": "自驱力-胜任感常模平均数", "type": "number",
+     "source_pdf": "B4", "note": "自驱力-胜任感维度对应的同龄常模平均数，PDF中直接提供"},
+    {"code": "127", "label": "自驱力-归属感常模平均数", "type": "number",
+     "source_pdf": "B4", "note": "自驱力-归属感维度对应的同龄常模平均数，PDF中直接提供"},
 
-    # 14) 学习动机与策略平均数（B3）——共 1 项
-    {"code": "126", "label": "学习动机与策略-平均数", "type": "number",
-     "source_pdf": "B3", "note": "学习动机与策略六个维度（深层动机、表面动机、自我效能感、深层方法与策略、表面方法与策略、自我调节）的算术平均数"},
+    # 14) 学习动机与策略常模平均数（B3）——共 6 项（PDF中直接提供的同龄常模均值）
+    {"code": "128", "label": "学习动机-深层动机常模平均数", "type": "number",
+     "source_pdf": "B3", "note": "学习动机-深层动机维度对应的同龄常模平均数，PDF中直接提供"},
+    {"code": "129", "label": "学习动机-表面动机常模平均数", "type": "number",
+     "source_pdf": "B3", "note": "学习动机-表面动机维度对应的同龄常模平均数，PDF中直接提供"},
+    {"code": "130", "label": "学习动机-自我效能感常模平均数", "type": "number",
+     "source_pdf": "B3", "note": "学习动机-自我效能感维度对应的同龄常模平均数，PDF中直接提供"},
+    {"code": "131", "label": "学习方法与策略-学习深层方法与策略常模平均数", "type": "number",
+     "source_pdf": "B3", "note": "学习方法与策略-学习深层方法与策略维度对应的同龄常模平均数，PDF中直接提供"},
+    {"code": "132", "label": "学习方法与策略-学习表面方法与策略常模平均数", "type": "number",
+     "source_pdf": "B3", "note": "学习方法与策略-学习表面方法与策略维度对应的同龄常模平均数，PDF中直接提供"},
+    {"code": "133", "label": "学习方法与策略-学习自我调节常模平均数", "type": "number",
+     "source_pdf": "B3", "note": "学习方法与策略-学习自我调节维度对应的同龄常模平均数，PDF中直接提供"},
 ]
 
 
@@ -1275,15 +1289,15 @@ def _attachment_tier(kind: str, score: float) -> str:
 # 新的视觉 API 主流程：一次 API call 喂多张代表页
 # ---------------------------------------------------------------------------
 _SCHEMA_PROMPT_USER_124 = """你是一个严格按编号从 PDF 报告中抽取数据的助手。
-以下是我需要你严格输出的 126 项数据点的编号和取值口径。
-输出形式固定为一个 JSON：顶层只有一个 key "data"，对应一个长度 126 的数组。
-数组里每一项为 {"code": "NNN", "value": <你的结果>}，NNN 是 001 到 126。
-必须从 001 开始顺序写到 126 一个都不能少。编号不能跳。
+以下是我需要你严格输出的 133 项数据点的编号和取值口径。
+输出形式固定为一个 JSON：顶层只有一个 key "data"，对应一个长度 133 的数组。
+数组里每一项为 {"code": "NNN", "value": <你的结果>}，NNN 是 001 到 133。
+必须从 001 开始顺序写到 133 一个都不能少。编号不能跳。
 编号顺序必须严格是我下面定义的顺序。
 每个 value 都必须按照我给的"类型约束"来输出：
   - number —— 纯数字（整数或小数均可）。不要写汉字。如果读不到写 ""。
   - string —— 文字值（档位/类型/名称/代码）。
-严格按照下面的 126 项定义的 type 字段来输出。不要写其他文字解释。
+严格按照下面的 133 项定义的 type 字段来输出。不要写其他文字解释。
 不要输出 code 和 value 之外的字段。
 不要在任何位置写你的分析或解释。
 不要用 null。不要用中文在 JSON 之外。
@@ -1412,8 +1426,15 @@ _SCHEMA_PROMPT_USER_124 = """你是一个严格按编号从 PDF 报告中抽取�
 122 职业价值观排序13 string（B6）
 123 职业价值观排序14 string（B6）
 124 职业价值观排序15 string（B6）
-125 内驱力-平均数 number（B4，自驱力三个维度（自主性、胜任感、归属感）的算术平均数）
-126 学习动机与策略-平均数 number（B3，学习动机与策略六个维度的算术平均数）
+125 自驱力-自主性常模平均数 number（B4，PDF中直接提供的同龄常模均值）
+126 自驱力-胜任感常模平均数 number（B4，PDF中直接提供的同龄常模均值）
+127 自驱力-归属感常模平均数 number（B4，PDF中直接提供的同龄常模均值）
+128 学习动机-深层动机常模平均数 number（B3，PDF中直接提供的同龄常模均值）
+129 学习动机-表面动机常模平均数 number（B3，PDF中直接提供的同龄常模均值）
+130 学习动机-自我效能感常模平均数 number（B3，PDF中直接提供的同龄常模均值）
+131 学习方法与策略-学习深层方法与策略常模平均数 number（B3，PDF中直接提供的同龄常模均值）
+132 学习方法与策略-学习表面方法与策略常模平均数 number（B3，PDF中直接提供的同龄常模均值）
+133 学习方法与策略-学习自我调节常模平均数 number（B3，PDF中直接提供的同龄常模均值）
 """
 
 
@@ -2160,9 +2181,20 @@ def main(force_skip_vision: bool = False) -> int:
             elif "固定型思维模式" in seg:
                 hard_values["059"] = "0"
     # 自主性 / 胜任感 / 归属感（B4 自驱力）
-    for kw, code in (("自主性", "060"), ("胜任感", "061"), ("归属感", "062")):
-        m = re.search(rf"{kw}[\s\S]{{0,80}}?([\d.]+)\s*(?:分|得分)?", b4)
-        if m: hard_values[code] = m.group(1)
+    drive_map = (("自主性", "060", "125"), ("胜任感", "061", "126"), ("归属感", "062", "127"))
+    for kw, code_my, code_avg in drive_map:
+        my_score = None
+        avg_score = None
+        matches = re.findall(rf'{kw}[\s\S]{{0,200}}?我的得分[：:]\s*([\d.]+)', b4)
+        if matches:
+            my_score = matches[-1]
+        matches_avg = re.findall(rf'{kw}[\s\S]{{0,200}}?平均得分[：:]\s*([\d.]+)', b4)
+        if matches_avg:
+            avg_score = matches_avg[-1]
+        if my_score:
+            hard_values[code_my] = my_score
+        if avg_score:
+            hard_values[code_avg] = avg_score
 
     # ---- 执行功能（B3）
     b3 = text_by_slot.get("B3", "")
@@ -2492,7 +2524,8 @@ def main(force_skip_vision: bool = False) -> int:
         return str(raw_value).strip()
 
     def _final_value_for(code: str, schema_type: str) -> str:
-        if code == "059":
+        hard_codes = {"059", "060", "061", "062", "125", "126", "127"}
+        if code in hard_codes:
             v = hard_values.get(code)
             if v not in (None, "", "—"):
                 return _coerce_to_type(v, schema_type)

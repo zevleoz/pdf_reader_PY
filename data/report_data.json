@@ -101,7 +101,7 @@
     {
       "code": "010",
       "label": "情绪稳定性结果档位",
-      "value": "情绪不稳定",
+      "value": "中",
       "type": "string",
       "unit": "",
       "source_pdf": "A2",
@@ -416,7 +416,7 @@
     {
       "code": "045",
       "label": "体质健康-饮食习惯得分",
-      "value": "7",
+      "value": "0",
       "type": "number",
       "unit": "",
       "source_pdf": "A2",
@@ -479,7 +479,7 @@
     {
       "code": "051",
       "label": "自我概念整体值",
-      "value": "79",
+      "value": "0",
       "type": "number",
       "unit": "",
       "source_pdf": "B4",
@@ -497,7 +497,7 @@
     {
       "code": "053",
       "label": "自我概念-行为表现",
-      "value": "8",
+      "value": "0",
       "type": "number",
       "unit": "",
       "source_pdf": "B4",
@@ -506,7 +506,7 @@
     {
       "code": "054",
       "label": "自我概念-能力与学校表现",
-      "value": "9",
+      "value": "0",
       "type": "number",
       "unit": "",
       "source_pdf": "B4",
@@ -515,7 +515,7 @@
     {
       "code": "055",
       "label": "自我概念-躯体外貌",
-      "value": "6",
+      "value": "0",
       "type": "number",
       "unit": "",
       "source_pdf": "B4",
@@ -524,7 +524,7 @@
     {
       "code": "056",
       "label": "自我概念-情绪状态",
-      "value": "6",
+      "value": "0",
       "type": "number",
       "unit": "",
       "source_pdf": "B4",
@@ -533,7 +533,7 @@
     {
       "code": "057",
       "label": "自我概念-合群",
-      "value": "9",
+      "value": "0",
       "type": "number",
       "unit": "",
       "source_pdf": "B4",
@@ -542,7 +542,7 @@
     {
       "code": "058",
       "label": "自我概念-幸福与满足",
-      "value": "7",
+      "value": "0",
       "type": "number",
       "unit": "",
       "source_pdf": "B4",
@@ -1141,6 +1141,87 @@
       "unit": "",
       "source_pdf": "B6",
       "note": "按分数从高到低排序，第 15 名的维度名称"
+    },
+    {
+      "code": "125",
+      "label": "自驱力-自主性常模平均数",
+      "value": "5.9",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": "自驱力-自主性维度对应的同龄常模平均数，PDF中直接提供"
+    },
+    {
+      "code": "126",
+      "label": "自驱力-胜任感常模平均数",
+      "value": "6.3",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": "自驱力-胜任感维度对应的同龄常模平均数，PDF中直接提供"
+    },
+    {
+      "code": "127",
+      "label": "自驱力-归属感常模平均数",
+      "value": "6.8",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B4",
+      "note": "自驱力-归属感维度对应的同龄常模平均数，PDF中直接提供"
+    },
+    {
+      "code": "128",
+      "label": "学习动机-深层动机常模平均数",
+      "value": "7.4",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": "学习动机-深层动机维度对应的同龄常模平均数，PDF中直接提供"
+    },
+    {
+      "code": "129",
+      "label": "学习动机-表面动机常模平均数",
+      "value": "4.7",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": "学习动机-表面动机维度对应的同龄常模平均数，PDF中直接提供"
+    },
+    {
+      "code": "130",
+      "label": "学习动机-自我效能感常模平均数",
+      "value": "8.1",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": "学习动机-自我效能感维度对应的同龄常模平均数，PDF中直接提供"
+    },
+    {
+      "code": "131",
+      "label": "学习方法与策略-学习深层方法与策略常模平均数",
+      "value": "7.8",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": "学习方法与策略-学习深层方法与策略维度对应的同龄常模平均数，PDF中直接提供"
+    },
+    {
+      "code": "132",
+      "label": "学习方法与策略-学习表面方法与策略常模平均数",
+      "value": "4.7",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": "学习方法与策略-学习表面方法与策略维度对应的同龄常模平均数，PDF中直接提供"
+    },
+    {
+      "code": "133",
+      "label": "学习方法与策略-学习自我调节常模平均数",
+      "value": "6.3",
+      "type": "number",
+      "unit": "",
+      "source_pdf": "B3",
+      "note": "学习方法与策略-学习自我调节维度对应的同龄常模平均数，PDF中直接提供"
     }
   ],
   "sections": [
@@ -1797,6 +1878,6 @@
   "vision": {
     "provider": "none",
     "model": "qwen3-vl-plus",
-    "count_124": 124
+    "count_124": 133
   }
 }

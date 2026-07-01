@@ -66,7 +66,7 @@ def fmt(val: Any) -> str:
     if isinstance(val, float):
         if val.is_integer():
             return str(int(val))
-        return f"{val:g}"
+        return f"{val:.1f}"
     return str(val)
 
 
@@ -243,10 +243,16 @@ def radar_svg(items: List[Dict[str, Any]],
               cy: int = 200,
               color: str = "#2A9D8F",
               ring_count: int = 4,
-              label_padding: int = 40) -> Dict[str, Any]:
+              label_padding: int = 40,
+              avg_points: List[Dict[str, Any]] = None) -> Dict[str, Any]:
     """生成雷达图（N 边形）SVG 数据。在 Python 中预计算所有坐标。
     
     确保 viewBox 起始点为正数，所有标签都在 viewBox 范围内。
+    
+    Args:
+        items: 数据项列表，每项包含 value 字段
+        max_value: 最大值
+        avg_points: 平均参考线数据，每项包含 value 字段
     """
     num = len(items)
     
@@ -288,6 +294,20 @@ def radar_svg(items: List[Dict[str, Any]],
             "letter": it.get("letter", ""),
             "value": fmt(val),
         })
+    
+    avg_polygon_points = ""
+    if avg_points:
+        avg_val_pts = []
+        for i, it in enumerate(avg_points):
+            val = to_float(it.get("value", 0), 0)
+            ratio = max(0.0, min(1.0, val / max_value)) if max_value > 0 else 0.0
+            rr = radius * ratio
+            ang = math.pi / 2 - (2 * math.pi / num) * i
+            px = cx + rr * math.cos(ang)
+            py = actual_cy - rr * math.sin(ang)
+            avg_val_pts.append(f"{px:.1f},{py:.1f}")
+        avg_polygon_points = " ".join(avg_val_pts)
+    
     axes = []
     for i in range(num):
         ang = math.pi / 2 - (2 * math.pi / num) * i
@@ -313,6 +333,7 @@ def radar_svg(items: List[Dict[str, Any]],
         "cx": cx, "cy": actual_cy, "radius": radius,
         "rings": rings, "axes": axes,
         "polygon_points": " ".join(val_pts),
+        "avg_polygon_points": avg_polygon_points,
         "dots": dots, "labels": labels,
         "color": color,
         "viewBox": f"0 0 {viewBox_w:.1f} {viewBox_h:.1f}",
@@ -640,15 +661,17 @@ def build_page_7() -> Dict[str, Any]:
     
     # 三个核心维度，添加同龄平均值
     core_items_raw = [
-        {"label": "自主性", "en": "Autonomy", "code": "060", "mean_label": "自主性"},
-        {"label": "胜任感", "en": "Competence", "code": "061", "mean_label": "胜任感"},
-        {"label": "归属感", "en": "Relatedness", "code": "062", "mean_label": "归属感"},
+        {"label": "自主性", "en": "Autonomy", "code": "060", "mean_label": "自主性", "norm_code": "125"},
+        {"label": "胜任感", "en": "Competence", "code": "061", "mean_label": "胜任感", "norm_code": "126"},
+        {"label": "归属感", "en": "Relatedness", "code": "062", "mean_label": "归属感", "norm_code": "127"},
     ]
     core_items = []
     for it in core_items_raw:
         val = to_float(v(it["code"]), 5)
         mean_val = m(it["mean_label"], 6.0)
+        norm_val = to_float(v(it["norm_code"]), mean_val)
         pct = max(0, min(100, int(val / 10.0 * 100)))
+        norm_pct = max(0, min(100, int(norm_val / 10.0 * 100)))
         try:
             gauge = circular_gauge_svg(val, 10.0)
         except Exception:
@@ -657,6 +680,8 @@ def build_page_7() -> Dict[str, Any]:
             "label": it["label"], "en": it["en"],
             "value": fmt(val), "max": 10.0,
             "pct": pct, "mean": mean_val,
+            "norm_value": fmt(norm_val),
+            "norm_pct": norm_pct,
             "gauge": gauge,
         })
     
@@ -684,9 +709,16 @@ def build_page_8() -> Dict[str, Any]:
         {"label": "外倾性", "en": "Extraversion", "value": fmt(v("018"))},
         {"label": "神经质", "en": "Neuroticism", "value": fmt(v("019"))},
     ]
+    avg_items = [
+        {"label": "开放性", "value": 3.0},
+        {"label": "宜人性", "value": 3.0},
+        {"label": "责任心", "value": 3.0},
+        {"label": "外倾性", "value": 3.0},
+        {"label": "神经质", "value": 3.0},
+    ]
     radar = radar_svg(big_five_items, 5.0,
                       radius=120, cy=180, color="#2A9D8F",
-                      label_padding=45)
+                      label_padding=45, avg_points=avg_items)
     return _page_dict("big_five",
                       page_title="人格",
                       subtitle="PERSONALITY",
@@ -848,24 +880,27 @@ def build_page_13() -> Dict[str, Any]:
 # ---------------- P14 学习动机与策略（066-071） ----------------
 def build_page_14() -> Dict[str, Any]:
     mot_raw = [
-        ("深层动机", "Deep Motivation", "066"),
-        ("表面动机", "Surface Motivation", "067"),
-        ("自我效能感", "Self-Efficacy", "068"),
+        ("深层动机", "Deep Motivation", "066", "128"),
+        ("表面动机", "Surface Motivation", "067", "129"),
+        ("自我效能感", "Self-Efficacy", "068", "130"),
     ]
     str_raw = [
-        ("学习深层方法与策略", "Deep Methods and Strategies", "069"),
-        ("学习表面方法与策略", "Surface Methods and Strategies", "070"),
-        ("学习自我调节", "Self-Regulation", "071"),
+        ("学习深层方法与策略", "Deep Methods and Strategies", "069", "131"),
+        ("学习表面方法与策略", "Surface Methods and Strategies", "070", "132"),
+        ("学习自我调节", "Self-Regulation", "071", "133"),
     ]
 
     def _mk(items_raw):
         out = []
-        for label_cn, label_en, code in items_raw:
+        for label_cn, label_en, code, norm_code in items_raw:
             val = to_float(v(code), 5)
+            norm_val = to_float(v(norm_code), 6.0)
             out.append({
                 "label": label_cn, "en": label_en,
                 "value": fmt(val), "unit": "/10.0",
                 "pct": max(0, min(100, int(val / 10.0 * 100))),
+                "norm_value": fmt(norm_val),
+                "norm_pct": max(0, min(100, int(norm_val / 10.0 * 100))),
             })
         return out
 
@@ -1290,6 +1325,7 @@ def main() -> None:
     print("\n" + "=" * 60)
     print(f"完成！输出: {html_path}, {pdf_path}")
     print("=" * 60)
+    return 0
 
 
 if __name__ == "__main__":

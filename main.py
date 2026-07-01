@@ -83,7 +83,7 @@ def main() -> int:
             print(f"[main] validate 返回 {rc}，继续生成。")
 
     # 步骤④：生成 PDF
-    rc = _run("Jinja2 + WeasyPrint 渲染 PDF", generate.main, report_data)
+    rc = _run("Jinja2 + WeasyPrint 渲染 PDF", generate.main)
     if rc != 0:
         print("[main] 生成阶段失败")
         return rc
