@@ -31,11 +31,19 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import fitz
 
+import dashscope
+
 try:
     from gauge_reader import detect_gauge_value
     HAS_GAUGE_READER = True
 except ImportError:
     HAS_GAUGE_READER = False
+
+try:
+    from gauge_processor import extract_mindset_gauge
+    HAS_MINDSET_GAUGE = True
+except ImportError:
+    HAS_MINDSET_GAUGE = False
 
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_DIR = BASE_DIR / "input"
@@ -1060,6 +1068,8 @@ SCHEMA_124: List[Dict[str, Any]] = [
      "source_pdf": "A2", "note": ""},
     {"code": "050", "label": "体质健康-运动评级", "type": "string",
      "source_pdf": "A2", "note": ""},
+    {"code": "050a", "label": "体质健康-饮食习惯描述", "type": "string",
+     "source_pdf": "A2", "note": "A2第九页左下角饮食习惯的描述文本，包含数字和评价"},
 
     # 6) 自我概念（B4）——共 8 项（仅保留整体值/档位 + 6 个子项得分，去掉子项档位和备注）
     {"code": "051", "label": "自我概念整体值", "type": "number",
@@ -1224,6 +1234,14 @@ SCHEMA_124: List[Dict[str, Any]] = [
      "source_pdf": "B6", "note": ""},
     {"code": "124", "label": "职业价值观排序15", "type": "string",
      "source_pdf": "B6", "note": "按分数从高到低排序，第 15 名的维度名称"},
+
+    # 13) 内驱力平均数（B4）——共 1 项
+    {"code": "125", "label": "内驱力-平均数", "type": "number",
+     "source_pdf": "B4", "note": "自驱力三个维度（自主性、胜任感、归属感）的算术平均数"},
+
+    # 14) 学习动机与策略平均数（B3）——共 1 项
+    {"code": "126", "label": "学习动机与策略-平均数", "type": "number",
+     "source_pdf": "B3", "note": "学习动机与策略六个维度（深层动机、表面动机、自我效能感、深层方法与策略、表面方法与策略、自我调节）的算术平均数"},
 ]
 
 
@@ -1257,15 +1275,15 @@ def _attachment_tier(kind: str, score: float) -> str:
 # 新的视觉 API 主流程：一次 API call 喂多张代表页
 # ---------------------------------------------------------------------------
 _SCHEMA_PROMPT_USER_124 = """你是一个严格按编号从 PDF 报告中抽取数据的助手。
-以下是我需要你严格输出的 124 项数据点的编号和取值口径。
-输出形式固定为一个 JSON：顶层只有一个 key "data"，对应一个长度 124 的数组。
-数组里每一项为 {"code": "NNN", "value": <你的结果>}，NNN 是 001 到 124。
-必须从 001 开始顺序写到 124 一个都不能少。编号不能跳。
+以下是我需要你严格输出的 126 项数据点的编号和取值口径。
+输出形式固定为一个 JSON：顶层只有一个 key "data"，对应一个长度 126 的数组。
+数组里每一项为 {"code": "NNN", "value": <你的结果>}，NNN 是 001 到 126。
+必须从 001 开始顺序写到 126 一个都不能少。编号不能跳。
 编号顺序必须严格是我下面定义的顺序。
 每个 value 都必须按照我给的"类型约束"来输出：
   - number —— 纯数字（整数或小数均可）。不要写汉字。如果读不到写 ""。
   - string —— 文字值（档位/类型/名称/代码）。
-严格按照下面的 124 项定义的 type 字段来输出。不要写其他文字解释。
+严格按照下面的 126 项定义的 type 字段来输出。不要写其他文字解释。
 不要输出 code 和 value 之外的字段。
 不要在任何位置写你的分析或解释。
 不要用 null。不要用中文在 JSON 之外。
@@ -1394,6 +1412,8 @@ _SCHEMA_PROMPT_USER_124 = """你是一个严格按编号从 PDF 报告中抽取�
 122 职业价值观排序13 string（B6）
 123 职业价值观排序14 string（B6）
 124 职业价值观排序15 string（B6）
+125 内驱力-平均数 number（B4，自驱力三个维度（自主性、胜任感、归属感）的算术平均数）
+126 学习动机与策略-平均数 number（B3，学习动机与策略六个维度的算术平均数）
 """
 
 
@@ -1413,7 +1433,64 @@ def _build_schema_payload(b64_images: List[str]) -> Dict[str, Any]:
     return {"model": VISION_MODEL_NAME, "messages": messages, "max_tokens": 2048, "temperature": 0.1}
 
 
-VISION_MODEL_NAME = os.environ.get("VISION_MODEL_NAME", "qwen-vl-max").strip()
+VISION_MODEL_NAME = os.environ.get("VISION_MODEL_NAME", "qwen3-vl-plus").strip()
+
+
+def _call_dashscope_native_multi(b64_images: List[str], timeout: int = 300) -> Optional[Dict[str, Any]]:
+    """使用 DashScope 原生 SDK 调用多模态模型（支持多图输入）。"""
+    from multiprocessing.pool import ThreadPool
+    from concurrent.futures import ThreadPoolExecutor
+
+    # 设置 API key
+    dashscope.api_key = VISION_ACTIVE_KEY
+
+    # 构建 DashScope 格式的消息
+    # DashScope 的 content 是图片 URL 列表 + 文本
+    image_urls = [f"data:image/png;base64,{b64}" for b64 in b64_images]
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"image": img_url} for img_url in image_urls
+            ] + [{"text": _SCHEMA_PROMPT_USER_124}]
+        }
+    ]
+
+    print(f"  [DashScope SDK] 调用模型 {VISION_MODEL_NAME}，含 {len(b64_images)} 张图片")
+    t0 = time.time()
+
+    try:
+        response = dashscope.MultiModalConversation.call(
+            model=VISION_MODEL_NAME,
+            messages=messages,
+            timeout=timeout,
+        )
+        dt = time.time() - t0
+        print(f"  [DashScope SDK] 响应时间 {dt:.0f}s，状态码: {response.status_code if hasattr(response, 'status_code') else 'N/A'}")
+
+        if response.status_code == 200:
+            # 解析响应 - content 可能是字符串或列表
+            content = response.output.choices[0].message.content
+            if isinstance(content, list):
+                # 如果是列表，提取所有文本
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict) and 'text' in item:
+                        text_parts.append(item['text'])
+                    elif isinstance(item, str):
+                        text_parts.append(item)
+                content = ' '.join(text_parts)
+            elif not isinstance(content, str):
+                content = str(content)
+            return {"content": content}
+        else:
+            print(f"  [DashScope SDK] 错误: {response.message}")
+            return None
+    except Exception as e:
+        dt = time.time() - t0
+        print(f"  [DashScope SDK] 调用异常 {type(e).__name__}: {e} ({dt:.0f}s)")
+        return None
 
 
 def _call_openai_compat_multi(payload: Dict[str, Any], timeout: int = 300
@@ -1514,8 +1591,12 @@ def _render_pages_for_vision(max_per_pdf: int = 8,
                     must_pages.append(p)
                     break
         must_pages = sorted(set(must_pages))
-        # 若必须页超过上限，先保留必须页的中间部分；
-        # 若还没达到上限，用等间距补充其他页
+        
+        if slot == "B6" and total >= 13:
+            must_pages.append(12)
+            must_pages.append(13)
+            must_pages = sorted(set(must_pages))
+        
         picks: List[int] = []
         if len(must_pages) >= max_per_pdf:
             picks = must_pages[:max_per_pdf]
@@ -1580,30 +1661,27 @@ def extract_124_points_with_vision() -> Dict[str, Any]:
             "  【推荐】export DASHSCOPE_API_KEY=<你的阿里云百炼key>\n"
             "  或：export OPENAI_API_KEY=<key> （可选配 OPENAI_BASE_URL）\n"
             "  或：export SILICONFLOW_API_KEY=<你的硅基流动key>\n"
-            "  通用：export VISION_MODEL_NAME=qwen-vl-max\n\n"
+            "  通用：export VISION_MODEL_NAME=qwen3-vl-plus\n\n"
             "当前方案：视觉 OCR 是必填步骤，不支持纯文本降级。"
         )
 
-    # 3) 一次喂多张 + 严格 124 项 prompt
-    payload = _build_schema_payload(b64_images)
-    print(f"  [视觉 API] 使用 {VISION_PROVIDER}，模型 {VISION_MODEL_NAME}，含 {len(b64_images)} 张图片")
-    print(f"  Endpoint: {VISION_ACTIVE_BASE}")
+    # 3) 使用 DashScope 原生 SDK 调用（支持多图输入）
+    print(f"  [视觉 API] 使用 DashScope SDK，模型 {VISION_MODEL_NAME}，含 {len(b64_images)} 张图片")
     t0 = time.time()
-    resp = _call_openai_compat_multi(payload, timeout=300)
+    resp = _call_dashscope_native_multi(b64_images, timeout=300)
     dt = time.time() - t0
     if resp is None:
         raise RuntimeError(
             f"视觉 API 调用失败 (超时 / 网络错误 / API key 无效)。\n"
-            f"当前配置：{VISION_PROVIDER} / {VISION_MODEL_NAME}\n\n"
+            f"当前配置：DashScope SDK / {VISION_MODEL_NAME}\n\n"
             f"请检查：\n"
             f"  1) API Key 是否有效（{len(VISION_ACTIVE_KEY)} 字符）\n"
-            f"  2) 网络是否连通\n"
-            f"  3) Base URL 是否正确：{VISION_ACTIVE_BASE}\n\n"
+            f"  2) 网络是否连通\n\n"
             f"⚠️  当前方案：视觉 OCR 是必填步骤，不支持纯文本降级。"
         )
 
     # 4) 解析 JSON -> {code: value}
-    text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+    text = resp.get("content", "")
     print(f"  视觉 API 返回长度 {len(text)} 字符（{dt:.0f}s）")
     parsed = _extract_json_from_response(text)
     if parsed is None or "data" not in parsed:
@@ -1662,6 +1740,33 @@ def main(force_skip_vision: bool = False) -> int:
             "model": VISION_MODEL_NAME,
             "count_124": len(code_values),
         }
+        print(f"  [调试] code_values['059'] = {code_values.get('059', 'NOT FOUND')}")
+
+        # --- B2. 职业价值观条形图解析（B6 第13页）
+        try:
+            from _vision_values_bar import main as extract_values_bar
+            values_scores = extract_values_bar()
+            if values_scores:
+                print(f"  [职业价值观条形图] 成功解析 {len(values_scores)} 项")
+                label_to_code = {"创造发明": "095", "独立自主": "096", "美的追求": "097",
+                                "智力激发": "098", "利他助人": "099", "成就感": "100",
+                                "管理权力": "101", "工作环境": "102", "同事关系": "103",
+                                "上司关系": "104", "多样变化": "105", "经济报酬": "106",
+                                "安全稳定": "107", "声望地位": "108", "生活方式": "109"}
+                for label, score in values_scores.items():
+                    code = label_to_code.get(label)
+                    if code:
+                        code_values[code] = score
+                
+                sorted_values = sorted(values_scores.items(), key=lambda kv: -kv[1])
+                for i, (label, _) in enumerate(sorted_values):
+                    rank_code = f"{110 + i:03d}"
+                    code_values[rank_code] = label
+                print(f"  [职业价值观条形图] 已更新排序")
+            else:
+                print("  [职业价值观条形图] 解析失败，使用视觉API数据")
+        except Exception as e:
+            print(f"  [职业价值观条形图] 模块加载失败: {e}")
 
     # --- C. 文本层兜底（视觉 API 没抓到的项，尝试用文本匹配）
     #     先做"高优先级文本硬匹配"（针对体质健康、依恋关系、认知能力这些
@@ -1747,14 +1852,18 @@ def main(force_skip_vision: bool = False) -> int:
         if m:
             hard_values["045"] = m.group(1)
         else:
-            # 看 "均衡饮食" 附近有没有数字分
+            # 看 "均衡饮食" 附近有没有数字分（只接受1-10范围内的数字）
             nums = re.findall(r"\b(\d+(?:\.\d+)?)\b", sub)
             found_numeric = False
             for n in nums:
-                if n in ("7", "7.1", "11"): continue
-                hard_values["045"] = n
-                found_numeric = True
-                break
+                try:
+                    val = float(n)
+                    if 1 <= val <= 10:
+                        hard_values["045"] = n
+                        found_numeric = True
+                        break
+                except:
+                    pass
             # 如果没有数字分，根据评级估算
             if not found_numeric:
                 # 找评级关键词
@@ -1764,6 +1873,12 @@ def main(force_skip_vision: bool = False) -> int:
                     est_map = {"优": "9.0", "优秀": "9.0", "良": "7.0", "良好": "7.0",
                               "一般": "5.0", "中等": "5.0", "差": "3.0", "较差": "3.0", "欠佳": "3.0"}
                     hard_values["045"] = est_map.get(grade, "5.0")
+
+    # ---- 饮食习惯描述（A2第九页左下角）
+    eat_desc_pattern = r"食物提供人体必需的能量和营养[\s\S]{0,500}?(你不了解健康饮食的重要性|你基本了解健康饮食的重要性|你了解健康饮食的重要性)"
+    m = re.search(eat_desc_pattern, a2)
+    if m:
+        hard_values["050a"] = m.group(0)
 
     # ---- 情绪稳定性总分/档位 & 4 子项
     m = re.search(r"总得分是\s*([\d.]+)\s*分", a2)
@@ -2023,14 +2138,13 @@ def main(force_skip_vision: bool = False) -> int:
                     hard_values[code] = nums[pos]
 
     # ---- 思维模式 / 自驱力（B4）
-    # 思维模式：从 B4 第11页的仪表盘图片读取
+    # 思维模式：优先使用仪表盘识别
     mindset_value = None
-    b4_page_dir = PAGES_DIR / "report_B4"
-    if b4_page_dir.exists() and HAS_GAUGE_READER:
-        mindset_img = b4_page_dir / "page_11.png"
+    if HAS_MINDSET_GAUGE:
+        mindset_img = PAGES_DIR / "report_B4_vision_10.png"
         if mindset_img.exists():
             try:
-                mindset_value = detect_gauge_value(str(mindset_img))
+                mindset_value = extract_mindset_gauge(str(mindset_img))
                 print(f"  · 仪表盘读取思维模式: {mindset_value:.1f}")
             except Exception as e:
                 print(f"  · 仪表盘读取失败: {e}")
@@ -2382,12 +2496,15 @@ def main(force_skip_vision: bool = False) -> int:
             v = hard_values.get(code)
             if v not in (None, "", "—"):
                 return _coerce_to_type(v, schema_type)
+        
         v = code_values.get(code)
         if v not in (None, "", "—"):
             return _coerce_to_type(v, schema_type)
+        
         v = hard_values.get(code)
         if v not in (None, "", "—"):
             return _coerce_to_type(v, schema_type)
+        
         return ""
 
     final_124: Dict[str, Dict[str, Any]] = {}

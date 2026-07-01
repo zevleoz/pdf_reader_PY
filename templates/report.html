@@ -60,7 +60,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .progress-item .peer-marker::before { content:"同龄"; position:absolute; bottom:18px; left:-5mm; font-size:7pt; color:#F4A261; font-weight:600; white-space:nowrap; width:10mm; text-align:center; }
 
 .cover { display:flex; flex-direction:column; align-items:center; justify-content:center; height:267mm; text-align:center; padding: 0 18mm; }
-.cover .cover-logo { width:80mm; height:80mm; background-image:url('../branding/shield_logo.png'); background-size:contain; background-repeat:no-repeat; background-position:center; margin-bottom:5mm; }
+.cover .cover-logo { width:120mm; height:auto; margin-bottom:8mm; }
 .cover .red-line { width:40mm; height:2px; background:#B33A3A; margin:3mm 0; }
 .cover .cover-title { font-size:36pt; font-weight:700; color:#B33A3A; letter-spacing:4px; margin:2mm 0; }
 .cover .cover-subtitle { font-size:10pt; letter-spacing:3px; color:#4B5563; text-transform:uppercase; margin-bottom:5mm; }
@@ -148,6 +148,12 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .habit-card.red .habit-score { color:#B33A3A; }
 .habit-card .habit-level { font-size:9pt; color:#8C8C8C; font-weight:700; }
 .habit-card .habit-text { font-size:8.5pt; color:#4B5563; line-height:1.7; }
+
+.habit-desc-card { background:white; border:1px solid #EAEAEA; border-left:3px solid #2A9D8F; border-radius:12px; padding:4mm 5mm; margin-bottom:3mm; }
+.habit-desc-card.amber { border-left-color:#F4A261; }
+.habit-desc-card.red { border-left-color:#B33A3A; }
+.habit-desc-card .habit-desc-title { font-size:10pt; font-weight:700; color:#1A1A1A; margin-bottom:2mm; }
+.habit-desc-card .habit-desc-text { font-size:9pt; color:#4B5563; line-height:1.8; }
 
 .card-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:3mm; margin-top:3mm; }
 .exec-card { background:white; border-radius:12px; padding:4mm 3mm; text-align:center; border:1px solid #EAEAEA; word-break:keep-all; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -304,8 +310,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <!-- ============ P01 COVER ============ -->
 {% if page.layout == 'cover' %}
 <div class="cover">
-    <div class="cover-logo"></div>
-    <div class="red-line"></div>
+    <img src="../branding/logo_red.png" class="cover-logo" />
     <div class="cover-title">{{ page.page_title }}</div>
     <div class="cover-subtitle">{{ page.subtitle }}</div>
     <div class="red-line"></div>
@@ -522,11 +527,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         </div>
         <div class="slider-wrap">
             <div class="slider-bar">
-                <span class="tick-min">0</span><span class="tick-max">50</span>
+                <span class="tick-min">0</span><span class="tick-max">{{ dim.max }}</span>
                 <span class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></span>
             </div>
         </div>
-        <div class="val-wrap" style="font-size:11pt;">{{ item.value }}<small> /50</small></div>
+        <div class="val-wrap" style="font-size:11pt;">{{ item.value }}<small> /{{ dim.max }}</small></div>
         <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">{{ item.level }}</div>
     </div>
     {% endfor %}
@@ -669,8 +674,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="habit-en">{{ item.en }}</div>
         {% if loop.index == 1 %}
         <div style="font-size:9pt; color:#4B5563; margin-top:2mm;">{{ item.level }}</div>
+        {% elif loop.index == 2 %}
+        <div class="habit-score-row"><span class="habit-score">{{ item.score }}</span><small style="font-size:8pt; color:#8C8C8C;"> 小时/天</small><span class="habit-level" style="margin-left:3mm;">{{ item.level }}</span></div>
         {% else %}
-        <div class="habit-score-row"><span class="habit-score">{{ item.score }}</span><small style="font-size:8pt; color:#8C8C8C;"> /10</small><span class="habit-level" style="margin-left:3mm;">{{ item.level }}</span></div>
+        <div class="habit-score-row"><span class="habit-score">{{ item.score }}</span><small style="font-size:8pt; color:#8C8C8C;"> 小时/周</small><span class="habit-level" style="margin-left:3mm;">{{ item.level }}</span></div>
         {% endif %}
     </div>
     {% endfor %}

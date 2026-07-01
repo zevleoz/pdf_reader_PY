@@ -146,12 +146,12 @@
 <body>
   <div class="wrap">
     <h1>📄 综合测评报告生成器</h1>
-    <p class="sub">分别上传 4 份 PDF → 服务端调用视觉 OCR API 解析 124 项数据 → 生成并下载综合报告 PDF。</p>
+    <p class="sub">上传 1-4 份 PDF → 服务端调用视觉 OCR API 解析数据 → 生成并下载综合报告 PDF。</p>
 
     <div class="hint">
       <strong>上传说明</strong><br/>
       1. 每个上传框都标了对应报告：<strong>上传 A2</strong> · <strong>上传 B3</strong> · <strong>上传 B4</strong> · <strong>上传 B6</strong>。请按标签上传对应 PDF，不要混放。<br/>
-      2. 4 份都上传后底部按钮亮起，点击即可生成；生成过程需要几秒到几十秒（视觉大模型读取图表数值）。<br/>
+      2. 至少上传 1 份即可生成报告；上传的 PDF 越多，报告内容越完整。<br/>
       3. <strong style="color:#b91c1c;">本系统强制依赖视觉 OCR API：</strong>若未配置 API Key 或调用失败，会弹窗提示，无法回退到纯文本模式（因为报告中的柱状图、雷达图数值只有视觉 API 能读取）。
     </div>
 
@@ -208,7 +208,7 @@ function renderSlots() {
   });
   const picked = Object.keys(files).length;
   document.getElementById('count').textContent = picked;
-  document.getElementById('genBtn').disabled = picked !== 4;
+  document.getElementById('genBtn').disabled = picked < 1;
 }
 
 function onPickFile(key, input) {
@@ -235,16 +235,21 @@ function setStatus(text, type) {
 }
 
 async function generate() {
-  if (Object.keys(files).length !== 4) {
-    alert('请先上传全部 4 份 PDF（A2 / B3 / B4 / B6）');
+  const picked = Object.keys(files).length;
+  if (picked < 1) {
+    alert('请至少上传 1 份 PDF');
     return;
   }
   const btn = document.getElementById('genBtn');
   btn.disabled = true;
-  setStatus('上传 4 份 PDF 并解析数据…（若启用视觉 API，约 30-120 秒）', 'loading');
+  setStatus('上传 ' + picked + ' 份 PDF 并解析数据…（若启用视觉 API，约 30-120 秒）', 'loading');
 
   const fd = new FormData();
-  for (const s of SLOTS) fd.append(s.key, files[s.key], files[s.key].name);
+  for (const s of SLOTS) {
+    if (files[s.key]) {
+      fd.append(s.key, files[s.key], files[s.key].name);
+    }
+  }
 
   try {
     const resp = await fetch('/api/generate', { method: 'POST', body: fd });

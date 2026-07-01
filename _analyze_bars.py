@@ -1,116 +1,64 @@
-"""从 B6 PDF 第 14 页和第 15 页的条形图中提取职业价值观的数值。
-
-策略：分析每页的矢量图形路径(drawings)，识别出横向条形图的长度，再与数字刻度(0-10)对应，算出每个条形的数值。"""
-from __future__ import annotations
+import cv2
+import numpy as np
 import fitz
-from pathlib import Path
 
-pdf_path = Path("input/B6 职业发展_Samson_2026031417271196372(1).pdf")
-doc = fitz.open(str(pdf_path))
-
-# 职业价值观主页面：第 14 页（索引 13）
-# 职业价值观一览表：第 15 页（索引 14）
-
-for page_idx in [13, 14]:
-    page = doc[page_idx]
-    page_num = page_idx + 1
-    print(f"\n{'='*80}")
-    print(f"  B6 第 {page_num} 页")
-    print(f"{'='*80}")
-
-    # 1. 获取页面文字和位置
-    print("\n【文字与位置】")
-    text_dict = page.get_text("dict")
-    text_items = []
-    for b in text_dict["blocks"]:
-        if "lines" not in b:
-            continue
-        for line in b["lines"]:
-            for span in line["spans"]:
-                t = span["text"].strip()
-                if t:
-                    text_items.append({
-                        "text": t,
-                        "x0": span["bbox"][0],
-                        "y0": span["bbox"][1],
-                        "x1": span["bbox"][2],
-                        "y1": span["bbox"][3],
-                        "size": round(span["size"], 1),
-                        "font": span.get("font", ""),
-                    })
-
-    # 分组：按 y 位置相似的行
-    text_items.sort(key=lambda x: (x["y0"], x["x0"]))
-
-    # 2. 获取所有矢量绘图（用于识别条形图）
-    print("\n【矢量图形（矩形）】")
-    drawings = page.get_drawings()
-    rectangles = []
-    for d in drawings:
-        # 只看矩形填充
-        if d["type"] == "f":  # filled
-            # 获取矩形边界
-            items = d.get("items", [])
-            for item in items:
-                if len(item) >= 2:
-                    op = item[0]
-                    if op == "re":  # rectangle
-                        rect = item[1]
-                        width = round(rect.width, 1)
-                        height = round(rect.height, 1)
-                        if 1 < width < 1000 and 1 < height < 100:  # 可能是条形
-                            rectangles.append({
-                                "x0": round(rect.x0, 1),
-                                "y0": round(rect.y0, 1),
-                                "x1": round(rect.x1, 1),
-                                "y1": round(rect.y1, 1),
-                                "w": width,
-                                "h": height,
-                                "color": d.get("fill"),
-                            })
-
-    # 按 y 排序
-    rectangles.sort(key=lambda r: (r["y0"]))
-    print(f"共 {len(rectangles)} 个矩形")
-
-    # 3. 寻找横向对齐的文字和条形（同一 y 范围）
-    print("\n【条形 + 文字配对分析】")
-
-    # 找出 y 区间内所有文字标签（中文标签）和数字（条形数值）
-    for r in rectangles:
-        y_range = (r["y0"] - 20, r["y1"] + 20)
-        x_range = (0, r["x1"] + 30)
-        nearby_texts = [t for t in text_items
-                         if y_range[0] <= t["y0"] <= y_range[1]
-                         and t["x0"] <= r["x1"] + 50]
-        if nearby_texts:
-            # 只打印有中文标签的
-            has_chinese = any("\u4e00" <= c <= "\u9fff" for t in nearby_texts for c in t["text"])
-            if has_chinese or len(nearby_texts) > 0:
-                label_text = " | ".join(t["text"] for t in nearby_texts)
-                print(f"  条形: y=[{r['y0']:.1f}, {r['y1']:.1f}] x=[{r['x0']:.1f}, {r['x1']:.1f}] w={r['w']:.1f} h={r['h']:.1f}")
-                print(f"    附近文字: {label_text}")
-
-    # 4. 打印整页所有中文标签及其数值
-    print("\n【详细列表（按行分组）】")
-    # 按 y 聚类，相同行（y 差小于 15）归为一组
-    rows = []
-    for item in text_items:
-        # 找现有 row
-        found = False
-        for row in rows:
-            if abs(row["y"] - item["y0"]) < 15:
-                row["items"].append(item)
-                found = True
-                break
-        if not found:
-            rows.append({"y": item["y0"], "items": [item]})
-
-    for row in rows:
-        items_sorted = sorted(row["items"], key=lambda x: x["x0"])
-        line_content = " | ".join(t["text"] for t in items_sorted)
-        if any("\u4e00" <= c <= "\u9fff" for c in line_content) or \
-           any(t["text"].replace(".", "").replace(" ", "").isdigit() and len(t["text"]) <= 8 for t in items_sorted):
-            print(f"  y~{row['y']:.1f}: {line_content}")
-
+doc = fitz.open('input/report_B6.pdf')
+page = doc[14]
+zoom = 200 / 72.0
+mat = fitz.Matrix(zoom, zoom)
+pix = page.get_pixmap(matrix=mat, alpha=False)
+img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
+img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 doc.close()
+
+h, w = img.shape[:2]
+print(f'页面尺寸: {w} x {h}')
+
+chart_region = img[200:600, 50:w-50]
+print(f'图表区域: {chart_region.shape}')
+
+hsv = cv2.cvtColor(chart_region, cv2.COLOR_RGB2HSV)
+yellow_mask = (hsv[:,:,0] > 15) & (hsv[:,:,0] < 50) & (hsv[:,:,1] > 50) & (hsv[:,:,2] > 80)
+blue_mask = (hsv[:,:,0] > 90) & (hsv[:,:,0] < 140) & (hsv[:,:,1] > 30) & (hsv[:,:,2] > 50)
+red_mask = (hsv[:,:,0] > 0) & (hsv[:,:,0] < 20) & (hsv[:,:,1] > 30) & (hsv[:,:,2] > 80)
+green_mask = (hsv[:,:,0] > 40) & (hsv[:,:,0] < 80) & (hsv[:,:,1] > 30) & (hsv[:,:,2] > 50)
+combined_mask = yellow_mask | blue_mask | red_mask | green_mask
+
+kernel = np.ones((3,3), np.uint8)
+combined_mask = cv2.morphologyEx(combined_mask.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
+combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+
+contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+bars = []
+for contour in contours:
+    area = cv2.contourArea(contour)
+    if area < 200 or area > 100000:
+        continue
+    x, y, cw, ch = cv2.boundingRect(contour)
+    if cw < 15 or ch < 30:
+        continue
+    bars.append({'x': x, 'y': y, 'w': cw, 'h': ch})
+
+bars.sort(key=lambda c: c['x'])
+
+print(f'\n条形位置（从左到右）:')
+for i, bar in enumerate(bars):
+    print(f'  {i+1}: x={bar["x"]}, y={bar["y"]}, w={bar["w"]}, h={bar["h"]}')
+
+print(f'\n条形中心位置:')
+for i, bar in enumerate(bars):
+    center_x = bar['x'] + bar['w'] // 2
+    print(f'  {i+1}: center_x={center_x}')
+
+labels = ["创造发明", "独立自主", "美的追求", "智力激发", "利他助人",
+          "成就感", "管理权力", "工作环境", "同事关系", "上司关系",
+          "多样变化", "经济报酬", "安全稳定", "声望地位", "生活方式"]
+
+print(f'\n标签数量: {len(labels)}')
+print(f'条形数量: {len(bars)}')
+
+print(f'\n按位置分配标签:')
+for i, bar in enumerate(bars):
+    if i < len(labels):
+        print(f'  x={bar["x"]}: {labels[i]}')

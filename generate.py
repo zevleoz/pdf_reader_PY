@@ -401,6 +401,16 @@ def _page_dict(layout: str,
     return data
 
 
+# ---------------- 辅助函数 ----------------
+def has_page_data(page_key_codes: List[str]) -> bool:
+    """检查某个页面是否有有效数据"""
+    for code in page_key_codes:
+        val = v(code)
+        if val is not None and val != "" and str(val).strip() != "0":
+            return True
+    return False
+
+
 # ---------------- P01 封面 ----------------
 def build_page_1(student: Dict[str, Any]) -> Dict[str, Any]:
     info_items = [
@@ -414,8 +424,8 @@ def build_page_1(student: Dict[str, Any]) -> Dict[str, Any]:
         {"label": "档案编号", "value": student.get("archive_id", "") or "-"},
     ]
     return _page_dict("cover",
-                      page_title="综合测评报告",
-                      subtitle="COMPREHENSIVE ASSESSMENT REPORT",
+                      page_title="凭远Y4评测报告",
+                      subtitle="Y4 Assessment Report",
                       rows=info_items)
 
 
@@ -544,6 +554,7 @@ def build_page_6() -> Dict[str, Any]:
         {
             "name": "信任",
             "en": "Trust",
+            "max": 50,
             "dim_items": [
                 {"label": "信任", "who": "母亲", "value": fmt(v("023")), "level": fmt(v("032")), "code": "023"},
                 {"label": "信任", "who": "父亲", "value": fmt(v("024")), "level": fmt(v("033")), "code": "024"},
@@ -553,6 +564,7 @@ def build_page_6() -> Dict[str, Any]:
         {
             "name": "沟通",
             "en": "Communication",
+            "max": 45,
             "dim_items": [
                 {"label": "沟通", "who": "母亲", "value": fmt(v("026")), "level": fmt(v("035")), "code": "026"},
                 {"label": "沟通", "who": "父亲", "value": fmt(v("027")), "level": fmt(v("036")), "code": "027"},
@@ -562,6 +574,7 @@ def build_page_6() -> Dict[str, Any]:
         {
             "name": "亲近",
             "en": "Closeness",
+            "max": 30,
             "dim_items": [
                 {"label": "亲近", "who": "母亲", "value": fmt(v("029")), "level": fmt(v("038")), "code": "029"},
                 {"label": "亲近", "who": "父亲", "value": fmt(v("030")), "level": fmt(v("039")), "code": "030"},
@@ -570,9 +583,10 @@ def build_page_6() -> Dict[str, Any]:
         },
     ]
     for dim in dimensions:
+        max_val = dim.get("max", 50)
         for item in dim["dim_items"]:
             s = to_float(item["value"], 5)
-            item["pct"] = max(0, min(100, int(s / 50.0 * 100)))
+            item["pct"] = max(0, min(100, int(s / max_val * 100)))
     return _page_dict("attachment",
                       page_title="依恋关系",
                       subtitle="SOCIAL ATTACHMENT",
@@ -735,7 +749,7 @@ def build_page_10() -> Dict[str, Any]:
                       weight_kg=fmt(v("044")),
                       figures=figures,
                       health_items=health_items,
-                      health_description=v("050a"))
+                      health_desc_eat=v("050a"))
 
 
 # ---------------- P11 学习力介绍 ----------------
@@ -949,20 +963,20 @@ def build_page_17() -> Dict[str, Any]:
 def build_page_18() -> Dict[str, Any]:
     value_scores_raw = [
         ("创造发明", "Creativity", "095"),
-        ("美的追求", "Aesthetic Pursuit", "096"),
-        ("利他助人", "Altruism", "097"),
-        ("管理权力", "Management Power", "098"),
-        ("同事关系", "Colleague Relations", "099"),
-        ("多样变化", "Variety", "100"),
-        ("安全稳定", "Security", "101"),
-        ("生活方式", "Lifestyle", "102"),
-        ("经济报酬", "Economic Reward", "103"),
-        ("声望地位", "Social Status", "104"),
-        ("独立自主", "Independence", "105"),
-        ("智力激发", "Intellectual Stimulation", "106"),
-        ("成就满足", "Achievement", "107"),
-        ("工作环境", "Work Environment", "108"),
-        ("上司关系", "Supervisor Relations", "109"),
+        ("独立自主", "Independence", "096"),
+        ("美的追求", "Aesthetic Pursuit", "097"),
+        ("智力激发", "Intellectual Stimulation", "098"),
+        ("利他助人", "Altruism", "099"),
+        ("成就感", "Achievement", "100"),
+        ("管理权力", "Management Power", "101"),
+        ("工作环境", "Work Environment", "102"),
+        ("同事关系", "Colleague Relations", "103"),
+        ("上司关系", "Supervisor Relations", "104"),
+        ("多样变化", "Variety", "105"),
+        ("经济报酬", "Economic Reward", "106"),
+        ("安全稳定", "Security", "107"),
+        ("声望地位", "Social Status", "108"),
+        ("生活方式", "Lifestyle", "109"),
     ]
 
     def _to_rows(raw):
@@ -1020,23 +1034,63 @@ def build_view_data() -> Dict[str, Any]:
     pages: List[Dict[str, Any]] = [
         build_page_1(student),
         build_page_2(),
-        build_page_3(),
-        build_page_4(),
-        build_page_5(),
-        build_page_6(),
-        build_page_7(),
-        build_page_8(),
-        build_page_9(),
-        build_page_10(),
-        build_page_11(),
-        build_page_12(),
-        build_page_13(),
-        build_page_14(),
-        build_page_15(),
-        build_page_16(),
-        build_page_17(),
-        build_page_18(),
     ]
+    
+    # 心力系统：按页面逐个判断
+    mind_pages = []
+    if has_page_data(["009"]):
+        mind_pages.append(build_page_4())
+    if has_page_data(["051"]):
+        mind_pages.append(build_page_5())
+    if has_page_data(["020", "021", "022"]):
+        mind_pages.append(build_page_6())
+    if has_page_data(["059", "060"]):
+        mind_pages.append(build_page_7())
+    if has_page_data(["015", "016", "017", "018", "019"]):
+        mind_pages.append(build_page_8())
+    
+    # 如果有心力系统页面，添加心力介绍页
+    if mind_pages:
+        pages.append(build_page_3())
+        pages.extend(mind_pages)
+    
+    # 精力系统：按页面逐个判断
+    energy_pages = []
+    if has_page_data(["041", "042"]):
+        energy_pages.append(build_page_10())
+    
+    # 如果有精力系统页面，添加精力介绍页
+    if energy_pages:
+        pages.append(build_page_9())
+        pages.extend(energy_pages)
+    
+    # 学习力系统：按页面逐个判断
+    learning_pages = []
+    if has_page_data(["001", "002"]):
+        learning_pages.append(build_page_12())
+    if has_page_data(["073", "074", "075", "076", "077", "078", "079", "080", "081", "082"]):
+        learning_pages.append(build_page_13())
+    if has_page_data(["083", "084", "085", "086", "087", "088", "089", "090"]):
+        learning_pages.append(build_page_14())
+    
+    # 如果有学习力系统页面，添加学习力介绍页
+    if learning_pages:
+        pages.append(build_page_11())
+        pages.extend(learning_pages)
+    
+    # 生涯力系统：按页面逐个判断
+    career_pages = []
+    if has_page_data(["091", "092", "093", "094", "095", "096"]):
+        career_pages.append(build_page_16())
+    if has_page_data(["097", "098", "099", "100", "101", "102", "103"]):
+        career_pages.append(build_page_17())
+    if has_page_data(["104", "105", "106", "107", "108", "109"]):
+        career_pages.append(build_page_18())
+    
+    # 如果有生涯力系统页面，添加生涯力介绍页
+    if career_pages:
+        pages.append(build_page_15())
+        pages.extend(career_pages)
     
     for page in pages:
         layout = page.get("layout", "")

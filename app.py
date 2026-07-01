@@ -51,20 +51,17 @@ def index():
 # ---------------------------------------------------------------------------
 @app.route("/api/generate", methods=["POST"])
 def api_generate():
-    # 1) 校验：4 个命名槽都必须有文件
+    # 1) 接收1-4个文件，不再强制要求4个
     files_by_key = {}
-    missing: List[str] = []
     for key in REQUIRED_KEYS:
         f = request.files.get(key)
         if f and f.filename:
             files_by_key[key] = f
-        else:
-            missing.append(key)
-
-    if missing:
+    
+    if not files_by_key:
         return jsonify({
             "ok": False,
-            "error": f"缺少 PDF：{', '.join(missing)}。请为 A2 / B3 / B4 / B6 四个槽都上传文件。"
+            "error": "请至少上传一份PDF文件"
         }), 400
 
     # 2) 清空 input/ 旧文件，按 report_<KEY>.pdf 保存
