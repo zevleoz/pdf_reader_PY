@@ -61,11 +61,12 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .progress-item .peer-marker::before { content:"同龄"; position:absolute; bottom:18px; left:-5mm; font-size:7pt; color:#F4A261; font-weight:600; white-space:nowrap; width:10mm; text-align:center; }
 
 .cover { display:flex; flex-direction:column; align-items:center; justify-content:center; height:267mm; text-align:center; padding: 0 18mm; }
-.cover .cover-logo { width:120mm; height:auto; margin-bottom:8mm; }
+.cover .cover-logo { width:90mm; height:auto; margin-bottom:8mm; }
 .cover .red-line { width:40mm; height:2px; background:#B33A3A; margin:3mm 0; }
-.cover .cover-title { font-size:36pt; font-weight:700; color:#B33A3A; letter-spacing:4px; margin:2mm 0; }
-.cover .cover-subtitle { font-size:10pt; letter-spacing:3px; color:#4B5563; text-transform:uppercase; margin-bottom:5mm; }
-.cover .info-card { background:white; border-radius:14px; padding:6mm 15mm; margin-top:10mm; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+.cover .cover-title { font-size:28pt; font-weight:700; color:#B33A3A; letter-spacing:4px; margin:2mm 0; }
+.cover .cover-subtitle { font-size:24pt; font-weight:700; color:#1A1A1A; letter-spacing:3px; margin-bottom:3mm; }
+.cover .cover-subtitle-en { font-size:10pt; letter-spacing:3px; color:#4B5563; text-transform:uppercase; margin-bottom:5mm; }
+.cover .info-card { background:white; border-radius:14px; padding:6mm 15mm; margin-top:10mm; border:1px solid #E5E5E5; }
 .cover .info-card .row { display:flex; padding:1.5mm 0; font-size:10pt; justify-content:center; gap:4mm; }
 .cover .info-card .row .label { color:#B33A3A; font-weight:600; }
 .cover .info-card .row .value { color:#1A1A1A; font-weight:500; }
@@ -286,21 +287,56 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .ar-bar { flex:1; height:6px; background:#E5E5E5; border-radius:3px; overflow:hidden; }
 .ar-fill { height:100%; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:3px; }
 
-/* 职业价值观页面 P18 */
-.values-content { margin-top:4mm; }
-.values-col-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
-.values-row { display:flex; align-items:center; padding:1.5mm 0; }
-.values-rank { flex:0 0 28px; width:28px; height:28px; border-radius:50%; background:#E8F5F3; color:#2A9D8F; font-size:10pt; font-weight:700; display:flex; align-items:center; justify-content:center; margin-right:3mm; }
-.values-label { flex:0 0 30mm; }
-.values-label .zh { font-size:9.5pt; font-weight:600; color:#1A1A1A; display:block; }
-.values-label .en { font-size:6.5pt; color:#8C8C8C; letter-spacing:0.3px; }
-.values-slider-wrap { flex:1; margin:0 3mm; }
-.values-bar { position:relative; height:8px; background:#E5E5E5; border-radius:4px; overflow:visible; }
-.values-fill { height:100%; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:4px; }
-.values-dot { position:absolute; width:24px; height:24px; background:#1F2937; border-radius:50%; top:50%; left:0; margin-left:-12px; margin-top:-12px; display:flex; align-items:center; justify-content:center; z-index:2; }
-.values-dot span { color:white; font-size:9pt; font-weight:700; }
-.values-score { flex:0 0 18mm; font-size:12pt; font-weight:700; color:#1A1A1A; text-align:right; font-variant-numeric:tabular-nums; }
-.values-score small { font-size:8pt; color:#8C8C8C; font-weight:400; }
+/* 自我概念页面 P05 - 评分条 */
+.self-concept-score-bar { display:flex; flex-direction:column; align-items:center; margin:8mm 0; }
+.score-bar-track { display:flex; width:95%; height:10mm; border-radius:8px; overflow:hidden; border:1px solid #E5E5E5; position:relative; }
+.score-segment { flex:1; display:flex; align-items:center; justify-content:center; }
+.score-segment.low { background:#FBBF24; flex:0 0 30%; }
+.score-segment.normal { background:#2A9D8F; flex:0 0 60%; }
+.score-segment.high { background:#E76F51; flex:0 0 10%; }
+.segment-text { text-align:center; color:white; }
+.segment-text .zh { font-size:9pt; font-weight:700; margin-bottom:0.3mm; }
+.segment-text .en { font-size:6pt; letter-spacing:1px; opacity:0.9; }
+.score-marker { position:absolute; top:-5mm; transform:translateX(-50%); z-index:10; }
+.marker-box { background:#1F2937; color:white; padding:1mm 2.5mm; border-radius:6px; font-size:11pt; font-weight:700; font-variant-numeric:tabular-nums; }
+.marker-line { width:2px; height:3mm; background:#1F2937; margin:0 auto; }
+
+.self-concept-divider { margin:6mm 0; }
+.divider-line { height:1px; background:#E5E5E5; }
+
+.self-concept-details-header { margin-bottom:6mm; }
+.details-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
+.details-desc { font-size:9.5pt; color:#4B5563; line-height:1.8; }
+
+/* 职业价值观页面 P18 - 现代网格布局 */
+.values-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
+
+.values-top5-section { margin-bottom:4mm; }
+.values-top5-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:2mm; }
+.value-card-top { background:linear-gradient(135deg, #1F2937 0%, #374151 100%); border-radius:16px; padding:5mm 4mm; position:relative; color:white; min-height:38mm; }
+.value-card-top::before { content:""; position:absolute; top:0; left:0; width:100%; height:4px; background:linear-gradient(90deg, #F4A261, #E76F51); }
+.value-badge { position:absolute; top:-5px; right:-5px; width:36px; height:36px; border-radius:50%; background:#F4A261; color:#1F2937; font-size:14pt; font-weight:700; display:flex; align-items:center; justify-content:center; }
+.value-header { padding-right:4mm; margin-bottom:3mm; }
+.value-label-top { font-size:10pt; font-weight:700; color:white; margin-bottom:1mm; letter-spacing:0.5px; }
+.value-en-top { font-size:7pt; color:rgba(255,255,255,0.6); letter-spacing:0.5px; text-transform:uppercase; }
+.value-feature { margin-bottom:2mm; display:flex; align-items:flex-start; gap:2mm; }
+.feature-icon { color:#F4A261; font-size:8pt; flex-shrink:0; margin-top:1mm; }
+.feature-text { font-size:8pt; color:rgba(255,255,255,0.9); line-height:1.6; }
+.value-monologue { display:flex; align-items:flex-start; gap:2mm; }
+.monologue-icon { color:#60A5FA; font-size:7pt; flex-shrink:0; margin-top:1mm; }
+.monologue-text { font-size:8pt; color:rgba(255,255,255,0.7); line-height:1.6; font-style:italic; }
+
+.values-remaining-section { }
+.values-remaining-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:1.5mm; }
+.value-card-remaining { background:white; border:1px solid #E5E5E5; border-radius:12px; padding:3mm; position:relative; min-height:28mm; }
+.value-num-remaining { position:absolute; top:-3px; right:-3px; width:26px; height:26px; border-radius:50%; background:#E5E5E5; color:#8C8C8C; font-size:9pt; font-weight:600; display:flex; align-items:center; justify-content:center; }
+.value-header-remaining { padding-right:3mm; margin-bottom:2mm; }
+.value-label-remaining { font-size:9pt; font-weight:600; color:#1A1A1A; margin-bottom:0.5mm; letter-spacing:0.3px; }
+.value-en-remaining { font-size:6pt; color:#8C8C8C; letter-spacing:0.3px; text-transform:uppercase; }
+.value-feature-remaining { margin-bottom:1.5mm; }
+.feature-text-sm { font-size:7.5pt; color:#4B5563; line-height:1.5; }
+.value-monologue-remaining { }
+.monologue-text-sm { font-size:7pt; color:#8C8C8C; line-height:1.5; font-style:italic; }
 </style>
 </head>
 <body>
@@ -311,9 +347,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <!-- ============ P01 COVER ============ -->
 {% if page.layout == 'cover' %}
 <div class="cover">
-    <img src="../branding/logo_red.png" class="cover-logo" />
+    <img src="../branding/logo_color.png" class="cover-logo" />
     <div class="cover-title">{{ page.page_title }}</div>
     <div class="cover-subtitle">{{ page.subtitle }}</div>
+    <div class="cover-subtitle-en">{{ page.subtitle_en }}</div>
     <div class="red-line"></div>
     <div class="info-card">
         <div class="row"><span class="label">姓　名：</span><span class="value">{{ student.name }}</span></div>
@@ -460,22 +497,40 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="page-title-en">{{ page.subtitle_en }}</div>
 {% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
 
-<div class="gauge-wrap">
-    <svg class="gauge-svg" viewBox="0 0 400 180">
-        <defs>
-            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
-                <stop offset="50%" style="stop-color:#F4A261;stop-opacity:1"/>
-                <stop offset="100%" style="stop-color:#2A9D8F;stop-opacity:1"/>
-            </linearGradient>
-        </defs>
-        <path d="{{ page.gauge.full_path }}" fill="none" stroke="#E0E0E0" stroke-width="18" stroke-linecap="round"/>
-        <path d="{{ page.gauge.arc_path }}" fill="none" stroke="url(#gaugeGrad)" stroke-width="18" stroke-linecap="round"/>
-        <circle cx="200" cy="160" r="8" fill="#1F2937"/>
-        <circle cx="200" cy="160" r="4" fill="#FFFFFF"/>
-        <line x1="200" y1="160" x2="{{ page.gauge.needle_x }}" y2="{{ page.gauge.needle_y }}" stroke="#1F2937" stroke-width="3" stroke-linecap="round"/>
-    </svg>
-    <div class="gauge-value-line"><span class="g-val">{{ page.gauge.value }}</span><span class="g-max"> / {{ page.gauge.max }}</span></div>
+<div class="self-concept-score-bar">
+    <div class="score-bar-track">
+        <div class="score-segment low">
+            <div class="segment-text">
+                <div class="zh">偏低</div>
+                <div class="en">Low</div>
+            </div>
+        </div>
+        <div class="score-segment normal">
+            <div class="segment-text">
+                <div class="zh">正常</div>
+                <div class="en">Normal</div>
+            </div>
+        </div>
+        <div class="score-segment high">
+            <div class="segment-text">
+                <div class="zh">偏高</div>
+                <div class="en">High</div>
+            </div>
+        </div>
+    </div>
+    <div class="score-marker" style="left:{{ page.overall_pct }}%">
+        <div class="marker-box">{{ page.overall_value }}</div>
+        <div class="marker-line"></div>
+    </div>
+</div>
+
+<div class="self-concept-divider">
+    <div class="divider-line"></div>
+</div>
+
+<div class="self-concept-details-header">
+    <div class="details-title">测评结果详情 丨 RESULTS DETAILS</div>
+    <div class="details-desc">个体的自我概念是对众多方面自我认知的整体感知，本测评选取了影响儿童自我概念的六大重要方面，包括行为表现、能力与学校表现、躯体外貌、情绪焦虑、合群、幸福与满意。下面是你在这六大方面得分的具体情况：</div>
 </div>
 
 {% for item in page.sub_items %}
@@ -894,8 +949,8 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     </div>
 </div>
 
-<!-- ============ VALUES TWO COL (P18) ============ -->
-{% elif page.layout == 'values_two_col' %}
+<!-- ============ VALUES GRID (P18) ============ -->
+{% elif page.layout == 'values_grid' %}
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">{{ page.page_en }}</span></div>
     <div class="right">{{ student.name }} · {{ student.test_date }}</div>
@@ -904,38 +959,48 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="page-title-en">{{ page.subtitle_en }}</div>
 {% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
 
-<div class="top-value-row">
-    {% for item in page.top_items %}
-    <div class="top-value-card">
-        <div class="rank">TOP {{ item.rank }}</div>
-        <div class="name">{{ item.label }}</div>
-        <div class="score">{{ item.value }}<small> /10.0</small></div>
-    </div>
-    {% endfor %}
-</div>
-
-<div class="values-content">
-    {% for col in page.columns %}
-    <div class="values-col">
-        <div class="values-col-title">{{ col.title }}</div>
-        {% for item in col.rows %}
-        <div class="values-row">
-            <div class="values-rank">{{ item.rank }}</div>
-            <div class="values-label">
-                <span class="zh">{{ item.label }}</span>
-                <span class="en">{{ item.en }}</span>
+<div class="values-top5-section">
+    <div class="values-section-title">核心价值观 TOP 5</div>
+    <div class="values-top5-grid">
+        {% for item in page.top5 %}
+        <div class="value-card-top">
+            <div class="value-badge">{{ item.rank }}</div>
+            <div class="value-header">
+                <div class="value-label-top">{{ item.label }}</div>
+                <div class="value-en-top">{{ item.en }}</div>
             </div>
-            <div class="values-slider-wrap">
-                <div class="values-bar">
-                    <div class="values-fill" style="width:{{ item.pct }}%;"></div>
-                    <div class="values-dot" style="left:{{ item.pct }}%;"></div>
-                </div>
+            <div class="value-feature">
+                <span class="feature-icon">●</span>
+                <span class="feature-text">{{ item.feature }}</span>
             </div>
-            <div class="values-score">{{ item.value }}<small>/10.0</small></div>
+            <div class="value-monologue">
+                <span class="monologue-icon">◆</span>
+                <span class="monologue-text">{{ item.monologue }}</span>
+            </div>
         </div>
         {% endfor %}
     </div>
-    {% endfor %}
+</div>
+
+<div class="values-remaining-section">
+    <div class="values-section-title">其他价值观</div>
+    <div class="values-remaining-grid">
+        {% for item in page.remaining %}
+        <div class="value-card-remaining">
+            <div class="value-num-remaining">{{ item.rank }}</div>
+            <div class="value-header-remaining">
+                <div class="value-label-remaining">{{ item.label }}</div>
+                <div class="value-en-remaining">{{ item.en }}</div>
+            </div>
+            <div class="value-feature-remaining">
+                <span class="feature-text-sm">{{ item.feature }}</span>
+            </div>
+            <div class="value-monologue-remaining">
+                <span class="monologue-text-sm">{{ item.monologue }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
 </div>
 
 {% endif %}

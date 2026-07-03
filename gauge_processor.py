@@ -210,9 +210,9 @@ class GaugeOCR:
         
         angle = self.pointer_angle
         
-        angle_0 = 240.0
+        angle_0 = 220.0
         angle_50 = 90.0
-        angle_100 = -35.0
+        angle_100 = -40.0
         
         if angle >= angle_50:
             normalized = (angle_0 - angle) / (angle_0 - angle_50)

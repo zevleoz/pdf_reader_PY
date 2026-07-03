@@ -445,8 +445,9 @@ def build_page_1(student: Dict[str, Any]) -> Dict[str, Any]:
         {"label": "档案编号", "value": student.get("archive_id", "") or "-"},
     ]
     return _page_dict("cover",
-                      page_title="凭远Y4评测报告",
-                      subtitle="Y4 Assessment Report",
+                      page_title="凭远教育",
+                      subtitle="Y4评测报告",
+                      subtitle_en="Y4 Assessment Report",
                       rows=info_items)
 
 
@@ -455,11 +456,11 @@ def build_page_2() -> Dict[str, Any]:
     paragraphs = [
         "Y4 是凭远从四个相互关联的成长系统出发，对青少年当前状态、发展资源和潜在困难形成的综合画像。",
         "Y 代表 Youth，也呼应 Why。Y4 不只描述一个学生“是什么样”，也试图进一步回答：",
-        "● 他为什么会产生这样的情绪和行为；",
-        "● 他为什么在某些环境中充满动力，在另一些环境中难以行动；",
-        "● 他为什么在某些学习任务中表现突出，却在另一些任务中频繁受阻；",
-        "● 他为什么被某些方向吸引；",
-        "● 什么样的成长支持，能够真正帮助他把潜能转化为未来。",
+        "● TA为什么会产生这样的情绪和行为；",
+        "● TA为什么在某些环境中充满动力，在另一些环境中难以行动；",
+        "● TA为什么在某些学习任务中表现突出，却在另一些任务中频繁受阻；",
+        "● TA为什么被某些方向吸引；",
+        "● 什么样的成长支持，能够真正帮助TA把潜能转化为未来。",
         "Y4 不以单一分数定义学生，也不把学生简单归类为某一种类型。它通过四个系统之间的联系，理解一个真实、复杂并且仍在发展中的青少年。",
     ]
     return _page_dict("y4_intro",
@@ -477,13 +478,13 @@ def build_page_3() -> Dict[str, Any]:
                       paragraphs=[
                           "心力，是一个青少年理解自己、稳定自己、连接他人并启动行动的内在基础。",
                           "这一系统关注的不是学生是否“情绪好”或者“性格好”，而是：",
-                          "● 他是否能够在压力、失败和变化中保持基本稳定；",
-                          "● 他如何评价自己、理解自己；",
-                          "● 他是否相信自己有能力面对挑战；",
-                          "● 他是否拥有值得信任和依靠的关系；",
-                          "● 他能否表达需要，并在困难时寻求帮助；",
-                          "● 他行动的动力来自哪里；",
-                          "● 他如何与环境、他人和任务建立关系。",
+                          "● TA是否能够在压力、失败和变化中保持基本稳定；",
+                          "● TA如何评价自己、理解自己；",
+                          "● TA是否相信自己有能力面对挑战；",
+                          "● TA是否拥有值得信任和依靠的关系；",
+                          "● TA能否表达需要，并在困难时寻求帮助；",
+                          "● TA行动的动力来自哪里；",
+                          "● TA如何与环境、他人和任务建立关系。",
                       ])
 
 
@@ -549,22 +550,41 @@ def build_page_5() -> Dict[str, Any]:
             "pct": max(0, min(100, int(val / it["max"] * 100))),
         })
     overall = to_float(v("051"), 80)
-    try:
-        gauge = gauge_svg(overall, 100.0)
-    except Exception:
-        gauge = gauge_svg(60.0, 100.0)
     return _page_dict("self_concept",
                       page_title="自我概念",
                       subtitle="SELF CONCEPT",
                       page_en="Self-Concept Dimensions",
                       intro="自我概念是个体对自己认识的集合，个体认为的“我是谁，我是一个怎样的人”。也可以理解为个人心中对自己的印象，包括对身体、能力、性格、态度等。比如“我是聪明的”、“我是漂亮的”、“我学习好”。自我概念的发展过程是一个人个性形成和社会化发展的关键。",
                       overall_value=fmt(overall),
-                      overall_range="/ 100",
-                      gauge=gauge,
+                      overall_pct=max(0, min(100, int(overall))),
                       sub_items=sub_items)
 
 
 # ---------------- P06 依恋关系（020-040） ----------------
+def _attachment_level(dim_name: str, score: float) -> str:
+    if dim_name == "信任":
+        if score >= 35:
+            return "高"
+        elif score >= 18:
+            return "不低"
+        else:
+            return "偏低"
+    elif dim_name == "沟通":
+        if score >= 31:
+            return "高"
+        elif score >= 16:
+            return "不低"
+        else:
+            return "偏低"
+    elif dim_name == "亲近":
+        if score >= 21:
+            return "高"
+        elif score >= 11:
+            return "不低"
+        else:
+            return "偏低"
+    return ""
+
 def build_page_6() -> Dict[str, Any]:
     types = [
         {"role": "母亲", "type": fmt(v("020"))},
@@ -577,9 +597,9 @@ def build_page_6() -> Dict[str, Any]:
             "en": "Trust",
             "max": 50,
             "dim_items": [
-                {"label": "信任", "who": "母亲", "value": fmt(v("023")), "level": fmt(v("032")), "code": "023"},
-                {"label": "信任", "who": "父亲", "value": fmt(v("024")), "level": fmt(v("033")), "code": "024"},
-                {"label": "信任", "who": "同伴", "value": fmt(v("025")), "level": fmt(v("034")), "code": "025"},
+                {"label": "信任", "who": "母亲", "value": fmt(v("023")), "code": "023"},
+                {"label": "信任", "who": "父亲", "value": fmt(v("024")), "code": "024"},
+                {"label": "信任", "who": "同伴", "value": fmt(v("025")), "code": "025"},
             ]
         },
         {
@@ -587,9 +607,9 @@ def build_page_6() -> Dict[str, Any]:
             "en": "Communication",
             "max": 45,
             "dim_items": [
-                {"label": "沟通", "who": "母亲", "value": fmt(v("026")), "level": fmt(v("035")), "code": "026"},
-                {"label": "沟通", "who": "父亲", "value": fmt(v("027")), "level": fmt(v("036")), "code": "027"},
-                {"label": "沟通", "who": "同伴", "value": fmt(v("028")), "level": fmt(v("037")), "code": "028"},
+                {"label": "沟通", "who": "母亲", "value": fmt(v("026")), "code": "026"},
+                {"label": "沟通", "who": "父亲", "value": fmt(v("027")), "code": "027"},
+                {"label": "沟通", "who": "同伴", "value": fmt(v("028")), "code": "028"},
             ]
         },
         {
@@ -597,17 +617,19 @@ def build_page_6() -> Dict[str, Any]:
             "en": "Closeness",
             "max": 30,
             "dim_items": [
-                {"label": "亲近", "who": "母亲", "value": fmt(v("029")), "level": fmt(v("038")), "code": "029"},
-                {"label": "亲近", "who": "父亲", "value": fmt(v("030")), "level": fmt(v("039")), "code": "030"},
-                {"label": "亲近", "who": "同伴", "value": fmt(v("031")), "level": fmt(v("040")), "code": "031"},
+                {"label": "亲近", "who": "母亲", "value": fmt(v("029")), "code": "029"},
+                {"label": "亲近", "who": "父亲", "value": fmt(v("030")), "code": "030"},
+                {"label": "亲近", "who": "同伴", "value": fmt(v("031")), "code": "031"},
             ]
         },
     ]
     for dim in dimensions:
         max_val = dim.get("max", 50)
+        dim_name = dim.get("name", "")
         for item in dim["dim_items"]:
             s = to_float(item["value"], 5)
             item["pct"] = max(0, min(100, int(s / max_val * 100)))
+            item["level"] = _attachment_level(dim_name, s)
     return _page_dict("attachment",
                       page_title="依恋关系",
                       subtitle="SOCIAL ATTACHMENT",
@@ -737,11 +759,11 @@ def build_page_9() -> Dict[str, Any]:
                       section_num="2.",
                       paragraphs=[
                           "成长不仅发生在心理和认知层面，也建立在身体提供的能量基础之上。",
-                          "一个学生可能拥有很强的认知能力和明确的目标，但如果长期睡眠不足、运动不足、饮食失衡或身体状态欠佳，他所拥有的能力就可能无法稳定表现出来。",
+                          "一个学生可能拥有很强的认知能力和明确的目标，但如果长期睡眠不足、运动不足、饮食失衡或身体状态欠佳，TA所拥有的能力就可能无法稳定表现出来。",
                           "精力系统的核心问题：",
                           "● 这个学生是否拥有持续前进所需要的身体能量和生活节律；",
-                          "● 他的饮食、睡眠和运动习惯，是否在支撑而不是消耗他；",
-                          "● 他是否具备基本的身体管理意识和能力。",
+                          "● TA的饮食、睡眠和运动习惯，是否在支撑而不是消耗TA；",
+                          "● TA是否具备基本的身体管理意识和能力。",
                       ])
 
 
@@ -795,9 +817,9 @@ def build_page_11() -> Dict[str, Any]:
                           "它是学生将认知资源、执行功能、学习动力和学习策略整合起来，持续理解、完成和迁移学习任务的能力。",
                           "学习力系统的核心问题：",
                           "● 这个学生在认知层面是否具备稳定而多样的信息处理能力；",
-                          "● 他在学习过程中能否有效地管理自己的注意力、记忆和思维方式；",
-                          "● 他学习的动力来自哪里，是出于兴趣还是外部压力；",
-                          "● 他是否掌握了有效和可迁移的学习策略。",
+                          "● TA在学习过程中能否有效地管理自己的注意力、记忆和思维方式；",
+                          "● TA学习的动力来自哪里，是出于兴趣还是外部压力；",
+                          "● TA是否掌握了有效和可迁移的学习策略。",
                       ])
 
 
@@ -996,56 +1018,63 @@ def build_page_17() -> Dict[str, Any]:
 
 # ---------------- P18 职业价值观（095-124） ----------------
 def build_page_18() -> Dict[str, Any]:
-    value_scores_raw = [
-        ("创造发明", "Creativity", "095"),
-        ("独立自主", "Independence", "096"),
-        ("美的追求", "Aesthetic Pursuit", "097"),
-        ("智力激发", "Intellectual Stimulation", "098"),
-        ("利他助人", "Altruism", "099"),
-        ("成就感", "Achievement", "100"),
-        ("管理权力", "Management Power", "101"),
-        ("工作环境", "Work Environment", "102"),
-        ("同事关系", "Colleague Relations", "103"),
-        ("上司关系", "Supervisor Relations", "104"),
-        ("多样变化", "Variety", "105"),
-        ("经济报酬", "Economic Reward", "106"),
-        ("安全稳定", "Security", "107"),
-        ("声望地位", "Social Status", "108"),
-        ("生活方式", "Lifestyle", "109"),
+    values_grid = [
+        ("经济报酬", "Economic Reward", "106", 1,
+         "较高的报酬，生活过得较为富足", "薪酬高，福利好"),
+        ("生活方式", "Lifestyle", "109", 2,
+         "可以选择过自己想过的生活，安逸、简单、快乐或充实", "有选择生活方式的权利"),
+        ("工作环境", "Work Environment", "102", 3,
+         "追求比较舒适、轻松、自由的工作环境", "工作环境舒适，轻松自由"),
+        ("上司关系", "Supervisor Relations", "104", 4,
+         "有一个开明的、民主的、公正的好领导", "有一个好领导"),
+        ("成就感", "Achievement", "100", 5,
+         "不断取得新的成就，得到认可或实现自己想做的事", "能给我带来成就感"),
+        ("智力激发", "Intellectual Stimulation", "098", 6,
+         "必须动脑筋思考、学习和探索新事物，解决新问题", "有挑战性"),
+        ("声望地位", "Social Status", "108", 7,
+         "所从事的工作在人们的心目中有较高的社会地位", "社会地位高，受人敬仰"),
+        ("安全稳定", "Security", "107", 8,
+         "工作稳定，收入有保障，不会失业", "安稳，不会失业"),
+        ("独立自主", "Independence", "096", 9,
+         "可以按自己的方式或想法工作，不受他人的影响", "能按自己想法和节奏做事"),
+        ("管理权力", "Management Power", "101", 10,
+         "管理和指挥他人做事", "影响和领导别人一起"),
+        ("创造发明", "Creativity", "095", 11,
+         "发明创造新的事物，可能是新产品，也可能是新观念或新方法", "发明创造新的事物"),
+        ("同事关系", "Colleague Relations", "103", 12,
+         "一起工作的大多数同事，人品较好，相处愉快", "与喜欢的人共事"),
+        ("多样变化", "Variety", "105", 13,
+         "讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作", "尝试不同的工作"),
+        ("利TA助人", "Altruism", "099", 14,
+         "为他人的幸福、利益尽一份力", "能帮助到他人"),
+        ("美的追求", "Aesthetic Pursuit", "097", 15,
+         "不断地追求美的东西，得到美的享受", "能体验和感受美"),
     ]
 
-    def _to_rows(raw):
-        out = []
-        for cn, en, code in raw:
-            val = to_float(v(code), 5)
-            out.append({
-                "label": cn, "en": en,
-                "value": fmt(val),
-                "pct": max(0, min(100, int(val / 10.0 * 100))),
-            })
-        return out
+    top5 = []
+    remaining = []
+    for cn, en, score_code, rank, feature, monologue in values_grid:
+        val = to_float(v(score_code), 5)
+        item = {
+            "label": cn, "en": en,
+            "rank": rank,
+            "value": fmt(val),
+            "pct": max(0, min(100, int(val / 10.0 * 100))),
+            "feature": feature,
+            "monologue": monologue,
+        }
+        if rank <= 5:
+            top5.append(item)
+        else:
+            remaining.append(item)
 
-    score_rows = _to_rows(value_scores_raw)
-    score_rows_sorted = sorted(score_rows, key=lambda x: to_float(x["value"], 0), reverse=True)
-    top_values = score_rows_sorted[:5]
-    for idx, item in enumerate(top_values):
-        item["rank"] = idx + 1
-
-    remaining_values = score_rows_sorted[5:]
-    for idx, item in enumerate(remaining_values):
-        item["rank"] = idx + 6
-
-    columns = [
-        {"title": "价值观得分（第 6-15 名）", "rows": remaining_values},
-    ]
-
-    return _page_dict("values_two_col",
+    return _page_dict("values_grid",
                       page_title="职业价值观",
                       subtitle="WORK VALUES",
                       page_en="TOP WORK VALUES & PRIORITIES",
                       intro="",
-                      top_items=top_values,
-                      columns=columns)
+                      top5=top5,
+                      remaining=remaining)
 
 
 # ======================================================================

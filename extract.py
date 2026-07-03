@@ -2159,27 +2159,29 @@ def main(force_skip_vision: bool = False) -> int:
                     hard_values[code] = nums[pos]
 
     # ---- 思维模式 / 自驱力（B4）
-    # 思维模式：优先使用仪表盘识别
-    mindset_value = None
-    if HAS_MINDSET_GAUGE:
-        mindset_img = PAGES_DIR / "report_B4_vision_10.png"
-        if mindset_img.exists():
-            try:
-                mindset_value = extract_mindset_gauge(str(mindset_img))
-                print(f"  · 仪表盘读取思维模式: {mindset_value:.1f}")
-            except Exception as e:
-                print(f"  · 仪表盘读取失败: {e}")
-    
-    if mindset_value is not None:
-        hard_values["059"] = f"{mindset_value:.1f}"
+    # 思维模式：优先使用文本提取，仪表盘识别作为备选
+    idx_think = b4.find("你的思维模式")
+    if idx_think >= 0:
+        seg = b4[idx_think: idx_think + 1500]
+        if "成长型思维模式" in seg:
+            hard_values["059"] = "80"
+        elif "固定型思维模式" in seg:
+            hard_values["059"] = "20"
+        elif "混合型思维模式" in seg:
+            hard_values["059"] = "50"
     else:
-        idx_think = b4.find("你的思维模式")
-        if idx_think >= 0:
-            seg = b4[idx_think: idx_think + 1500]
-            if "成长型思维模式" in seg and ("提高" in seg or "努力" in seg):
-                hard_values["059"] = "100"
-            elif "固定型思维模式" in seg:
-                hard_values["059"] = "0"
+        mindset_value = None
+        if HAS_MINDSET_GAUGE:
+            mindset_img = PAGES_DIR / "report_B4_vision_10.png"
+            if mindset_img.exists():
+                try:
+                    mindset_value = extract_mindset_gauge(str(mindset_img))
+                    print(f"  · 仪表盘读取思维模式: {mindset_value:.1f}")
+                except Exception as e:
+                    print(f"  · 仪表盘读取失败: {e}")
+        
+        if mindset_value is not None:
+            hard_values["059"] = f"{mindset_value:.1f}"
     # 自主性 / 胜任感 / 归属感（B4 自驱力）
     drive_map = (("自主性", "060", "125"), ("胜任感", "061", "126"), ("归属感", "062", "127"))
     for kw, code_my, code_avg in drive_map:
@@ -2524,7 +2526,7 @@ def main(force_skip_vision: bool = False) -> int:
         return str(raw_value).strip()
 
     def _final_value_for(code: str, schema_type: str) -> str:
-        hard_codes = {"059", "060", "061", "062", "125", "126", "127"}
+        hard_codes = {"001", "002", "003", "004", "005", "006", "007", "008", "059", "060", "061", "062", "125", "126", "127"}
         if code in hard_codes:
             v = hard_values.get(code)
             if v not in (None, "", "—"):
