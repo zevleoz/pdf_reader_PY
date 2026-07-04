@@ -11,6 +11,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 .page { width:210mm; height:297mm; padding:12mm 16mm; page-break-after:always; position:relative; overflow:hidden; background:#FAF7F2; -webkit-print-color-adjust: exact; }
 .page:last-child { page-break-after:auto; }
+.page-break { page-break-after:always; }
 
 .page::before { content:""; position:absolute; top:0; left:0; width:210mm; height:297mm; background-image:url('../branding/watermark.png'); background-size:45mm 45mm; background-repeat:repeat; opacity:0.15; z-index:0; pointer-events:none; }
 .page > * { position:relative; z-index:1; }
@@ -158,16 +159,24 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .habit-desc-card .habit-desc-text { font-size:9pt; color:#4B5563; line-height:1.8; }
 
 .card-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:3mm; margin-top:3mm; }
-.exec-card { background:white; border-radius:12px; padding:4mm 3mm; text-align:center; border:1px solid #EAEAEA; word-break:keep-all; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.exec-card .card-icon { width:28px; height:28px; border-radius:50%; background:#E8F5F3; color:#2A9D8F; margin:0 auto 2mm; display:flex; align-items:center; justify-content:center; font-size:10pt; font-weight:700; }
-.exec-card.red .card-icon { background:#FDECEA; color:#B33A3A; }
-.exec-card.amber .card-icon { background:#FEF3E7; color:#F4A261; }
-.exec-card .zh { font-size:10pt; font-weight:700; color:#1A1A1A; margin-bottom:0.5mm; word-break:keep-all; white-space:nowrap; }
-.exec-card .en { font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px; margin-bottom:2mm; word-break:keep-all; white-space:nowrap; }
-.exec-card .val { font-size:22pt; font-weight:700; color:#2A9D8F; font-variant-numeric:tabular-nums; }
+.radar-chart-wrap { display:flex; justify-content:center; margin:2mm 0; }
+.radar-svg { width:80%; height:auto; }
+
+.exec-card { background:white; border-radius:12px; padding:4mm 3mm; text-align:center; border:1px solid #EAEAEA; }
+.exec-card .zh { font-size:11pt; font-weight:700; color:#1A1A1A; margin-bottom:0.5mm; }
+.exec-card .en { font-size:7.5pt; color:#8C8C8C; letter-spacing:0.5px; margin-bottom:2mm; }
+.exec-card .val { font-size:24pt; font-weight:700; color:#2A9D8F; font-variant-numeric:tabular-nums; }
 .exec-card.red .val { color:#B33A3A; }
 .exec-card.amber .val { color:#F4A261; }
-.exec-row { margin-top:3mm; }
+.exec-card .val small { font-size:9pt; color:#8C8C8C; font-weight:400; }
+.exec-card .exec-desc { font-size:8.5pt; color:#4B5563; line-height:1.6; text-align:left; margin-top:2mm; }
+.exec-row { margin-top:1mm; }
+
+.motivation-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; margin-top:3mm; margin-bottom:2mm; letter-spacing:1.5px; }
+
+.motivation-list { display:flex; flex-direction:column; gap:2mm; margin-bottom:3mm; }
+.motivation-card { background:#F9FAFB; border:1px solid #E5E5E5; border-radius:10px; padding:3mm; }
+.motivation-card-desc { font-size:8pt; color:#4B5563; line-height:1.5; margin-top:2mm; padding-top:2mm; border-top:1px solid #E5E5E5; }
 
 .cog-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:4mm; margin-top:4mm; }
 .cog-grid .cog-item { background:white; border:1px solid #EAEAEA; border-radius:12px; padding:5mm 4mm; text-align:left; }
@@ -308,6 +317,18 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .details-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
 .details-desc { font-size:9.5pt; color:#4B5563; line-height:1.8; }
 
+/* 认知能力页面 P12 - 现代UI */
+.cog-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; margin-top:5mm; margin-bottom:3mm; letter-spacing:1.5px; }
+.cog-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:3mm; }
+.cog-item { background:white; border:1px solid #E5E5E5; border-radius:12px; padding:4mm; }
+.cog-gauge { width:100%; height:22mm; }
+.cog-info { text-align:center; margin-top:2mm; margin-bottom:3mm; }
+.cog-label { font-size:10pt; font-weight:700; color:#1A1A1A; }
+.cog-en { font-size:7pt; color:#8C8C8C; letter-spacing:0.5px; margin-top:0.5mm; }
+.cog-value { font-size:12pt; font-weight:700; color:#2A9D8F; margin-top:1mm; }
+.cog-value small { font-size:8pt; color:#8C8C8C; font-weight:400; }
+.cog-desc { font-size:8.5pt; color:#4B5563; line-height:1.7; text-align:justify; }
+
 /* 职业价值观页面 P18 - 现代网格布局 */
 .values-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
 
@@ -337,6 +358,18 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .feature-text-sm { font-size:7.5pt; color:#4B5563; line-height:1.5; }
 .value-monologue-remaining { }
 .monologue-text-sm { font-size:7pt; color:#8C8C8C; line-height:1.5; font-style:italic; }
+
+/* 封底页 P19 */
+.backcover { padding:12mm; height:100%; box-sizing:border-box; display:flex; flex-direction:column; }
+.backcover-header { text-align:center; margin-bottom:10mm; padding-bottom:6mm; border-bottom:2px solid #F4A261; }
+.backcover-title { font-size:16pt; font-weight:700; color:#1A1A1A; letter-spacing:2px; }
+.backcover-content { flex:1; display:flex; flex-direction:column; gap:5mm; }
+.backcover-item { background:#F9FAFB; border-left:4px solid #2A9D8F; padding:4mm 5mm; border-radius:0 10px 10px 0; }
+.backcover-item-title { font-size:10pt; font-weight:700; color:#1A1A1A; margin-bottom:2mm; letter-spacing:1px; }
+.backcover-item-content { font-size:9pt; color:#4B5563; line-height:1.7; }
+.backcover-footer { margin-top:8mm; padding-top:6mm; border-top:1px solid #E5E5E5; text-align:center; }
+.backcover-copyright { font-size:8pt; color:#8C8C8C; line-height:1.6; margin-bottom:3mm; }
+.backcover-brand { font-size:9pt; font-weight:600; color:#1A1A1A; letter-spacing:1px; }
 </style>
 </head>
 <body>
@@ -393,7 +426,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         
         <p>● 什么样的成长支持，能够真正帮助TA把潜能转化为未来。</p>
         
-        <p>Y4 不以单一分数定义学生，也不把学生简单归类为某一种类型。它通过四个系统之间的联系，理解一个真实、复杂并且仍在发展中的青少年。</p>
+        <p>Y4 <strong>不</strong>以单一分数<strong>定义</strong>学生，也<strong>不</strong>把学生简单<strong>归类</strong>为某一种类型。它通过四个系统之间的联系，<strong>理解</strong>一个真实、复杂并且仍在<strong>发展</strong>中的青少年。</p>
         
     </div>
 </div>
@@ -765,7 +798,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">50</span>
-                <span class="value-dot" style="left:84%;"><span>42</span></span>
+                <span class="value-dot" style="left:84%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">42<small> /50</small></div>
@@ -779,7 +812,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">50</span>
-                <span class="value-dot" style="left:56%;"><span>28</span></span>
+                <span class="value-dot" style="left:56%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">28<small> /50</small></div>
@@ -793,7 +826,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">50</span>
-                <span class="value-dot" style="left:74%;"><span>37</span></span>
+                <span class="value-dot" style="left:74%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">37<small> /50</small></div>
@@ -815,7 +848,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">45</span>
-                <span class="value-dot" style="left:46%;"><span>21</span></span>
+                <span class="value-dot" style="left:46%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">21<small> /45</small></div>
@@ -829,7 +862,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">45</span>
-                <span class="value-dot" style="left:33%;"><span>15</span></span>
+                <span class="value-dot" style="left:33%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">15<small> /45</small></div>
@@ -843,7 +876,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">45</span>
-                <span class="value-dot" style="left:71%;"><span>32</span></span>
+                <span class="value-dot" style="left:71%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">32<small> /45</small></div>
@@ -865,7 +898,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">30</span>
-                <span class="value-dot" style="left:46%;"><span>14</span></span>
+                <span class="value-dot" style="left:46%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">14<small> /30</small></div>
@@ -879,7 +912,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">30</span>
-                <span class="value-dot" style="left:20%;"><span>6</span></span>
+                <span class="value-dot" style="left:20%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">6<small> /30</small></div>
@@ -893,7 +926,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">30</span>
-                <span class="value-dot" style="left:73%;"><span>22</span></span>
+                <span class="value-dot" style="left:73%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">22<small> /30</small></div>
@@ -1088,13 +1121,13 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="intro-card">人格，是指一个人对自己、他人和外界事物所表现出的相对稳定的态度、思维方式和行为倾向。比如有人内向，有人外向；有人开放，有人保守。人格受遗传因素影响，也与能力、兴趣、理想和价值观等密切相关。它不仅关系到个体的身心健康，也与学业适应和职业发展息息相关。本测评基于大五人格理论，从内外向（外倾性）、人际相处方式（宜人性）、规则意识与自我管理（责任心）、情绪稳定程度（神经质）以及对新知识新经验的开放程度（开放性）五个方面进行评估。</div>
 
 <div class="radar-chart-wrap">
-    <svg viewBox="0 0 400.0 405.0">
-        <polygon points="200.0,180.0 228.5,200.7 217.6,234.3 182.4,234.3 171.5,200.7" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,150.0 257.1,191.5 235.3,258.5 164.7,258.5 142.9,191.5" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,120.0 285.6,182.2 252.9,282.8 147.1,282.8 114.4,182.2" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,90.0 314.1,172.9 270.5,307.1 129.5,307.1 85.9,172.9" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/>
-        <polygon points="200.0,138.0 268.5,187.8 242.3,268.2 157.7,268.2 131.5,187.8" fill="none" stroke="#F4A261" stroke-width="2" stroke-dasharray="6,4"/>
-        <polygon points="200.0,123.6 268.5,187.8 249.4,278.0 167.6,254.7 152.1,194.4" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2.5"/>
-        <line x1="200" y1="210" x2="200.0" y2="90.0" stroke="#E0E0E0" stroke-width="1"/><line x1="200" y1="210" x2="314.1" y2="172.9" stroke="#E0E0E0" stroke-width="1"/><line x1="200" y1="210" x2="270.5" y2="307.1" stroke="#E0E0E0" stroke-width="1"/><line x1="200" y1="210" x2="129.5" y2="307.1" stroke="#E0E0E0" stroke-width="1"/><line x1="200" y1="210" x2="85.9" y2="172.9" stroke="#E0E0E0" stroke-width="1"/>
-        <circle cx="200.0" cy="123.6" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="200.0" cy="123.6" r="3" fill="#2A9D8F"/><circle cx="268.5" cy="187.8" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="268.5" cy="187.8" r="3" fill="#2A9D8F"/><circle cx="249.4" cy="278.0" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="249.4" cy="278.0" r="3" fill="#2A9D8F"/><circle cx="167.6" cy="254.7" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="167.6" cy="254.7" r="3" fill="#2A9D8F"/><circle cx="152.1" cy="194.4" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="152.1" cy="194.4" r="3" fill="#2A9D8F"/>
-        <text x="200.0" y="45.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">开放性</text><text x="200.0" y="45.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Openness</text><text x="200.0" y="45.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3.6/5.0</text><text x="356.9" y="159.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">宜人性</text><text x="356.9" y="159.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Agreeableness</text><text x="356.9" y="159.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3/5.0</text><text x="297.0" y="343.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">责任心</text><text x="297.0" y="343.5" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Conscientiousness</text><text x="297.0" y="343.5" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3.5/5.0</text><text x="103.0" y="343.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">外倾性</text><text x="103.0" y="343.5" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Extraversion</text><text x="103.0" y="343.5" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">2.3/5.0</text><text x="43.1" y="159.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">神经质</text><text x="43.1" y="159.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Neuroticism</text><text x="43.1" y="159.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">2.1/5.0</text>
+    <svg viewBox="0 0 400.0 400.0">
+        <polygon points="200.0,170.0 228.5,190.7 217.6,224.3 182.4,224.3 171.5,190.7" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,140.0 257.1,181.5 235.3,248.5 164.7,248.5 142.9,181.5" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,110.0 285.6,172.2 252.9,272.8 147.1,272.8 114.4,172.2" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,80.0 314.1,162.9 270.5,297.1 129.5,297.1 85.9,162.9" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/>
+        <polygon points="200.0,128.0 268.5,177.8 242.3,258.2 157.7,258.2 131.5,177.8" fill="none" stroke="#F4A261" stroke-width="2" stroke-dasharray="6,4"/>
+        <polygon points="200.0,113.6 268.5,177.8 249.4,268.0 167.6,244.7 152.1,184.4" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2.5"/>
+        <line x1="200.0" y1="200.0" x2="200.0" y2="80.0" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="314.1" y2="162.9" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="270.5" y2="297.1" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="129.5" y2="297.1" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="85.9" y2="162.9" stroke="#E0E0E0" stroke-width="1"/>
+        <circle cx="200.0" cy="113.6" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="200.0" cy="113.6" r="3" fill="#2A9D8F"/><circle cx="268.5" cy="177.8" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="268.5" cy="177.8" r="3" fill="#2A9D8F"/><circle cx="249.4" cy="268.0" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="249.4" cy="268.0" r="3" fill="#2A9D8F"/><circle cx="167.6" cy="244.7" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="167.6" cy="244.7" r="3" fill="#2A9D8F"/><circle cx="152.1" cy="184.4" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="152.1" cy="184.4" r="3" fill="#2A9D8F"/>
+        <text x="200.0" y="35.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">开放性</text><text x="200.0" y="35.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Openness</text><text x="200.0" y="35.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3.6/5.0</text><text x="356.9" y="149.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">宜人性</text><text x="356.9" y="149.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Agreeableness</text><text x="356.9" y="149.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3/5.0</text><text x="297.0" y="333.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">责任心</text><text x="297.0" y="333.5" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Conscientiousness</text><text x="297.0" y="333.5" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3.5/5.0</text><text x="103.0" y="333.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">外倾性</text><text x="103.0" y="333.5" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Extraversion</text><text x="103.0" y="333.5" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">2.3/5.0</text><text x="43.1" y="149.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">神经质</text><text x="43.1" y="149.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Neuroticism</text><text x="43.1" y="149.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">2.1/5.0</text>
     </svg>
 </div>
 
@@ -1283,7 +1316,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     </div>
 </div>
 
-<div class="intro-card" style="margin-bottom:5mm;">认知能力是大脑加工、处理信息，认知客观事物内部逻辑，并运用知识、经验等解决问题的能力。认知的过程包括感知、记忆、想象、思考、判断等。</div>
+<div class="intro-card" style="margin-bottom:5mm;">认知能力是大脑加工、处理信息，认知客观事物内部逻辑，并运用知识、经验等解决问题的能力。认知的过程包括感知、记忆、想象、思考、判断等。它被重视的原因是人类所有的学习活动都离不开认知能力的运用。</div>
 
 <div class="dist-chart">
     <div class="chart-title">正态分布图</div>
@@ -1303,11 +1336,21 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     </svg>
 </div>
 
-<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:3mm; margin-bottom:2mm; letter-spacing:1.5px;">六项子指标百分位</div>
-<div class="cog-grid" style="grid-template-columns:repeat(3, 1fr); gap:3mm;">
+<!-- ============ COGNITIVE DETAILS (P12b) ============ -->
+
+
+</div>
+
+<div class="page" data-layout="cognitive_details">
+
+<!-- ============ P01 COVER ============ -->
+
+
+<div class="cog-section-title">六项子指标百分位</div>
+<div class="cog-grid">
     
-    <div class="cog-item" style="text-align:center; padding:3mm;">
-        <svg viewBox="0 0 140 85" style="width:40mm; height:24mm;">
+    <div class="cog-item">
+        <svg viewBox="0 0 140 85" class="cog-gauge">
             <defs>
                 <linearGradient id="cogGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
@@ -1320,15 +1363,16 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
             <line x1="70" y1="50" x2="107.92501568027433" y2="47.61396025788609" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <div style="margin-top:1mm;">
-            <div style="font-size:9.5pt; font-weight:700; color:#1A1A1A;">感知觉</div>
-            <div style="font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px;">Perception</div>
-            <div style="font-size:11pt; font-weight:700; color:#2A9D8F; margin-top:0.5mm;">98<small style="font-size:7pt; color:#8C8C8C;">%</small></div>
+        <div class="cog-info">
+            <div class="cog-label">感知觉</div>
+            <div class="cog-en">Perception</div>
+            <div class="cog-value">98<small>%</small></div>
         </div>
+        <div class="cog-desc">感知是认知、理解的基础。感知觉是大脑对作用于大脑的外部信息的整体看法和理解，整个加工过程包括获取信息、理解信息、选择信息和组织信息。</div>
     </div>
     
-    <div class="cog-item" style="text-align:center; padding:3mm;">
-        <svg viewBox="0 0 140 85" style="width:40mm; height:24mm;">
+    <div class="cog-item">
+        <svg viewBox="0 0 140 85" class="cog-gauge">
             <defs>
                 <linearGradient id="cogGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
@@ -1341,15 +1385,16 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
             <line x1="70" y1="50" x2="107.9812492938978" y2="48.80639115503113" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <div style="margin-top:1mm;">
-            <div style="font-size:9.5pt; font-weight:700; color:#1A1A1A;">注意力</div>
-            <div style="font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px;">Attention</div>
-            <div style="font-size:11pt; font-weight:700; color:#2A9D8F; margin-top:0.5mm;">99<small style="font-size:7pt; color:#8C8C8C;">%</small></div>
+        <div class="cog-info">
+            <div class="cog-label">注意力</div>
+            <div class="cog-en">Attention</div>
+            <div class="cog-value">99<small>%</small></div>
         </div>
+        <div class="cog-desc">心理活动对一定对象的指向和集中。一般理解为对客观事物持续注意的能力，如做事专注，还是易分心。神经生理因素、兴趣/动机、精神状态等均会影响一个人的注意力水平。</div>
     </div>
     
-    <div class="cog-item" style="text-align:center; padding:3mm;">
-        <svg viewBox="0 0 140 85" style="width:40mm; height:24mm;">
+    <div class="cog-item">
+        <svg viewBox="0 0 140 85" class="cog-gauge">
             <defs>
                 <linearGradient id="cogGrad3" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
@@ -1362,15 +1407,16 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
             <line x1="70" y1="50" x2="106.80616012288799" y2="40.54978428773552" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <div style="margin-top:1mm;">
-            <div style="font-size:9.5pt; font-weight:700; color:#1A1A1A;">记忆力</div>
-            <div style="font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px;">Memory</div>
-            <div style="font-size:11pt; font-weight:700; color:#2A9D8F; margin-top:0.5mm;">92<small style="font-size:7pt; color:#8C8C8C;">%</small></div>
+        <div class="cog-info">
+            <div class="cog-label">记忆力</div>
+            <div class="cog-en">Memory</div>
+            <div class="cog-value">92<small>%</small></div>
         </div>
+        <div class="cog-desc">记忆力是神经系统存储过往经验的能力，是学习的基础，一般包括识记、保持、再认和重现。记忆力的个体差异影响学习效率，如有的同学看3遍就记住了一个单词，而有的同学可能要7-8遍。</div>
     </div>
     
-    <div class="cog-item" style="text-align:center; padding:3mm;">
-        <svg viewBox="0 0 140 85" style="width:40mm; height:24mm;">
+    <div class="cog-item">
+        <svg viewBox="0 0 140 85" class="cog-gauge">
             <defs>
                 <linearGradient id="cogGrad4" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
@@ -1383,15 +1429,16 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
             <line x1="70" y1="50" x2="107.92501568027433" y2="47.61396025788609" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <div style="margin-top:1mm;">
-            <div style="font-size:9.5pt; font-weight:700; color:#1A1A1A;">推理能力</div>
-            <div style="font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px;">Reasoning</div>
-            <div style="font-size:11pt; font-weight:700; color:#2A9D8F; margin-top:0.5mm;">98<small style="font-size:7pt; color:#8C8C8C;">%</small></div>
+        <div class="cog-info">
+            <div class="cog-label">推理能力</div>
+            <div class="cog-en">Reasoning</div>
+            <div class="cog-value">98<small>%</small></div>
         </div>
+        <div class="cog-desc">推理能力是智力的核心成分，是一个人通过已有知识和经验，通过综合分析做出新判断的过程。推理能力的差异往往反应一个人洞悉事物本质，事物联系能力的高低。</div>
     </div>
     
-    <div class="cog-item" style="text-align:center; padding:3mm;">
-        <svg viewBox="0 0 140 85" style="width:40mm; height:24mm;">
+    <div class="cog-item">
+        <svg viewBox="0 0 140 85" class="cog-gauge">
             <defs>
                 <linearGradient id="cogGrad5" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
@@ -1404,15 +1451,16 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
             <line x1="70" y1="50" x2="107.83135465491705" y2="46.42388409389646" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <div style="margin-top:1mm;">
-            <div style="font-size:9.5pt; font-weight:700; color:#1A1A1A;">空间能力</div>
-            <div style="font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px;">Spatial Ability</div>
-            <div style="font-size:11pt; font-weight:700; color:#2A9D8F; margin-top:0.5mm;">97<small style="font-size:7pt; color:#8C8C8C;">%</small></div>
+        <div class="cog-info">
+            <div class="cog-label">空间能力</div>
+            <div class="cog-en">Spatial Ability</div>
+            <div class="cog-value">97<small>%</small></div>
         </div>
+        <div class="cog-desc">空间能力是大脑通过观察、触摸及想象对物体形状、位置判断的能力。它是大脑对外部信息的抽象表征和推理，是数学、自然科学、工程等重要学科领域用到的重要心理能力。</div>
     </div>
     
-    <div class="cog-item" style="text-align:center; padding:3mm;">
-        <svg viewBox="0 0 140 85" style="width:40mm; height:24mm;">
+    <div class="cog-item">
+        <svg viewBox="0 0 140 85" class="cog-gauge">
             <defs>
                 <linearGradient id="cogGrad6" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
@@ -1425,11 +1473,12 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
             <line x1="70" y1="50" x2="106.14014761921584" y2="38.257354213751995" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <div style="margin-top:1mm;">
-            <div style="font-size:9.5pt; font-weight:700; color:#1A1A1A;">加工速度</div>
-            <div style="font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px;">Processing Speed</div>
-            <div style="font-size:11pt; font-weight:700; color:#2A9D8F; margin-top:0.5mm;">90<small style="font-size:7pt; color:#8C8C8C;">%</small></div>
+        <div class="cog-info">
+            <div class="cog-label">加工速度</div>
+            <div class="cog-en">Processing Speed</div>
+            <div class="cog-value">90<small>%</small></div>
         </div>
+        <div class="cog-desc">加工速度是大脑处理内部或外部信息的速度，和网速、手机使用流畅性一样，大脑的信息加工速度直接影响学习、思考和人际沟通的效率。</div>
     </div>
     
 </div>
@@ -1450,37 +1499,37 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="page-title">执行功能</div>
 <div class="page-title-en">EXECUTIVE FUNCTIONS OVERVIEW</div>
 
-<div class="radar-chart-wrap" style="margin:3mm 0;">
-    <svg viewBox="0 0 410.0 445.0">
-        <polygon points="210.0,197.5 238.1,246.2 181.9,246.2" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/><polygon points="210.0,165.0 266.3,262.5 153.7,262.5" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/><polygon points="210.0,132.5 294.4,278.8 125.6,278.8" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/><polygon points="210.0,100.0 322.6,295.0 97.4,295.0" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/>
-        <polygon points="210.0,116.9 313.6,289.8 127.8,277.5" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2"/>
-        <line x1="210" y1="230" x2="210.0" y2="100.0" stroke="#E0E0E0" stroke-width="1"/><line x1="210" y1="230" x2="322.6" y2="295.0" stroke="#E0E0E0" stroke-width="1"/><line x1="210" y1="230" x2="97.4" y2="295.0" stroke="#E0E0E0" stroke-width="1"/>
-        <circle cx="210.0" cy="116.9" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="210.0" cy="116.9" r="2.5" fill="#2A9D8F"/><circle cx="313.6" cy="289.8" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="313.6" cy="289.8" r="2.5" fill="#2A9D8F"/><circle cx="127.8" cy="277.5" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="127.8" cy="277.5" r="2.5" fill="#2A9D8F"/>
-        <text x="210.0" y="45.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">抑制控制</text><text x="210.0" y="45.0" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Inhibitory Control</text><text x="210.0" y="45.0" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">87%</text><text x="370.2" y="322.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">工作记忆</text><text x="370.2" y="322.5" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Working Memory</text><text x="370.2" y="322.5" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">92%</text><text x="49.8" y="322.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">认知灵活性</text><text x="49.8" y="322.5" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Cognitive Flexibility</text><text x="49.8" y="322.5" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">73%</text>
+<div class="radar-chart-wrap">
+    <svg viewBox="0 0 400.0 400.0" class="radar-svg">
+        <polygon points="200.0,175.0 221.7,212.5 178.3,212.5" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/><polygon points="200.0,150.0 243.3,225.0 156.7,225.0" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/><polygon points="200.0,125.0 265.0,237.5 135.0,237.5" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/><polygon points="200.0,100.0 286.6,250.0 113.4,250.0" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/>
+        <polygon points="200.0,113.0 279.7,246.0 136.8,236.5" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2"/>
+        <line x1="200.0" y1="200.0" x2="200.0" y2="100.0" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="286.6" y2="250.0" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="113.4" y2="250.0" stroke="#E0E0E0" stroke-width="1"/>
+        <circle cx="200.0" cy="113.0" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="200.0" cy="113.0" r="2.5" fill="#2A9D8F"/><circle cx="279.7" cy="246.0" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="279.7" cy="246.0" r="2.5" fill="#2A9D8F"/><circle cx="136.8" cy="236.5" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="136.8" cy="236.5" r="2.5" fill="#2A9D8F"/>
+        <text x="200.0" y="55.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">抑制控制</text><text x="200.0" y="55.0" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Inhibitory Control</text><text x="200.0" y="55.0" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">87%</text><text x="325.6" y="272.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">工作记忆</text><text x="325.6" y="272.5" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Working Memory</text><text x="325.6" y="272.5" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">92%</text><text x="74.4" y="272.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">认知灵活性</text><text x="74.4" y="272.5" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Cognitive Flexibility</text><text x="74.4" y="272.5" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">73%</text>
     </svg>
 </div>
 
-<div class="card-row exec-row" style="margin-top:1mm;">
+<div class="card-row exec-row">
     
-    <div class="exec-card teal" style="padding:3mm 2mm;">
-        <div class="card-icon" style="width:24px; height:24px; font-size:9pt; margin:0 auto 1.5mm;">抑</div>
-        <div class="zh" style="font-size:9pt; margin-bottom:0.3mm;">抑制控制</div>
-        <div class="en" style="font-size:6.5pt; margin-bottom:1.5mm;">Inhibitory Control</div>
-        <div class="val" style="font-size:18pt;">87<small style="font-size:8pt; color:#8C8C8C;">%</small></div>
+    <div class="exec-card teal">
+        <div class="zh">抑制控制</div>
+        <div class="en">Inhibitory Control</div>
+        <div class="val">87<small>%</small></div>
+        <div class="exec-desc">抑制控制是指个体在行动之前控制冲动、理性思考、排除干扰完成任务的能力。即抑制住自己的本能、欲望，使自己做出符合预期目标的行为。它和孩子的专注力、情绪调节和冲动控制等有关。</div>
     </div>
     
-    <div class="exec-card red" style="padding:3mm 2mm;">
-        <div class="card-icon" style="width:24px; height:24px; font-size:9pt; margin:0 auto 1.5mm;">工</div>
-        <div class="zh" style="font-size:9pt; margin-bottom:0.3mm;">工作记忆</div>
-        <div class="en" style="font-size:6.5pt; margin-bottom:1.5mm;">Working Memory</div>
-        <div class="val" style="font-size:18pt;">92<small style="font-size:8pt; color:#8C8C8C;">%</small></div>
+    <div class="exec-card red">
+        <div class="zh">工作记忆</div>
+        <div class="en">Working Memory</div>
+        <div class="val">92<small>%</small></div>
+        <div class="exec-desc">工作记忆是有意识地在头脑中保存和操纵信息的能力。我们依靠记忆信息预测未来，信息是周全还是片面直接影响预测的准确性。我们依靠记忆制定目标、安排计划、执行任务，而目标是否清晰，计划是否详细，执行是否到位均与记忆力有关。</div>
     </div>
     
-    <div class="exec-card amber" style="padding:3mm 2mm;">
-        <div class="card-icon" style="width:24px; height:24px; font-size:9pt; margin:0 auto 1.5mm;">认</div>
-        <div class="zh" style="font-size:9pt; margin-bottom:0.3mm;">认知灵活性</div>
-        <div class="en" style="font-size:6.5pt; margin-bottom:1.5mm;">Cognitive Flexibility</div>
-        <div class="val" style="font-size:18pt;">73<small style="font-size:8pt; color:#8C8C8C;">%</small></div>
+    <div class="exec-card amber">
+        <div class="zh">认知灵活性</div>
+        <div class="en">Cognitive Flexibility</div>
+        <div class="val">73<small>%</small></div>
+        <div class="exec-desc">认知灵活性是指个体大脑适应新的、变化的或计划以外事件的能力。比如当情况有变，原有计划被打破或最初的方案行不通时，认知灵活性高的人能根据变化从不同角度看问题，及时调整心态，改变思路，快速找到解决问题的新方案。认知灵活性影响孩子的自我调节能力和心理韧性。</div>
     </div>
     
 </div>
@@ -1500,109 +1549,131 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 </div>
 <div class="page-title">学习动机与策略</div>
 <div class="page-title-en">LEARNING MOTIVATION AND STRATEGIES</div>
-<div class="intro-card">学习动机是激发并维持个体不断学习的基本动力，有时也称之为学习动力。</div>
 
-<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:2mm; margin-bottom:2mm; letter-spacing:1.5px;">学习动机　LEARNING MOTIVATION</div>
 
-<div class="progress-item">
-    <div class="label-wrap">
-        <div class="zh-label">深层动机</div>
-        <div class="en-label">Deep Motivation</div>
-    </div>
-    <div class="slider-wrap">
-        <div class="slider-bar red-only">
-            <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:72%;"><span>7.2</span></span>
-            <span class="peer-marker" style="left:74%;"></span>
+<div class="motivation-section-title">学习动机　LEARNING MOTIVATION</div>
+<div class="motivation-list">
+
+<div class="motivation-card">
+    <div class="progress-item">
+        <div class="label-wrap">
+            <div class="zh-label">深层动机</div>
+            <div class="en-label">Deep Motivation</div>
         </div>
+        <div class="slider-wrap">
+            <div class="slider-bar red-only">
+                <span class="tick-min">1</span><span class="tick-max">10</span>
+                <span class="value-dot" style="left:72%;"></span>
+                <span class="peer-marker" style="left:74%;"></span>
+            </div>
+        </div>
+        <div class="val-wrap">7.2<small> /10.0</small></div>
+        <div class="norm-wrap">7.4</div>
     </div>
-    <div class="val-wrap">7.2<small> /10.0</small></div>
-    <div class="norm-wrap">7.4</div>
+    <div class="motivation-card-desc">深层动机是对学习本身感兴趣，学习本身使个体感到满足和兴奋的内部动机。深层动机得分高的个体一般学习动力足，主动学习、不需要外部监督和督促。</div>
 </div>
 
-<div class="progress-item">
-    <div class="label-wrap">
-        <div class="zh-label">表面动机</div>
-        <div class="en-label">Surface Motivation</div>
-    </div>
-    <div class="slider-wrap">
-        <div class="slider-bar red-only">
-            <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:64%;"><span>6.4</span></span>
-            <span class="peer-marker" style="left:47%;"></span>
+<div class="motivation-card">
+    <div class="progress-item">
+        <div class="label-wrap">
+            <div class="zh-label">表面动机</div>
+            <div class="en-label">Surface Motivation</div>
         </div>
+        <div class="slider-wrap">
+            <div class="slider-bar red-only">
+                <span class="tick-min">1</span><span class="tick-max">10</span>
+                <span class="value-dot" style="left:64%;"></span>
+                <span class="peer-marker" style="left:47%;"></span>
+            </div>
+        </div>
+        <div class="val-wrap">6.4<small> /10.0</small></div>
+        <div class="norm-wrap">4.7</div>
     </div>
-    <div class="val-wrap">6.4<small> /10.0</small></div>
-    <div class="norm-wrap">4.7</div>
+    <div class="motivation-card-desc">表面动机是对学习不感兴趣，为了通过考试、得到奖励或避免惩罚而学习的外部动机。表面动机难以维持长期学习，一旦外部奖励或惩罚退去，个体可能不再学习。</div>
 </div>
 
-<div class="progress-item">
-    <div class="label-wrap">
-        <div class="zh-label">自我效能感</div>
-        <div class="en-label">Self-Efficacy</div>
-    </div>
-    <div class="slider-wrap">
-        <div class="slider-bar red-only">
-            <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:100%;"><span>10</span></span>
-            <span class="peer-marker" style="left:81%;"></span>
+<div class="motivation-card">
+    <div class="progress-item">
+        <div class="label-wrap">
+            <div class="zh-label">自我效能感</div>
+            <div class="en-label">Self-Efficacy</div>
         </div>
+        <div class="slider-wrap">
+            <div class="slider-bar red-only">
+                <span class="tick-min">1</span><span class="tick-max">10</span>
+                <span class="value-dot" style="left:100%;"></span>
+                <span class="peer-marker" style="left:81%;"></span>
+            </div>
+        </div>
+        <div class="val-wrap">10<small> /10.0</small></div>
+        <div class="norm-wrap">8.1</div>
     </div>
-    <div class="val-wrap">10<small> /10.0</small></div>
-    <div class="norm-wrap">8.1</div>
+    <div class="motivation-card-desc">自我效能感是个体对自己能否成功完成某事的主观判断。个体的自我效能感源于过往的成功经验以及对自己的准确的评估。</div>
 </div>
 
-
-<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:4mm; margin-bottom:2mm; letter-spacing:1.5px;">学习方法与策略　LEARNING METHODS</div>
-
-<div class="progress-item">
-    <div class="label-wrap">
-        <div class="zh-label">学习深层方法与策略</div>
-        <div class="en-label">Deep Methods and Strategies</div>
-    </div>
-    <div class="slider-wrap">
-        <div class="slider-bar">
-            <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:60%;"><span>6</span></span>
-            <span class="peer-marker" style="left:78%;"></span>
-        </div>
-    </div>
-    <div class="val-wrap">6<small> /10.0</small></div>
-    <div class="norm-wrap">7.8</div>
 </div>
 
-<div class="progress-item">
-    <div class="label-wrap">
-        <div class="zh-label">学习表面方法与策略</div>
-        <div class="en-label">Surface Methods and Strategies</div>
-    </div>
-    <div class="slider-wrap">
-        <div class="slider-bar">
-            <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:52%;"><span>5.2</span></span>
-            <span class="peer-marker" style="left:47%;"></span>
+<div class="motivation-section-title">学习方法与策略　LEARNING METHODS</div>
+<div class="motivation-list">
+
+<div class="motivation-card">
+    <div class="progress-item">
+        <div class="label-wrap">
+            <div class="zh-label">学习深层方法与策略</div>
+            <div class="en-label">Deep Methods and Strategies</div>
         </div>
+        <div class="slider-wrap">
+            <div class="slider-bar">
+                <span class="tick-min">1</span><span class="tick-max">10</span>
+                <span class="value-dot" style="left:60%;"></span>
+                <span class="peer-marker" style="left:78%;"></span>
+            </div>
+        </div>
+        <div class="val-wrap">6<small> /10.0</small></div>
+        <div class="norm-wrap">7.8</div>
     </div>
-    <div class="val-wrap">5.2<small> /10.0</small></div>
-    <div class="norm-wrap">4.7</div>
+    <div class="motivation-card-desc">学习深层方法与策略是为了深入理解知识本身而采取的学习方法和策略，是一种建立在理解和应用基础之上的深度学习。这种学习方法使学习记忆更牢、理解更深刻。</div>
 </div>
 
-<div class="progress-item">
-    <div class="label-wrap">
-        <div class="zh-label">学习自我调节</div>
-        <div class="en-label">Self-Regulation</div>
-    </div>
-    <div class="slider-wrap">
-        <div class="slider-bar">
-            <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:86%;"><span>8.7</span></span>
-            <span class="peer-marker" style="left:63%;"></span>
+<div class="motivation-card">
+    <div class="progress-item">
+        <div class="label-wrap">
+            <div class="zh-label">学习表面方法与策略</div>
+            <div class="en-label">Surface Methods and Strategies</div>
         </div>
+        <div class="slider-wrap">
+            <div class="slider-bar">
+                <span class="tick-min">1</span><span class="tick-max">10</span>
+                <span class="value-dot" style="left:52%;"></span>
+                <span class="peer-marker" style="left:47%;"></span>
+            </div>
+        </div>
+        <div class="val-wrap">5.2<small> /10.0</small></div>
+        <div class="norm-wrap">4.7</div>
     </div>
-    <div class="val-wrap">8.7<small> /10.0</small></div>
-    <div class="norm-wrap">6.3</div>
+    <div class="motivation-card-desc">学习表面方法与策略是为了记住某具体内容或为了某次考试通过而学习的方法与策略，这种方法策略可以在短期内看到效果，对长期发展非常不利。因为这种不求甚解的学习方法记得快，忘得也快。</div>
 </div>
 
+<div class="motivation-card">
+    <div class="progress-item">
+        <div class="label-wrap">
+            <div class="zh-label">学习自我调节</div>
+            <div class="en-label">Self-Regulation</div>
+        </div>
+        <div class="slider-wrap">
+            <div class="slider-bar">
+                <span class="tick-min">1</span><span class="tick-max">10</span>
+                <span class="value-dot" style="left:86%;"></span>
+                <span class="peer-marker" style="left:63%;"></span>
+            </div>
+        </div>
+        <div class="val-wrap">8.7<small> /10.0</small></div>
+        <div class="norm-wrap">6.3</div>
+    </div>
+    <div class="motivation-card-desc">学习自我调节是学习过程中遇到困难或挫折时采取的自我调节的方法。比如即使遇到了自己不喜欢的老师或科目，但为了取得好成绩也会进行自我调节、努力学习。</div>
+</div>
+
+</div>
 
 <!-- ============ HOLLAND (P16) ============ -->
 
@@ -2130,6 +2201,50 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             </div>
         </div>
         
+   </div>
+</div>
+
+<!-- ============ BACKCOVER (P19) ============ -->
+
+
+</div>
+
+<div class="page" data-layout="backcover">
+
+<!-- ============ P01 COVER ============ -->
+
+<div class="backcover">
+    <div class="backcover-header">
+        <div class="backcover-title">Y4 测评报告 · 阅读与说明</div>
+    </div>
+    
+    <div class="backcover-content">
+        
+        <div class="backcover-item">
+            <div class="backcover-item-title">测评不定义，亦不归类</div>
+            <div class="backcover-item-content">本报告旨在呈现特质，而非给学生贴上固定的“标签”或将其局限于某一类模型中。</div>
+        </div>
+        
+        <div class="backcover-item">
+            <div class="backcover-item-title">状态具有时效性</div>
+            <div class="backcover-item-content">报告所记录的是测试人在当下的即时状态，该状态会受到环境、情绪及多种潜在因素的综合影响。</div>
+        </div>
+        
+        <div class="backcover-item">
+            <div class="backcover-item-title">理解需结合情境 (Context)</div>
+            <div class="backcover-item-content">对报告数据的理解与解读，绝不能脱离具体的成长背景与专业情境，切忌断章取义。</div>
+        </div>
+        
+        <div class="backcover-item">
+            <div class="backcover-item-title">请务必咨询专业测评师</div>
+            <div class="backcover-item-content">为了确保您准确理解报告内涵，请在阅读时务必咨询凭远专业老师的意见，以获得客观、全面的深度解析。</div>
+        </div>
+        
+    </div>
+    
+    <div class="backcover-footer">
+        <div class="backcover-copyright">本报告为凭远内部资料，所有权归凭远所有。未经凭远测评师及相关家庭的双重授权，严禁任何形式的转发或公开。</div>
+        <div class="backcover-brand">凭远教育 · PingYuan Education</div>
     </div>
 </div>
 

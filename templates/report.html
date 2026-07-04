@@ -11,6 +11,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 .page { width:210mm; height:297mm; padding:12mm 16mm; page-break-after:always; position:relative; overflow:hidden; background:#FAF7F2; -webkit-print-color-adjust: exact; }
 .page:last-child { page-break-after:auto; }
+.page-break { page-break-after:always; }
 
 .page::before { content:""; position:absolute; top:0; left:0; width:210mm; height:297mm; background-image:url('../branding/watermark.png'); background-size:45mm 45mm; background-repeat:repeat; opacity:0.15; z-index:0; pointer-events:none; }
 .page > * { position:relative; z-index:1; }
@@ -158,16 +159,24 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .habit-desc-card .habit-desc-text { font-size:9pt; color:#4B5563; line-height:1.8; }
 
 .card-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:3mm; margin-top:3mm; }
-.exec-card { background:white; border-radius:12px; padding:4mm 3mm; text-align:center; border:1px solid #EAEAEA; word-break:keep-all; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.exec-card .card-icon { width:28px; height:28px; border-radius:50%; background:#E8F5F3; color:#2A9D8F; margin:0 auto 2mm; display:flex; align-items:center; justify-content:center; font-size:10pt; font-weight:700; }
-.exec-card.red .card-icon { background:#FDECEA; color:#B33A3A; }
-.exec-card.amber .card-icon { background:#FEF3E7; color:#F4A261; }
-.exec-card .zh { font-size:10pt; font-weight:700; color:#1A1A1A; margin-bottom:0.5mm; word-break:keep-all; white-space:nowrap; }
-.exec-card .en { font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px; margin-bottom:2mm; word-break:keep-all; white-space:nowrap; }
-.exec-card .val { font-size:22pt; font-weight:700; color:#2A9D8F; font-variant-numeric:tabular-nums; }
+.radar-chart-wrap { display:flex; justify-content:center; margin:2mm 0; }
+.radar-svg { width:80%; height:auto; }
+
+.exec-card { background:white; border-radius:12px; padding:4mm 3mm; text-align:center; border:1px solid #EAEAEA; }
+.exec-card .zh { font-size:11pt; font-weight:700; color:#1A1A1A; margin-bottom:0.5mm; }
+.exec-card .en { font-size:7.5pt; color:#8C8C8C; letter-spacing:0.5px; margin-bottom:2mm; }
+.exec-card .val { font-size:24pt; font-weight:700; color:#2A9D8F; font-variant-numeric:tabular-nums; }
 .exec-card.red .val { color:#B33A3A; }
 .exec-card.amber .val { color:#F4A261; }
-.exec-row { margin-top:3mm; }
+.exec-card .val small { font-size:9pt; color:#8C8C8C; font-weight:400; }
+.exec-card .exec-desc { font-size:8.5pt; color:#4B5563; line-height:1.6; text-align:left; margin-top:2mm; }
+.exec-row { margin-top:1mm; }
+
+.motivation-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; margin-top:3mm; margin-bottom:2mm; letter-spacing:1.5px; }
+
+.motivation-list { display:flex; flex-direction:column; gap:2mm; margin-bottom:3mm; }
+.motivation-card { background:#F9FAFB; border:1px solid #E5E5E5; border-radius:10px; padding:3mm; }
+.motivation-card-desc { font-size:8pt; color:#4B5563; line-height:1.5; margin-top:2mm; padding-top:2mm; border-top:1px solid #E5E5E5; }
 
 .cog-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:4mm; margin-top:4mm; }
 .cog-grid .cog-item { background:white; border:1px solid #EAEAEA; border-radius:12px; padding:5mm 4mm; text-align:left; }
@@ -308,6 +317,18 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .details-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
 .details-desc { font-size:9.5pt; color:#4B5563; line-height:1.8; }
 
+/* 认知能力页面 P12 - 现代UI */
+.cog-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; margin-top:5mm; margin-bottom:3mm; letter-spacing:1.5px; }
+.cog-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:3mm; }
+.cog-item { background:white; border:1px solid #E5E5E5; border-radius:12px; padding:4mm; }
+.cog-gauge { width:100%; height:22mm; }
+.cog-info { text-align:center; margin-top:2mm; margin-bottom:3mm; }
+.cog-label { font-size:10pt; font-weight:700; color:#1A1A1A; }
+.cog-en { font-size:7pt; color:#8C8C8C; letter-spacing:0.5px; margin-top:0.5mm; }
+.cog-value { font-size:12pt; font-weight:700; color:#2A9D8F; margin-top:1mm; }
+.cog-value small { font-size:8pt; color:#8C8C8C; font-weight:400; }
+.cog-desc { font-size:8.5pt; color:#4B5563; line-height:1.7; text-align:justify; }
+
 /* 职业价值观页面 P18 - 现代网格布局 */
 .values-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
 
@@ -337,6 +358,20 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .feature-text-sm { font-size:7.5pt; color:#4B5563; line-height:1.5; }
 .value-monologue-remaining { }
 .monologue-text-sm { font-size:7pt; color:#8C8C8C; line-height:1.5; font-style:italic; }
+
+/* 封底页 P19 */
+.backcover { padding:12mm; height:100%; box-sizing:border-box; display:flex; flex-direction:column; }
+.backcover-header { text-align:center; margin-bottom:10mm; padding-bottom:6mm; border-bottom:2px solid #F4A261; }
+.backcover-title { font-size:16pt; font-weight:700; color:#1A1A1A; letter-spacing:2px; }
+.backcover-content { flex:1; display:flex; flex-direction:column; gap:5mm; }
+.backcover-item { background:#F9FAFB; border-left:4px solid #2A9D8F; padding:4mm 5mm; border-radius:0 10px 10px 0; }
+.backcover-item-title { font-size:10pt; font-weight:700; color:#1A1A1A; margin-bottom:2mm; letter-spacing:1px; }
+.backcover-item-content { font-size:9pt; color:#4B5563; line-height:1.7; }
+.backcover-footer { margin-top:8mm; padding-top:6mm; border-top:1px solid #E5E5E5; text-align:center; }
+.backcover-copyright { font-size:8pt; color:#8C8C8C; line-height:1.6; margin-bottom:3mm; }
+.backcover-brand { font-size:9pt; font-weight:600; color:#1A1A1A; letter-spacing:1px; margin-bottom:4mm; }
+.backcover-logo { text-align:center; }
+.backcover-logo img { width:60mm; height:auto; }
 </style>
 </head>
 <body>
@@ -372,7 +407,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="y4-sep"></div>
     <div class="y4-content">
         {% for para in page.paragraphs %}
-        <p>{{ para }}</p>
+        <p>{{ para | safe }}</p>
         {% endfor %}
     </div>
 </div>
@@ -584,7 +619,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">{{ dim.max }}</span>
-                <span class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></span>
+                <span class="value-dot" style="left:{{ item.pct }}%;"></span>
             </div>
         </div>
         <div class="val-wrap" style="font-size:11pt;">{{ item.value }}<small> /{{ dim.max }}</small></div>
@@ -783,11 +818,14 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     </svg>
 </div>
 
-<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:3mm; margin-bottom:2mm; letter-spacing:1.5px;">六项子指标百分位</div>
-<div class="cog-grid" style="grid-template-columns:repeat(3, 1fr); gap:3mm;">
+<!-- ============ COGNITIVE DETAILS (P12b) ============ -->
+{% elif page.layout == 'cognitive_details' %}
+
+<div class="cog-section-title">六项子指标百分位</div>
+<div class="cog-grid">
     {% for item in page.cognitive_items %}
-    <div class="cog-item" style="text-align:center; padding:3mm;">
-        <svg viewBox="0 0 140 85" style="width:40mm; height:24mm;">
+    <div class="cog-item">
+        <svg viewBox="0 0 140 85" class="cog-gauge">
             <defs>
                 <linearGradient id="cogGrad{{ loop.index }}" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" style="stop-color:#E76F51;stop-opacity:1"/>
@@ -800,11 +838,12 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
             <line x1="70" y1="50" x2="{{ item.gauge.needle_x }}" y2="{{ item.gauge.needle_y }}" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <div style="margin-top:1mm;">
-            <div style="font-size:9.5pt; font-weight:700; color:#1A1A1A;">{{ item.label }}</div>
-            <div style="font-size:6.5pt; color:#8C8C8C; letter-spacing:0.5px;">{{ item.en }}</div>
-            <div style="font-size:11pt; font-weight:700; color:#2A9D8F; margin-top:0.5mm;">{{ item.value }}<small style="font-size:7pt; color:#8C8C8C;">%</small></div>
+        <div class="cog-info">
+            <div class="cog-label">{{ item.label }}</div>
+            <div class="cog-en">{{ item.en }}</div>
+            <div class="cog-value">{{ item.value }}<small>%</small></div>
         </div>
+        <div class="cog-desc">{{ item.desc }}</div>
     </div>
     {% endfor %}
 </div>
@@ -818,8 +857,8 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="page-title">{{ page.page_title }}</div>
 <div class="page-title-en">{{ page.subtitle_en }}</div>
 
-<div class="radar-chart-wrap" style="margin:3mm 0;">
-    <svg viewBox="{{ page.radar.viewBox }}">
+<div class="radar-chart-wrap">
+    <svg viewBox="{{ page.radar.viewBox }}" class="radar-svg">
         {% for ring in page.radar.rings %}<polygon points="{{ ring }}" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/>{% endfor %}
         <polygon points="{{ page.radar.polygon_points }}" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2"/>
         {% for ax in page.radar.axes %}<line x1="{{ page.radar.cx }}" y1="{{ page.radar.cy }}" x2="{{ ax.x2 }}" y2="{{ ax.y2 }}" stroke="#E0E0E0" stroke-width="1"/>{% endfor %}
@@ -828,13 +867,13 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     </svg>
 </div>
 
-<div class="card-row exec-row" style="margin-top:1mm;">
+<div class="card-row exec-row">
     {% for item in page.exec_items %}
-    <div class="exec-card {{ item.color }}" style="padding:3mm 2mm;">
-        <div class="card-icon" style="width:24px; height:24px; font-size:9pt; margin:0 auto 1.5mm;">{{ item.label[:1] }}</div>
-        <div class="zh" style="font-size:9pt; margin-bottom:0.3mm;">{{ item.label }}</div>
-        <div class="en" style="font-size:6.5pt; margin-bottom:1.5mm;">{{ item.en }}</div>
-        <div class="val" style="font-size:18pt;">{{ item.value }}<small style="font-size:8pt; color:#8C8C8C;">%</small></div>
+    <div class="exec-card {{ item.color }}">
+        <div class="zh">{{ item.label }}</div>
+        <div class="en">{{ item.en }}</div>
+        <div class="val">{{ item.value }}<small>%</small></div>
+        <div class="exec-desc">{{ item.desc }}</div>
     </div>
     {% endfor %}
 </div>
@@ -849,43 +888,53 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="page-title-en">{{ page.subtitle_en }}</div>
 {% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
 
-<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:2mm; margin-bottom:2mm; letter-spacing:1.5px;">学习动机　LEARNING MOTIVATION</div>
+<div class="motivation-section-title">学习动机　LEARNING MOTIVATION</div>
+<div class="motivation-list">
 {% for item in page.motivation_items %}
-<div class="progress-item">
-    <div class="label-wrap">
-        <div class="zh-label">{{ item.label }}</div>
-        {% if item.en %}<div class="en-label">{{ item.en }}</div>{% endif %}
-    </div>
-    <div class="slider-wrap">
-        <div class="slider-bar red-only">
-            <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></span>
-            {% if item.norm_pct is defined %}<span class="peer-marker" style="left:{{ item.norm_pct }}%;"></span>{% endif %}
+<div class="motivation-card">
+    <div class="progress-item">
+        <div class="label-wrap">
+            <div class="zh-label">{{ item.label }}</div>
+            {% if item.en %}<div class="en-label">{{ item.en }}</div>{% endif %}
         </div>
+        <div class="slider-wrap">
+            <div class="slider-bar red-only">
+                <span class="tick-min">1</span><span class="tick-max">10</span>
+                <span class="value-dot" style="left:{{ item.pct }}%;"></span>
+                {% if item.norm_pct is defined %}<span class="peer-marker" style="left:{{ item.norm_pct }}%;"></span>{% endif %}
+            </div>
+        </div>
+        <div class="val-wrap">{{ item.value }}<small> /10.0</small></div>
+        {% if item.norm_value is defined %}<div class="norm-wrap">{{ item.norm_value }}</div>{% endif %}
     </div>
-    <div class="val-wrap">{{ item.value }}<small> /10.0</small></div>
-    {% if item.norm_value is defined %}<div class="norm-wrap">{{ item.norm_value }}</div>{% endif %}
+    <div class="motivation-card-desc">{{ item.desc }}</div>
 </div>
 {% endfor %}
+</div>
 
-<div style="font-size:10pt; font-weight:700; color:#1A1A1A; margin-top:4mm; margin-bottom:2mm; letter-spacing:1.5px;">学习方法与策略　LEARNING METHODS</div>
+<div class="motivation-section-title">学习方法与策略　LEARNING METHODS</div>
+<div class="motivation-list">
 {% for item in page.strategy_items %}
-<div class="progress-item">
-    <div class="label-wrap">
-        <div class="zh-label">{{ item.label }}</div>
-        {% if item.en %}<div class="en-label">{{ item.en }}</div>{% endif %}
-    </div>
-    <div class="slider-wrap">
-        <div class="slider-bar">
-            <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></span>
-            {% if item.norm_pct is defined %}<span class="peer-marker" style="left:{{ item.norm_pct }}%;"></span>{% endif %}
+<div class="motivation-card">
+    <div class="progress-item">
+        <div class="label-wrap">
+            <div class="zh-label">{{ item.label }}</div>
+            {% if item.en %}<div class="en-label">{{ item.en }}</div>{% endif %}
         </div>
+        <div class="slider-wrap">
+            <div class="slider-bar">
+                <span class="tick-min">1</span><span class="tick-max">10</span>
+                <span class="value-dot" style="left:{{ item.pct }}%;"></span>
+                {% if item.norm_pct is defined %}<span class="peer-marker" style="left:{{ item.norm_pct }}%;"></span>{% endif %}
+            </div>
+        </div>
+        <div class="val-wrap">{{ item.value }}<small> /10.0</small></div>
+        {% if item.norm_value is defined %}<div class="norm-wrap">{{ item.norm_value }}</div>{% endif %}
     </div>
-    <div class="val-wrap">{{ item.value }}<small> /10.0</small></div>
-    {% if item.norm_value is defined %}<div class="norm-wrap">{{ item.norm_value }}</div>{% endif %}
+    <div class="motivation-card-desc">{{ item.desc }}</div>
 </div>
 {% endfor %}
+</div>
 
 <!-- ============ HOLLAND (P16) ============ -->
 {% elif page.layout == 'holland' %}
@@ -1000,6 +1049,31 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             </div>
         </div>
         {% endfor %}
+   </div>
+</div>
+
+<!-- ============ BACKCOVER (P19) ============ -->
+{% elif page.layout == 'backcover' %}
+<div class="backcover">
+    <div class="backcover-header">
+        <div class="backcover-title">{{ page.page_title }}</div>
+    </div>
+    
+    <div class="backcover-content">
+        {% for para in page.paragraphs %}
+        <div class="backcover-item">
+            <div class="backcover-item-title">{{ para.title }}</div>
+            <div class="backcover-item-content">{{ para.content }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="backcover-footer">
+        <div class="backcover-copyright">{{ page.copyright }}</div>
+        <div class="backcover-brand">凭远教育 · APP ARK</div>
+        <div class="backcover-logo">
+            <img src="{{ url_for('static', filename='branding/logo_red.png') }}" alt="APP ARK" />
+        </div>
     </div>
 </div>
 

@@ -247,21 +247,21 @@ def radar_svg(items: List[Dict[str, Any]],
               avg_points: List[Dict[str, Any]] = None) -> Dict[str, Any]:
     """生成雷达图（N 边形）SVG 数据。在 Python 中预计算所有坐标。
     
-    确保 viewBox 起始点为正数，所有标签都在 viewBox 范围内。
-    
-    Args:
-        items: 数据项列表，每项包含 value 字段
-        max_value: 最大值
-        avg_points: 平均参考线数据，每项包含 value 字段
+    确保雷达图中心在 viewBox 正中间，方便水平居中显示。
     """
     num = len(items)
     
-    # 计算需要的顶部空间，确保 cy 足够大
-    label_height = 35  # 标签文字高度（标签+英文+数值）
-    top_space_needed = radius + label_padding + label_height + 10
+    # 先计算 viewBox 大小，确保中心在正中间
+    margin = 20
+    content_w = (radius + label_padding + margin) * 2
+    content_h = (radius + label_padding + 30) * 2
     
-    # 自动调整 cy，确保顶部标签在正数区域
-    actual_cy = max(cy, top_space_needed)
+    viewBox_w = max(content_w, 400)
+    viewBox_h = max(content_h, 400)
+    
+    # 雷达图中心在 viewBox 正中间
+    center_x = viewBox_w / 2
+    center_y = viewBox_h / 2
     
     rings = []
     for r in range(1, ring_count + 1):
@@ -269,8 +269,8 @@ def radar_svg(items: List[Dict[str, Any]],
         pts = []
         for i in range(num):
             ang = math.pi / 2 - (2 * math.pi / num) * i
-            px = cx + rr * math.cos(ang)
-            py = actual_cy - rr * math.sin(ang)
+            px = center_x + rr * math.cos(ang)
+            py = center_y - rr * math.sin(ang)
             pts.append(f"{px:.1f},{py:.1f}")
         rings.append(" ".join(pts))
     val_pts = []
@@ -281,12 +281,12 @@ def radar_svg(items: List[Dict[str, Any]],
         ratio = max(0.0, min(1.0, val / max_value)) if max_value > 0 else 0.0
         rr = radius * ratio
         ang = math.pi / 2 - (2 * math.pi / num) * i
-        px = cx + rr * math.cos(ang)
-        py = actual_cy - rr * math.sin(ang)
+        px = center_x + rr * math.cos(ang)
+        py = center_y - rr * math.sin(ang)
         val_pts.append(f"{px:.1f},{py:.1f}")
         dots.append({"x": f"{px:.1f}", "y": f"{py:.1f}"})
-        lx = cx + (radius + label_padding) * math.cos(ang)
-        ly = actual_cy - (radius + label_padding) * math.sin(ang)
+        lx = center_x + (radius + label_padding) * math.cos(ang)
+        ly = center_y - (radius + label_padding) * math.sin(ang)
         labels.append({
             "x": f"{lx:.1f}", "y": f"{ly:.1f}",
             "label": it.get("label", ""),
@@ -303,34 +303,20 @@ def radar_svg(items: List[Dict[str, Any]],
             ratio = max(0.0, min(1.0, val / max_value)) if max_value > 0 else 0.0
             rr = radius * ratio
             ang = math.pi / 2 - (2 * math.pi / num) * i
-            px = cx + rr * math.cos(ang)
-            py = actual_cy - rr * math.sin(ang)
+            px = center_x + rr * math.cos(ang)
+            py = center_y - rr * math.sin(ang)
             avg_val_pts.append(f"{px:.1f},{py:.1f}")
         avg_polygon_points = " ".join(avg_val_pts)
     
     axes = []
     for i in range(num):
         ang = math.pi / 2 - (2 * math.pi / num) * i
-        ax = cx + radius * math.cos(ang)
-        ay = actual_cy - radius * math.sin(ang)
-        axes.append({"x1": cx, "y1": actual_cy, "x2": f"{ax:.1f}", "y2": f"{ay:.1f}"})
-    
-    # viewBox 从 (0, 0) 开始，确保 PDF 兼容
-    margin = 20
-    min_x = max(0, cx - radius - label_padding - margin)
-    max_x = cx + radius + label_padding + margin
-    min_y = 0
-    max_y = actual_cy + radius + label_padding + 30
-    
-    viewBox_w = max_x - min_x
-    viewBox_h = max_y - min_y
-    
-    # 确保最小尺寸
-    viewBox_w = max(viewBox_w, 400)
-    viewBox_h = max(viewBox_h, 400)
+        ax = center_x + radius * math.cos(ang)
+        ay = center_y - radius * math.sin(ang)
+        axes.append({"x1": center_x, "y1": center_y, "x2": f"{ax:.1f}", "y2": f"{ay:.1f}"})
     
     return {
-        "cx": cx, "cy": actual_cy, "radius": radius,
+        "cx": center_x, "cy": center_y, "radius": radius,
         "rings": rings, "axes": axes,
         "polygon_points": " ".join(val_pts),
         "avg_polygon_points": avg_polygon_points,
@@ -461,7 +447,7 @@ def build_page_2() -> Dict[str, Any]:
         "● TA为什么在某些学习任务中表现突出，却在另一些任务中频繁受阻；",
         "● TA为什么被某些方向吸引；",
         "● 什么样的成长支持，能够真正帮助TA把潜能转化为未来。",
-        "Y4 不以单一分数定义学生，也不把学生简单归类为某一种类型。它通过四个系统之间的联系，理解一个真实、复杂并且仍在发展中的青少年。",
+        "Y4 <strong>不</strong>以单一分数<strong>定义</strong>学生，也<strong>不</strong>把学生简单<strong>归类</strong>为某一种类型。它通过四个系统之间的联系，<strong>理解</strong>一个真实、复杂并且仍在<strong>发展</strong>中的青少年。",
     ]
     return _page_dict("y4_intro",
                       page_title="Y4 | Youth Profile in Four Dimensions",
@@ -826,12 +812,18 @@ def build_page_11() -> Dict[str, Any]:
 # ---------------- P12 认知能力（001-008） ----------------
 def build_page_12() -> Dict[str, Any]:
     cognitive_items = [
-        {"label": "感知觉", "en": "Perception", "value": fmt(v("003"))},
-        {"label": "注意力", "en": "Attention", "value": fmt(v("004"))},
-        {"label": "记忆力", "en": "Memory", "value": fmt(v("005"))},
-        {"label": "推理能力", "en": "Reasoning", "value": fmt(v("006"))},
-        {"label": "空间能力", "en": "Spatial Ability", "value": fmt(v("007"))},
-        {"label": "加工速度", "en": "Processing Speed", "value": fmt(v("008"))},
+        {"label": "感知觉", "en": "Perception", "value": fmt(v("003")),
+         "desc": "感知是认知、理解的基础。感知觉是大脑对作用于大脑的外部信息的整体看法和理解，整个加工过程包括获取信息、理解信息、选择信息和组织信息。"},
+        {"label": "注意力", "en": "Attention", "value": fmt(v("004")),
+         "desc": "心理活动对一定对象的指向和集中。一般理解为对客观事物持续注意的能力，如做事专注，还是易分心。神经生理因素、兴趣/动机、精神状态等均会影响一个人的注意力水平。"},
+        {"label": "记忆力", "en": "Memory", "value": fmt(v("005")),
+         "desc": "记忆力是神经系统存储过往经验的能力，是学习的基础，一般包括识记、保持、再认和重现。记忆力的个体差异影响学习效率，如有的同学看3遍就记住了一个单词，而有的同学可能要7-8遍。"},
+        {"label": "推理能力", "en": "Reasoning", "value": fmt(v("006")),
+         "desc": "推理能力是智力的核心成分，是一个人通过已有知识和经验，通过综合分析做出新判断的过程。推理能力的差异往往反应一个人洞悉事物本质，事物联系能力的高低。"},
+        {"label": "空间能力", "en": "Spatial Ability", "value": fmt(v("007")),
+         "desc": "空间能力是大脑通过观察、触摸及想象对物体形状、位置判断的能力。它是大脑对外部信息的抽象表征和推理，是数学、自然科学、工程等重要学科领域用到的重要心理能力。"},
+        {"label": "加工速度", "en": "Processing Speed", "value": fmt(v("008")),
+         "desc": "加工速度是大脑处理内部或外部信息的速度，和网速、手机使用流畅性一样，大脑的信息加工速度直接影响学习、思考和人际沟通的效率。"},
     ]
     # 为每个认知项计算 gauge 数据
     for item in cognitive_items:
@@ -868,27 +860,33 @@ def build_page_12() -> Dict[str, Any]:
                       page_title="认知资源",
                       subtitle="COGNITIVE ABILITY",
                       page_en="Cognitive Resource Overview",
-                      intro="认知能力是大脑加工、处理信息，认知客观事物内部逻辑，并运用知识、经验等解决问题的能力。认知的过程包括感知、记忆、想象、思考、判断等。",
+                      intro="认知能力是大脑加工、处理信息，认知客观事物内部逻辑，并运用知识、经验等解决问题的能力。认知的过程包括感知、记忆、想象、思考、判断等。它被重视的原因是人类所有的学习活动都离不开认知能力的运用。",
                       total_score=fmt(v("001")),
                       percentile=fmt(percentile),
-                      cognitive_items=cognitive_items,
-                      dist_svg=dist_svg)
+                      dist_svg=dist_svg), _page_dict("cognitive_details",
+                      page_title="",
+                      subtitle="",
+                      page_en="",
+                      cognitive_items=cognitive_items)
 
 
 # ---------------- P13 执行功能（063-065） ----------------
 def build_page_13() -> Dict[str, Any]:
     executive_items = [
-        {"label": "抑制控制", "en": "Inhibitory Control", "value": fmt(v("063")), "color": "teal"},
-        {"label": "工作记忆", "en": "Working Memory", "value": fmt(v("064")), "color": "red"},
-        {"label": "认知灵活性", "en": "Cognitive Flexibility", "value": fmt(v("065")), "color": "amber"},
+        {"label": "抑制控制", "en": "Inhibitory Control", "value": fmt(v("063")), "color": "teal",
+         "desc": "抑制控制是指个体在行动之前控制冲动、理性思考、排除干扰完成任务的能力。即抑制住自己的本能、欲望，使自己做出符合预期目标的行为。它和孩子的专注力、情绪调节和冲动控制等有关。"},
+        {"label": "工作记忆", "en": "Working Memory", "value": fmt(v("064")), "color": "red",
+         "desc": "工作记忆是有意识地在头脑中保存和操纵信息的能力。我们依靠记忆信息预测未来，信息是周全还是片面直接影响预测的准确性。我们依靠记忆制定目标、安排计划、执行任务，而目标是否清晰，计划是否详细，执行是否到位均与记忆力有关。"},
+        {"label": "认知灵活性", "en": "Cognitive Flexibility", "value": fmt(v("065")), "color": "amber",
+         "desc": "认知灵活性是指个体大脑适应新的、变化的或计划以外事件的能力。比如当情况有变，原有计划被打破或最初的方案行不通时，认知灵活性高的人能根据变化从不同角度看问题，及时调整心态，改变思路，快速找到解决问题的新方案。认知灵活性影响孩子的自我调节能力和心理韧性。"},
     ]
     for item in executive_items:
         p = to_float(item["value"], 50)
         item["pct"] = max(0, min(100, int(p)))
     radar = radar_svg(executive_items, 100.0,
-                      radius=130, cx=210, cy=180,
+                      radius=100, cx=170, cy=140,
                       color="#2A9D8F",
-                      label_padding=55)
+                      label_padding=45)
     return _page_dict("executive",
                       page_title="执行功能",
                       subtitle="EXECUTIVE FUNCTIONS",
@@ -902,19 +900,25 @@ def build_page_13() -> Dict[str, Any]:
 # ---------------- P14 学习动机与策略（066-071） ----------------
 def build_page_14() -> Dict[str, Any]:
     mot_raw = [
-        ("深层动机", "Deep Motivation", "066", "128"),
-        ("表面动机", "Surface Motivation", "067", "129"),
-        ("自我效能感", "Self-Efficacy", "068", "130"),
+        ("深层动机", "Deep Motivation", "066", "128",
+         "深层动机是对学习本身感兴趣，学习本身使个体感到满足和兴奋的内部动机。深层动机得分高的个体一般学习动力足，主动学习、不需要外部监督和督促。"),
+        ("表面动机", "Surface Motivation", "067", "129",
+         "表面动机是对学习不感兴趣，为了通过考试、得到奖励或避免惩罚而学习的外部动机。表面动机难以维持长期学习，一旦外部奖励或惩罚退去，个体可能不再学习。"),
+        ("自我效能感", "Self-Efficacy", "068", "130",
+         "自我效能感是个体对自己能否成功完成某事的主观判断。个体的自我效能感源于过往的成功经验以及对自己的准确的评估。"),
     ]
     str_raw = [
-        ("学习深层方法与策略", "Deep Methods and Strategies", "069", "131"),
-        ("学习表面方法与策略", "Surface Methods and Strategies", "070", "132"),
-        ("学习自我调节", "Self-Regulation", "071", "133"),
+        ("学习深层方法与策略", "Deep Methods and Strategies", "069", "131",
+         "学习深层方法与策略是为了深入理解知识本身而采取的学习方法和策略，是一种建立在理解和应用基础之上的深度学习。这种学习方法使学习记忆更牢、理解更深刻。"),
+        ("学习表面方法与策略", "Surface Methods and Strategies", "070", "132",
+         "学习表面方法与策略是为了记住某具体内容或为了某次考试通过而学习的方法与策略，这种方法策略可以在短期内看到效果，对长期发展非常不利。因为这种不求甚解的学习方法记得快，忘得也快。"),
+        ("学习自我调节", "Self-Regulation", "071", "133",
+         "学习自我调节是学习过程中遇到困难或挫折时采取的自我调节的方法。比如即使遇到了自己不喜欢的老师或科目，但为了取得好成绩也会进行自我调节、努力学习。"),
     ]
 
     def _mk(items_raw):
         out = []
-        for label_cn, label_en, code, norm_code in items_raw:
+        for label_cn, label_en, code, norm_code, desc in items_raw:
             val = to_float(v(code), 5)
             norm_val = to_float(v(norm_code), 6.0)
             out.append({
@@ -923,6 +927,7 @@ def build_page_14() -> Dict[str, Any]:
                 "pct": max(0, min(100, int(val / 10.0 * 100))),
                 "norm_value": fmt(norm_val),
                 "norm_pct": max(0, min(100, int(norm_val / 10.0 * 100))),
+                "desc": desc,
             })
         return out
 
@@ -932,7 +937,6 @@ def build_page_14() -> Dict[str, Any]:
                       page_title="学习动机与策略",
                       subtitle="LEARNING MOTIVATION & STRATEGIES",
                       page_en="Learning Motivation and Strategies",
-                      intro="学习动机是激发并维持个体不断学习的基本动力，有时也称之为学习动力。",
                       motivation_items=motivation_items,
                       strategy_items=strategy_items)
 
@@ -1077,6 +1081,19 @@ def build_page_18() -> Dict[str, Any]:
                       remaining=remaining)
 
 
+# ---------------- P19 封底页 ----------------
+def build_page_backcover() -> Dict[str, Any]:
+    return _page_dict("backcover",
+                      page_title="Y4 测评报告 · 阅读与说明",
+                      paragraphs=[
+                          {"title": "测评不定义，亦不归类", "content": "本报告旨在呈现特质，而非给学生贴上固定的“标签”或将其局限于某一类模型中。"},
+                          {"title": "状态具有时效性", "content": "报告所记录的是测试人在当下的即时状态，该状态会受到环境、情绪及多种潜在因素的综合影响。"},
+                          {"title": "理解需结合情境 (Context)", "content": "对报告数据的理解与解读，绝不能脱离具体的成长背景与专业情境，切忌断章取义。"},
+                          {"title": "请务必咨询专业测评师", "content": "为了确保您准确理解报告内涵，请在阅读时务必咨询凭远专业老师的意见，以获得客观、全面的深度解析。"},
+                      ],
+                      copyright="本报告为凭远内部资料，所有权归凭远所有。未经凭远测评师及相关家庭的双重授权，严禁任何形式的转发或公开。")
+
+
 # ======================================================================
 # 构建整体视图数据
 # ======================================================================
@@ -1131,7 +1148,8 @@ def build_view_data() -> Dict[str, Any]:
     # 学习力系统：按页面逐个判断
     learning_pages = []
     if has_page_data(["001", "002"]):
-        learning_pages.append(build_page_12())
+        pages_12 = build_page_12()
+        learning_pages.extend(pages_12)
     if has_page_data(["073", "074", "075", "076", "077", "078", "079", "080", "081", "082"]):
         learning_pages.append(build_page_13())
     if has_page_data(["083", "084", "085", "086", "087", "088", "089", "090"]):
@@ -1155,6 +1173,9 @@ def build_view_data() -> Dict[str, Any]:
     if career_pages:
         pages.append(build_page_15())
         pages.extend(career_pages)
+    
+    # 添加封底页
+    pages.append(build_page_backcover())
     
     for page in pages:
         layout = page.get("layout", "")
