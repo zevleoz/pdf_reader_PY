@@ -27,6 +27,7 @@ INPUT_DIR = BASE_DIR / "input"
 OUTPUT_DIR = BASE_DIR / "output"
 DATA_DIR = BASE_DIR / "data"
 TEMPLATE_DIR = BASE_DIR / "templates"
+BRANDING_DIR = BASE_DIR / "branding"
 
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -35,15 +36,24 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 REQUIRED_KEYS: List[str] = ["A2", "B3", "B4", "B6"]
 
 app = Flask(__name__, template_folder=str(TEMPLATE_DIR),
-            static_folder=str(OUTPUT_DIR))
+            static_folder=str(OUTPUT_DIR), static_url_path="/output")
 
 
-# ---------------------------------------------------------------------------
-# 页面
-# ---------------------------------------------------------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/preview")
+def preview():
+    from generate import build_view_data, render_html
+    from data_points import apply_report_data
+    apply_report_data()
+    view_data = build_view_data()
+    from pathlib import Path as P
+    output_path = OUTPUT_DIR / "preview.html"
+    render_html(view_data, output_path)
+    return send_from_directory(str(OUTPUT_DIR), "preview.html")
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +111,18 @@ def api_generate():
 
         # 5) 关键点：让 data_points 基于新的 report_data.json 重新填充 USER_DATA
         apply_result = apply_report_data()
+
+        # 5b) 如果用户手动输入了思维模式分值，覆盖提取的数据
+        mindset_score = request.form.get('mindset_score')
+        if mindset_score:
+            try:
+                score_val = float(mindset_score)
+                if 0 <= score_val <= 100:
+                    from data_points import USER_DATA
+                    USER_DATA['059'] = str(score_val)
+                    print(f"[思维模式] 用户手动输入分值: {score_val}")
+            except ValueError:
+                pass
 
         # 6) 清理 output/ 旧产物，避免 chrome 基于旧文件命名出错
         for suffix in (".pdf", ".html"):

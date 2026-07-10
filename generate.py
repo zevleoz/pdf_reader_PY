@@ -27,6 +27,7 @@
 """
 from __future__ import annotations
 
+import json
 import math
 import os
 import subprocess
@@ -629,14 +630,13 @@ def build_page_6() -> Dict[str, Any]:
 def build_page_7() -> Dict[str, Any]:
     mindset_raw = v("059")
     # 思维模式可能是文本描述（无具体数字），需要从描述判断类型和数值
+    # 用户可以手动输入分值（0-100），0表示固定型，100表示成长型
     try:
         mindset_val = float(mindset_raw)
         mindset_pct = max(0, min(100, int(mindset_val)))
-        # 如果值为0，说明数据提取失败，使用默认值50（混合型）
-        if mindset_val == 0:
-            mindset_val = 50.0
-            mindset_pct = 50
-    except:
+        # 如果值为空字符串或无法转换，使用默认值50（混合型）
+        # 注意：0是有效的固定型思维分值，不应被覆盖
+    except (ValueError, TypeError):
         mindset_val = 50.0
         mindset_pct = 50
     
@@ -961,23 +961,30 @@ def build_page_15() -> Dict[str, Any]:
 # ---------------- P16 职业兴趣 Holland（072-078） ----------------
 def build_page_16() -> Dict[str, Any]:
     holland_items = [
-        {"letter": "R", "label": "现实型", "en": "Realistic", "value": fmt(v("073"))},
-        {"letter": "I", "label": "研究型", "en": "Investigative", "value": fmt(v("074"))},
-        {"letter": "A", "label": "艺术型", "en": "Artistic", "value": fmt(v("075"))},
-        {"letter": "S", "label": "社会型", "en": "Social", "value": fmt(v("076"))},
-        {"letter": "E", "label": "事业型", "en": "Enterprising", "value": fmt(v("077"))},
-        {"letter": "C", "label": "常规型", "en": "Conventional", "value": fmt(v("078"))},
+        {"letter": "R", "label": "现实型", "en": "Realistic", "value": fmt(v("073")),
+         "desc": "喜欢具体的、可操作性的工作，比如修理、组装或建造东西；喜欢动手操作、操作设备、工具或机器；偏好具体任务，而不是抽象思考，或与人讨论；不善言辞，更喜欢独立工作。"},
+        {"letter": "I", "label": "研究型", "en": "Investigative", "value": fmt(v("074")),
+         "desc": "喜欢研究抽象问题，善于逻辑分析，喜欢探索未知；喜欢观察、学习、思考、调查和实验研究；善于提出问题和解决问题；个性独立，为人谨慎。"},
+        {"letter": "A", "label": "艺术型", "en": "Artistic", "value": fmt(v("075")),
+         "desc": "文艺青年；用文字、艺术、音乐或戏剧来交流、表演或表达自己，创造和设计事物；想象力丰富，喜欢创造与表达；喜欢无拘无束的自由生活，喜欢新鲜刺激的生活，讨厌一成不变的生活。"},
+        {"letter": "S", "label": "社会型", "en": "Social", "value": fmt(v("076")),
+         "desc": "温暖、和善；乐于帮助他人；关心社会问题，喜欢与人一起帮助和服务他人；关心他人的幸福和福利。"},
+        {"letter": "E", "label": "事业型", "en": "Enterprising", "value": fmt(v("077")),
+         "desc": "追求权利、利益；喜欢竞争，有野心和抱负；喜欢影响他人、领导他人完成目标；精力充沛，掌控大局。"},
+        {"letter": "C", "label": "常规型", "en": "Conventional", "value": fmt(v("078")),
+         "desc": "遵循规章制度办事；喜欢重复的事务性工作，不喜欢变动；个性谨慎，工作认真，注重细节；喜欢配合和服从，不喜欢领导他人。"},
     ]
     for item in holland_items:
         s = to_float(item["value"], 5)
         item["pct"] = max(0, min(100, int(s / 10.0 * 100)))
     radar = radar_svg(holland_items, 10.0,
-                      radius=130, color="#2A9D8F")
+                      radius=100, color="#2A9D8F")
+    intro = "职业兴趣（Vocational Interest）是兴趣在职业选择方面的表现，背后是人格的一种体现。你可以理解为显性的或隐性的从事某种工作的偏好和愿望。职业兴趣代码（Holland Code）是将你职业兴趣的测评结果按得分从高到低的顺序依次排序，得分最高的三个代码即为你的职业兴趣代码。"
     return _page_dict("holland",
                       page_title="职业兴趣",
                       subtitle="VOCATIONAL INTEREST",
                       page_en="HOLLAND VOCATIONAL INTEREST TYPES",
-                      intro="",
+                      intro=intro,
                       code=fmt(v("072")),
                       radar=radar,
                       holland_items=holland_items)
@@ -1022,63 +1029,105 @@ def build_page_17() -> Dict[str, Any]:
 
 # ---------------- P18 职业价值观（095-124） ----------------
 def build_page_18() -> Dict[str, Any]:
-    values_grid = [
-        ("经济报酬", "Economic Reward", "106", 1,
-         "较高的报酬，生活过得较为富足", "薪酬高，福利好"),
-        ("生活方式", "Lifestyle", "109", 2,
-         "可以选择过自己想过的生活，安逸、简单、快乐或充实", "有选择生活方式的权利"),
-        ("工作环境", "Work Environment", "102", 3,
+    values_def_default = [
+        ("工作环境", "Work Environment", "102", 1,
          "追求比较舒适、轻松、自由的工作环境", "工作环境舒适，轻松自由"),
-        ("上司关系", "Supervisor Relations", "104", 4,
-         "有一个开明的、民主的、公正的好领导", "有一个好领导"),
+        ("创造发明", "Creativity", "095", 2,
+         "发明创造新的事物，可能是新产品，也可能是新观念或新方法", "发明创造新的事物"),
+        ("声望地位", "Social Status", "108", 3,
+         "所从事的工作在人们的心目中有较高的社会地位", "社会地位高，受人敬仰"),
+        ("安全稳定", "Security", "107", 4,
+         "工作稳定，收入有保障，不会失业", "安稳，不会失业"),
         ("成就感", "Achievement", "100", 5,
          "不断取得新的成就，得到认可或实现自己想做的事", "能给我带来成就感"),
-        ("智力激发", "Intellectual Stimulation", "098", 6,
-         "必须动脑筋思考、学习和探索新事物，解决新问题", "有挑战性"),
-        ("声望地位", "Social Status", "108", 7,
-         "所从事的工作在人们的心目中有较高的社会地位", "社会地位高，受人敬仰"),
-        ("安全稳定", "Security", "107", 8,
-         "工作稳定，收入有保障，不会失业", "安稳，不会失业"),
-        ("独立自主", "Independence", "096", 9,
-         "可以按自己的方式或想法工作，不受他人的影响", "能按自己想法和节奏做事"),
-        ("管理权力", "Management Power", "101", 10,
-         "管理和指挥他人做事", "影响和领导别人一起"),
-        ("创造发明", "Creativity", "095", 11,
-         "发明创造新的事物，可能是新产品，也可能是新观念或新方法", "发明创造新的事物"),
-        ("同事关系", "Colleague Relations", "103", 12,
+        ("上司关系", "Supervisor Relations", "104", 6,
+         "有一个开明的、民主的、公正的好领导", "有一个好领导"),
+        ("同事关系", "Colleague Relations", "103", 7,
          "一起工作的大多数同事，人品较好，相处愉快", "与喜欢的人共事"),
-        ("多样变化", "Variety", "105", 13,
-         "讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作", "尝试不同的工作"),
-        ("利TA助人", "Altruism", "099", 14,
+        ("生活方式", "Lifestyle", "109", 8,
+         "可以选择过自己想过的生活，安逸、简单、快乐或充实", "有选择生活方式的权利"),
+        ("管理权力", "Management Power", "101", 9,
+         "管理和指挥他人做事", "影响和领导别人一起"),
+        ("经济报酬", "Economic Reward", "106", 10,
+         "较高的报酬，生活过得较为富足", "薪酬高，福利好"),
+        ("智力激发", "Intellectual Stimulation", "098", 11,
+         "必须动脑筋思考、学习和探索新事物，解决新问题", "有挑战性"),
+        ("利他助人", "Altruism", "099", 12,
          "为他人的幸福、利益尽一份力", "能帮助到他人"),
-        ("美的追求", "Aesthetic Pursuit", "097", 15,
+        ("独立自主", "Independence", "096", 13,
+         "可以按自己的方式或想法工作，不受他人的影响", "能按自己想法和节奏做事"),
+        ("美的追求", "Aesthetic Pursuit", "097", 14,
          "不断地追求美的东西，得到美的享受", "能体验和感受美"),
+        ("多样变化", "Variety", "105", 15,
+         "讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作", "尝试不同的工作"),
     ]
 
-    top5 = []
-    remaining = []
-    for cn, en, score_code, rank, feature, monologue in values_grid:
+    mapping_path = Path(__file__).resolve().parent / "data" / "_vision_b6_values_mapping.json"
+    num_to_label = {}
+    if mapping_path.exists():
+        try:
+            with open(mapping_path, 'r', encoding='utf-8') as f:
+                num_to_label = json.load(f)
+            print(f"  [P18] 加载编号映射: {num_to_label}")
+        except Exception as e:
+            print(f"  [P18] 加载编号映射失败: {e}")
+
+    label_to_def = {cn: (cn, en, score_code, feature, monologue)
+                    for cn, en, score_code, num, feature, monologue in values_def_default}
+
+    values_def = []
+    if num_to_label and len(num_to_label) == 15:
+        for num in range(1, 16):
+            label = num_to_label.get(str(num))
+            if label and label in label_to_def:
+                cn, en, score_code, feature, monologue = label_to_def[label]
+                values_def.append((cn, en, score_code, num, feature, monologue))
+            else:
+                print(f"  [P18] 警告: 编号{num}的标签{label}未找到，使用默认值")
+                values_def.append(values_def_default[num-1])
+    else:
+        values_def = values_def_default
+        print("  [P18] 未找到编号映射，使用默认顺序")
+
+    items_with_scores = []
+    for cn, en, score_code, num, feature, monologue in values_def:
         val = to_float(v(score_code), 5)
-        item = {
+        items_with_scores.append({
             "label": cn, "en": en,
-            "rank": rank,
-            "value": fmt(val),
-            "pct": max(0, min(100, int(val / 10.0 * 100))),
+            "num": num,
+            "score": val,
             "feature": feature,
             "monologue": monologue,
-        }
-        if rank <= 5:
-            top5.append(item)
-        else:
-            remaining.append(item)
+        })
+
+    items_sorted_by_score = sorted(items_with_scores, key=lambda x: -x["score"])
+
+    score_to_rank = {}
+    current_rank = 1
+    for i, item in enumerate(items_sorted_by_score):
+        if i > 0 and item["score"] < items_sorted_by_score[i-1]["score"]:
+            current_rank = i + 1
+        score_to_rank[item["label"]] = current_rank
+
+    items = []
+    for item in items_with_scores:
+        items.append({
+            "label": item["label"],
+            "en": item["en"],
+            "num": item["num"],
+            "rank": score_to_rank[item["label"]],
+            "value": fmt(item["score"]),
+            "pct": max(0, min(100, int(item["score"] / 10.0 * 100))),
+            "feature": item["feature"],
+            "monologue": item["monologue"],
+        })
 
     return _page_dict("values_grid",
                       page_title="职业价值观",
                       subtitle="WORK VALUES",
                       page_en="TOP WORK VALUES & PRIORITIES",
                       intro="",
-                      top5=top5,
-                      remaining=remaining)
+                      values_items=items)
 
 
 # ---------------- P19 封底页 ----------------
@@ -1166,7 +1215,7 @@ def build_view_data() -> Dict[str, Any]:
         career_pages.append(build_page_16())
     if has_page_data(["097", "098", "099", "100", "101", "102", "103"]):
         career_pages.append(build_page_17())
-    if has_page_data(["104", "105", "106", "107", "108", "109"]):
+    if has_page_data(["095", "096", "097", "098", "099", "100"]):
         career_pages.append(build_page_18())
     
     # 如果有生涯力系统页面，添加生涯力介绍页
@@ -1239,6 +1288,11 @@ def build_view_data() -> Dict[str, Any]:
 
 def render_html(view_data: Dict[str, Any], output_path: Path) -> None:
     template_dir = Path(__file__).resolve().parent / "templates"
+    branding_src = Path(__file__).resolve().parent / "branding"
+    branding_dst = output_path.parent / "branding"
+    if not branding_dst.exists():
+        import shutil
+        shutil.copytree(str(branding_src), str(branding_dst))
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
         autoescape=select_autoescape(["html"]),

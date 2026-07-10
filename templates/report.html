@@ -13,12 +13,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .page:last-child { page-break-after:auto; }
 .page-break { page-break-after:always; }
 
-.page::before { content:""; position:absolute; top:0; left:0; width:210mm; height:297mm; background-image:url('../branding/watermark.png'); background-size:45mm 45mm; background-repeat:repeat; opacity:0.15; z-index:0; pointer-events:none; }
-.page > * { position:relative; z-index:1; }
+
 
 .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4mm; font-size:8.5pt; color:#8C8C8C; letter-spacing:0.5px; }
 .page-header .left { display:flex; align-items:center; gap:2.5mm; }
-.page-header .logo-mini { width:22px; height:22px; background-image:url('../branding/logo_red.png'); background-size:contain; background-repeat:no-repeat; background-position:center; }
+.page-header .logo-mini { width:22px; height:22px; background-image:url('branding/logo_red.png'); background-size:contain; background-repeat:no-repeat; background-position:center; }
 .page-header .tag { font-size:8.5pt; color:#B33A3A; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; }
 .page-header .right { color:#8C8C8C; font-size:8.5pt; text-align:right; }
 
@@ -76,19 +75,19 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .section-intro .sec-num { font-size:20pt; font-weight:700; color:#1A1A1A; margin-bottom:2mm; }
 .section-intro .sec-en { font-size:10pt; color:#2A9D8F; letter-spacing:2px; text-transform:uppercase; margin-bottom:8mm; }
 .section-intro .sep { width:30mm; height:1.5px; background:#2A9D8F; margin-bottom:8mm; }
-.section-intro .sec-content { font-size:11pt; color:#4B5563; line-height:1.9; }
-.section-intro .sec-content p { margin-bottom:4mm; }
-.section-intro .bullet-item { position:relative; padding-left:7mm; margin:3mm 0; }
-.section-intro .bullet-item::before { content:""; position:absolute; left:0; top:8px; width:7px; height:7px; border-radius:50%; background:#2A9D8F; }
+.section-intro .sec-content { font-size:12.5pt; color:#4B5563; line-height:1.9; }
+.section-intro .sec-content p { margin-bottom:5mm; }
+.section-intro .bullet-item { position:relative; padding-left:10mm; margin:4mm 0; }
+.section-intro .bullet-item::before { content:""; position:absolute; left:0; top:10px; width:8px; height:8px; border-radius:50%; background:#2A9D8F; }
 
 .y4-intro { padding-top:30mm; }
 .y4-intro .y4-title { font-size:22pt; color:#1A1A1A; font-weight:700; letter-spacing:1px; margin-bottom:3mm; }
 .y4-intro .y4-en { font-size:10pt; color:#8C8C8C; letter-spacing:2px; text-transform:uppercase; margin-bottom:10mm; }
 .y4-intro .y4-sep { width:30mm; height:1.5px; background:#B33A3A; margin-bottom:8mm; }
-.y4-intro .y4-content { font-size:11pt; color:#4B5563; line-height:2; }
+.y4-intro .y4-content { font-size:12.5pt; color:#4B5563; line-height:2; }
 .y4-intro .y4-content p { margin-bottom:5mm; }
-.y4-intro .bullet-item { position:relative; padding-left:7mm; margin:3mm 0; }
-.y4-intro .bullet-item::before { content:""; position:absolute; left:0; top:8px; width:7px; height:7px; border-radius:50%; background:#B33A3A; }
+.y4-intro .bullet-item { position:relative; padding-left:10mm; margin:4mm 0; }
+.y4-intro .bullet-item::before { content:""; position:absolute; left:0; top:10px; width:8px; height:8px; border-radius:50%; background:#B33A3A; }
 
 .gauge-wrap { display:flex; flex-direction:column; align-items:center; text-align:center; margin-bottom:2mm; }
 .gauge-svg { width:140mm; height:70mm; }
@@ -200,11 +199,13 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .holland-code-card .sub { font-size:10pt; opacity:0.9; }
 
 .holland-items { margin-top:3mm; }
-.holland-items .h-item { display:flex; align-items:center; padding:2.5mm 3mm; border-radius:10px; background:white; margin-bottom:2.5mm; border:1px solid #EAEAEA; }
-.holland-items .h-item .hl { width:26px; height:26px; background:#2A9D8F; color:white; border-radius:6px; font-size:12pt; font-weight:700; text-align:center; line-height:26px; margin-right:4mm; flex-shrink:0; }
-.holland-items .h-item .text { flex:1; min-width:30mm; }
-.holland-items .h-item .text .zh { font-size:10.5pt; font-weight:700; color:#1A1A1A; }
-.holland-items .h-item .text .en { font-size:7.5pt; color:#8C8C8C; }
+.holland-items .h-item { display:flex; flex-direction:column; padding:3mm; border-radius:10px; background:white; margin-bottom:2mm; border:1px solid #EAEAEA; }
+.holland-items .h-item .h-row-1 { display:flex; align-items:center; width:100%; }
+.holland-items .h-item .hl { width:26px; height:26px; background:#2A9D8F; color:white; border-radius:6px; font-size:12pt; font-weight:700; text-align:center; line-height:26px; margin-right:3mm; flex-shrink:0; }
+.holland-items .h-item .text { flex:0 0 28mm; }
+.holland-items .h-item .text .zh { font-size:10pt; font-weight:700; color:#1A1A1A; }
+.holland-items .h-item .text .en { font-size:7pt; color:#8C8C8C; }
+.holland-items .h-item .desc { font-size:8pt; color:#4B5563; line-height:1.6; margin-top:2mm; padding-left:29mm; }
 .holland-items .h-item .bar { flex:2; position:relative; height:8px; background:#E5E5E5; border-radius:4px; margin:0 4mm; overflow:visible; }
 .holland-items .h-item .bar .bar-fill { height:100%; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:4px; }
 .holland-items .h-item .bar .value-dot { position:absolute; width:22px; height:22px; background:#1F2937; border-radius:50%; top:50%; left:0; margin-left:-11px; margin-top:-11px; display:flex; align-items:center; justify-content:center; z-index:2; }
@@ -297,8 +298,8 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .ar-fill { height:100%; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:3px; }
 
 /* 自我概念页面 P05 - 评分条 */
-.self-concept-score-bar { display:flex; flex-direction:column; align-items:center; margin:8mm 0; }
-.score-bar-track { display:flex; width:95%; height:10mm; border-radius:8px; overflow:hidden; border:1px solid #E5E5E5; position:relative; }
+.self-concept-score-bar { display:flex; flex-direction:column; align-items:center; margin:8mm 0; padding-top:8mm; position:relative; }
+.score-bar-track { display:flex; width:95%; height:10mm; border-radius:8px; overflow:hidden; border:1px solid #E5E5E5; }
 .score-segment { flex:1; display:flex; align-items:center; justify-content:center; }
 .score-segment.low { background:#FBBF24; flex:0 0 30%; }
 .score-segment.normal { background:#2A9D8F; flex:0 0 60%; }
@@ -306,9 +307,9 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .segment-text { text-align:center; color:white; }
 .segment-text .zh { font-size:9pt; font-weight:700; margin-bottom:0.3mm; }
 .segment-text .en { font-size:6pt; letter-spacing:1px; opacity:0.9; }
-.score-marker { position:absolute; top:-5mm; transform:translateX(-50%); z-index:10; }
+.score-marker { position:absolute; top:0; transform:translateX(-50%); z-index:10; display:flex; flex-direction:column; align-items:center; }
 .marker-box { background:#1F2937; color:white; padding:1mm 2.5mm; border-radius:6px; font-size:11pt; font-weight:700; font-variant-numeric:tabular-nums; }
-.marker-line { width:2px; height:3mm; background:#1F2937; margin:0 auto; }
+.marker-arrow { width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:8px solid #1F2937; margin-top:0; }
 
 .self-concept-divider { margin:6mm 0; }
 .divider-line { height:1px; background:#E5E5E5; }
@@ -318,6 +319,28 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .details-desc { font-size:9.5pt; color:#4B5563; line-height:1.8; }
 
 /* 认知能力页面 P12 - 现代UI */
+.cog-hero { display:grid; grid-template-columns:1fr 1fr; gap:5mm; margin-bottom:5mm; }
+.cog-hero-left { }
+.cog-title { font-size:18pt; font-weight:700; color:#1A1A1A; margin-bottom:2mm; }
+.cog-subtitle { font-size:9pt; color:#8C8C8C; letter-spacing:2px; margin-bottom:4mm; }
+.cog-intro { font-size:9pt; color:#4B5563; line-height:1.8; }
+.cog-hero-right { display:flex; align-items:flex-start; justify-content:flex-end; }
+.cog-score-card { background:#1F2937; color:white; border-radius:12px; padding:5mm; min-width:35mm; text-align:center; }
+.cog-score-header { font-size:10pt; font-weight:600; margin-bottom:1mm; }
+.cog-score-header-en { font-size:7pt; opacity:0.6; letter-spacing:1px; margin-bottom:4mm; }
+.cog-score-values { display:flex; justify-content:center; align-items:center; gap:4mm; }
+.cog-score-item { text-align:center; }
+.cog-score-num { font-size:28pt; font-weight:700; color:#FFFFFF; font-variant-numeric:tabular-nums; }
+.cog-score-label { font-size:9pt; margin-top:2mm; }
+.cog-score-label-en { font-size:6.5pt; opacity:0.6; letter-spacing:1px; }
+.cog-score-divider { width:1px; height:30mm; background:rgba(255,255,255,0.2); }
+
+.cog-chart-section { background:#F9FAFB; border-radius:14px; padding:5mm; }
+.cog-chart-header { margin-bottom:4mm; }
+.cog-chart-title { font-size:11pt; font-weight:700; color:#1A1A1A; margin-bottom:1.5mm; }
+.cog-chart-desc { font-size:8.5pt; color:#8C8C8C; line-height:1.6; }
+.cog-chart-container { }
+
 .cog-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; margin-top:5mm; margin-bottom:3mm; letter-spacing:1.5px; }
 .cog-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:3mm; }
 .cog-item { background:white; border:1px solid #E5E5E5; border-radius:12px; padding:4mm; }
@@ -329,35 +352,28 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .cog-value small { font-size:8pt; color:#8C8C8C; font-weight:400; }
 .cog-desc { font-size:8.5pt; color:#4B5563; line-height:1.7; text-align:justify; }
 
-/* 职业价值观页面 P18 - 现代网格布局 */
-.values-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
+/* 职业价值观页面 P18 - 3x5网格布局 */
+.values-grid-container { padding:4mm 2mm; }
+.values-grid { display:grid; grid-template-columns:repeat(5, 1fr); grid-template-rows:repeat(3, 1fr); gap:2.5mm; }
+.value-card { background:white; border-radius:12px; padding:3.5mm; position:relative; border:1px solid #E0E0E0; min-height:30mm; display:flex; flex-direction:column; }
+.value-card[data-num="1"], .value-card[data-num="2"], .value-card[data-num="3"], .value-card[data-num="4"], .value-card[data-num="5"] { border-top:4px solid #00A896; }
+.value-card[data-num="6"], .value-card[data-num="7"], .value-card[data-num="8"], .value-card[data-num="9"], .value-card[data-num="10"] { border-top:4px solid #FFB347; }
+.value-card[data-num="11"], .value-card[data-num="12"], .value-card[data-num="13"], .value-card[data-num="14"], .value-card[data-num="15"] { border-top:4px solid #00A896; }
+.value-number { position:absolute; top:-4px; right:-4px; width:28px; height:28px; border-radius:50%; background:#00A896; color:white; font-size:10pt; font-weight:700; display:flex; align-items:center; justify-content:center; }
+.value-card[data-num="6"] .value-number,
+.value-card[data-num="7"] .value-number,
+.value-card[data-num="8"] .value-number,
+.value-card[data-num="9"] .value-number,
+.value-card[data-num="10"] .value-number { background:#FFB347; color:#1A1A1A; }
+.value-label { font-size:9pt; font-weight:700; color:#1A1A1A; margin-bottom:0.5mm; padding-right:3mm; }
+.value-en { font-size:6pt; color:#8C8C8C; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2mm; padding-right:3mm; }
+.value-feature-box { display:flex; align-items:flex-start; gap:1mm; margin-bottom:1.5mm; }
+.feature-dot { color:#00A896; font-size:8pt; flex-shrink:0; margin-top:0.5mm; }
+.feature-text { font-size:7.5pt; color:#4B5563; line-height:1.6; }
+.value-monologue-box { display:flex; align-items:flex-start; gap:1mm; margin-bottom:auto; }
+.monologue-dot { color:#FFB347; font-size:7pt; flex-shrink:0; margin-top:0.5mm; }
+.monologue-text { font-size:7.5pt; color:#8C8C8C; line-height:1.6; font-style:italic; }
 
-.values-top5-section { margin-bottom:4mm; }
-.values-top5-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:2mm; }
-.value-card-top { background:linear-gradient(135deg, #1F2937 0%, #374151 100%); border-radius:16px; padding:5mm 4mm; position:relative; color:white; min-height:38mm; }
-.value-card-top::before { content:""; position:absolute; top:0; left:0; width:100%; height:4px; background:linear-gradient(90deg, #F4A261, #E76F51); }
-.value-badge { position:absolute; top:-5px; right:-5px; width:36px; height:36px; border-radius:50%; background:#F4A261; color:#1F2937; font-size:14pt; font-weight:700; display:flex; align-items:center; justify-content:center; }
-.value-header { padding-right:4mm; margin-bottom:3mm; }
-.value-label-top { font-size:10pt; font-weight:700; color:white; margin-bottom:1mm; letter-spacing:0.5px; }
-.value-en-top { font-size:7pt; color:rgba(255,255,255,0.6); letter-spacing:0.5px; text-transform:uppercase; }
-.value-feature { margin-bottom:2mm; display:flex; align-items:flex-start; gap:2mm; }
-.feature-icon { color:#F4A261; font-size:8pt; flex-shrink:0; margin-top:1mm; }
-.feature-text { font-size:8pt; color:rgba(255,255,255,0.9); line-height:1.6; }
-.value-monologue { display:flex; align-items:flex-start; gap:2mm; }
-.monologue-icon { color:#60A5FA; font-size:7pt; flex-shrink:0; margin-top:1mm; }
-.monologue-text { font-size:8pt; color:rgba(255,255,255,0.7); line-height:1.6; font-style:italic; }
-
-.values-remaining-section { }
-.values-remaining-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:1.5mm; }
-.value-card-remaining { background:white; border:1px solid #E5E5E5; border-radius:12px; padding:3mm; position:relative; min-height:28mm; }
-.value-num-remaining { position:absolute; top:-3px; right:-3px; width:26px; height:26px; border-radius:50%; background:#E5E5E5; color:#8C8C8C; font-size:9pt; font-weight:600; display:flex; align-items:center; justify-content:center; }
-.value-header-remaining { padding-right:3mm; margin-bottom:2mm; }
-.value-label-remaining { font-size:9pt; font-weight:600; color:#1A1A1A; margin-bottom:0.5mm; letter-spacing:0.3px; }
-.value-en-remaining { font-size:6pt; color:#8C8C8C; letter-spacing:0.3px; text-transform:uppercase; }
-.value-feature-remaining { margin-bottom:1.5mm; }
-.feature-text-sm { font-size:7.5pt; color:#4B5563; line-height:1.5; }
-.value-monologue-remaining { }
-.monologue-text-sm { font-size:7pt; color:#8C8C8C; line-height:1.5; font-style:italic; }
 
 /* 封底页 P19 */
 .backcover { padding:12mm; height:100%; box-sizing:border-box; display:flex; flex-direction:column; }
@@ -382,7 +398,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <!-- ============ P01 COVER ============ -->
 {% if page.layout == 'cover' %}
 <div class="cover">
-    <img src="../branding/logo_color.png" class="cover-logo" />
+    <img src="branding/logo_color.png" class="cover-logo" />
     <div class="cover-title">{{ page.page_title }}</div>
     <div class="cover-subtitle">{{ page.subtitle }}</div>
     <div class="cover-subtitle-en">{{ page.subtitle_en }}</div>
@@ -407,7 +423,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="y4-sep"></div>
     <div class="y4-content">
         {% for para in page.paragraphs %}
+        {% if para.startswith('●') %}
+        <p class="bullet-item">{{ para[1:].strip() | safe }}</p>
+        {% else %}
         <p>{{ para | safe }}</p>
+        {% endif %}
         {% endfor %}
     </div>
 </div>
@@ -420,7 +440,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="sep"></div>
     <div class="sec-content">
         {% for para in page.paragraphs %}
+        {% if para.startswith('●') %}
+        <p class="bullet-item">{{ para[1:].strip() }}</p>
+        {% else %}
         <p>{{ para }}</p>
+        {% endif %}
         {% endfor %}
     </div>
 </div>
@@ -553,9 +577,9 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             </div>
         </div>
     </div>
-    <div class="score-marker" style="left:{{ page.overall_pct }}%">
+    <div class="score-marker" style="left:{{ page.overall_pct if page.overall_pct >= 5 and page.overall_pct <= 95 else 5 if page.overall_pct < 5 else 95 }}%">
         <div class="marker-box">{{ page.overall_value }}</div>
-        <div class="marker-line"></div>
+        <div class="marker-arrow"></div>
     </div>
 </div>
 
@@ -789,33 +813,53 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 </div>
 <div class="page-title">{{ page.page_title }}</div>
 <div class="page-title-en">{{ page.subtitle_en }}</div>
-
-<div class="dark-score-card" style="margin-bottom:5mm;">
-    <div class="left"><div><div class="title">认知能力测评结果</div><div class="subtitle">COGNITIVE ABILITY</div></div></div>
-    <div class="right">
-        <div class="value-block"><div class="big-val">{{ page.total_score }}</div><div class="label">TOTAL</div></div>
-        <div class="value-block"><div class="level-val">{{ page.percentile }}%</div><div class="label">PERCENTILE</div></div>
+<div class="cog-hero">
+    <div class="cog-hero-left">
+        <div class="cog-title">{{ page.page_title }}</div>
+        <div class="cog-subtitle">{{ page.subtitle_en }}</div>
+        <div class="cog-intro">{{ page.intro }}</div>
+    </div>
+    <div class="cog-hero-right">
+        <div class="cog-score-card">
+            <div class="cog-score-header">认知能力测评结果</div>
+            <div class="cog-score-header-en">Results Summary</div>
+            <div class="cog-score-values">
+                <div class="cog-score-item">
+                    <div class="cog-score-num">{{ page.total_score }}</div>
+                    <div class="cog-score-label">总得分</div>
+                    <div class="cog-score-label-en">Total Score</div>
+                </div>
+                <div class="cog-score-divider"></div>
+                <div class="cog-score-item">
+                    <div class="cog-score-num">{{ page.percentile }}%</div>
+                    <div class="cog-score-label">百分位</div>
+                    <div class="cog-score-label-en">Percentile</div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="intro-card" style="margin-bottom:5mm;">{{ page.intro }}</div>
-
-<div class="dist-chart">
-    <div class="chart-title">正态分布图</div>
-    <div class="chart-subtitle">以下为您在同龄群体分数分布上的位置，您在认知能力上的总分超过了 {{ page.percentile }}% 的同龄人</div>
-    <svg viewBox="0 0 500 130" style="width:100%;">
-        <defs>
-            <linearGradient id="distGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" style="stop-color:#2A9D8F;stop-opacity:0.9"/>
-                <stop offset="100%" style="stop-color:#2A9D8F;stop-opacity:0.4"/>
-            </linearGradient>
-        </defs>
-        <line x1="10" y1="{{ page.dist_svg.base_y }}" x2="490" y2="{{ page.dist_svg.base_y }}" stroke="#D8D8D8" stroke-width="1.5"/>
-        {% for b in page.dist_svg.bars %}<rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="url(#distGrad)" rx="4"/>{% endfor %}
-        <polygon points="{{ page.dist_svg.marker_x - 12 }},{{ page.dist_svg.base_y - 10 }} {{ page.dist_svg.marker_x + 12 }},{{ page.dist_svg.base_y - 10 }} {{ page.dist_svg.marker_x }},{{ page.dist_svg.base_y - 28 }}" fill="#E76F51"/>
-        <rect x="{{ page.dist_svg.marker_x - 35 }}" y="{{ page.dist_svg.base_y - 2 }}" width="70" height="20" rx="5" fill="#E76F51"/>
-        <text x="{{ page.dist_svg.marker_x }}" y="{{ page.dist_svg.base_y + 12 }}" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">{{ page.percentile }}%</text>
-    </svg>
+<div class="cog-chart-section">
+    <div class="cog-chart-header">
+        <div class="cog-chart-title">正态分布图 | TOTAL SCORE</div>
+        <div class="cog-chart-desc">以下为您在同龄群体分数分布上的位置，您在认知能力上的总分超过了 {{ page.percentile }}% 的同龄人</div>
+    </div>
+    <div class="cog-chart-container">
+        <svg viewBox="0 0 500 130" style="width:100%;">
+            <defs>
+                <linearGradient id="distGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#2A9D8F;stop-opacity:0.9"/>
+                    <stop offset="100%" style="stop-color:#2A9D8F;stop-opacity:0.4"/>
+                </linearGradient>
+            </defs>
+            <line x1="10" y1="{{ page.dist_svg.base_y }}" x2="490" y2="{{ page.dist_svg.base_y }}" stroke="#D8D8D8" stroke-width="1.5"/>
+            {% for b in page.dist_svg.bars %}<rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="url(#distGrad)" rx="4"/>{% endfor %}
+            <polygon points="{{ page.dist_svg.marker_x - 12 }},{{ page.dist_svg.base_y - 10 }} {{ page.dist_svg.marker_x + 12 }},{{ page.dist_svg.base_y - 10 }} {{ page.dist_svg.marker_x }},{{ page.dist_svg.base_y - 28 }}" fill="#E76F51"/>
+            <rect x="{{ page.dist_svg.marker_x - 35 }}" y="{{ page.dist_svg.base_y - 2 }}" width="70" height="20" rx="5" fill="#E76F51"/>
+            <text x="{{ page.dist_svg.marker_x }}" y="{{ page.dist_svg.base_y + 12 }}" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">{{ page.percentile }}%</text>
+        </svg>
+    </div>
 </div>
 
 <!-- ============ COGNITIVE DETAILS (P12b) ============ -->
@@ -953,16 +997,19 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="holland-items">
 {% for item in page.holland_items %}
 <div class="h-item">
-    <div class="hl">{{ item.letter }}</div>
-    <div class="text">
-        <div class="zh">{{ item.label }}</div>
-        <div class="en">{{ item.en }}</div>
+    <div class="h-row-1">
+        <div class="hl">{{ item.letter }}</div>
+        <div class="text">
+            <div class="zh">{{ item.label }}</div>
+            <div class="en">{{ item.en }}</div>
+        </div>
+        <div class="bar">
+            <div class="bar-fill" style="width:{{ item.pct }}%;"></div>
+            <div class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></div>
+        </div>
+        <div class="val-wrap">{{ item.value }}<small> /10</small></div>
     </div>
-    <div class="bar">
-        <div class="bar-fill" style="width:{{ item.pct }}%;"></div>
-        <div class="value-dot" style="left:{{ item.pct }}%;"><span>{{ item.value }}</span></div>
-    </div>
-    <div class="val-wrap">{{ item.value }}<small> /10</small></div>
+    <div class="desc">{{ item.desc }}</div>
 </div>
 {% endfor %}
 </div>
@@ -1008,48 +1055,24 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="page-title-en">{{ page.subtitle_en }}</div>
 {% if page.intro %}<div class="intro-card">{{ page.intro }}</div>{% endif %}
 
-<div class="values-top5-section">
-    <div class="values-section-title">核心价值观 TOP 5</div>
-    <div class="values-top5-grid">
-        {% for item in page.top5 %}
-        <div class="value-card-top">
-            <div class="value-badge">{{ item.rank }}</div>
-            <div class="value-header">
-                <div class="value-label-top">{{ item.label }}</div>
-                <div class="value-en-top">{{ item.en }}</div>
-            </div>
-            <div class="value-feature">
-                <span class="feature-icon">●</span>
+<div class="values-grid-container">
+    <div class="values-grid">
+        {% for item in page.values_items %}
+        <div class="value-card" data-num="{{ item.num }}" data-rank="{{ item.rank }}">
+            <div class="value-number">{{ item.num }}</div>
+            <div class="value-label">{{ item.label }}</div>
+            <div class="value-en">{{ item.en }}</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
                 <span class="feature-text">{{ item.feature }}</span>
             </div>
-            <div class="value-monologue">
-                <span class="monologue-icon">◆</span>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
                 <span class="monologue-text">{{ item.monologue }}</span>
             </div>
         </div>
         {% endfor %}
     </div>
-</div>
-
-<div class="values-remaining-section">
-    <div class="values-section-title">其他价值观</div>
-    <div class="values-remaining-grid">
-        {% for item in page.remaining %}
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">{{ item.rank }}</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">{{ item.label }}</div>
-                <div class="value-en-remaining">{{ item.en }}</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">{{ item.feature }}</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">{{ item.monologue }}</span>
-            </div>
-        </div>
-        {% endfor %}
-   </div>
 </div>
 
 <!-- ============ BACKCOVER (P19) ============ -->
@@ -1072,7 +1095,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="backcover-copyright">{{ page.copyright }}</div>
         <div class="backcover-brand">凭远教育 · APP ARK</div>
         <div class="backcover-logo">
-            <img src="{{ url_for('static', filename='branding/logo_red.png') }}" alt="APP ARK" />
+            <img src="branding/logo_red.png" alt="APP ARK" />
         </div>
     </div>
 </div>

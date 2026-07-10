@@ -45,6 +45,12 @@ try:
 except ImportError:
     HAS_MINDSET_GAUGE = False
 
+try:
+    from _vision_values_bar import call_vision_api
+    HAS_VISION_API = True
+except ImportError:
+    HAS_VISION_API = False
+
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_DIR = BASE_DIR / "input"
 PAGES_DIR = BASE_DIR / "pages"
@@ -1618,6 +1624,9 @@ def _render_pages_for_vision(max_per_pdf: int = 8,
             must_pages.append(13)
             must_pages = sorted(set(must_pages))
         
+        if slot == "B4":
+            max_per_pdf = 11
+        
         picks: List[int] = []
         if len(must_pages) >= max_per_pdf:
             picks = must_pages[:max_per_pdf]
@@ -2105,13 +2114,12 @@ def main(force_skip_vision: bool = False) -> int:
         if t: hard_values[tier_code] = t
     # 母亲/父亲/同伴类型（文本里有 "母亲\nMother\n安全型\nSecure"）
     for role, code in (("母亲", "020"), ("父亲", "021"), ("同伴", "022")):
-        m = re.search(rf"{role}\s*\n[A-Za-z]+\s*\n([\u4e00-\u9fa5]+)\s*\n[A-Za-z]+", a2)
+        m = re.search(rf"{role}\s*\n[A-Za-z]+\s*\n([^\n]+)", a2)
         if m:
             t = m.group(1).strip()
             if t: hard_values[code] = t
         else:
-            # 宽松版：找 role 后面的中文描述
-            m = re.search(rf"{role}[\s\S]{{0,80}}?(安全型|回避型|焦虑|矛盾型|惧怕型|轻视型)\b", a2)
+            m = re.search(rf"{role}[\s\S]{{0,80}}?(安全型|回避型|焦虑|矛盾型|惧怕型|轻视型|\*)\b", a2)
             if m: hard_values[code] = m.group(1)
 
     # ---- 人格（A2）
@@ -2159,26 +2167,74 @@ def main(force_skip_vision: bool = False) -> int:
                     hard_values[code] = nums[pos]
 
     # ---- 思维模式 / 自驱力（B4）
-    # 思维模式：优先使用文本提取，仪表盘识别作为备选
-    idx_think = b4.find("你的思维模式")
-    if idx_think >= 0:
-        seg = b4[idx_think: idx_think + 1500]
-        if "成长型思维模式" in seg:
-            hard_values["059"] = "80"
-        elif "固定型思维模式" in seg:
-            hard_values["059"] = "20"
-        elif "混合型思维模式" in seg:
-            hard_values["059"] = "50"
-    else:
+    # 思维模式：优先使用视觉API已读取的值，其次单独调用视觉API，最后仪表盘识别
+    # 注意：文本层包含两种思维模式的解释说明，不能简单匹配关键词
+    if "059" not in hard_values:
         mindset_value = None
-        if HAS_MINDSET_GAUGE:
-            mindset_img = PAGES_DIR / "report_B4_vision_10.png"
-            if mindset_img.exists():
-                try:
-                    mindset_value = extract_mindset_gauge(str(mindset_img))
-                    print(f"  · 仪表盘读取思维模式: {mindset_value:.1f}")
-                except Exception as e:
-                    print(f"  · 仪表盘读取失败: {e}")
+        
+        if code_values.get("059"):
+            try:
+                mindset_value = float(code_values["059"])
+                print(f"  · 视觉API已读取思维模式: {mindset_value:.1f}")
+            except:
+                pass
+        
+        if mindset_value is None:
+            mindset_img = None
+            for img_path in sorted(PAGES_DIR.glob("report_B4_vision_*.png")):
+                pdf_path = INPUT_DIR / "report_B4.pdf"
+                if pdf_path.exists():
+                    try:
+                        doc = fitz.open(str(pdf_path))
+                        page_num = int(img_path.stem.split("_")[-1])
+                        if page_num > 0 and page_num <= len(doc):
+                            text = doc[page_num - 1].get_text()
+                            if "思维模式" in text or "成长型思维" in text:
+                                mindset_img = img_path
+                                break
+                        doc.close()
+                    except:
+                        pass
+            
+            if mindset_img is None:
+                for img_path in sorted(PAGES_DIR.glob("report_B4_vision_*.png")):
+                    mindset_img = img_path
+                    break
+            
+            if mindset_img:
+                if HAS_VISION_API and VISION_ACTIVE_KEY:
+                    try:
+                        with open(mindset_img, "rb") as f:
+                            img_b64 = base64.b64encode(f.read()).decode("utf-8")
+                        prompt = '''这是一份思维模式测评报告页面，请找到仪表盘并读取指针指向的分数。
+仪表盘是一个半圆形或弧形刻度，0分代表固定型思维模式，100分代表成长型思维模式。
+请直接告诉我指针指向的分数值，只返回数字。'''
+                        result = call_vision_api(img_b64, prompt)
+                        if result.strip():
+                            mindset_value = float(result.strip())
+                            print(f"  · 视觉API读取思维模式: {mindset_value:.1f} (图片: {mindset_img.name})")
+                    except Exception as e:
+                        print(f"  · 视觉API读取失败: {e}")
+                
+                if mindset_value is None and HAS_MINDSET_GAUGE:
+                    try:
+                        mindset_value = extract_mindset_gauge(str(mindset_img))
+                        print(f"  · 仪表盘读取思维模式: {mindset_value:.1f} (图片: {mindset_img.name})")
+                    except Exception as e:
+                        print(f"  · 仪表盘读取失败: {e}")
+            
+            if mindset_value is None:
+                idx_think = b4.find("你的思维模式")
+                if idx_think >= 0:
+                    seg = b4[idx_think: idx_think + 1500]
+                    if "成长型思维模式" in seg and "固定型思维模式" in seg:
+                        pass
+                    elif "成长型思维模式" in seg:
+                        mindset_value = 80.0
+                    elif "固定型思维模式" in seg:
+                        mindset_value = 20.0
+                    elif "混合型思维模式" in seg:
+                        mindset_value = 50.0
         
         if mindset_value is not None:
             hard_values["059"] = f"{mindset_value:.1f}"
@@ -2526,7 +2582,7 @@ def main(force_skip_vision: bool = False) -> int:
         return str(raw_value).strip()
 
     def _final_value_for(code: str, schema_type: str) -> str:
-        hard_codes = {"001", "002", "003", "004", "005", "006", "007", "008", "059", "060", "061", "062", "125", "126", "127"}
+        hard_codes = {"001", "002", "003", "004", "005", "006", "007", "008", "020", "021", "022", "059", "060", "061", "062", "125", "126", "127"}
         if code in hard_codes:
             v = hard_values.get(code)
             if v not in (None, "", "—"):
