@@ -139,9 +139,12 @@ def circular_gauge_svg(value: float, max_value: float) -> Dict[str, Any]:
     end_x = cx + radius * math.cos(end_angle)
     end_y = cy + radius * math.sin(end_angle)
     large_arc = 1 if ratio > 0.5 else 0
-    arc_path = (f"M {start_x:.1f} {start_y:.1f} "
-                f"A {radius} {radius} 0 {large_arc} 1 {end_x:.1f} {end_y:.1f}")
     full_circle_path = f"M {cx + radius} {cy} A {radius} {radius} 0 1 1 {cx - radius} {cy} A {radius} {radius} 0 1 1 {cx + radius} {cy}"
+    if ratio >= 1.0:
+        arc_path = full_circle_path
+    else:
+        arc_path = (f"M {start_x:.1f} {start_y:.1f} "
+                    f"A {radius} {radius} 0 {large_arc} 1 {end_x:.1f} {end_y:.1f}")
     return {
         "cx": cx, "cy": cy, "radius": radius,
         "arc_path": arc_path, "full_path": full_circle_path,
@@ -1030,36 +1033,36 @@ def build_page_17() -> Dict[str, Any]:
 # ---------------- P18 职业价值观（095-124） ----------------
 def build_page_18() -> Dict[str, Any]:
     values_def_default = [
-        ("工作环境", "Work Environment", "102", 1,
-         "追求比较舒适、轻松、自由的工作环境", "工作环境舒适，轻松自由"),
-        ("创造发明", "Creativity", "095", 2,
-         "发明创造新的事物，可能是新产品，也可能是新观念或新方法", "发明创造新的事物"),
-        ("声望地位", "Social Status", "108", 3,
-         "所从事的工作在人们的心目中有较高的社会地位", "社会地位高，受人敬仰"),
-        ("安全稳定", "Security", "107", 4,
+        ("同事关系", "Colleague Relations", "103", 1,
+         "一起工作的大多数同事，人品较好，相处愉快", "与喜欢的人共事"),
+        ("经济报酬", "Economic Reward", "106", 2,
+         "较高的报酬，生活过得较为富足", "薪酬高，福利好"),
+        ("安全稳定", "Security", "107", 3,
          "工作稳定，收入有保障，不会失业", "安稳，不会失业"),
+        ("工作环境", "Work Environment", "102", 4,
+         "追求比较舒适、轻松、自由的工作环境", "工作环境舒适，轻松自由"),
         ("成就感", "Achievement", "100", 5,
          "不断取得新的成就，得到认可或实现自己想做的事", "能给我带来成就感"),
-        ("上司关系", "Supervisor Relations", "104", 6,
+        ("独立自主", "Independence", "096", 6,
+         "可以按自己的方式或想法工作，不受他人的影响", "能按自己想法和节奏做事"),
+        ("上司关系", "Supervisor Relations", "104", 7,
          "有一个开明的、民主的、公正的好领导", "有一个好领导"),
-        ("同事关系", "Colleague Relations", "103", 7,
-         "一起工作的大多数同事，人品较好，相处愉快", "与喜欢的人共事"),
-        ("生活方式", "Lifestyle", "109", 8,
+        ("多样变化", "Variety", "105", 8,
+         "讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作", "尝试不同的工作"),
+        ("生活方式", "Lifestyle", "109", 9,
          "可以选择过自己想过的生活，安逸、简单、快乐或充实", "有选择生活方式的权利"),
-        ("管理权力", "Management Power", "101", 9,
-         "管理和指挥他人做事", "影响和领导别人一起"),
-        ("经济报酬", "Economic Reward", "106", 10,
-         "较高的报酬，生活过得较为富足", "薪酬高，福利好"),
+        ("声望地位", "Social Status", "108", 10,
+         "所从事的工作在人们的心目中有较高的社会地位", "社会地位高，受人敬仰"),
         ("智力激发", "Intellectual Stimulation", "098", 11,
          "必须动脑筋思考、学习和探索新事物，解决新问题", "有挑战性"),
-        ("利他助人", "Altruism", "099", 12,
-         "为他人的幸福、利益尽一份力", "能帮助到他人"),
-        ("独立自主", "Independence", "096", 13,
-         "可以按自己的方式或想法工作，不受他人的影响", "能按自己想法和节奏做事"),
-        ("美的追求", "Aesthetic Pursuit", "097", 14,
+        ("美的追求", "Aesthetic Pursuit", "097", 12,
          "不断地追求美的东西，得到美的享受", "能体验和感受美"),
-        ("多样变化", "Variety", "105", 15,
-         "讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作", "尝试不同的工作"),
+        ("创造发明", "Creativity", "095", 13,
+         "发明创造新的事物，可能是新产品，也可能是新观念或新方法", "发明创造新的事物"),
+        ("利他助人", "Altruism", "099", 14,
+         "为他人的幸福、利益尽一份力", "能帮助到他人"),
+        ("管理权力", "Management Power", "101", 15,
+         "管理和指挥他人做事", "影响和领导别人一起"),
     ]
 
     mapping_path = Path(__file__).resolve().parent / "data" / "_vision_b6_values_mapping.json"

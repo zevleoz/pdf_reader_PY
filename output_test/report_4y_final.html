@@ -1,0 +1,4472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>综合测评报告</title>
+<style>
+/* ============================================================
+   Design Tokens (single source of truth)
+   Primary accent : #5D2E46  (copper)
+   Secondary      : #2A9D8F  (teal/sage)
+   Headings       : #1A1A1A
+   Body text      : #4B5563
+   Dividers       : #EAEAEA / #EAEAEA
+   Canvas BG      : #F8F9FA
+   Card BG        : #FFFFFF
+   ============================================================ */
+
+/* ============ @page: A4 with Chromium-safe margins ============ */
+@page {
+    size: A4;
+    margin: 60px 50px 70px 50px;  /* top right bottom left */
+}
+
+/* ============ Base & typography ============ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif;
+    color: #4B5563;
+    font-size: 10.5pt;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Tabular-nums for every numeric span */
+.score-number, .score-num, .score, .rank-score, .value-score-num,
+.rank-num, .bmi-value, .holland-code-display .code,
+.bar-item-title .score, .bipolar-value, .score-inline {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============ Page canvas: off-white (#F8F9FA) with floating cards ============ */
+.page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 8mm 8mm;          /* inner padding – margin handled by @page */
+    page-break-after: always;
+    position: relative;
+    background: #FAF7F2;
+}
+
+.page:last-child {
+    page-break-after: auto;
+}
+
+.page-grayscale {
+    opacity: 0.4;
+    filter: grayscale(100%);
+}
+
+/* ============ CRITICAL: Chromium page-break fix ============ */
+/* Break-inside avoid on block-level wrappers (flex/grid cards get wrapped in block outer div) */
+.card,
+.bar-item,
+.rank-card,
+.value-row,
+.attachment-type-card,
+.attachment-group,
+.habit-card,
+.advice-block,
+.bipolar-section,
+.score-display,
+.big-score,
+.compare-col,
+.mindset-col,
+.holland-code-display,
+.normal-distribution,
+.intro-text,
+.values-list,
+.rank-cards,
+.mindset-compare,
+.compare-columns,
+.holland-hexagon,
+.bmi-display,
+.ms-compare,
+.ms-col,
+.sd-col,
+.sd-compare,
+.sd-item,
+.attachment-types-big,
+.ms-your-type {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    /* Chromium fix: block formatting context */
+    display: block !important;
+    overflow: hidden;   /* contains margins */
+}
+
+/* Keep headings with their content */
+.report-title, .sub-title, .card-title {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+}
+
+/* Widows / orphans */
+p, li {
+    orphans: 3;
+    widows: 3;
+}
+
+/* ============ Header bar (minimal) ============ */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #EAEAEA;
+    font-size: 8pt;
+    color: #666666;
+    letter-spacing: 1.5px;
+}
+
+.page-header .left {
+    display: flex;
+    align-items: center;
+    gap: 2.5mm;
+    font-weight: 600;
+    color: #1A1A1A;
+    text-transform: uppercase;
+}
+
+.page-header .accent-dot {
+    background: #5D2E46;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #5D2E46;
+    display: inline-block;
+}
+
+.page-header .right {
+    color: #999999;
+}
+
+/* ============ Cover ============ */
+.cover {
+    background: #FAF7F2;
+    color: #1A1A1A;
+    padding: 30mm 20mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 297mm;
+}
+
+.cover-title {
+    font-size: 44pt;
+    font-weight: 700;
+    letter-spacing: 10px;
+    color: #1A1A1A;
+    margin-bottom: 6mm;
+}
+
+.cover-subtitle {
+    font-size: 11pt;
+    color: #666666;
+    letter-spacing: 5px;
+    margin-bottom: 18mm;
+    text-transform: uppercase;
+}
+
+.cover-accent {
+    width: 24mm;
+    height: 2px;
+    background: #5D2E46;
+    margin-bottom: 18mm;
+}
+
+.cover-info {
+    font-size: 10.5pt;
+    line-height: 2.2;
+    text-align: center;
+    background: #FFFFFF;
+    padding: 8mm 16mm;
+    border-radius: 12px;
+    border: 1px solid #EAEAEA;
+    color: #4B5563;
+}
+
+.cover-info div strong {
+    color: #1A1A1A;
+    font-weight: 600;
+    margin-right: 3mm;
+}
+
+/* ============ Section title page ============ */
+.section-title {
+    background: #FAF7F2;
+    color: #1A1A1A;
+    padding: 30mm 20mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.section-title .tiny {
+    font-size: 8pt;
+    color: #5D2E46;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin-bottom: 6mm;
+}
+
+.section-title .accent-bar {
+    background: #5D2E46;
+    width: 16mm;
+    height: 2px;
+    background: #5D2E46;
+    margin: 0 auto 8mm;
+}
+
+.section-title h1 {
+    font-size: 30pt;
+    font-weight: 700;
+    letter-spacing: 8px;
+    color: #1A1A1A;
+    margin-bottom: 6mm;
+}
+
+.section-title p {
+    font-size: 11pt;
+    color: #666666;
+    letter-spacing: 3px;
+}
+
+/* ============ Page title / section heading ============ */
+.report-title {
+    font-size: 20pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    letter-spacing: 3px;
+    margin-bottom: 2mm;
+}
+
+.report-en {
+    font-size: 11pt;
+    color: #999999;
+    letter-spacing: 2px;
+    margin-bottom: 6mm;
+    text-transform: none;
+}
+
+.report-title-underline {
+    width: 40px;
+    height: 2px;
+    background: #5D2E46;
+    margin-bottom: 6mm;
+}
+
+/* ============ Intro / context text ============ */
+.intro-text {
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-left: 3px solid #5D2E46;
+    padding: 24px;
+    margin-bottom: 10mm;
+    border-radius: 12px;
+    color: #4B5563;
+    font-size: 10.5pt;
+    line-height: 1.75;
+}
+
+/* ============ Cards (generic) ============ */
+.card {
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 6mm;
+}
+
+.card-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    letter-spacing: 2px;
+    margin-bottom: 4mm;
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+}
+
+.card-title::before {
+    content: "";
+    width: 4px;
+    height: 14px;
+    background: #5D2E46;
+    border-radius: 2px;
+}
+
+/* ============ Score display (large numbers) ============ */
+.score-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 20px 16px;
+    margin-bottom: 6mm;
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+}
+
+.score-item {
+    text-align: center;
+    flex: 1;
+    padding: 0 4mm;
+    border-right: 1px solid #EAEAEA;
+}
+
+.score-item:last-child {
+    border-right: none;
+}
+
+.score-number {
+    font-size: 32pt;
+    font-weight: 700;
+    color: #5D2E46;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.score-number .denom {
+    font-size: 16pt;
+    color: #999999;
+    font-weight: 500;
+    margin-left: 2px;
+}
+
+.score-label {
+    font-size: 9pt;
+    color: #666666;
+    margin-top: 3mm;
+    letter-spacing: 1.5px;
+}
+
+/* ============ Big score showcase ============ */
+.big-score {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 20px 16px;
+    text-align: center;
+    margin-bottom: 6mm;
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+}
+
+.big-score .score-num {
+    font-size: 34pt;
+    font-weight: 700;
+    color: #5D2E46;
+    line-height: 1.1;
+    margin-bottom: 2mm;
+    font-variant-numeric: tabular-nums;
+}
+
+.big-score .score-num .denom {
+    font-size: 18pt;
+    color: #999999;
+    font-weight: 500;
+    margin-left: 2px;
+}
+
+.big-score .score-num.teal { color: #2A9D8F; }
+
+.big-score .score-desc {
+    font-size: 9pt;
+    color: #666666;
+    letter-spacing: 1.5px;
+}
+
+/* ============ Emotional Stability (情绪稳定性) - segmented gradient bars ============ */
+.es-gauge-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 0 3mm 0;
+    padding: 4mm 0 2mm;
+}
+
+.es-gauge-svg {
+    width: 180px;
+    height: 100px;
+    display: block;
+    margin-bottom: 3mm;
+}
+
+.es-gauge-value {
+    font-size: 22pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+}
+
+.es-gauge-denom {
+    font-size: 11pt;
+    color: #999999;
+    font-weight: 500;
+    margin-left: 2px;
+}
+
+.es-gauge-labels {
+    display: flex;
+    justify-content: space-between;
+    width: 180px;
+    margin-top: 2mm;
+    font-size: 8.5pt;
+    color: #666666;
+}
+
+.es-gauge-labels .label-left {
+    color: #E07A5F;
+    font-weight: 600;
+    text-align: left;
+}
+
+.es-gauge-labels .label-right {
+    color: #2A9D8F;
+    font-weight: 600;
+    text-align: right;
+}
+
+.es-gauge-avg {
+    font-size: 9pt;
+    color: #666666;
+    margin-top: 1.5mm;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.es-gauge-avg .num { color: #5D2E46; font-weight: 700; }
+
+.es-item {
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    padding: 3.5mm 5mm;
+    margin-bottom: 3mm;
+}
+
+.es-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 10pt;
+    margin-bottom: 3mm;
+}
+
+.es-item-left-label {
+    color: #1A1A1A;
+    font-weight: 700;
+}
+
+.es-item-right-label {
+    color: #1A1A1A;
+    font-weight: 700;
+}
+
+.es-item-sub {
+    font-size: 7.5pt;
+    color: #999999;
+    letter-spacing: 1px;
+    margin-top: 1px;
+    display: block;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.es-bar-container {
+    position: relative;
+    margin: 0 4mm;
+    padding: 0 0 2mm;
+}
+
+.es-bar {
+    position: relative;
+    height: 14px;
+    background: linear-gradient(to right,
+        #E07A5F 0%,
+        #F2B84B 33%,
+        #D4B86A 50%,
+        #8FC19E 66%,
+        #2A9D8F 100%);
+    border-radius: 7px;
+}
+
+.es-bar-segments {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+}
+
+.es-bar-segments span {
+    flex: 1;
+    border-right: 1px solid rgba(255,255,255,0.6);
+}
+.es-bar-segments span:last-child { border-right: none; }
+
+.es-anchor-left, .es-anchor-right {
+    position: absolute;
+    top: 50%;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 2px solid #E5E7EB;
+    color: #666666;
+    font-size: 8pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(-50%);
+    z-index: 2;
+}
+
+.es-anchor-left { left: -11px; }
+.es-anchor-right { right: -11px; }
+
+.es-marker {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #1A1A1A;
+    color: #FFFFFF;
+    font-size: 9pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #FFFFFF;
+    z-index: 3;
+    font-variant-numeric: tabular-nums;
+}
+
+.es-bar-labels {
+    display: flex;
+    justify-content: space-between;
+    margin: 0 -4mm;
+    padding: 2mm 4mm 0;
+    font-size: 8.5pt;
+    color: #666666;
+}
+
+.es-bar-labels .bar-left { color: #E07A5F; font-weight: 600; }
+.es-bar-labels .bar-right { color: #2A9D8F; font-weight: 600; }
+
+/* ============ Self-Concept - full-page layout ============ */
+.sc-intro {
+    font-size: 10pt;
+    color: #666666;
+    line-height: 1.7;
+    margin-bottom: 6mm;
+    text-align: left;
+    padding: 4mm 5mm;
+    border-top: 1px solid #E5E7EB;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+.sc-gauge-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 0 5mm 0;
+    padding: 2mm 0;
+}
+
+.sc-gauge-svg {
+    width: 200px;
+    height: 105px;
+    display: block;
+    margin-bottom: 2mm;
+}
+
+.sc-gauge-value {
+    font-size: 22pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+}
+
+.sc-gauge-denom {
+    font-size: 11pt;
+    color: #999999;
+    font-weight: 500;
+    margin-left: 3px;
+}
+
+.sc-gauge-labels {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 230px;
+    margin-top: 2.5mm;
+    font-size: 8.5pt;
+    color: #666666;
+}
+
+.sc-gauge-labels .label-left {
+    color: #E07A5F;
+    font-weight: 600;
+    text-align: left;
+}
+
+.sc-gauge-labels .label-right {
+    color: #2A9D8F;
+    font-weight: 600;
+    text-align: right;
+}
+
+.sc-gauge-labels .label-center {
+    color: #666666;
+    font-weight: 500;
+    padding-top: 1mm;
+}
+
+.sc-gauge-labels .label-center .num {
+    color: #5D2E46;
+    font-weight: 700;
+    font-size: 10pt;
+}
+
+.sc-row {
+    display: flex;
+    align-items: center;
+    padding: 4mm 1mm;
+    border-bottom: 1px solid #F3F4F6;
+    margin: 0 1mm;
+}
+
+.sc-row:last-child { border-bottom: none; }
+
+.sc-row-label {
+    width: 55mm;
+    padding-right: 4mm;
+    display: flex;
+    flex-direction: column;
+}
+
+.sc-label {
+    font-size: 11pt;
+    font-weight: 600;
+    color: #1A1A1A;
+    margin-bottom: 0.5mm;
+}
+
+.sc-en {
+    font-size: 7.5pt;
+    color: #999999;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.sc-bar-wrap {
+    position: relative;
+    flex: 1;
+    padding: 3mm 7mm;
+}
+
+.sc-bar {
+    position: relative;
+    height: 14px;
+    background: linear-gradient(to right,
+        #E07A5F 0%,
+        #F2B84B 33%,
+        #D4B86A 50%,
+        #8FC19E 66%,
+        #2A9D8F 100%);
+    border-radius: 7px;
+}
+
+.sc-bar-segments {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+}
+
+.sc-bar-segments span {
+    flex: 1;
+    border-right: 1px solid rgba(255,255,255,0.7);
+}
+
+.sc-bar-segments span:last-child { border-right: none; }
+
+.sc-anchor-left, .sc-anchor-right {
+    position: absolute;
+    top: 50%;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 2px solid #E5E7EB;
+    color: #666666;
+    font-size: 8pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(-50%);
+    z-index: 2;
+}
+
+.sc-anchor-left { left: -5px; }
+.sc-anchor-right { right: -5px; }
+
+.sc-marker {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #1A1A1A;
+    color: #FFFFFF;
+    font-size: 9pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2.5px solid #FFFFFF;
+    z-index: 3;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============ Attachment - full-page layout ============ */
+.attachment-intro {
+    font-size: 10pt;
+    color: #666666;
+    line-height: 1.7;
+    margin-bottom: 5mm;
+    text-align: left;
+    padding: 3mm 4mm;
+    border-top: 1px solid #E5E7EB;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+.attachment-types-big {
+    display: flex;
+    gap: 4mm;
+    margin-bottom: 5mm;
+    justify-content: center;
+}
+
+.attachment-type-card-big {
+    background: #FFFFFF;
+    padding: 5mm 3mm;
+    border-radius: 12px;
+    border: 1px solid #E5E7EB;
+    border-top: 3px solid #2A9D8F;
+    text-align: center;
+    flex: 1;
+}
+
+.attachment-type-card-big .role {
+    font-size: 8.5pt;
+    color: #666666;
+    margin-bottom: 1mm;
+    letter-spacing: 1px;
+}
+
+.attachment-type-card-big .type {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #2A9D8F;
+}
+
+.attachment-detail-title {
+    text-align: center;
+    font-size: 10pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    letter-spacing: 3px;
+    margin-bottom: 4mm;
+    padding: 1.5mm 0;
+    border-top: 1px solid #EAEAEA;
+}
+
+.attachment-group-big {
+    margin-bottom: 3mm;
+}
+
+.att-group-label {
+    font-size: 10pt;
+    font-weight: 700;
+    color: #2A9D8F;
+    margin-bottom: 2mm;
+    padding-left: 3mm;
+    border-left: 3px solid #2A9D8F;
+    letter-spacing: 1px;
+}
+
+.att-group-en {
+    font-size: 7.5pt;
+    color: #999999;
+    font-weight: 500;
+    letter-spacing: 1px;
+}
+
+.att-bar-row {
+    margin-bottom: 3mm;
+}
+
+.att-bar-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9pt;
+    color: #1A1A1A;
+    margin-bottom: 1mm;
+    padding: 0 2mm;
+}
+
+.att-role {
+    font-weight: 600;
+}
+
+.att-level {
+    color: #666666;
+    font-size: 8pt;
+}
+
+.att-bar-wrap {
+    position: relative;
+    padding: 0 7mm;
+}
+
+.att-bar-track {
+    position: relative;
+    height: 14px;
+    background: #F3F4F6;
+    border-radius: 7px;
+}
+
+.att-bar-fill {
+    height: 100%;
+    background: linear-gradient(to right, #8FC19E, #2A9D8F);
+    border-radius: 7px;
+}
+
+.att-bar-anchor-left, .att-bar-anchor-right {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 2px solid #E5E7EB;
+    color: #666666;
+    font-size: 7pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.att-bar-anchor-left { left: -4px; }
+.att-bar-anchor-right { right: -4px; }
+
+/* ============ Mindset page styles ============ */
+.ms-intro {
+    font-size: 10pt;
+    color: #666666;
+    line-height: 1.7;
+    margin-bottom: 5mm;
+    text-align: left;
+    padding: 3mm 4mm;
+    border-top: 1px solid #E5E7EB;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+.ms-your-type {
+    text-align: center;
+    margin-bottom: 6mm;
+    padding: 4mm;
+}
+
+.ms-label {
+    font-size: 9pt;
+    color: #666666;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 2mm;
+}
+
+.ms-type {
+    font-size: 22pt;
+    font-weight: 700;
+    color: #5D2E46;
+    margin-bottom: 2mm;
+    letter-spacing: 2px;
+}
+
+.ms-desc {
+    font-size: 9.5pt;
+    color: #666666;
+    line-height: 1.7;
+}
+
+.ms-compare {
+    display: flex;
+    gap: 4mm;
+    margin-top: 2mm;
+}
+
+.ms-col {
+    flex: 1;
+    padding: 5mm 4mm;
+    border-radius: 12px;
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+}
+
+.ms-col.ms-fixed {
+    border-top: 3px solid #5D2E46;
+}
+
+.ms-col.ms-growth {
+    border-top: 3px solid #2A9D8F;
+}
+
+.ms-col h3 {
+    text-align: center;
+    font-size: 11pt;
+    margin-bottom: 4mm;
+    letter-spacing: 2px;
+    padding-bottom: 3mm;
+    border-bottom: 1px solid #EAEAEA;
+    font-weight: 700;
+}
+
+.ms-col.ms-fixed h3 { color: #5D2E46; }
+.ms-col.ms-growth h3 { color: #2A9D8F; }
+
+.ms-compare-row {
+    font-size: 9.5pt;
+    color: #4B5563;
+    padding: 2.5mm 0;
+    border-bottom: 1px solid #F3F4F6;
+    line-height: 1.6;
+}
+
+.ms-compare-row:last-child { border-bottom: none; }
+
+.ms-tag {
+    display: inline-block;
+    font-size: 7.5pt;
+    font-weight: 700;
+    padding: 1mm 2.5mm;
+    border-radius: 4px;
+    margin-right: 2mm;
+    color: #FFFFFF;
+}
+
+.ms-fixed .ms-tag { background: #5D2E46; }
+.ms-growth .ms-tag { background: #2A9D8F; }
+
+/* ============ Self-Drive page styles ============ */
+.sd-intro {
+    font-size: 10pt;
+    color: #666666;
+    line-height: 1.7;
+    margin-bottom: 5mm;
+    text-align: left;
+    padding: 3mm 4mm;
+    border-top: 1px solid #E5E7EB;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+.sd-compare {
+    display: flex;
+    gap: 4mm;
+    margin-bottom: 6mm;
+}
+
+.sd-col {
+    flex: 1;
+    padding: 4mm 4mm;
+    border-radius: 12px;
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+}
+
+.sd-col.sd-high { border-top: 3px solid #2A9D8F; }
+.sd-col.sd-low { border-top: 3px solid #5D2E46; }
+
+.sd-col h4 {
+    font-size: 11pt;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 2px;
+    padding-bottom: 3mm;
+    margin-bottom: 3mm;
+    border-bottom: 1px solid #EAEAEA;
+}
+
+.sd-col.sd-high h4 { color: #2A9D8F; }
+.sd-col.sd-low h4 { color: #5D2E46; }
+
+.sd-col ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sd-col li {
+    font-size: 9.5pt;
+    color: #4B5563;
+    padding: 2mm 0 2mm 5mm;
+    line-height: 1.5;
+    position: relative;
+    border-bottom: 1px solid #F3F4F6;
+}
+
+.sd-col li:last-child { border-bottom: none; }
+
+.sd-col li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+}
+
+.sd-col.sd-high li::before { background: #2A9D8F; }
+.sd-col.sd-low li::before { background: #5D2E46; }
+
+.sd-legend {
+    display: flex;
+    gap: 8mm;
+    margin-bottom: 5mm;
+    font-size: 9pt;
+    color: #666666;
+    padding: 2mm 3mm;
+    justify-content: center;
+}
+
+.sd-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 2mm;
+}
+
+.sd-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.sd-legend-dot.user { background: #5D2E46; }
+.sd-legend-dot.avg { background: transparent; border: 2px dashed #999999; width: 10px; height: 10px; }
+
+.sd-item {
+    margin-bottom: 4mm;
+    padding: 0 2mm;
+}
+
+.sd-item-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2mm;
+    font-size: 10pt;
+    font-weight: 600;
+    color: #1A1A1A;
+}
+
+.sd-en {
+    font-size: 8pt;
+    color: #999999;
+    font-weight: 400;
+    letter-spacing: 1px;
+}
+
+.sd-score {
+    font-size: 11pt;
+    color: #2A9D8F;
+    font-variant-numeric: tabular-nums;
+}
+
+.sd-denom {
+    color: #999999;
+    font-size: 9pt;
+    font-weight: 500;
+}
+
+.sd-bar-wrap {
+    padding: 3mm 5mm 4mm 5mm;
+}
+
+.sd-bar-track {
+    position: relative;
+    height: 14px;
+    background: #F3F4F6;
+    border-radius: 7px;
+    overflow: visible;
+}
+
+.sd-bar-marker {
+    position: absolute;
+    top: -6px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 2;
+}
+
+.sd-bar-marker span {
+    position: absolute;
+    top: 18px;
+    font-size: 7.5pt;
+    font-weight: 600;
+    white-space: nowrap;
+    color: #666666;
+}
+
+.sd-bar-marker::before {
+    content: "";
+    width: 4px;
+    height: 26px;
+    border-radius: 3px;
+}
+
+.sd-bar-marker.user::before { background: #5D2E46; }
+.sd-bar-marker.avg::before { background: transparent; border: 2px dashed #999999; height: 22px; top: -2px; }
+.sd-bar-marker.avg { z-index: 1; }
+
+/* ============ Progress bars (percentile / dimension scores) ============ */
+.bar-item {
+    margin-bottom: 5mm;
+    padding: 10px 14px;
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+}
+
+.bar-item-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 2.5mm;
+    font-size: 10pt;
+    color: #1A1A1A;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.bar-item-title .score {
+    color: #2A9D8F;
+    font-weight: 700;
+    font-size: 11pt;
+    font-variant-numeric: tabular-nums;
+}
+
+.bar-item-title .score .denom {
+    color: #999999;
+    font-weight: 500;
+    font-size: 8pt;
+    margin-left: 1px;
+}
+
+.bar-item-title small {
+    color: #666666;
+    font-weight: 400;
+    font-size: 8pt;
+}
+
+.bar-track {
+    background: #F3F4F6;
+    height: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+.bar-fill {
+    height: 100%;
+    background: #2A9D8F;
+    border-radius: 8px;
+}
+
+.bar-fill.teal { background: #2A9D8F; }
+
+/* ============ Compare bar (user vs avg) ============ */
+.compare-bar {
+    position: relative;
+    height: 16px;
+    background: #F3F4F6;
+    border-radius: 8px;
+    margin-bottom: 2mm;
+    overflow: visible;
+    border: 1px solid #EAEAEA;
+}
+
+.compare-bar .marker {
+    position: absolute;
+    top: -4px;
+    height: 24px;
+    width: 4px;
+    transform: translateX(-50%);
+    border-radius: 4px;
+}
+
+.compare-bar .marker.user {
+    background: #5D2E46;
+}
+
+.compare-bar .marker.avg {
+    background: transparent;
+    border-left: 2px dashed #999999;
+}
+
+.compare-bar-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4mm;
+    font-size: 9pt;
+    color: #666666;
+    margin-bottom: 2mm;
+}
+
+.marker-legend {
+    display: flex;
+    gap: 8mm;
+    margin-bottom: 4mm;
+    font-size: 9pt;
+    color: #666666;
+    padding: 0 2mm;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 2.5mm;
+}
+
+.legend-item .dot {
+    width: 3mm;
+    height: 3mm;
+    border-radius: 2mm;
+}
+
+.legend-item .dot.user { background: #5D2E46; }
+.legend-item .dot.avg { background: transparent; border: 1px dashed #999999; }
+
+/* ============ Compare columns (high vs low) ============ */
+.compare-columns {
+    display: flex;
+    gap: 5mm;
+    margin-bottom: 6mm;
+}
+
+.compare-col {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+}
+
+.compare-col.high {
+    border-top: 3px solid #2A9D8F;
+}
+
+.compare-col.low {
+    border-top: 3px solid #5D2E46;
+}
+
+.compare-col h4 {
+    font-size: 10.5pt;
+    font-weight: 700;
+    margin-bottom: 4mm;
+    text-align: center;
+    letter-spacing: 2px;
+    padding-bottom: 3mm;
+    border-bottom: 1px solid #EAEAEA;
+}
+
+.compare-col.high h4 { color: #2A9D8F; }
+.compare-col.low h4 { color: #5D2E46; }
+
+.compare-col ul {
+    list-style: none;
+    padding: 0;
+}
+
+.compare-col li {
+    padding: 1.8mm 0 1.8mm 4mm;
+    position: relative;
+    font-size: 9.5pt;
+    line-height: 1.7;
+    color: #4B5563;
+}
+
+.compare-col li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 3.8mm;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.5;
+}
+
+/* ============ Advice block (成长建议) ============ */
+.advice-block {
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-left: 3px solid #5D2E46;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 5mm;
+}
+
+.advice-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    margin-bottom: 3mm;
+    letter-spacing: 1px;
+}
+
+.advice-section {
+    margin-bottom: 3.5mm;
+    padding-left: 3mm;
+}
+
+.advice-section:last-child { margin-bottom: 0; }
+
+.advice-section h4 {
+    color: #5D2E46;
+    font-size: 9.5pt;
+    margin-bottom: 1.5mm;
+    font-weight: 700;
+}
+
+.advice-section p {
+    font-size: 9.5pt;
+    line-height: 1.75;
+    color: #4B5563;
+    padding-left: 2mm;
+}
+
+/* ============ Advantages tag cloud ============ */
+.advantages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2.5mm;
+    margin: 4mm 0 6mm;
+    justify-content: center;
+}
+
+.advantage-tag {
+    background: rgba(42,157,143,0.08);
+    color: #2A9D8F;
+    padding: 1.5mm 4mm;
+    border-radius: 10mm;
+    font-size: 9pt;
+    font-weight: 600;
+    letter-spacing: 1px;
+    border: 1px solid rgba(42,157,143,0.2);
+}
+
+/* ============ Attachment styles ============ */
+.attachment-types {
+    display: flex;
+    gap: 4mm;
+    margin-bottom: 8mm;
+    justify-content: center;
+}
+
+.attachment-type-card {
+    background: #FFFFFF;
+    color: #2A9D8F;
+    padding: 4mm 5mm;
+    border-radius: 12px;
+    border: 1px solid #E5E7EB;
+    text-align: center;
+    flex: 1;
+}
+
+.attachment-type-card .role {
+    font-size: 8.5pt;
+    color: #666666;
+    margin-bottom: 1mm;
+    letter-spacing: 1px;
+}
+
+.attachment-type-card .type {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #2A9D8F;
+}
+
+.attachment-group {
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-left: 3px solid #2A9D8F;
+    padding: 4mm 5mm;
+    border-radius: 12px;
+    margin-bottom: 4mm;
+}
+
+.attachment-group h3 {
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #2A9D8F;
+    margin-bottom: 3mm;
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+/* ============ BMI / health card ============ */
+.bmi-display {
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-top: 3px solid #5D2E46;
+    color: #1A1A1A;
+    padding: 20px 16px;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 6mm;
+}
+
+.bmi-display .bmi-meta {
+    font-size: 9pt;
+    color: #666666;
+    letter-spacing: 1px;
+    margin-bottom: 4mm;
+}
+
+.bmi-display .bmi-value {
+    font-size: 40pt;
+    font-weight: 700;
+    line-height: 1;
+    color: #5D2E46;
+    font-variant-numeric: tabular-nums;
+}
+
+.bmi-display .bmi-grade {
+    font-size: 11pt;
+    color: #1A1A1A;
+    margin-top: 4mm;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+.habit-card {
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 3mm;
+}
+
+.habit-card .habit-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    margin-bottom: 2mm;
+}
+
+.habit-card .habit-desc {
+    font-size: 9.5pt;
+    color: #4B5563;
+    line-height: 1.7;
+    margin-top: 2mm;
+}
+
+.habit-rating {
+    display: inline-block;
+    background: rgba(42,157,143,0.10);
+    color: #2A9D8F;
+    padding: 1mm 4mm;
+    border-radius: 10mm;
+    font-size: 8pt;
+    margin-left: 3mm;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+/* ============ Holland hexagon ============ */
+.holland-code-display {
+    text-align: center;
+    margin-bottom: 8mm;
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-top: 3px solid #5D2E46;
+    padding: 18px 16px;
+    border-radius: 12px;
+}
+
+.holland-code-display .code {
+    font-size: 36pt;
+    font-weight: 700;
+    letter-spacing: 10px;
+    color: #5D2E46;
+    padding-left: 10mm;
+    font-variant-numeric: tabular-nums;
+}
+
+.holland-code-display .label {
+    font-size: 9pt;
+    color: #666666;
+    margin-top: 4mm;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+
+/* ============ 大五人格雷达图 ============ */
+.p5-radar-wrap {
+    text-align: center;
+    margin: 0 auto;
+    padding: 2mm 0 3mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.p5-legend {
+    display: flex;
+    justify-content: center;
+    gap: 10mm;
+    margin-top: 1mm;
+    font-size: 9pt;
+    color: #374151;
+}
+
+.p5-legend .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 2mm;
+}
+
+.p5-legend .legend-teal {
+    display: inline-block;
+    width: 4mm;
+    height: 4mm;
+    background: #2A9D8F;
+    border-radius: 2px;
+}
+
+.p5-legend .legend-gray {
+    display: inline-block;
+    width: 4mm;
+    height: 4mm;
+    border: 1.5px dashed #999999;
+    border-radius: 2px;
+}
+
+.holland-hexagon {
+    text-align: center;
+    margin: 8mm 0;
+}
+
+.holland-hexagon svg {
+    width: 100%;
+    max-width: 500px;
+    height: auto;
+    margin: 0 auto;
+    display: block;
+}
+
+/* ============ Rank cards (listing scores) ============ */
+.rank-cards {
+    display: grid;
+    gap: 3mm;
+}
+
+.rank-card {
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    padding: 4mm 5mm;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 5mm;
+}
+
+.rank-card .rank-num {
+    font-size: 20pt;
+    font-weight: 700;
+    color: #5D2E46;
+    min-width: 12mm;
+    text-align: center;
+    font-family: Georgia, "Times New Roman", serif;
+    opacity: 0.9;
+    font-variant-numeric: tabular-nums;
+}
+
+.rank-card .rank-info h4 {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    margin-bottom: 1mm;
+    letter-spacing: 1px;
+}
+
+.rank-card .rank-info p {
+    font-size: 9pt;
+    color: #666666;
+}
+
+.rank-card .rank-score {
+    font-size: 18pt;
+    font-weight: 700;
+    color: #2A9D8F;
+    margin-left: auto;
+    padding-right: 3mm;
+    font-variant-numeric: tabular-nums;
+}
+
+.rank-card .rank-score .denom {
+    font-size: 10pt;
+    color: #999999;
+    font-weight: 500;
+    margin-left: 2px;
+}
+
+/* ============ Mindset compare ============ */
+.mindset-compare {
+    display: flex;
+    gap: 4mm;
+    margin-bottom: 8mm;
+}
+
+.mindset-col {
+    flex: 1;
+    padding: 5mm;
+    border-radius: 12px;
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+}
+
+.mindset-col.fixed {
+    border-top: 3px solid #5D2E46;
+}
+
+.mindset-col.growth {
+    border-top: 3px solid #2A9D8F;
+}
+
+.mindset-col h3 {
+    text-align: center;
+    font-size: 11pt;
+    margin-bottom: 4mm;
+    letter-spacing: 2px;
+    padding-bottom: 3mm;
+    border-bottom: 1px solid #EAEAEA;
+    font-weight: 700;
+}
+
+.mindset-col.fixed h3 { color: #5D2E46; }
+.mindset-col.growth h3 { color: #2A9D8F; }
+
+/* ============ Sub-title (section kicker) ============ */
+.sub-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    margin-bottom: 4mm;
+    margin-top: 4mm;
+    padding-left: 4mm;
+    border-left: 3px solid #5D2E46;
+    letter-spacing: 2px;
+}
+
+/* ============ Value list rows (职业价值观) ============ */
+.values-list {
+    margin-bottom: 6mm;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3mm;
+}
+
+.value-row {
+    display: flex;
+    align-items: center;
+    padding: 3mm 5mm;
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    margin-bottom: 2mm;
+}
+
+.value-rank {
+    font-size: 24pt;
+    font-weight: 700;
+    color: #5D2E46;
+    font-family: Arial, sans-serif;
+    opacity: 0.9;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 2mm;
+}
+
+.value-name {
+    font-size: 10pt;
+    color: #1A1A1A;
+    font-weight: 600;
+    margin-bottom: 3mm;
+}
+
+.value-score-bar {
+    width: 100%;
+    height: 5mm;
+    background: #EAEAEA;
+    border-radius: 3mm;
+    margin-bottom: 2mm;
+    overflow: hidden;
+}
+
+.value-score-fill {
+    height: 100%;
+    background: #2A9D8F;
+    border-radius: 3mm;
+}
+
+.value-score-num {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    min-width: 12mm;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.value-score-num.copper { color: #5D2E46; }
+
+/* ============ Detail descriptions ============ */
+.detail-desc {
+    font-size: 9pt;
+    color: #666666;
+    text-align: center;
+    padding: 2mm 0 4mm;
+}
+
+/* ============ Normal distribution chart area ============ */
+.normal-distribution {
+    background: #FFFFFF;
+    border: 1px solid #EAEAEA;
+    border-radius: 12px;
+    padding: 6mm;
+    text-align: center;
+    margin-bottom: 6mm;
+}
+
+.normal-distribution svg {
+    width: 100%;
+    height: 55mm;
+}
+
+/* ============ Inline score formatting helpers ============ */
+.score-inline { color: #5D2E46; font-weight: 700; }
+.score-inline.teal { color: #2A9D8F; }
+.score-muted { color: #999999; font-weight: 500; }
+
+/* ============ Three-column grid (dimension groupings) ============ */
+.grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3mm;
+    margin-bottom: 6mm;
+}
+
+/* ============ 内驱力 Gauge ============ */
+.sd-gauge-wrap {
+    margin: 2mm auto 2mm;
+    max-width: 160mm;
+    padding: 2mm 0 1mm;
+    position: relative;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.sd-gauge-svg {
+    width: 140mm;
+    height: 60mm;
+    margin: 0 auto;
+    display: block;
+}
+
+.sd-gauge-value {
+    text-align: center;
+    font-size: 22pt;
+    font-weight: 700;
+    color: #2A9D8F;
+    letter-spacing: 1px;
+    margin-top: 1mm;
+}
+
+.sd-gauge-denom {
+    color: #999999;
+    font-size: 11pt;
+    font-weight: 400;
+    margin-left: 1mm;
+}
+
+.sd-gauge-text {
+    text-align: center;
+    font-size: 10pt;
+    font-weight: 600;
+    color: #374151;
+    margin-top: 1mm;
+    letter-spacing: 2px;
+}
+
+.sd-gauge-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 2mm 4mm 0;
+    font-size: 9.5pt;
+    font-weight: 600;
+    color: #374151;
+}
+
+.sd-gauge-labels .label-sub {
+    color: #999999;
+    font-size: 8pt;
+    font-weight: 400;
+    letter-spacing: 1px;
+}
+
+/* ============ 内驱力 Donut 图 ============ */
+.sd-donut-row {
+    display: flex;
+    justify-content: center;
+    gap: 8mm;
+    margin-top: 3mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.sd-donut-item {
+    text-align: center;
+    width: 45mm;
+}
+
+.sd-donut {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+}
+
+.sd-donut svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.sd-donut-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.sd-donut-value {
+    font-size: 17pt;
+    font-weight: 700;
+    color: #2A9D8F;
+    line-height: 1;
+}
+
+.sd-donut-max {
+    font-size: 8pt;
+    color: #999999;
+    margin-top: 0.5mm;
+}
+
+.sd-donut-label {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #1A1A1A;
+    margin-top: 2mm;
+}
+
+.sd-donut-en {
+    font-size: 8pt;
+    color: #999999;
+    letter-spacing: 1px;
+    margin-top: 1mm;
+}
+
+.sd-donut-avg {
+    font-size: 9pt;
+    color: #5D2E46;
+    font-weight: 500;
+    margin-top: 1.5mm;
+    padding: 1.5mm 2mm;
+    border-top: 1px solid #E5E7EB;
+    border-bottom: 1px solid #E5E7EB;
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== 封面 ==================== -->
+<div class="page cover">
+    <div class="cover-accent"></div>
+    <div class="cover-title">综合测评报告</div>
+    <div class="cover-subtitle">Comprehensive Assessment Report</div>
+    <div class="cover-accent" style="width:48mm; margin-bottom:14mm; opacity:0.3;"></div>
+    <div class="cover-info">
+        <div><strong>姓　　名：</strong>学生</div>
+        <div><strong>年　　级：</strong>高一</div>
+        <div><strong>学　　校：</strong>SGS</div>
+        <div><strong>测评日期：</strong>2026-03-14</div>
+    </div>
+</div>
+
+<!-- ==================== Y4 · Youth Profile in Four Dimensions ==================== -->
+<div class="page">
+    <div style="display: flex; flex-direction: column; justify-content: flex-start; height: 100%; padding-top: 22mm;">
+
+        <!-- Title -->
+        <div style="font-size: 18pt; font-weight: 700; color: #1A1A1A; letter-spacing: 2px; line-height: 1.3;">
+            Y4 <span style="color: #5D2E46; font-weight: 300;">|</span> Youth Profile in Four Dimensions
+        </div>
+        <div style="width: 60px; height: 2px; background: #5D2E46; margin: 6mm 0 10mm 0;"></div>
+
+        <!-- Body paragraphs -->
+        <div style="font-size: 11.5pt; color: #4B5563; line-height: 2.2; margin-bottom: 4mm;">
+            Y4 是凭远从四个相互关联的成长系统出发，对青少年当前状态、发展资源和潜在困难形成的综合画像。
+        </div>
+        <div style="font-size: 11.5pt; color: #4B5563; line-height: 2.2; margin-bottom: 6mm;">
+            Y 代表 Youth，也呼应 Why。
+        </div>
+        <div style="font-size: 11.5pt; color: #1A1A1A; font-weight: 600; line-height: 2.2; margin-bottom: 5mm;">
+            Y4 不只描述一个学生"是什么样"，也试图进一步回答：
+        </div>
+
+        <!-- Bullet points -->
+        <div style="padding-left: 3mm; margin-bottom: 8mm;">
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #5D2E46; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他为什么会产生这样的情绪和行为；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #5D2E46; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他为什么在某些环境中充满动力，在另一些环境中难以行动；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #5D2E46; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他为什么在某些学习任务中表现突出，却在另一些任务中频繁受阻；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #5D2E46; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他为什么被某些方向吸引；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start;">
+                <span style="color: #5D2E46; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">什么样的成长支持，能够真正帮助他把潜能转化为未来。</span>
+            </div>
+        </div>
+
+        <!-- Closing statement -->
+        <div style="font-size: 11pt; color: #1A1A1A; line-height: 2; font-weight: 500; padding: 4mm 5mm; border-top: 1px solid #EAEAEA; border-bottom: 1px solid #EAEAEA;">
+            Y4 不以单一分数定义学生，也不把学生简单归类为某一种类型。它通过四个系统之间的联系，理解一个真实、复杂并且仍在发展中的青少年。
+        </div>
+
+    </div>
+</div>
+
+<!-- ==================== 1. 心力｜情绪与动力系统 ==================== -->
+<div class="page">
+    <div style="display: flex; flex-direction: column; justify-content: flex-start; height: 100%; padding-top: 22mm;">
+
+        <!-- Section number and title -->
+        <div style="font-size: 22pt; font-weight: 700; color: #1A1A1A; letter-spacing: 3px; line-height: 1.4;">
+            1. 心力<span style="color: #5D2E46; font-weight: 300;">｜</span>情绪与动力系统
+        </div>
+        <div style="font-size: 11pt; color: #2A9D8F; letter-spacing: 3px; font-weight: 600; margin-top: 2mm; text-transform: uppercase;">
+            Emotional &amp; Motivational System
+        </div>
+        <div style="width: 60px; height: 2px; background: #2A9D8F; margin: 6mm 0 10mm 0;"></div>
+
+        <!-- Body paragraphs -->
+        <div style="font-size: 11.5pt; color: #4B5563; line-height: 2.2; margin-bottom: 6mm;">
+            心力，是一个青少年理解自己、稳定自己、连接他人并启动行动的内在基础。
+        </div>
+        <div style="font-size: 11.5pt; color: #1A1A1A; font-weight: 600; line-height: 2.2; margin-bottom: 5mm;">
+            这一系统关注的不是学生是否"情绪好"或者"性格好"，而是：
+        </div>
+
+        <!-- Bullet points -->
+        <div style="padding-left: 3mm;">
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #2A9D8F; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他是否能够在压力、失败和变化中保持基本稳定；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #2A9D8F; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他如何评价自己、理解自己；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #2A9D8F; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他是否相信自己有能力面对挑战；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #2A9D8F; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他是否拥有值得信任和依靠的关系；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #2A9D8F; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他能否表达需要，并在困难时寻求帮助；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 3mm;">
+                <span style="color: #2A9D8F; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他行动的动力来自哪里；</span>
+            </div>
+            <div style="display: flex; align-items: flex-start;">
+                <span style="color: #2A9D8F; font-size: 12pt; line-height: 2; margin-right: 3mm; font-weight: 700;">●</span>
+                <span style="font-size: 11pt; color: #4B5563; line-height: 2;">他如何与环境、他人和任务建立关系。</span>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- 1-1 情绪稳定性 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>EMOTIONAL STABILITY</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">情绪稳定性</div>
+    <div class="report-en">Emotional Stability Assessment</div>
+
+    <div class="intro-text">情绪稳定性是指人的情绪状态受外界或内部心理变化影响，情绪波动大小、强弱的情况。情绪稳定性的调查基于运用最多的艾森克情绪稳定性测验。心理学家艾森克认为，自卑、抑郁、焦虑、依赖他人的人，情绪更敏感、脆弱，易受到外部环境影响而情绪化。相反自尊、愉快、安详和自主的人，情绪更稳定，即使有情绪，也更容易恢复平静。</div>
+
+    <!-- Total score gauge -->
+    <div class="es-gauge-wrap">
+        <svg class="es-gauge-svg" viewBox="0 0 200 110" style="overflow: visible; display: block;">
+            <defs>
+                <linearGradient id="esGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#E07A5F" />
+                    <stop offset="33%" stop-color="#F2B84B" />
+                    <stop offset="66%" stop-color="#8FC19E" />
+                    <stop offset="100%" stop-color="#2A9D8F" />
+                </linearGradient>
+            </defs>
+            <path d="M 20 95 A 80 80 0 0 1 180 95" fill="none" stroke="#EAEAEA" stroke-width="18" stroke-linecap="round" />
+            <path d="M 20 95 A 80 80 0 0 1 180 95" fill="none" stroke="url(#esGrad)" stroke-width="14" stroke-linecap="round" />
+            <circle cx="20" cy="95" r="4" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
+            <circle cx="180" cy="95" r="4" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
+            <g transform="translate(100 95)">
+                <g transform="rotate(-49.5)">
+                    <line x1="0" y1="0" x2="75" y2="0" stroke="#1A1A1A" stroke-width="5" stroke-linecap="round" />
+                </g>
+                <circle cx="0" cy="0" r="10" fill="#1A1A1A" stroke="#FFFFFF" stroke-width="3"/>
+                <circle cx="0" cy="0" r="3" fill="#FFFFFF"/>
+            </g>
+        </svg>
+        <div class="es-gauge-value">43.5<span class="es-gauge-denom"> / 60</span></div>
+        <div class="es-gauge-labels">
+            <span class="label-left">情绪不稳定<br/><span style="color:#999999; font-weight:400;">Emotional Instability</span></span>
+            <span class="label-right" style="text-align:right;">情绪稳定<br/><span style="color:#999999; font-weight:400;">Emotional Stability</span></span>
+        </div>
+        <div class="es-gauge-avg">同龄平均 <span class="num">40</span></div>
+    </div>
+
+    <!-- 4 sub-items -->
+    
+    <div class="es-item">
+        <div class="es-item-row">
+            <div>
+                <span class="es-item-left-label">自卑</span>
+                <span class="es-item-sub">Inferiority</span>
+            </div>
+            <div style="text-align:right;">
+                <span class="es-item-right-label">自尊</span>
+                <span class="es-item-sub">Self-esteem</span>
+            </div>
+        </div>
+        <div class="es-bar-container">
+            <div class="es-bar">
+                <div class="es-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+            <div class="es-anchor-left">1</div>
+            <div class="es-anchor-right">15</div>
+            <div class="es-marker" style="left: 56.7%;">8.5</div>
+        </div>
+    </div>
+    
+    <div class="es-item">
+        <div class="es-item-row">
+            <div>
+                <span class="es-item-left-label">抑郁</span>
+                <span class="es-item-sub">Depression</span>
+            </div>
+            <div style="text-align:right;">
+                <span class="es-item-right-label">愉快</span>
+                <span class="es-item-sub">Pleasure</span>
+            </div>
+        </div>
+        <div class="es-bar-container">
+            <div class="es-bar">
+                <div class="es-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+            <div class="es-anchor-left">1</div>
+            <div class="es-anchor-right">15</div>
+            <div class="es-marker" style="left: 83.3%;">12.5</div>
+        </div>
+    </div>
+    
+    <div class="es-item">
+        <div class="es-item-row">
+            <div>
+                <span class="es-item-left-label">焦虑</span>
+                <span class="es-item-sub">Anxiety</span>
+            </div>
+            <div style="text-align:right;">
+                <span class="es-item-right-label">安详</span>
+                <span class="es-item-sub">Serenity</span>
+            </div>
+        </div>
+        <div class="es-bar-container">
+            <div class="es-bar">
+                <div class="es-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+            <div class="es-anchor-left">1</div>
+            <div class="es-anchor-right">15</div>
+            <div class="es-marker" style="left: 80.0%;">12.0</div>
+        </div>
+    </div>
+    
+    <div class="es-item">
+        <div class="es-item-row">
+            <div>
+                <span class="es-item-left-label">无力感</span>
+                <span class="es-item-sub">Helplessness</span>
+            </div>
+            <div style="text-align:right;">
+                <span class="es-item-right-label">掌控感</span>
+                <span class="es-item-sub">Controllability</span>
+            </div>
+        </div>
+        <div class="es-bar-container">
+            <div class="es-bar">
+                <div class="es-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+            <div class="es-anchor-left">1</div>
+            <div class="es-anchor-right">15</div>
+            <div class="es-marker" style="left: 70.0%;">10.5</div>
+        </div>
+    </div>
+    
+</div>
+
+
+<!-- 1-2 自我概念 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>SELF CONCEPT</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">自我概念</div>
+    <div class="report-en">Self-Concept Dimensions</div>
+
+    <div class="sc-intro">自我概念是个体对自己认识的集合，个体认为的&#34;我是谁，我是一个怎样的人&#34;。也可以理解为个人心中对自己的印象，包括对身体、能力、性格、态度等。比如&#34;我是聪明的&#34;、&#34;我是漂亮的&#34;、&#34;我学习好&#34;。自我概念的发展过程是一个人个性形成和社会化发展的关键。</div>
+
+    <!-- Overall score display (compact) -->
+    <div class="sc-gauge-wrap">
+        <svg class="sc-gauge-svg" viewBox="0 0 200 110" style="overflow: visible; display: block;">
+            <defs>
+                <linearGradient id="scGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#E07A5F" />
+                    <stop offset="33%" stop-color="#F2B84B" />
+                    <stop offset="66%" stop-color="#8FC19E" />
+                    <stop offset="100%" stop-color="#2A9D8F" />
+                </linearGradient>
+            </defs>
+            <path d="M 20 95 A 80 80 0 0 1 180 95" fill="none" stroke="#EAEAEA" stroke-width="18" stroke-linecap="round" />
+            <path d="M 20 95 A 80 80 0 0 1 180 95" fill="none" stroke="url(#scGrad)" stroke-width="14" stroke-linecap="round" />
+            <circle cx="20" cy="95" r="4" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
+            <circle cx="180" cy="95" r="4" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
+            <g transform="translate(100 95)">
+                <g transform="rotate(-34.5)">
+                    <line x1="0" y1="0" x2="72" y2="0" stroke="#1A1A1A" stroke-width="5" stroke-linecap="round" />
+                </g>
+                <circle cx="0" cy="0" r="9" fill="#1A1A1A" stroke="#FFFFFF" stroke-width="3"/>
+                <circle cx="0" cy="0" r="3" fill="#FFFFFF"/>
+            </g>
+        </svg>
+        <div class="sc-gauge-value">97.0<span class="sc-gauge-denom"> / 120</span></div>
+        <div class="sc-gauge-labels">
+            <span class="label-left">偏低<br/><span style="color:#999999; font-weight:400;">Low Self-Concept</span></span>
+            <span class="label-center" style="text-align:center;">整体档位<br/><span class="num">偏高</span></span>
+            <span class="label-right" style="text-align:right;">偏高<br/><span style="color:#999999; font-weight:400;">High Self-Concept</span></span>
+        </div>
+    </div>
+
+    <!-- 6 dimension bars (compact rows) -->
+    
+    <div class="sc-row">
+        <div class="sc-row-label">
+            <span class="sc-label">行为表现</span>
+            <span class="sc-en">Behavioral Adjustment</span>
+        </div>
+        <div class="sc-bar-wrap">
+            <div class="sc-bar">
+                <div class="sc-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span>
+                </div>
+            </div>
+            <div class="sc-anchor-left">1</div>
+            <div class="sc-anchor-right">10</div>
+            <div class="sc-marker" style="left: 90.0%;">9.0</div>
+        </div>
+    </div>
+    
+    <div class="sc-row">
+        <div class="sc-row-label">
+            <span class="sc-label">能力与学校表现</span>
+            <span class="sc-en">Intellectual And School Status</span>
+        </div>
+        <div class="sc-bar-wrap">
+            <div class="sc-bar">
+                <div class="sc-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span>
+                </div>
+            </div>
+            <div class="sc-anchor-left">1</div>
+            <div class="sc-anchor-right">10</div>
+            <div class="sc-marker" style="left: 90.0%;">9.0</div>
+        </div>
+    </div>
+    
+    <div class="sc-row">
+        <div class="sc-row-label">
+            <span class="sc-label">躯体外貌</span>
+            <span class="sc-en">Physical Appearance And Attributes</span>
+        </div>
+        <div class="sc-bar-wrap">
+            <div class="sc-bar">
+                <div class="sc-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span>
+                </div>
+            </div>
+            <div class="sc-anchor-left">1</div>
+            <div class="sc-anchor-right">10</div>
+            <div class="sc-marker" style="left: 100.0%;">10.0</div>
+        </div>
+    </div>
+    
+    <div class="sc-row">
+        <div class="sc-row-label">
+            <span class="sc-label">情绪状态</span>
+            <span class="sc-en">Freedom From Anxiety</span>
+        </div>
+        <div class="sc-bar-wrap">
+            <div class="sc-bar">
+                <div class="sc-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span>
+                </div>
+            </div>
+            <div class="sc-anchor-left">1</div>
+            <div class="sc-anchor-right">10</div>
+            <div class="sc-marker" style="left: 90.0%;">9.0</div>
+        </div>
+    </div>
+    
+    <div class="sc-row">
+        <div class="sc-row-label">
+            <span class="sc-label">合群</span>
+            <span class="sc-en">Popularity</span>
+        </div>
+        <div class="sc-bar-wrap">
+            <div class="sc-bar">
+                <div class="sc-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span>
+                </div>
+            </div>
+            <div class="sc-anchor-left">1</div>
+            <div class="sc-anchor-right">10</div>
+            <div class="sc-marker" style="left: 100.0%;">10.0</div>
+        </div>
+    </div>
+    
+    <div class="sc-row">
+        <div class="sc-row-label">
+            <span class="sc-label">幸福与满足</span>
+            <span class="sc-en">Happiness And Satisfaction</span>
+        </div>
+        <div class="sc-bar-wrap">
+            <div class="sc-bar">
+                <div class="sc-bar-segments">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span>
+                </div>
+            </div>
+            <div class="sc-anchor-left">1</div>
+            <div class="sc-anchor-right">10</div>
+            <div class="sc-marker" style="left: 90.0%;">9.0</div>
+        </div>
+    </div>
+    
+</div>
+
+
+<!-- 1-3 依恋关系 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>SOCIAL ATTACHMENT</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">依恋关系</div>
+    <div class="report-en">Social Attachment Dimensions</div>
+
+    <div class="attachment-intro">依恋类型，是个体早期与主要抚养者之间形成的一种最初的社会性联结，是个体与重要他人保持亲密关系的倾向。依恋类型分为安全型依恋（Secure Attachment）、回避型依恋（Avoidant Attachment）和焦虑-矛盾型依恋（Anxious-Ambivalent Attachment）。安全型依恋的个体容易与人亲近，对人表现出信任和依赖；回避型依恋的个体回避与人亲近；焦虑-矛盾型依恋的个体，期待与人亲密但又害怕与人亲密，容易纠结、矛盾。</div>
+
+    <div class="attachment-types-big">
+        
+            <div class="attachment-type-card-big">
+                <div class="role">母亲</div>
+                <div class="type">安全型</div>
+            </div>
+        
+            <div class="attachment-type-card-big">
+                <div class="role">父亲</div>
+                <div class="type">安全型</div>
+            </div>
+        
+            <div class="attachment-type-card-big">
+                <div class="role">同伴</div>
+                <div class="type">安全型</div>
+            </div>
+        
+    </div>
+
+    <div class="attachment-detail-title">
+        <span>依恋模式测评详情</span>
+    </div>
+
+    
+    <div class="attachment-group-big">
+        <div class="att-group-label">信任 <span class="att-group-en">· Trust</span></div>
+    
+    <div class="att-bar-row">
+      <div class="att-bar-label">
+        <span class="att-role">母亲</span>
+        <span class="att-level">档位 · 3</span>
+      </div>
+      <div class="att-bar-wrap">
+        <div class="att-bar-track">
+          <div class="att-bar-fill" style="width: 100.0%;"></div>
+        </div>
+        <div class="att-bar-anchor-left">低</div>
+        <div class="att-bar-anchor-right">高</div>
+      </div>
+    </div>
+    
+    <div class="att-bar-row">
+      <div class="att-bar-label">
+        <span class="att-role">父亲</span>
+        <span class="att-level">档位 · 3</span>
+      </div>
+      <div class="att-bar-wrap">
+        <div class="att-bar-track">
+          <div class="att-bar-fill" style="width: 100.0%;"></div>
+        </div>
+        <div class="att-bar-anchor-left">低</div>
+        <div class="att-bar-anchor-right">高</div>
+      </div>
+    </div>
+    
+    <div class="att-bar-row">
+      <div class="att-bar-label">
+        <span class="att-role">同伴</span>
+        <span class="att-level">档位 · 3</span>
+      </div>
+      <div class="att-bar-wrap">
+        <div class="att-bar-track">
+          <div class="att-bar-fill" style="width: 76.0%;"></div>
+        </div>
+        <div class="att-bar-anchor-left">低</div>
+        <div class="att-bar-anchor-right">高</div>
+      </div>
+    </div>
+    
+    </div>
+    
+    <div class="attachment-group-big">
+        <div class="att-group-label">沟通 <span class="att-group-en">· Communication</span></div>
+    
+    <div class="att-bar-row">
+      <div class="att-bar-label">
+        <span class="att-role">母亲</span>
+        <span class="att-level">档位 · 3</span>
+      </div>
+      <div class="att-bar-wrap">
+        <div class="att-bar-track">
+          <div class="att-bar-fill" style="width: 75.55555555555556%;"></div>
+        </div>
+        <div class="att-bar-anchor-left">低</div>
+        <div class="att-bar-anchor-right">高</div>
+      </div>
+    </div>
+    
+    <div class="att-bar-row">
+      <div class="att-bar-label">
+        <span class="att-role">父亲</span>
+        <span class="att-level">档位 · 3</span>
+      </div>
+      <div class="att-bar-wrap">
+        <div class="att-bar-track">
+          <div class="att-bar-fill" style="width: 73.33333333333333%;"></div>
+        </div>
+        <div class="att-bar-anchor-left">低</div>
+        <div class="att-bar-anchor-right">高</div>
+      </div>
+    </div>
+    
+    <div class="att-bar-row">
+      <div class="att-bar-label">
+        <span class="att-role">同伴</span>
+        <span class="att-level">档位 · 2</span>
+      </div>
+      <div class="att-bar-wrap">
+        <div class="att-bar-track">
+          <div class="att-bar-fill" style="width: 55.55555555555556%;"></div>
+        </div>
+        <div class="att-bar-anchor-left">低</div>
+        <div class="att-bar-anchor-right">高</div>
+      </div>
+    </div>
+    
+    </div>
+    
+    <div class="attachment-group-big">
+        <div class="att-group-label">亲近 <span class="att-group-en">· Closeness</span></div>
+    
+    <div class="att-bar-row">
+      <div class="att-bar-label">
+        <span class="att-role">母亲</span>
+        <span class="att-level">档位 · 2</span>
+      </div>
+      <div class="att-bar-wrap">
+        <div class="att-bar-track">
+          <div class="att-bar-fill" style="width: 50.0%;"></div>
+        </div>
+        <div class="att-bar-anchor-left">低</div>
+        <div class="att-bar-anchor-right">高</div>
+      </div>
+    </div>
+    
+    <div class="att-bar-row">
+      <div class="att-bar-label">
+        <span class="att-role">父亲</span>
+        <span class="att-level">档位 · 2</span>
+      </div>
+      <div class="att-bar-wrap">
+        <div class="att-bar-track">
+          <div class="att-bar-fill" style="width: 63.33333333333333%;"></div>
+        </div>
+        <div class="att-bar-anchor-left">低</div>
+        <div class="att-bar-anchor-right">高</div>
+      </div>
+    </div>
+    
+    <div class="att-bar-row">
+      <div class="att-bar-label">
+        <span class="att-role">同伴</span>
+        <span class="att-level">档位 · 2</span>
+      </div>
+      <div class="att-bar-wrap">
+        <div class="att-bar-track">
+          <div class="att-bar-fill" style="width: 63.33333333333333%;"></div>
+        </div>
+        <div class="att-bar-anchor-left">低</div>
+        <div class="att-bar-anchor-right">高</div>
+      </div>
+    </div>
+    
+    </div>
+    
+</div>
+
+
+<!-- 1-4 内驱力 -->
+
+
+<!-- 1-5 人格 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>PERSONALITY</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">人格</div>
+    <div class="report-en">Big Five Personality Dimensions</div>
+
+    <div class="intro-text" style="margin-bottom: 4mm;">人格，是指一个人对自己、他人和外界事物所表现出的相对稳定的态度、思维方式和行为倾向。比如有人内向，有人外向；有人开放，有人保守。人格受遗传因素影响，也与能力、兴趣、理想和价值观等密切相关。它不仅关系到个体的身心健康，也与学业适应和职业发展息息相关。本测评基于大五人格理论，从内外向（外倾性）、人际相处方式（宜人性）、规则意识与自我管理（责任心）、情绪稳定程度（神经质）以及对新知识新经验的开放程度（开放性）五个方面进行评估。</div>
+
+    <!-- 雷达图 -->
+    <div class="p5-radar-wrap">
+        <svg viewBox="0 0 400 400" style="width: 130mm; height: 130mm; display: block; margin: 0 auto; overflow: visible;">
+            <!-- 三层参考圆 -->
+            <circle cx="200" cy="200" r="140" fill="none" stroke="#E5E7EB" stroke-width="1" stroke-dasharray="4,4" />
+            <circle cx="200" cy="200" r="100" fill="none" stroke="#E5E7EB" stroke-width="1" stroke-dasharray="4,4" />
+            <circle cx="200" cy="200" r="60" fill="none" stroke="#E5E7EB" stroke-width="1" stroke-dasharray="4,4" />
+
+            <!-- 五个轴 -->
+            
+            <line x1="200" y1="200" x2="179.0" y2="9.0" stroke="#E5E7EB" stroke-width="1" />
+            
+            <line x1="200" y1="200" x2="17.299999999999997" y2="126.5" stroke="#E5E7EB" stroke-width="1" />
+            
+            <line x1="200" y1="200" x2="79.1" y2="316.5" stroke="#E5E7EB" stroke-width="1" />
+            
+            <line x1="200" y1="200" x2="278.9" y2="316.5" stroke="#E5E7EB" stroke-width="1" />
+            
+            <line x1="200" y1="200" x2="340.7" y2="126.5" stroke="#E5E7EB" stroke-width="1" />
+            
+
+            <!-- 平均得分多边形（虚线灰色 -->
+            <polygon points="200.0,116.0 120.1,174.0 150.6,268.0 249.4,268.0 279.9,174.0" fill="none" stroke="#999999" stroke-width="1.5" stroke-dasharray="5,3" stroke-linejoin="round" />
+
+            <!-- 用户得分多边形 -->
+            <polygon points="200.0,107.6 96.1,166.3 142.4,279.3 254.3,274.8 295.9,168.9" fill="rgba(42,157,143,0.18)" stroke="#2A9D8F" stroke-width="2.5" stroke-linejoin="round" />
+
+            <!-- 顶点得分小圆点 -->
+            
+            <circle cx="200.0" cy="107.6" r="5" fill="#2A9D8F" stroke="#FFFFFF" stroke-width="2" />
+            
+            <circle cx="96.1" cy="166.3" r="5" fill="#2A9D8F" stroke="#FFFFFF" stroke-width="2" />
+            
+            <circle cx="142.4" cy="279.3" r="5" fill="#2A9D8F" stroke="#FFFFFF" stroke-width="2" />
+            
+            <circle cx="254.3" cy="274.8" r="5" fill="#2A9D8F" stroke="#FFFFFF" stroke-width="2" />
+            
+            <circle cx="295.9" cy="168.9" r="5" fill="#2A9D8F" stroke="#FFFFFF" stroke-width="2" />
+            
+
+            <!-- 标签 -->
+            
+            <text x="200.0" y="28.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A" font-family="PingFang SC, sans-serif">开放性</text>
+            <text x="200.0" y="46.0" text-anchor="middle" font-size="9" fill="#666666" font-family="PingFang SC, sans-serif">Openness</text>
+            <text x="200.0" y="62.0" text-anchor="middle" font-size="11" font-weight="700" fill="#2A9D8F" font-family="PingFang SC, sans-serif">3.3<tspan font-size="8" font-weight="400" fill="#999999">/5.0</tspan></text>
+            
+            <text x="38.3" y="145.5" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A" font-family="PingFang SC, sans-serif">宜人性</text>
+            <text x="38.3" y="163.5" text-anchor="middle" font-size="9" fill="#666666" font-family="PingFang SC, sans-serif">Agreeableness</text>
+            <text x="38.3" y="179.5" text-anchor="middle" font-size="11" font-weight="700" fill="#2A9D8F" font-family="PingFang SC, sans-serif">3.9<tspan font-size="8" font-weight="400" fill="#999999">/5.0</tspan></text>
+            
+            <text x="100.1" y="335.5" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A" font-family="PingFang SC, sans-serif">责任心</text>
+            <text x="100.1" y="353.5" text-anchor="middle" font-size="9" fill="#666666" font-family="PingFang SC, sans-serif">Conscientiousness</text>
+            <text x="100.1" y="369.5" text-anchor="middle" font-size="11" font-weight="700" fill="#2A9D8F" font-family="PingFang SC, sans-serif">3.5<tspan font-size="8" font-weight="400" fill="#999999">/5.0</tspan></text>
+            
+            <text x="299.9" y="335.5" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A" font-family="PingFang SC, sans-serif">外倾性</text>
+            <text x="299.9" y="353.5" text-anchor="middle" font-size="9" fill="#666666" font-family="PingFang SC, sans-serif">Extraversion</text>
+            <text x="299.9" y="369.5" text-anchor="middle" font-size="11" font-weight="700" fill="#2A9D8F" font-family="PingFang SC, sans-serif">3.3<tspan font-size="8" font-weight="400" fill="#999999">/5.0</tspan></text>
+            
+            <text x="361.7" y="145.5" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A" font-family="PingFang SC, sans-serif">神经质</text>
+            <text x="361.7" y="163.5" text-anchor="middle" font-size="9" fill="#666666" font-family="PingFang SC, sans-serif">Neuroticism</text>
+            <text x="361.7" y="179.5" text-anchor="middle" font-size="11" font-weight="700" fill="#2A9D8F" font-family="PingFang SC, sans-serif">3.6<tspan font-size="8" font-weight="400" fill="#999999">/5.0</tspan></text>
+            
+        </svg>
+    </div>
+
+    <!-- 图例 -->
+    <div class="p5-legend">
+        <div class="legend-item">
+            <span class="legend-teal"></span>
+            <span>我的得分</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-gray"></span>
+            <span>平均得分</span>
+        </div>
+    </div>
+</div>
+
+
+<!-- 1-6 体质健康 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>PHYSICAL HEALTH</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">体质健康</div>
+    <div class="report-en">Physical Health Assessment</div>
+
+    <div class="intro-text">健康身体对我们每个人的重要性不言而喻。没有健康，一切无从谈起。体质，是人身体的形态和功能，通常也指人的身体素质。</div>
+
+    <div class="bmi-display">
+        <div class="bmi-meta">身高 170 cm · 体重 76 kg</div>
+        <div class="bmi-value">26</div>
+        <div class="bmi-grade">超重</div>
+    </div>
+
+    <div style="font-size:10pt; color:#1A1A1A; font-weight:700; margin-bottom:4mm; text-align:center; letter-spacing:2px;">— 影响体质健康的生活习惯 —</div>
+    
+    <div class="habit-card">
+        <div class="habit-title">饮食习惯<span class="habit-rating">均衡饮食</span></div>
+        <div class="habit-desc">食物提供人体必需的能量和营养，均衡饮食很重要。</div>
+    </div>
+    
+    <div class="habit-card">
+        <div class="habit-title">睡眠习惯<span class="habit-rating">7.3小时/每天</span></div>
+        <div class="habit-desc">我们一生中1/3的时间都在睡觉中度过。睡眠习惯和质量会影响我们整个人的精神状态和身体健康。</div>
+    </div>
+    
+    <div class="habit-card">
+        <div class="habit-title">运动习惯<span class="habit-rating">2小时/周</span></div>
+        <div class="habit-desc">良好的运动习惯，可以增强体质，促进新陈代谢，同时有助于我们控制体重。</div>
+    </div>
+    
+</div>
+
+
+<!-- 1-7 思维模式 -->
+
+
+<!-- ==================== 第三板块：学习力 ==================== -->
+<div class="page section-title" style="background: #FAF7F2;">
+    <div class="tiny">Section 03</div>
+    <div class="accent-bar"></div>
+    <h1>第三板块</h1>
+    <p>学习力</p>
+    <p style="font-size:10pt; color:#A4ADB2; letter-spacing:3px; margin-top:5mm; text-transform:uppercase;">Learning Ability</p>
+</div>
+
+<!-- 3-1 认知能力 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>COGNITIVE ABILITY</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">认知能力</div>
+    <div class="report-en">Cognitive Ability Dimensions</div>
+
+    <div class="intro-text">认知能力是大脑加工、处理信息，认知客观事物内部逻辑，并运用知识、经验等解决问题的能力。认知的过程包括感知、记忆、想象、思考、判断等。它被重视的原因是人类所有的学习活动都离不开认知能力的运用。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">129</div>
+            <div class="score-label">总得分</div>
+        </div>
+        <div class="score-item">
+            <div class="score-number" style="color:#2A9D8F;">97</div>
+            <div class="score-label">百分位（%）</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分可能表现</h4>
+            <ul>
+                
+                <li>良好的推理、学习能力强、问题解决能力强</li>
+                
+                <li>专注、记忆力强、敏锐的观察力</li>
+                
+                <li>想象力丰富、富有创造力</li>
+                
+                <li>精力旺盛、独立思考、乐于挑战</li>
+                
+                <li>好奇心强、求知欲强、兴趣广泛、词汇丰富，表达能力强</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分可能表现</h4>
+            <ul>
+                
+                <li>理解能力差、学习跟不上、学习障碍</li>
+                
+                <li>注意力不集中、上课经常走神、开小差</li>
+                
+                <li>反复学习仍记不住、反应迟钝</li>
+                
+                <li>墨守成规、不爱思考</li>
+                
+                <li>兴趣狭窄，词汇匮乏，语言简单</li>
+                
+            </ul>
+        </div>
+    </div>
+
+    <div class="sub-title">各维度百分位</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-top: 4mm;">
+    
+    <div style="text-align: center;">
+        <div style="width: 35mm; height: 35mm; margin: 0 auto 3mm; position: relative;">
+            <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                <circle fill="none" stroke="#E5E7EB" stroke-width="8" cx="50" cy="50" r="45" />
+                <circle fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round" cx="50" cy="50" r="45" stroke-dasharray="283" stroke-dashoffset="84.9" />
+            </svg>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24pt; font-weight: bold; color: #1A1A1A; font-family: Arial, sans-serif;">70.0</div>
+        </div>
+        <div style="font-size: 10pt; color: #444; font-weight: bold; margin-bottom: 1mm;">感知觉</div>
+        <div style="font-family: Arial, sans-serif; font-size: 7pt; color: #999; letter-spacing: 1px;">Perception</div>
+    </div>
+    
+    <div style="text-align: center;">
+        <div style="width: 35mm; height: 35mm; margin: 0 auto 3mm; position: relative;">
+            <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                <circle fill="none" stroke="#E5E7EB" stroke-width="8" cx="50" cy="50" r="45" />
+                <circle fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round" cx="50" cy="50" r="45" stroke-dasharray="283" stroke-dashoffset="87.73000000000002" />
+            </svg>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24pt; font-weight: bold; color: #1A1A1A; font-family: Arial, sans-serif;">69.0</div>
+        </div>
+        <div style="font-size: 10pt; color: #444; font-weight: bold; margin-bottom: 1mm;">注意力</div>
+        <div style="font-family: Arial, sans-serif; font-size: 7pt; color: #999; letter-spacing: 1px;">Attention</div>
+    </div>
+    
+    <div style="text-align: center;">
+        <div style="width: 35mm; height: 35mm; margin: 0 auto 3mm; position: relative;">
+            <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                <circle fill="none" stroke="#E5E7EB" stroke-width="8" cx="50" cy="50" r="45" />
+                <circle fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round" cx="50" cy="50" r="45" stroke-dasharray="283" stroke-dashoffset="16.980000000000018" />
+            </svg>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24pt; font-weight: bold; color: #1A1A1A; font-family: Arial, sans-serif;">94.0</div>
+        </div>
+        <div style="font-size: 10pt; color: #444; font-weight: bold; margin-bottom: 1mm;">记忆力</div>
+        <div style="font-family: Arial, sans-serif; font-size: 7pt; color: #999; letter-spacing: 1px;">Memory</div>
+    </div>
+    
+    <div style="text-align: center;">
+        <div style="width: 35mm; height: 35mm; margin: 0 auto 3mm; position: relative;">
+            <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                <circle fill="none" stroke="#E5E7EB" stroke-width="8" cx="50" cy="50" r="45" />
+                <circle fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round" cx="50" cy="50" r="45" stroke-dasharray="283" stroke-dashoffset="8.490000000000009" />
+            </svg>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24pt; font-weight: bold; color: #1A1A1A; font-family: Arial, sans-serif;">97.0</div>
+        </div>
+        <div style="font-size: 10pt; color: #444; font-weight: bold; margin-bottom: 1mm;">推理能力</div>
+        <div style="font-family: Arial, sans-serif; font-size: 7pt; color: #999; letter-spacing: 1px;">Reasoning</div>
+    </div>
+    
+    <div style="text-align: center;">
+        <div style="width: 35mm; height: 35mm; margin: 0 auto 3mm; position: relative;">
+            <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                <circle fill="none" stroke="#E5E7EB" stroke-width="8" cx="50" cy="50" r="45" />
+                <circle fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round" cx="50" cy="50" r="45" stroke-dasharray="283" stroke-dashoffset="16.980000000000018" />
+            </svg>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24pt; font-weight: bold; color: #1A1A1A; font-family: Arial, sans-serif;">94.0</div>
+        </div>
+        <div style="font-size: 10pt; color: #444; font-weight: bold; margin-bottom: 1mm;">空间能力</div>
+        <div style="font-family: Arial, sans-serif; font-size: 7pt; color: #999; letter-spacing: 1px;">Spatial Ability</div>
+    </div>
+    
+    <div style="text-align: center;">
+        <div style="width: 35mm; height: 35mm; margin: 0 auto 3mm; position: relative;">
+            <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                <circle fill="none" stroke="#E5E7EB" stroke-width="8" cx="50" cy="50" r="45" />
+                <circle fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round" cx="50" cy="50" r="45" stroke-dasharray="283" stroke-dashoffset="31.129999999999995" />
+            </svg>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24pt; font-weight: bold; color: #1A1A1A; font-family: Arial, sans-serif;">89.0</div>
+        </div>
+        <div style="font-size: 10pt; color: #444; font-weight: bold; margin-bottom: 1mm;">加工速度</div>
+        <div style="font-family: Arial, sans-serif; font-size: 7pt; color: #999; letter-spacing: 1px;">Processing Speed</div>
+    </div>
+    
+    </div>
+</div>
+
+
+<!-- 3-2 认知能力详情（各子项） -->
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>PERCEPTION</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">感知觉</div>
+    <div class="report-en">PERCEPTION Dimensions</div>
+
+    <div class="intro-text">感知觉是大脑对作用于感觉器官的客观事物的整体感知，是记忆、推理等后续大脑信息加工的基础。人们通过感知、观察认识世界。人类众多伟大的科学发现都依赖于科学家敏锐和细致的观察。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">23</div>
+            <div class="score-label">我的得分</div>
+        </div>
+        <div class="score-item">
+            <div class="score-number" style="color:#2A9D8F;">70%</div>
+            <div class="score-label">百分位</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分表现</h4>
+            <ul>
+                
+                <li>目光敏锐，头脑清楚</li>
+                
+                <li>明察秋毫，洞察力强</li>
+                
+                <li>眼观六路耳听八方</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分表现</h4>
+            <ul>
+                
+                <li>粗心大意，走马观花</li>
+                
+                <li>丢三落四，敷衍了事</li>
+                
+                <li>马马虎虎，不求甚解</li>
+                
+            </ul>
+        </div>
+    </div>
+
+    <div class="advice-block">
+        <div class="advice-title">成长建议</div>
+        <div style="font-size: 9pt; color: #666666; margin-bottom: 3mm; line-height:1.7;">观察力的培养可以从两个维度着手：一是内在动机的挖掘，二是外在行为习惯的养成。</div>
+        
+        <div class="advice-section">
+            <h4>挖掘内在动力</h4>
+        
+            <p>· 保持好奇：好奇是一种内在动机，让人本能的想去探索、了解更多。</p>
+            
+            <p>· 培养兴趣：人总能在自己感兴趣的领域，关注更多，观察更多，思维更活跃，记忆更牢固。</p>
+            
+        </div>
+        
+        <div class="advice-section">
+            <h4>培养外在习惯</h4>
+        
+            <p>· 绘画训练：通过&#34;惟妙惟肖&#34;、&#34;栩栩如生&#34;的绘画训练来培养敏锐的观察力。</p>
+            
+        </div>
+        
+    </div>
+</div>
+
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>ATTENTION</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">注意力</div>
+    <div class="report-en">ATTENTION Dimensions</div>
+
+    <div class="intro-text">注意是心理活动对一定对象的指向和集中。注意就像一个聚光灯，打在关注的事物上，有的人聚光能力强，有的人聚光涣散。聚光能力的发展就是注意力的好和坏。上课常常走神，做作业时常坐不住，都可能和注意力有关。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">79</div>
+            <div class="score-label">我的得分</div>
+        </div>
+        <div class="score-item">
+            <div class="score-number" style="color:#2A9D8F;">69%</div>
+            <div class="score-label">百分位</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分表现</h4>
+            <ul>
+                
+                <li>安静、专注，上课少有走神</li>
+                
+                <li>注意力稳定，不易被外在事物干扰</li>
+                
+                <li>注意范围广，能察觉更多信息</li>
+                
+                <li>注意转移灵活，能快速从上一事件抽离转入下一活动</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分表现</h4>
+            <ul>
+                
+                <li>注意力不集中，注意力涣散</li>
+                
+                <li>注意力狭窄，作业、考试漏题</li>
+                
+                <li>心不在焉，无精打采，上课、做作业经常走神</li>
+                
+                <li>好动，坐不住，无法长时间专注于一件事</li>
+                
+            </ul>
+        </div>
+    </div>
+
+    <div class="advice-block">
+        <div class="advice-title">成长建议</div>
+        <div style="font-size: 9pt; color: #666666; margin-bottom: 3mm; line-height:1.7;">培养注意力可以从两个方面入手，一是减少环境干扰以及其对注意力的破坏；二是通过培养好习惯提升注意力。</div>
+        
+        <div class="advice-section">
+            <h4>减少干扰</h4>
+        
+            <p>· 减少外部干扰：建立自己的专属清净空间。</p>
+            
+            <p>· 减少内部干扰：长时间使用电子设备会破坏人的专注力，可以尝试规定自己使用电子设备的时间。</p>
+            
+        </div>
+        
+        <div class="advice-section">
+            <h4>多加练习</h4>
+        
+            <p>· 学习规划：设定具体目标，制定时间计划。</p>
+            
+            <p>· 番茄钟：给自己限定时间，这段时间内只专注做一件事。</p>
+            
+        </div>
+        
+    </div>
+</div>
+
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>MEMORY</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">记忆力</div>
+    <div class="report-en">MEMORY Dimensions</div>
+
+    <div class="intro-text">记忆力是神经系统存储过往经验的能力。记单词，背公式均和记忆力有关。人的记忆力存在先天差异，有些人看一遍就记住了，有些人要看3-5遍才能记住。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">20</div>
+            <div class="score-label">我的得分</div>
+        </div>
+        <div class="score-item">
+            <div class="score-number" style="color:#2A9D8F;">94%</div>
+            <div class="score-label">百分位</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分表现</h4>
+            <ul>
+                
+                <li>记忆力强，记住速度快</li>
+                
+                <li>记忆深刻，不易忘记，极少数人甚至过目不忘</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分表现</h4>
+            <ul>
+                
+                <li>记不住，学不会；记不清，记混</li>
+                
+                <li>当时记住了，但很快忘记</li>
+                
+            </ul>
+        </div>
+    </div>
+
+    <div class="advice-block">
+        <div class="advice-title">成长建议</div>
+        <div style="font-size: 9pt; color: #666666; margin-bottom: 3mm; line-height:1.7;">从记忆过程来看，记忆分为&#34;记&#34;和&#34;忆&#34;两个部分。&#34;记&#34;的过程包括信息编码和存储，&#34;忆&#34;的过程即回忆，是信息的检索、取出。</div>
+        
+        <div class="advice-section">
+            <h4>&#34;记&#34;</h4>
+        
+            <p>· 重复：有规律的间隔复习和反复练习有利于形成更牢固的长期记忆。</p>
+            
+            <p>· 关联：把要记住的知识跟其他知识尽可能多的关联起来，将它们画成一张思维导图。</p>
+            
+        </div>
+        
+        <div class="advice-section">
+            <h4>&#34;忆&#34;</h4>
+        
+            <p>· 输出：做小老师，把你今天学到的知识讲给爸爸妈妈或身边他人听。</p>
+            
+            <p>· 回忆：在睡觉之前，不妨回想下今天学习的知识，看看你还能记住多少。</p>
+            
+        </div>
+        
+    </div>
+</div>
+
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>REASONING</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">推理能力</div>
+    <div class="report-en">REASONING Dimensions</div>
+
+    <div class="intro-text">推理是指一个人通过已有知识和经验，通过分析和综合做出新判断的过程。推理能力是一个人学习的关键，也是工作和生活中解决问题能力的核心。我们常提到的&#34;逻辑思维能力&#34;，其背后关键的是推理能力。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">35</div>
+            <div class="score-label">我的得分</div>
+        </div>
+        <div class="score-item">
+            <div class="score-number" style="color:#2A9D8F;">97%</div>
+            <div class="score-label">百分位</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分表现</h4>
+            <ul>
+                
+                <li>理解能力强，学习速度快，问题分析和解决能力强</li>
+                
+                <li>主次分明，目标明确，偏好认知方面的刺激</li>
+                
+                <li>思路清晰，主次分明，有理有据，有条不紊</li>
+                
+                <li>兴趣广泛，求知欲强，独立思考，挑战权威</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分表现</h4>
+            <ul>
+                
+                <li>理解能力偏弱，学习效率低，问题解决能力弱</li>
+                
+                <li>理不清重点，易陷入细节，被小事困扰，目标模糊</li>
+                
+                <li>语言简单，逻辑混乱，前言不搭后语</li>
+                
+                <li>兴趣狭窄，偏好简单事，墨守成规</li>
+                
+            </ul>
+        </div>
+    </div>
+
+    <div class="advice-block">
+        <div class="advice-title">成长建议</div>
+        <div style="font-size: 9pt; color: #666666; margin-bottom: 3mm; line-height:1.7;">推理能力的本质是发现事物与事物之间的关系，如何发现事物之间的关系，并有逻辑的表达是培养的关键。</div>
+        
+        <div class="advice-section">
+            <h4>善用思维工具</h4>
+        
+            <p>· 通过思维导图类的思维工具把每天、每周、每月学到的知识串起来，&#34;串&#34;知识的过程，就是梳理知识关系的过程，你也可以自己画一张思维导图。</p>
+            
+        </div>
+        
+        <div class="advice-section">
+            <h4>有逻辑的表达</h4>
+        
+            <p>· 当你想说服家人或朋友听从你的意见前，想一想，如何才更有可能获得认可。沟通之前，你不妨试试将要表达的意见或观点先在脑子里过一遍，排个优先顺序 1 2 3 或想清楚前因后果再讲给他们听。</p>
+            
+        </div>
+        
+    </div>
+</div>
+
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>SPATIAL ABILITY</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">空间能力</div>
+    <div class="report-en">SPATIAL ABILITY Dimensions</div>
+
+    <div class="intro-text">空间能力是指大脑通过观察、触摸及想象对物体形状、位置或运动状态判断的能力。空间能力对一个人在数学、自然科学、工程、气象、化学和物理等科学领域取得成功至关重要。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">22</div>
+            <div class="score-label">我的得分</div>
+        </div>
+        <div class="score-item">
+            <div class="score-number" style="color:#2A9D8F;">94%</div>
+            <div class="score-label">百分位</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分表现</h4>
+            <ul>
+                
+                <li>空间方向感更好、擅长数学思考和运算</li>
+                
+                <li>空间想象力丰富，更容易对绘画、设计等产生兴趣</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分表现</h4>
+            <ul>
+                
+                <li>空间方向感差</li>
+                
+                <li>在抽象的数学运算上表现差</li>
+                
+            </ul>
+        </div>
+    </div>
+
+    <div class="advice-block">
+        <div class="advice-title">成长建议</div>
+        <div style="font-size: 9pt; color: #666666; margin-bottom: 3mm; line-height:1.7;">空间能力大多时候更是一种天赋，如果您有这种天赋，请别辜负它。找些让你感觉有挑战的项目，比如积木乐高、奥数竞赛等去强大它吧！</div>
+        
+        <div class="advice-section">
+            <h4>动手练习</h4>
+        
+            <p>· 积木：拼一拼</p>
+            
+            <p>· 魔方：转一转</p>
+            
+            <p>· 剪纸：剪一剪</p>
+            
+            <p>· 折纸：折一折</p>
+            
+            <p>· 绘画：画一画</p>
+            
+        </div>
+        
+    </div>
+</div>
+
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>PROCESSING SPEED</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">加工速度</div>
+    <div class="report-en">PROCESSING SPEED Dimensions</div>
+
+    <div class="intro-text">加工速度是指一个人大脑接受信息、处理信息和做出反应的速度。如果将大脑比作一台计算机，那么加工速度就是电脑的运行速度。在面对复杂问题时，加工速度对认知加工效率的影响更明显。对于加工速度慢的人，过大的信息量还可能导致大脑&#34;卡机&#34;。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">34</div>
+            <div class="score-label">我的得分</div>
+        </div>
+        <div class="score-item">
+            <div class="score-number" style="color:#2A9D8F;">89%</div>
+            <div class="score-label">百分位</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分表现</h4>
+            <ul>
+                
+                <li>思维敏捷、反应迅速</li>
+                
+                <li>做事专注</li>
+                
+                <li>喜欢信息量大、有挑战的事</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分表现</h4>
+            <ul>
+                
+                <li>思维迟钝、反应慢</li>
+                
+                <li>容易走神</li>
+                
+                <li>偏好做简单、熟悉或重复的事</li>
+                
+            </ul>
+        </div>
+    </div>
+
+    <div class="advice-block">
+        <div class="advice-title">成长建议</div>
+        <div style="font-size: 9pt; color: #666666; margin-bottom: 3mm; line-height:1.7;">信息加工速度一方面与年龄、遗传有关，另一方面也与熟悉程度有关。你可以通过多练习提高某特定领域的信息加工速度。</div>
+        
+        <div class="advice-section">
+            <h4>多练习</h4>
+        
+            <p>· 如果你想提高在某方面的加工速度，那你可以多练习相关方面的知识和技能，熟练同样能提高信息加工的速度。</p>
+            
+        </div>
+        
+        <div class="advice-section">
+            <h4>多运动</h4>
+        
+            <p>· 如果你想提高神经系统整体的加工速度，你可以多尝试有氧运动。运动过程中大脑产生的神经营养因子能促进神经系统的发育，加强神经细胞之间的连接，使大脑信息以更快的速度传递。</p>
+            
+        </div>
+        
+    </div>
+</div>
+
+
+
+<!-- 3-3 执行功能 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>EXECUTIVE FUNCTIONS</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">执行功能</div>
+    <div class="report-en">Executive Functions Dimensions</div>
+
+    <div class="intro-text">执行功能是指个体协调多个认知加工过程，以达成目标的大脑高级功能，执行功能的关键在于完成目标。</div>
+
+    <div class="marker-legend">
+        <div class="legend-item">
+            <span class="dot user"></span>
+            <span>百分位位置</span>
+        </div>
+    </div>
+
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>抑制控制（Inhibitory Control）</span>
+            <span class="score">94.0<span class="denom">%</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 94.0%;"></div>
+        </div>
+        <div style="font-size: 9pt; color: #666666; margin-top:2mm; padding: 2mm 3mm; background: rgba(42,157,143,0.05); border-left: 3px solid #2A9D8F; border-radius: 1mm; line-height: 1.6;">
+            个体在行动之前控制冲动理性思考、排除干扰完成任务的能力。
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>工作记忆（Working Memory）</span>
+            <span class="score">87.0<span class="denom">%</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 87.0%;"></div>
+        </div>
+        <div style="font-size: 9pt; color: #666666; margin-top:2mm; padding: 2mm 3mm; background: rgba(42,157,143,0.05); border-left: 3px solid #2A9D8F; border-radius: 1mm; line-height: 1.6;">
+            有意识地在头脑中保存和操纵信息的能力。依靠记忆信息预测未来。
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>认知灵活性（Cognitive Flexibility）</span>
+            <span class="score">87.0<span class="denom">%</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 87.0%;"></div>
+        </div>
+        <div style="font-size: 9pt; color: #666666; margin-top:2mm; padding: 2mm 3mm; background: rgba(42,157,143,0.05); border-left: 3px solid #2A9D8F; border-radius: 1mm; line-height: 1.6;">
+            个体大脑适应新的、变化的或计划以外事件的能力。
+        </div>
+    </div>
+    
+</div>
+
+
+<!-- 3-4 执行功能详情 -->
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>INHIBITORY CONTROL</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">抑制控制</div>
+    <div class="report-en">INHIBITORY CONTROL Dimensions</div>
+
+    <div class="intro-text">抑制控制是指个体在行动之前控制冲动理性思考、排除干扰完成任务的能力。即抑制住自己的本能、欲望，使自己做出符合预期目标的行为。它和孩子的专注力、情绪调节和冲动控制等有关。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">94.0<span class="denom">%</span></div>
+            <div class="score-label">百分位</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分表现</h4>
+            <ul>
+                
+                <li>事先考虑行动后果，三思而后行</li>
+                
+                <li>克制说话或做某事的冲动</li>
+                
+                <li>控制欲望，延迟满足</li>
+                
+                <li>专注，心无旁骛</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分表现</h4>
+            <ul>
+                
+                <li>心直口快，不假思索</li>
+                
+                <li>横冲直撞，任性妄为</li>
+                
+                <li>难以控制情绪或欲望</li>
+                
+                <li>专注力差，易被干扰</li>
+                
+            </ul>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>WORKING MEMORY</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">工作记忆</div>
+    <div class="report-en">WORKING MEMORY Dimensions</div>
+
+    <div class="intro-text">工作记忆是有意识地在头脑中保存和操纵信息的能力。我们依靠记忆信息预测未来，信息是周全还是片面，会直接影响预测的准确性。我们依靠记忆制定目标、安排计划，执行任务，而目标是否清晰，计划是否详细，执行是否到位均与记忆力有关。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">87.0<span class="denom">%</span></div>
+            <div class="score-label">百分位</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分表现</h4>
+            <ul>
+                
+                <li>以目标为导向，牢记规则</li>
+                
+                <li>目标清晰，抗干扰能力强</li>
+                
+                <li>独立自主，学习能力强</li>
+                
+                <li>考虑周全，定位清晰</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分表现</h4>
+            <ul>
+                
+                <li>记不住规则，容易出错</li>
+                
+                <li>忘记目标，容易开小差</li>
+                
+                <li>难以独自完成任务，需监督和提醒</li>
+                
+                <li>考虑片面，认知不足</li>
+                
+            </ul>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>COGNITIVE FLEXIBILITY</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">认知灵活性</div>
+    <div class="report-en">COGNITIVE FLEXIBILITY Dimensions</div>
+
+    <div class="intro-text">认知灵活性是指个体大脑适应新的、变化的或计划以外事件的能力。比如当情况有变，原有计划被打破或最初的方案行不通时，认知灵活性高的人能根据变化从不同角度看问题，及时调整心态，改变思路，快速找到解决问题的新方案。认知灵活性影响孩子的自我调节能力和心理韧性。</div>
+
+    <div class="big-score">
+        <div class="score-item">
+            <div class="score-number">87.0<span class="denom">%</span></div>
+            <div class="score-label">百分位</div>
+        </div>
+    </div>
+
+    <div class="compare-columns">
+        <div class="compare-col high">
+            <h4>高分表现</h4>
+            <ul>
+                
+                <li>在遇到困难时，随机应变，创造性地解决问题</li>
+                
+                <li>当原计划有变时，可以快速调整，适应能力强</li>
+                
+                <li>自我调节能力强</li>
+                
+                <li>多任务灵活切换</li>
+                
+            </ul>
+        </div>
+        <div class="compare-col low">
+            <h4>低分表现</h4>
+            <ul>
+                
+                <li>思维定势，认知僵化</li>
+                
+                <li>同样的错误，反复出现</li>
+                
+                <li>自我调节能力差</li>
+                
+                <li>对不利事态进展的变化表现出抵抗情绪</li>
+                
+            </ul>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- 3-5 学习动机 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>ACADEMIC MOTIVATION</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">学习动机</div>
+    <div class="report-en">Academic Motivation Dimensions</div>
+
+    <div class="intro-text">学习动机是激发并维持个体不断学习的基本动力，有时也称之为学习动力。孩子&#34;学习动力不足&#34;、&#34;不知为什么要学习&#34;成为不少家长焦虑和头疼的问题，如何激发孩子学习动力成了教育关注的焦点。</div>
+
+    <div class="marker-legend">
+        <div class="legend-item">
+            <span class="dot user"></span>
+            <span>我的得分</span>
+        </div>
+        <div class="legend-item">
+            <span class="dot avg"></span>
+            <span>平均得分</span>
+        </div>
+    </div>
+
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>深层动机（Deep Motivation）</span>
+            <span class="score">9.2<span class="denom">/10.0</span></span>
+        </div>
+        <div class="compare-bar">
+            <div class="marker avg" style="left: 74.0%;"></div>
+            <div class="marker user" style="left: 92.0%;"></div>
+        </div>
+        <div class="compare-bar-labels">
+            <span>我的: 9.2</span>
+            <span>平均: 7.4</span>
+        </div>
+        <div style="font-size:9pt; color:#666666; margin-top: 5mm; padding: 2mm 3mm; background: rgba(184,115,51,0.05); border-left: 3px solid #5D2E46; border-radius: 1mm; line-height: 1.6;">
+            深层动机是对学习本身感兴趣，学习本身使个体感到满足和兴奋的内部动机。
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>表面动机（Surface Motivation）</span>
+            <span class="score">8.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="compare-bar">
+            <div class="marker avg" style="left: 47.0%;"></div>
+            <div class="marker user" style="left: 80.0%;"></div>
+        </div>
+        <div class="compare-bar-labels">
+            <span>我的: 8.0</span>
+            <span>平均: 4.7</span>
+        </div>
+        <div style="font-size:9pt; color:#666666; margin-top: 5mm; padding: 2mm 3mm; background: rgba(184,115,51,0.05); border-left: 3px solid #5D2E46; border-radius: 1mm; line-height: 1.6;">
+            表面动机是对学习不感兴趣，为了通过考试、得到奖励或避免惩罚而学习的外部动机。
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>自我效能感（Self-Efficacy）</span>
+            <span class="score">10.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="compare-bar">
+            <div class="marker avg" style="left: 81.0%;"></div>
+            <div class="marker user" style="left: 100.0%;"></div>
+        </div>
+        <div class="compare-bar-labels">
+            <span>我的: 10.0</span>
+            <span>平均: 8.1</span>
+        </div>
+        <div style="font-size:9pt; color:#666666; margin-top: 5mm; padding: 2mm 3mm; background: rgba(184,115,51,0.05); border-left: 3px solid #5D2E46; border-radius: 1mm; line-height: 1.6;">
+            自我效能感是个体对自己能否成功完成某事的主观判断。
+        </div>
+    </div>
+    
+</div>
+
+
+<!-- 3-6 学习方法与策略 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>LEARNING STRATEGIES</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">学习方法与策略</div>
+    <div class="report-en">Learning Methods &amp; Strategies</div>
+
+    <div class="intro-text">学习方法与策略是指通过学习实践总结出的快速、高效学习的方法与策略。学习方法与策略的好坏直接影响学习效率的高低。幸运的是，目前研究发现大脑学习存在一定规律，遵循这些规律即可在一定程度上提高我们的学习效率。</div>
+
+    <div class="marker-legend">
+        <div class="legend-item">
+            <span class="dot user"></span>
+            <span>我的得分</span>
+        </div>
+        <div class="legend-item">
+            <span class="dot avg"></span>
+            <span>平均得分</span>
+        </div>
+    </div>
+
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>学习深层方法与策略（Deep Methods and Strategies）</span>
+            <span class="score">10.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="compare-bar">
+            <div class="marker avg" style="left: 78.0%;"></div>
+            <div class="marker user" style="left: 100.0%;"></div>
+        </div>
+        <div class="compare-bar-labels">
+            <span>我的: 10.0</span>
+            <span>平均: 7.8</span>
+        </div>
+        <div style="font-size:9pt; color:#666666; margin-top: 5mm; padding: 2mm 3mm; background: rgba(184,115,51,0.05); border-left: 3px solid #5D2E46; border-radius: 1mm; line-height: 1.6;">
+            学习深层方法与策略是为了深入理解知识本身而采取的学习方法和策略，是一种建立在理解和应用基础之上的深度学习。
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>学习表面方法与策略（Surface Methods and Strategies）</span>
+            <span class="score">4.4<span class="denom">/10.0</span></span>
+        </div>
+        <div class="compare-bar">
+            <div class="marker avg" style="left: 47.0%;"></div>
+            <div class="marker user" style="left: 44.00000000000001%;"></div>
+        </div>
+        <div class="compare-bar-labels">
+            <span>我的: 4.4</span>
+            <span>平均: 4.7</span>
+        </div>
+        <div style="font-size:9pt; color:#666666; margin-top: 5mm; padding: 2mm 3mm; background: rgba(184,115,51,0.05); border-left: 3px solid #5D2E46; border-radius: 1mm; line-height: 1.6;">
+            学习表面方法与策略是为了记住某具体内容或为了某次考试通过而学习的方法与策略，这种方法策略可以在短期内看到效果。
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>学习自我调节（Self-Regulation）</span>
+            <span class="score">8.2<span class="denom">/10.0</span></span>
+        </div>
+        <div class="compare-bar">
+            <div class="marker avg" style="left: 63.0%;"></div>
+            <div class="marker user" style="left: 82.0%;"></div>
+        </div>
+        <div class="compare-bar-labels">
+            <span>我的: 8.2</span>
+            <span>平均: 6.3</span>
+        </div>
+        <div style="font-size:9pt; color:#666666; margin-top: 5mm; padding: 2mm 3mm; background: rgba(184,115,51,0.05); border-left: 3px solid #5D2E46; border-radius: 1mm; line-height: 1.6;">
+            学习自我调节是学习过程中遇到困难或挫折时采取的自我调节的方法。
+        </div>
+    </div>
+    
+</div>
+
+
+<!-- ==================== 第四板块：专业与职业 ==================== -->
+<div class="page section-title" style="background: #FAF7F2;">
+    <div class="tiny">Section 04</div>
+    <div class="accent-bar"></div>
+    <h1>第四板块</h1>
+    <p>专业与职业</p>
+    <p style="font-size:10pt; color:#A4ADB2; letter-spacing:3px; margin-top:5mm; text-transform:uppercase;">Professional &amp; Career</p>
+</div>
+
+<!-- 4-1 职业兴趣（霍兰德） -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>VOCATIONAL INTEREST</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">职业兴趣</div>
+    <div class="report-en">Holland Vocational Interest Types</div>
+
+    <div class="intro-text">职业兴趣是兴趣爱好在职业选择方面的表现，背后是人格的一种体现。你可以理解为显性的或隐性的从事某种工作的偏好和愿望。职业兴趣代码是将你职业兴趣的测评结果按得分从高到低的顺序依次排序，得分最高的三个代码即为你的职业兴趣代码。</div>
+
+    <div class="holland-code-display">
+        <div class="code">IER</div>
+        <div class="label">Holland Code · 你的职业兴趣代码</div>
+    </div>
+
+    <div class="holland-hexagon">
+        <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+            <!-- 三层参考圆 (hairline light gray) -->
+            <circle cx="200" cy="200" r="140" fill="none" stroke="#E5E7EB" stroke-width="1" stroke-dasharray="4,4" />
+            <circle cx="200" cy="200" r="100" fill="none" stroke="#E5E7EB" stroke-width="1" stroke-dasharray="4,4" />
+            <circle cx="200" cy="200" r="60" fill="none" stroke="#E5E7EB" stroke-width="1" stroke-dasharray="4,4" />
+
+            <!-- 数据多边形 (teal fill 15%, teal 2px stroke) -->
+            <polygon
+                points="200.0,102.0 78.8,130.0 163.6,221.0 200.0,298.0 309.1,263.0 248.5,172.0"
+                fill="rgba(42,157,143,0.15)"
+                stroke="#2A9D8F" stroke-width="2" stroke-linejoin="round"
+            />
+
+            <!-- 顶点标签 — 无棕色圆圈,使用#374151文本 + 4px teal小圆点 -->
+            
+                <circle cx="200.0" cy="20.0" r="4" fill="#2A9D8F"/>
+                <text x="200.0" y="25.0" text-anchor="middle" font-size="13" font-weight="700" fill="#374151" font-family="PingFang SC, sans-serif">R</text>
+                <text x="200.0" y="42.0" text-anchor="middle" font-size="9" fill="#666666">现实型</text>
+                <text x="200.0" y="55.0" text-anchor="middle" font-size="10" font-weight="700" fill="#2A9D8F">7.0分</text>
+            
+                <circle cx="44.1" cy="110.0" r="4" fill="#2A9D8F"/>
+                <text x="44.1" y="115.0" text-anchor="middle" font-size="13" font-weight="700" fill="#374151" font-family="PingFang SC, sans-serif">I</text>
+                <text x="44.1" y="132.0" text-anchor="middle" font-size="9" fill="#666666">研究型</text>
+                <text x="44.1" y="145.0" text-anchor="middle" font-size="10" font-weight="700" fill="#2A9D8F">10.0分</text>
+            
+                <circle cx="44.1" cy="290.0" r="4" fill="#2A9D8F"/>
+                <text x="44.1" y="295.0" text-anchor="middle" font-size="13" font-weight="700" fill="#374151" font-family="PingFang SC, sans-serif">A</text>
+                <text x="44.1" y="312.0" text-anchor="middle" font-size="9" fill="#666666">艺术型</text>
+                <text x="44.1" y="325.0" text-anchor="middle" font-size="10" font-weight="700" fill="#2A9D8F">3.0分</text>
+            
+                <circle cx="200.0" cy="380.0" r="4" fill="#2A9D8F"/>
+                <text x="200.0" y="385.0" text-anchor="middle" font-size="13" font-weight="700" fill="#374151" font-family="PingFang SC, sans-serif">S</text>
+                <text x="200.0" y="402.0" text-anchor="middle" font-size="9" fill="#666666">社会型</text>
+                <text x="200.0" y="415.0" text-anchor="middle" font-size="10" font-weight="700" fill="#2A9D8F">7.0分</text>
+            
+                <circle cx="355.9" cy="290.0" r="4" fill="#2A9D8F"/>
+                <text x="355.9" y="295.0" text-anchor="middle" font-size="13" font-weight="700" fill="#374151" font-family="PingFang SC, sans-serif">E</text>
+                <text x="355.9" y="312.0" text-anchor="middle" font-size="9" fill="#666666">事业型</text>
+                <text x="355.9" y="325.0" text-anchor="middle" font-size="10" font-weight="700" fill="#2A9D8F">9.0分</text>
+            
+                <circle cx="355.9" cy="110.0" r="4" fill="#2A9D8F"/>
+                <text x="355.9" y="115.0" text-anchor="middle" font-size="13" font-weight="700" fill="#374151" font-family="PingFang SC, sans-serif">C</text>
+                <text x="355.9" y="132.0" text-anchor="middle" font-size="9" fill="#666666">常规型</text>
+                <text x="355.9" y="145.0" text-anchor="middle" font-size="10" font-weight="700" fill="#2A9D8F">4.0分</text>
+            
+        </svg>
+    </div>
+</div>
+
+
+<!-- 4-2 职业兴趣详情 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>INTEREST DETAILS</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">职业兴趣测评详情</div>
+    <div class="report-en">Vocational Interest Type Scores</div>
+
+    <div class="intro-text">以下是你在六种职业兴趣类型中的得分情况（满分 10）。</div>
+
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>R · 现实型（Realistic）</span>
+            <span class="score">7.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 70.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>I · 研究型（Investigative）</span>
+            <span class="score">10.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 100.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>A · 艺术型（Artistic）</span>
+            <span class="score">3.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 30.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>S · 社会型（Social）</span>
+            <span class="score">7.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 70.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>E · 事业型（Enterprising）</span>
+            <span class="score">9.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 90.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item">
+        <div class="bar-item-title">
+            <span>C · 常规型（Conventional）</span>
+            <span class="score">4.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 40.0%;"></div>
+        </div>
+    </div>
+    
+</div>
+
+
+<!-- 4-3 职业兴趣排名 -->
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>INTEREST RANKING</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">职业兴趣排名</div>
+    <div class="report-en">Vocational Interest Ranking</div>
+
+    <div class="rank-cards">
+        
+        <div class="rank-card">
+            <div class="rank-num">1</div>
+            <div class="rank-info">
+                <h4>I · 研究型（Investigative）</h4>
+                <p>10.0 分</p>
+            </div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">2</div>
+            <div class="rank-info">
+                <h4>E · 事业型（Enterprising）</h4>
+                <p>9.0 分</p>
+            </div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">3</div>
+            <div class="rank-info">
+                <h4>R · 现实型（Realistic）</h4>
+                <p>7.0 分</p>
+            </div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">4</div>
+            <div class="rank-info">
+                <h4>S · 社会型（Social）</h4>
+                <p>7.0 分</p>
+            </div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">5</div>
+            <div class="rank-info">
+                <h4>C · 常规型（Conventional）</h4>
+                <p>4.0 分</p>
+            </div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">6</div>
+            <div class="rank-info">
+                <h4>A · 艺术型（Artistic）</h4>
+                <p>3.0 分</p>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+
+<!-- 4-4 能力优势 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>MULTIPLE INTELLIGENCES</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">能力优势</div>
+    <div class="report-en">Multiple Intelligences Dimensions</div>
+
+    <div class="intro-text">每个人都有自己的天赋和能力优势。当你运用自身优势学习或工作时，往往能更高效、更专注，也更容易获得成就感与愉悦感。心理学家霍华德·加德纳提出人的能力可以划分八大类。</div>
+
+    <div class="score-display">
+        <div class="score-item">
+            <div class="score-number">逻辑数学能力</div>
+            <div class="score-label">最高分</div>
+        </div>
+        <div class="score-item">
+            <div class="score-number" style="color:#2A9D8F;">音乐能力</div>
+            <div class="score-label">最低分</div>
+        </div>
+    </div>
+
+    
+    <div class="bar-item" style="margin-bottom: 4mm;">
+        <div class="bar-item-title">
+            <span>语言能力（Verbal-Linguistic）</span>
+            <span class="score">6.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 60.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item" style="margin-bottom: 4mm;">
+        <div class="bar-item-title">
+            <span>逻辑数学能力（Logical-Mathematical）</span>
+            <span class="score">10.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 100.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item" style="margin-bottom: 4mm;">
+        <div class="bar-item-title">
+            <span>音乐能力（Musical）</span>
+            <span class="score">0.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 0.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item" style="margin-bottom: 4mm;">
+        <div class="bar-item-title">
+            <span>空间能力（Visual-Spatial）</span>
+            <span class="score">3.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 30.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item" style="margin-bottom: 4mm;">
+        <div class="bar-item-title">
+            <span>身体运动能力（Bodily-Kinesthetic）</span>
+            <span class="score">4.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 40.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item" style="margin-bottom: 4mm;">
+        <div class="bar-item-title">
+            <span>人际关系能力（Interpersonal）</span>
+            <span class="score">8.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 80.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item" style="margin-bottom: 4mm;">
+        <div class="bar-item-title">
+            <span>内省能力（Intrapersonal）</span>
+            <span class="score">8.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 80.0%;"></div>
+        </div>
+    </div>
+    
+    <div class="bar-item" style="margin-bottom: 4mm;">
+        <div class="bar-item-title">
+            <span>自然能力（Naturalistic）</span>
+            <span class="score">1.0<span class="denom">/10.0</span></span>
+        </div>
+        <div class="bar-track">
+            <div class="bar-fill teal" style="width: 10.0%;"></div>
+        </div>
+    </div>
+    
+</div>
+
+
+<!-- 4-5 能力优势详情 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>ABILITY ADVANTAGES</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">我的能力优势一览表</div>
+    <div class="report-en">Your Ability Advantages Overview</div>
+
+    <div class="intro-text">心理学家霍华德·加德纳提出人的能力可以划分八大类，以下是你八大能力的优势一览表。</div>
+
+    <div class="rank-cards">
+        
+        <div class="rank-card">
+            <div class="rank-num">1</div>
+            <div class="rank-info">
+                <h4>语言能力（Verbal-Linguistic）</h4>
+                <p>使用语言文字表达的能力，包括口头语言和书面语言。比如政治家、作家、记者、老师和演说家。</p>
+            </div>
+            <div class="rank-score">6.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">2</div>
+            <div class="rank-info">
+                <h4>逻辑数学能力（Logical-Mathematical）</h4>
+                <p>使用数字运算和逻辑推理解决问题的能力。比如科学家、会计师、工程师和计算机程序员。</p>
+            </div>
+            <div class="rank-score">10.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">3</div>
+            <div class="rank-info">
+                <h4>音乐能力（Musical）</h4>
+                <p>对音乐的节奏、旋律、音调和音色敏感，喜欢欣赏和创作音乐。比如作曲家、歌唱家和指挥家。</p>
+            </div>
+            <div class="rank-score">0.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">4</div>
+            <div class="rank-info">
+                <h4>空间能力（Visual-Spatial）</h4>
+                <p>对空间关系敏感，空间想象能力强。比如建筑师、飞行员、摄影师和室内设计师以及画家。</p>
+            </div>
+            <div class="rank-score">3.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">5</div>
+            <div class="rank-info">
+                <h4>身体运动能力（Bodily-Kinesthetic）</h4>
+                <p>擅长运用身体表达思想和情感，双手灵巧，善于完成精细动作的能力。比如运动员、舞者、外科医生。</p>
+            </div>
+            <div class="rank-score">4.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">6</div>
+            <div class="rank-info">
+                <h4>人际关系能力（Interpersonal）</h4>
+                <p>理解他人并与他人有效互动的能力，比如公关人员、教师、社会工作者或政治家。</p>
+            </div>
+            <div class="rank-score">8.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">7</div>
+            <div class="rank-info">
+                <h4>内省能力（Intrapersonal）</h4>
+                <p>能敏锐的觉察自己的情感、动机和欲望，善于反思和总结，自我认知清晰。比如哲学家和心理学家。</p>
+            </div>
+            <div class="rank-score">8.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">8</div>
+            <div class="rank-info">
+                <h4>自然能力（Naturalistic）</h4>
+                <p>善于观察和识别动植物、环境差异及发展规律。比如植物学家、生态学家和园林设计师。</p>
+            </div>
+            <div class="rank-score">1.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+    </div>
+</div>
+
+
+<!-- 4-6 能力优势排名 -->
+
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>ABILITY RANKING</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">能力优势排名详情</div>
+    <div class="report-en">Ability Advantages Ranking</div>
+
+    <div class="rank-cards">
+        
+        <div class="rank-card">
+            <div class="rank-num">1</div>
+            <div class="rank-info">
+                <h4>逻辑数学能力（Logical-Mathematical）</h4>
+                <p>使用数字运算和逻辑推理解决问题的能力。比如科学家、会计师、工程师和计算机程序员。</p>
+            </div>
+            <div class="rank-score">10.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">2</div>
+            <div class="rank-info">
+                <h4>人际关系能力（Interpersonal）</h4>
+                <p>理解他人并与他人有效互动的能力，比如公关人员、教师、社会工作者或政治家。</p>
+            </div>
+            <div class="rank-score">8.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">3</div>
+            <div class="rank-info">
+                <h4>内省能力（Intrapersonal）</h4>
+                <p>能敏锐的觉察自己的情感、动机和欲望，善于反思和总结，自我认知清晰。比如哲学家和心理学家。</p>
+            </div>
+            <div class="rank-score">8.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">4</div>
+            <div class="rank-info">
+                <h4>语言能力（Verbal-Linguistic）</h4>
+                <p>使用语言文字表达的能力，包括口头语言和书面语言。比如政治家、作家、记者、老师和演说家。</p>
+            </div>
+            <div class="rank-score">6.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">5</div>
+            <div class="rank-info">
+                <h4>身体运动能力（Bodily-Kinesthetic）</h4>
+                <p>擅长运用身体表达思想和情感，双手灵巧，善于完成精细动作的能力。比如运动员、舞者、外科医生。</p>
+            </div>
+            <div class="rank-score">4.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">6</div>
+            <div class="rank-info">
+                <h4>空间能力（Visual-Spatial）</h4>
+                <p>对空间关系敏感，空间想象能力强。比如建筑师、飞行员、摄影师和室内设计师以及画家。</p>
+            </div>
+            <div class="rank-score">3.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">7</div>
+            <div class="rank-info">
+                <h4>自然能力（Naturalistic）</h4>
+                <p>善于观察和识别动植物、环境差异及发展规律。比如植物学家、生态学家和园林设计师。</p>
+            </div>
+            <div class="rank-score">1.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+        <div class="rank-card">
+            <div class="rank-num">8</div>
+            <div class="rank-info">
+                <h4>音乐能力（Musical）</h4>
+                <p>对音乐的节奏、旋律、音调和音色敏感，喜欢欣赏和创作音乐。比如作曲家、歌唱家和指挥家。</p>
+            </div>
+            <div class="rank-score">0.0<span style="color:#999999; font-weight:500; font-size:14px;">/10.0</span></div>
+        </div>
+        
+    </div>
+</div>
+
+
+<!-- 4-7 职业价值观 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>WORK VALUES</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">职业价值观</div>
+    <div class="report-en">Core Work Values</div>
+
+    <div class="intro-text">职业价值观是指在未来职业生涯中，你更看重什么，更想要什么。它可能是发明创造，可能是帮助他人，也可能是体验和创造美的东西，又或者是影响和领导他人。这些你想要的组合在一起就是你的职业价值观。</div>
+
+    <div class="score-display">
+        <div class="score-item">
+            <div class="score-number">独立自主</div>
+            <div class="score-label">最看重</div>
+        </div>
+        <div class="score-item">
+            <div class="score-number" style="color:#2A9D8F;">工作环境</div>
+            <div class="score-label">最不看重</div>
+        </div>
+    </div>
+
+    <div class="sub-title">各职业价值观得分情况</div>
+
+    <div class="values-list">
+        
+        <div class="value-row">
+            <div class="value-rank">1</div>
+            <div class="value-name">创造发明</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 75.6%;"></div>
+            </div>
+            <div class="value-score-num">7.56</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">2</div>
+            <div class="value-name">独立自主</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 84.39999999999999%;"></div>
+            </div>
+            <div class="value-score-num">8.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">3</div>
+            <div class="value-name">美的追求</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 40.0%;"></div>
+            </div>
+            <div class="value-score-num">4.0</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">4</div>
+            <div class="value-name">智力激发</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 84.39999999999999%;"></div>
+            </div>
+            <div class="value-score-num">8.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">5</div>
+            <div class="value-name">利他助人</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 44.400000000000006%;"></div>
+            </div>
+            <div class="value-score-num">4.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">6</div>
+            <div class="value-name">成就感</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 75.6%;"></div>
+            </div>
+            <div class="value-score-num">7.56</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">7</div>
+            <div class="value-name">管理权力</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 80.0%;"></div>
+            </div>
+            <div class="value-score-num">8.0</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">8</div>
+            <div class="value-name">工作环境</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 31.1%;"></div>
+            </div>
+            <div class="value-score-num">3.11</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">9</div>
+            <div class="value-name">同事关系</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 75.6%;"></div>
+            </div>
+            <div class="value-score-num">7.56</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">10</div>
+            <div class="value-name">上司关系</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 71.10000000000001%;"></div>
+            </div>
+            <div class="value-score-num">7.11</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">11</div>
+            <div class="value-name">多样变化</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 44.400000000000006%;"></div>
+            </div>
+            <div class="value-score-num">4.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">12</div>
+            <div class="value-name">经济报酬</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 80.0%;"></div>
+            </div>
+            <div class="value-score-num">8.0</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">13</div>
+            <div class="value-name">安全稳定</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 48.9%;"></div>
+            </div>
+            <div class="value-score-num">4.89</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">14</div>
+            <div class="value-name">声望地位</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 84.39999999999999%;"></div>
+            </div>
+            <div class="value-score-num">8.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">15</div>
+            <div class="value-name">生活方式</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 80.0%;"></div>
+            </div>
+            <div class="value-score-num">8.0</div>
+        </div>
+        
+    </div>
+</div>
+
+
+<!-- 4-8 职业价值观排名 -->
+
+<div class="page">
+    <div class="page-header">
+        <div class="left"><span class="accent-dot"></span>VALUES RANKED</div>
+        <div class="right">学生 · 2026-03-14</div>
+    </div>
+    <div class="report-title">我的职业价值观一览表</div>
+    <div class="report-en">Your Core Work Values Overview</div>
+
+    <div class="intro-text">对于未来职业，可能我们想要的很多。但对我们真正重要的可能就几个。下面看一看你最看重的职业价值吧。</div>
+
+    <div class="values-list">
+        
+        <div class="value-row">
+            <div class="value-rank">1</div>
+            <div class="value-name">独立自主</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 84.39999999999999%;"></div>
+            </div>
+            <div class="value-score-num">8.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">2</div>
+            <div class="value-name">智力激发</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 84.39999999999999%;"></div>
+            </div>
+            <div class="value-score-num">8.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">3</div>
+            <div class="value-name">声望地位</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 84.39999999999999%;"></div>
+            </div>
+            <div class="value-score-num">8.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">4</div>
+            <div class="value-name">管理权力</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 80.0%;"></div>
+            </div>
+            <div class="value-score-num">8.0</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">5</div>
+            <div class="value-name">经济报酬</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 80.0%;"></div>
+            </div>
+            <div class="value-score-num">8.0</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">6</div>
+            <div class="value-name">生活方式</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 80.0%;"></div>
+            </div>
+            <div class="value-score-num">8.0</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">7</div>
+            <div class="value-name">创造发明</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 75.6%;"></div>
+            </div>
+            <div class="value-score-num">7.56</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">8</div>
+            <div class="value-name">成就感</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 75.6%;"></div>
+            </div>
+            <div class="value-score-num">7.56</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">9</div>
+            <div class="value-name">同事关系</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 75.6%;"></div>
+            </div>
+            <div class="value-score-num">7.56</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">10</div>
+            <div class="value-name">上司关系</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 71.10000000000001%;"></div>
+            </div>
+            <div class="value-score-num">7.11</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">11</div>
+            <div class="value-name">安全稳定</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 48.9%;"></div>
+            </div>
+            <div class="value-score-num">4.89</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">12</div>
+            <div class="value-name">利他助人</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 44.400000000000006%;"></div>
+            </div>
+            <div class="value-score-num">4.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">13</div>
+            <div class="value-name">多样变化</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 44.400000000000006%;"></div>
+            </div>
+            <div class="value-score-num">4.44</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">14</div>
+            <div class="value-name">美的追求</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 40.0%;"></div>
+            </div>
+            <div class="value-score-num">4.0</div>
+        </div>
+        
+        <div class="value-row">
+            <div class="value-rank">15</div>
+            <div class="value-name">工作环境</div>
+            <div class="value-score-bar">
+                <div class="value-score-fill" style="width: 31.1%;"></div>
+            </div>
+            <div class="value-score-num">3.11</div>
+        </div>
+        
+    </div>
+</div>
+
+
+</body>
+</html>

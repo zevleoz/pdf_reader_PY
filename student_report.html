@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生综合评估报告</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f8f9fa;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .report-container {
+            max-width: 210mm;
+            margin: 40px auto;
+            background-color: #fff;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 25mm;
+            min-height: 297mm;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #1a365d;
+        }
+
+        .header h1 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 28px;
+            color: #1a365d;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .section {
+            margin-bottom: 28px;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            margin-bottom: 14px;
+            padding: 10px 14px;
+            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+            border-radius: 4px;
+        }
+
+        .section-title .icon {
+            width: 28px;
+            height: 28px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 14px;
+            color: #fff;
+        }
+
+        .section-title h2 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 16px;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .section-content {
+            padding: 16px 20px;
+            background-color: #fafbfc;
+            border-left: 4px solid #4299e1;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .section-content p {
+            font-size: 14px;
+            color: #4a5568;
+            text-align: justify;
+            text-indent: 2em;
+        }
+
+        .highlight-box {
+            margin-top: 12px;
+            padding: 12px 16px;
+            background-color: #ebf8ff;
+            border-radius: 4px;
+            border-left: 3px solid #3182ce;
+        }
+
+        .highlight-box p {
+            font-size: 13px;
+            color: #2c5282;
+            font-weight: 500;
+            text-indent: 0;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .metric-card {
+            background-color: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 6px;
+        }
+
+        .metric-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a365d;
+        }
+
+        .metric-value.high {
+            color: #38a169;
+        }
+
+        .metric-value.medium {
+            color: #ecc94b;
+        }
+
+        .metric-value.low {
+            color: #e53e3e;
+        }
+
+        .progress-bar-container {
+            margin-top: 12px;
+        }
+
+        .progress-item {
+            margin-bottom: 10px;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #4a5568;
+            margin-bottom: 4px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+
+        .progress-fill.excellent {
+            background: linear-gradient(90deg, #38a169, #48bb78);
+        }
+
+        .progress-fill.good {
+            background: linear-gradient(90deg, #4299e1, #63b3ed);
+        }
+
+        .progress-fill.moderate {
+            background: linear-gradient(90deg, #ecc94b, #f6e05e);
+        }
+
+        .progress-fill.low {
+            background: linear-gradient(90deg, #fc8181, #f56565);
+        }
+
+        .holland-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .holland-item {
+            text-align: center;
+            padding: 10px 6px;
+            background-color: #fff;
+            border-radius: 6px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .holland-item.strong {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+
+        .holland-item.weak {
+            border-color: #fc8181;
+            background-color: #fff5f5;
+        }
+
+        .holland-letter {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a365d;
+            display: block;
+        }
+
+        .holland-name {
+            font-size: 10px;
+            color: #718096;
+            margin-top: 4px;
+        }
+
+        .holland-score {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4299e1;
+            margin-top: 4px;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            text-align: center;
+            font-size: 12px;
+            color: #a0aec0;
+        }
+
+        @media print {
+            body {
+                background-color: #fff;
+            }
+            
+            .report-container {
+                margin: 0;
+                padding: 20mm;
+                box-shadow: none;
+                width: 210mm;
+            }
+            
+            .footer {
+                position: fixed;
+                bottom: 15mm;
+                left: 20mm;
+                right: 20mm;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="header">
+            <h1>学生综合评估报告</h1>
+            <p>Student Comprehensive Assessment Report</p>
+            <p style="margin-top: 8px; font-size: 12px; color: #999;">评估日期：2026年07月15日 | 报告编号：SA-2026-0715</p>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">1</span>
+                <h2>情绪稳定性评估</h2>
+            </div>
+            <div class="section-content">
+                <p>情绪稳定性低于平均值，主要体现在无力感和自信心不足。相比于情绪波动，更需要关注的是遇到挑战时容易较早放弃，对自身掌控感偏弱，成功经验的持续积累比单纯鼓励更重要。</p>
+                <div class="highlight-box">
+                    <p><strong>核心关注点：</strong>无力感、自信心不足、挑战放弃倾向、掌控感偏弱</p>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>情绪稳定性</span>
+                            <span>低于平均</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill low" style="width: 35%"></div>
+                        </div>
+                    </div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>自信心</span>
+                            <span>偏低</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill low" style="width: 30%"></div>
+                        </div>
+                    </div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>抗挫折能力</span>
+                            <span>较弱</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill moderate" style="width: 40%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">2</span>
+                <h2>社交特质评估</h2>
+            </div>
+            <div class="section-content">
+                <p>外倾性、合群和神经质均较高，说明他倾向于通过群体获得情绪支持和价值确认，目前社交适应整体健康。但这类学生的情绪状态容易受到同伴关系影响，一旦社交归属感下降，可能同步影响情绪、学习动力和自我评价。</p>
+                <div class="highlight-box">
+                    <p><strong>风险提示：</strong>情绪状态易受同伴关系影响，需关注社交归属感变化</p>
+                </div>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">外倾性</div>
+                        <div class="metric-value high">高</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">合群性</div>
+                        <div class="metric-value high">高</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">神经质</div>
+                        <div class="metric-value high">高</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">3</span>
+                <h2>精力管理评估</h2>
+            </div>
+            <div class="section-content">
+                <p>精力管理方面，BMI偏瘦，运动为0小时/周，饮食习惯也较弱。当前身体储备与认知潜力并不匹配，建议优先改善营养摄入并建立规律运动习惯，否则长期容易出现精力不足、恢复能力下降等问题。</p>
+                <div class="highlight-box">
+                    <p><strong>建议行动：</strong>优先改善营养摄入，建立规律运动习惯，提升身体储备</p>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>BMI指数</span>
+                            <span>偏瘦</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill low" style="width: 25%"></div>
+                        </div>
+                    </div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>运动频率</span>
+                            <span>0小时/周</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill low" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>饮食习惯</span>
+                            <span>较弱</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill moderate" style="width: 35%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">4</span>
+                <h2>认知资源评估</h2>
+            </div>
+            <div class="section-content">
+                <p>认知资源整体非常优秀（98百分位），空间能力、推理能力和注意力尤为突出。执行功能中认知灵活性明显弱于抑制控制和工作记忆，说明更擅长持续深入处理同一任务，而非频繁切换任务。因此更适合采用较长时间的连续学习（large study blocks），减少任务切换，以充分发挥认知优势并降低转换成本。</p>
+                <div class="highlight-box">
+                    <p><strong>学习建议：</strong>采用较长时间的连续学习（large study blocks），减少任务切换频率</p>
+                </div>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">认知资源</div>
+                        <div class="metric-value high">98%</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">空间能力</div>
+                        <div class="metric-value high">优秀</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">推理能力</div>
+                        <div class="metric-value high">优秀</div>
+                    </div>
+                </div>
+                <div class="progress-bar-container" style="margin-top: 16px;">
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>认知灵活性</span>
+                            <span>中等</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill moderate" style="width: 55%"></div>
+                        </div>
+                    </div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>抑制控制</span>
+                            <span>优秀</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill excellent" style="width: 85%"></div>
+                        </div>
+                    </div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>工作记忆</span>
+                            <span>优秀</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill excellent" style="width: 88%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">5</span>
+                <h2>学习动机评估</h2>
+            </div>
+            <div class="section-content">
+                <p>学习动机中，深层动机和深层学习策略均偏低。说明现阶段具备学习能力，但对知识本身的探索欲和主动建构理解不足，更容易停留在完成任务层面。后续应重点培养提问、关联、迁移等深度学习方式，而非单纯增加学习时间。</p>
+                <div class="highlight-box">
+                    <p><strong>培养方向：</strong>重点培养提问、关联、迁移等深度学习方式，提升知识探索欲</p>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>深层动机</span>
+                            <span>偏低</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill low" style="width: 35%"></div>
+                        </div>
+                    </div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>深层学习策略</span>
+                            <span>偏低</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill low" style="width: 30%"></div>
+                        </div>
+                    </div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>任务完成能力</span>
+                            <span>良好</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill good" style="width: 70%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">6</span>
+                <h2>霍兰德兴趣评估</h2>
+            </div>
+            <div class="section-content">
+                <p>霍兰德兴趣呈现RIEA较均衡（6–7分），说明兴趣广度较高，兼具动手实践、逻辑分析、创造表达和一定的领导倾向。值得关注的是常规型得分为0，意味着其对高度标准化、流程化、重复性的环境容忍度较低，在专业和未来职业选择上应尽量避免以规则执行为核心的岗位，否则长期容易消耗动力。</p>
+                <div class="highlight-box">
+                    <p><strong>职业建议：</strong>避免高度标准化、流程化、重复性的岗位，选择发挥动手实践、逻辑分析、创造表达能力的职业方向</p>
+                </div>
+                <div class="holland-grid">
+                    <div class="holland-item strong">
+                        <span class="holland-letter">R</span>
+                        <span class="holland-name">现实型</span>
+                        <span class="holland-score">7分</span>
+                    </div>
+                    <div class="holland-item strong">
+                        <span class="holland-letter">I</span>
+                        <span class="holland-name">研究型</span>
+                        <span class="holland-score">7分</span>
+                    </div>
+                    <div class="holland-item strong">
+                        <span class="holland-letter">E</span>
+                        <span class="holland-name">企业型</span>
+                        <span class="holland-score">6分</span>
+                    </div>
+                    <div class="holland-item strong">
+                        <span class="holland-letter">A</span>
+                        <span class="holland-name">艺术型</span>
+                        <span class="holland-score">6分</span>
+                    </div>
+                    <div class="holland-item">
+                        <span class="holland-letter">S</span>
+                        <span class="holland-name">社会型</span>
+                        <span class="holland-score">3分</span>
+                    </div>
+                    <div class="holland-item weak">
+                        <span class="holland-letter">C</span>
+                        <span class="holland-name">常规型</span>
+                        <span class="holland-score">0分</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>本报告仅供内部参考使用</p>
+            <p style="margin-top: 4px;">Student Assessment Report | Confidential</p>
+        </div>
+    </div>
+</body>
+</html>

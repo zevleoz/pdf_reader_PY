@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Y4 评测报告 · 尊享版</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+@page { size: A4; margin: 0; }
+html, body { 
+    font-family: "PingFang SC","Microsoft YaHei",Georgia,"Times New Roman",serif; 
+    color:#1E1B4B; 
+    font-size:10pt; 
+    line-height:1.6; 
+    background:#FDFBF7; 
+    -webkit-font-smoothing: antialiased; 
+    -webkit-print-color-adjust: exact; 
+    print-color-adjust: exact; 
+}
+
+.page { 
+    width:210mm; 
+    height:297mm; 
+    padding:12mm 16mm; 
+    page-break-after:always; 
+    position:relative; 
+    overflow:hidden; 
+    background:#FDFBF7; 
+}
+.page:last-child { page-break-after:auto; }
+
+.page-header { 
+    display:flex; 
+    justify-content:space-between; 
+    align-items:center; 
+    margin-bottom:4mm; 
+    font-size:8.5pt; 
+    color:#6D5DFF; 
+    letter-spacing:0.5px; 
+    border-bottom: 1px solid #EDE9FE;
+    padding-bottom: 2mm;
+}
+.page-header .left { display:flex; align-items:center; gap:2.5mm; }
+.page-header .logo-mini { 
+    width:28px; 
+    height:28px; 
+    background-image:url('branding/logo_color.png'); 
+    background-size:contain; 
+    background-repeat:no-repeat; 
+    background-position:center; 
+}
+.page-header .tag { 
+    font-size:8.5pt; 
+    color:#8B5CF6; 
+    font-weight:700; 
+    letter-spacing:2px; 
+    text-transform:uppercase; 
+    border: 1px solid #8B5CF6;
+    padding: 0.5mm 2mm;
+    border-radius: 4px;
+}
+.page-header .right { color:#6D7280; font-size:8pt; text-align:right; }
+
+.page-title { 
+    font-size:22pt; 
+    font-weight:700; 
+    background: linear-gradient(135deg, #8B5CF6 0%, #D97706 50%, #8B5CF6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing:2px; 
+    margin-bottom:1mm; 
+}
+.page-title-en { font-size:9pt; color:#6D7280; letter-spacing:2px; margin-bottom:5mm; font-weight:400; text-transform:uppercase; }
+
+.intro-card { 
+    background:#FFFFFF; 
+    border:1px solid #EDE9FE; 
+    border-left:4px solid #8B5CF6; 
+    border-radius:16px; 
+    padding:5mm 6mm; 
+    margin-bottom:5mm; 
+    font-size:9.5pt; 
+    line-height:1.8; 
+    color:#4B5563; 
+    position:relative; 
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.08);
+}
+
+.gold-gradient {
+    background: linear-gradient(135deg, #D97706 0%, #FBBF24 50%, #D97706 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.purple-card {
+    background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+    color:white;
+    border-radius:16px;
+    padding:6mm 8mm;
+    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+}
+
+.white-card {
+    background:#FFFFFF;
+    border:1px solid #EDE9FE;
+    border-radius:16px;
+    padding:5mm 6mm;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.gold-divider {
+    height:3px;
+    background: linear-gradient(90deg, transparent, #D97706, transparent);
+    margin:6mm 0;
+    border-radius:2px;
+}
+
+.page-footer {
+    position:absolute;
+    bottom:8mm;
+    left:16mm;
+    right:16mm;
+    text-align:center;
+    font-size:8pt;
+    color:#9CA3AF;
+    letter-spacing:1px;
+}
+.page-footer .decor {
+    width:40mm;
+    height:1px;
+    background: linear-gradient(90deg, transparent, #8B5CF6, transparent);
+    margin:0 auto 2mm;
+}
+
+.watermark {
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%, -50%) rotate(-15deg);
+    opacity:0.03;
+    font-size:120pt;
+    font-weight:700;
+    color:#8B5CF6;
+    pointer-events:none;
+    letter-spacing:10px;
+}
+
+.cover { 
+    display:flex; 
+    flex-direction:column; 
+    align-items:center; 
+    justify-content:center; 
+    height:267mm; 
+    text-align:center; 
+    padding: 0 18mm;
+    background: linear-gradient(180deg, #1E1B4B 0%, #312E81 50%, #1E1B4B 100%);
+}
+.cover .watermark {
+    color:white;
+    opacity:0.05;
+}
+.cover .cover-logo { width:80mm; height:auto; margin-bottom:8mm; }
+.cover .gold-line { width:50mm; height:3px; background: linear-gradient(90deg, #D97706, #FBBF24, #D97706); margin:4mm 0; border-radius:2px; }
+.cover .cover-title { 
+    font-size:32pt; 
+    font-weight:700; 
+    background: linear-gradient(135deg, #D97706 0%, #FBBF24 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing:6px; 
+    margin:2mm 0; 
+}
+.cover .cover-subtitle { 
+    font-size:22pt; 
+    font-weight:600; 
+    color:#FFFFFF; 
+    letter-spacing:4px; 
+    margin-bottom:3mm; 
+}
+.cover .cover-subtitle-en { 
+    font-size:11pt; 
+    letter-spacing:4px; 
+    color:#A5B4FC; 
+    text-transform:uppercase; 
+    margin-bottom:8mm; 
+    font-weight:300;
+}
+.cover .info-card { 
+    background:rgba(255,255,255,0.1); 
+    backdrop-filter: blur(10px);
+    border-radius:16px; 
+    padding:8mm 20mm; 
+    margin-top:10mm; 
+    border:1px solid rgba(255,255,255,0.2);
+}
+.cover .info-card .row { 
+    display:flex; 
+    padding:2mm 0; 
+    font-size:10pt; 
+    justify-content:center; 
+    gap:6mm; 
+}
+.cover .info-card .row .label { 
+    color:#FBBF24; 
+    font-weight:600; 
+    letter-spacing:1px;
+}
+.cover .info-card .row .value { 
+    color:#FFFFFF; 
+    font-weight:400; 
+}
+
+.y4-intro { padding-top:20mm; }
+.y4-intro .y4-title { 
+    font-size:24pt; 
+    font-weight:700; 
+    background: linear-gradient(135deg, #8B5CF6 0%, #D97706 50%, #8B5CF6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing:2px; 
+    margin-bottom:3mm; 
+}
+.y4-intro .y4-en { font-size:10pt; color:#6D7280; letter-spacing:3px; text-transform:uppercase; margin-bottom:10mm; }
+.y4-intro .y4-sep { width:40mm; height:3px; background: linear-gradient(90deg, #8B5CF6, #D97706); margin-bottom:8mm; border-radius:2px; }
+.y4-intro .y4-content { font-size:12pt; color:#4B5563; line-height:2; }
+.y4-intro .y4-content p { margin-bottom:5mm; }
+.y4-intro .bullet-item { position:relative; padding-left:10mm; margin:4mm 0; }
+.y4-intro .bullet-item::before { 
+    content:"●"; 
+    position:absolute; 
+    left:0; 
+    top:10px; 
+    color:#8B5CF6; 
+    font-size:12pt;
+}
+
+.emotion-gauge-section { text-align:center; margin-bottom:6mm; }
+.emotion-gauge { display:flex; justify-content:center; }
+.emotion-score-row { margin:3mm 0; }
+.emotion-total { 
+    font-size:32pt; 
+    font-weight:700; 
+    background: linear-gradient(135deg, #8B5CF6 0%, #D97706 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-variant-numeric:tabular-nums; 
+}
+.emotion-total-max { font-size:14pt; color:#6D7280; font-weight:500; }
+
+.polarity-item { margin-bottom:6mm; }
+.polarity-labels { display:flex; justify-content:space-between; margin-bottom:2mm; }
+.pol-left { text-align:left; }
+.pol-right { text-align:right; }
+.pol-zh { font-size:10.5pt; font-weight:700; color:#1E1B4B; }
+.pol-en { font-size:7pt; color:#6D7280; letter-spacing:1px; margin-top:0.5mm; text-transform:uppercase; }
+.polarity-bar-wrap { display:flex; align-items:center; gap:3mm; }
+.pol-tick-min, .pol-tick-max { font-size:8pt; color:#6D7280; font-weight:500; flex:0 0 auto; }
+.polarity-bar { 
+    flex:1; 
+    position:relative; 
+    height:10px; 
+    background:linear-gradient(90deg, #8B5CF6 0%, #D97706 50%, #0D9488 100%); 
+    border-radius:5px; 
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
+}
+.pol-dot { 
+    position:absolute; 
+    width:32px; 
+    height:32px; 
+    background:#1E1B4B; 
+    border-radius:50%; 
+    top:50%; 
+    left:0; 
+    margin-left:-16px; 
+    margin-top:-16px; 
+    display:flex; 
+    align-items:center; 
+    justify-content:center; 
+    z-index:2; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.pol-dot span { color:#FBBF24; font-size:10pt; font-weight:700; }
+
+.self-concept-score-bar { 
+    display:flex; 
+    flex-direction:column; 
+    align-items:center; 
+    margin:8mm 0; 
+    padding-top:8mm; 
+    position:relative; 
+}
+.score-bar-track { 
+    display:flex; 
+    width:95%; 
+    height:12mm; 
+    border-radius:10px; 
+    overflow:hidden; 
+    border:2px solid #EDE9FE;
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.1);
+}
+.score-segment { flex:1; display:flex; align-items:center; justify-content:center; }
+.score-segment.low { background:#8B5CF6; flex:0 0 30%; }
+.score-segment.normal { background:#0D9488; flex:0 0 60%; }
+.score-segment.high { background:#D97706; flex:0 0 10%; }
+.segment-text { text-align:center; color:white; }
+.segment-text .zh { font-size:9pt; font-weight:700; margin-bottom:0.3mm; }
+.segment-text .en { font-size:6pt; letter-spacing:1px; opacity:0.9; }
+.score-marker { position:absolute; top:0; transform:translateX(-50%); z-index:10; display:flex; flex-direction:column; align-items:center; }
+.marker-box { 
+    background:linear-gradient(135deg, #1E1B4B, #312E81); 
+    color:#FBBF24; 
+    padding:1.5mm 3mm; 
+    border-radius:8px; 
+    font-size:12pt; 
+    font-weight:700; 
+    font-variant-numeric:tabular-nums; 
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+.marker-arrow { width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent; border-top:10px solid #1E1B4B; margin-top:0; }
+
+.progress-item { display:flex; align-items:center; padding:3.5mm 0; margin-bottom:0; }
+.progress-item .label-wrap { flex:0 0 40mm; padding-right:4mm; }
+.progress-item .zh-label { font-size:10.5pt; font-weight:700; color:#1E1B4B; letter-spacing:0.5px; line-height:1.3; }
+.progress-item .en-label { font-size:7pt; color:#6D7280; letter-spacing:1px; margin-top:1mm; text-transform:uppercase; }
+.progress-item .val-wrap { flex:0 0 auto; font-size:14pt; font-weight:700; color:#8B5CF6; text-align:right; min-width:22mm; font-variant-numeric:tabular-nums; }
+.progress-item .val-wrap small { font-size:8pt; color:#6D7280; font-weight:400; }
+.progress-item .slider-wrap { flex:1; position:relative; margin:0 5mm; height:24px; }
+.progress-item .slider-bar { 
+    height:10px; 
+    background:linear-gradient(90deg, #8B5CF6 0%, #D97706 100%); 
+    border-radius:5px; 
+    position:relative; 
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.15);
+}
+.progress-item .value-dot { 
+    position:absolute; 
+    width:30px; 
+    height:30px; 
+    background:#1E1B4B; 
+    border-radius:50%; 
+    top:50%; 
+    left:50%; 
+    margin-left:-15px; 
+    margin-top:-15px; 
+    display:flex; 
+    align-items:center; 
+    justify-content:center; 
+    z-index:2; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.progress-item .value-dot span { color:#FBBF24; font-size:9pt; font-weight:700; }
+
+.radar-chart-wrap { display:flex; justify-content:center; margin:4mm 0; }
+.radar-svg { width:85%; height:auto; }
+
+.bmi-section { margin-top:3mm; background:white; border-radius:16px; padding:6mm; border:1px solid #EDE9FE; margin-bottom:5mm; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+.bmi-section-title { font-size:11pt; font-weight:700; color:#1E1B4B; margin-bottom:2mm; letter-spacing:0.5px; }
+.bmi-section-subtitle { font-size:8pt; color:#6D7280; letter-spacing:0.5px; margin-bottom:5mm; }
+.bmi-figures { display:grid; grid-template-columns:repeat(4, 1fr); gap:3mm; text-align:center; }
+
+.habit-cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:4mm; margin-top:3mm; }
+.habit-card { 
+    background:white; 
+    border:1px solid #EDE9FE; 
+    border-left:4px solid #8B5CF6; 
+    border-radius:14px; 
+    padding:4mm 5mm; 
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.08);
+}
+.habit-card .habit-title { font-size:11pt; font-weight:700; color:#1E1B4B; margin-bottom:1mm; }
+.habit-card .habit-en { font-size:7pt; color:#6D7280; letter-spacing:1px; margin-bottom:3mm; }
+.habit-card .habit-score { font-size:16pt; font-weight:700; color:#8B5CF6; }
+
+.holland-code-card { 
+    background:linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); 
+    color:white; 
+    border-radius:16px; 
+    padding:6mm; 
+    text-align:center; 
+    margin-bottom:4mm; 
+    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+}
+.holland-code-card .label { font-size:8pt; letter-spacing:2px; text-transform:uppercase; opacity:0.9; margin-bottom:3mm; }
+.holland-code-card .code { font-size:36pt; font-weight:700; letter-spacing:4mm; margin-bottom:2mm; }
+.holland-code-card .sub { font-size:10pt; opacity:0.9; }
+
+.holland-items { margin-top:3mm; }
+.holland-items .h-item { 
+    display:flex; 
+    flex-direction:column; 
+    padding:4mm; 
+    border-radius:14px; 
+    background:white; 
+    margin-bottom:3mm; 
+    border:1px solid #EDE9FE;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.holland-items .h-item .h-row-1 { display:flex; align-items:center; width:100%; }
+.holland-items .h-item .hl { 
+    width:32px; 
+    height:32px; 
+    background:linear-gradient(135deg, #8B5CF6, #6366F1); 
+    color:white; 
+    border-radius:8px; 
+    font-size:14pt; 
+    font-weight:700; 
+    text-align:center; 
+    line-height:32px; 
+    margin-right:3mm; 
+    flex-shrink:0; 
+}
+.holland-items .h-item .text { flex:0 0 28mm; }
+.holland-items .h-item .text .zh { font-size:10pt; font-weight:700; color:#1E1B4B; }
+.holland-items .h-item .text .en { font-size:7pt; color:#6D7280; }
+.holland-items .h-item .bar { flex:2; position:relative; height:10px; background:#EDE9FE; border-radius:5px; margin:0 4mm; }
+.holland-items .h-item .bar .bar-fill { height:100%; background:linear-gradient(90deg, #8B5CF6, #D97706); border-radius:5px; }
+.holland-items .h-item .val-wrap { flex:0 0 auto; font-size:14pt; font-weight:700; color:#8B5CF6; min-width:15mm; text-align:right; font-variant-numeric:tabular-nums; }
+
+.cog-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:4mm; margin-top:4mm; }
+.cog-grid .cog-item { 
+    background:white; 
+    border:1px solid #EDE9FE; 
+    border-radius:14px; 
+    padding:5mm 4mm; 
+    text-align:left; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.cog-grid .cog-item .zh { font-size:10pt; font-weight:700; color:#1E1B4B; margin-bottom:1mm; }
+.cog-grid .cog-item .en { font-size:7pt; color:#6D7280; letter-spacing:0.5px; margin-bottom:3mm; }
+.cog-grid .cog-item .bar { position:relative; height:10px; background:#EDE9FE; border-radius:5px; margin-bottom:3mm; }
+.cog-grid .cog-item .bar .bar-fill { height:100%; background:linear-gradient(90deg, #8B5CF6, #D97706); border-radius:5px; }
+.cog-grid .cog-item .pct { text-align:right; font-size:14pt; font-weight:700; color:#8B5CF6; font-variant-numeric:tabular-nums; }
+.cog-grid .cog-item .desc { font-size:8.5pt; color:#6D7280; line-height:1.6; margin-top:2mm; }
+
+.dark-score-card { 
+    background:linear-gradient(135deg, #1E1B4B 0%, #312E81 100%); 
+    color:white; 
+    border-radius:16px; 
+    padding:6mm 8mm; 
+    display:flex; 
+    align-items:center; 
+    justify-content:space-between; 
+    margin-bottom:5mm;
+    box-shadow: 0 8px 24px rgba(30, 27, 75, 0.3);
+}
+.dark-score-card .left { display:flex; align-items:center; gap:4mm; }
+.dark-score-card .title { font-size:11pt; font-weight:700; margin-bottom:1mm; }
+.dark-score-card .subtitle { font-size:7.5pt; letter-spacing:1px; opacity:0.7; }
+.dark-score-card .right { display:flex; gap:8mm; align-items:center; }
+.dark-score-card .value-block { text-align:center; }
+.dark-score-card .big-val { font-size:26pt; font-weight:700; line-height:1.1; background: linear-gradient(135deg, #FBBF24, #D97706); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-variant-numeric:tabular-nums; }
+.dark-score-card .label { font-size:7.5pt; letter-spacing:1px; opacity:0.7; margin-top:1mm; }
+
+.backcover { 
+    padding:12mm; 
+    height:100%; 
+    box-sizing:border-box; 
+    display:flex; 
+    flex-direction:column;
+    background: linear-gradient(180deg, #FDFBF7 0%, #F3F0FF 100%);
+}
+.backcover-header { text-align:center; margin-bottom:10mm; padding-bottom:6mm; border-bottom:2px solid #8B5CF6; }
+.backcover-title { 
+    font-size:18pt; 
+    font-weight:700; 
+    background: linear-gradient(135deg, #8B5CF6 0%, #D97706 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing:2px; 
+}
+.backcover-content { flex:1; display:flex; flex-direction:column; gap:5mm; }
+.backcover-item { 
+    background:white; 
+    border-left:4px solid #8B5CF6; 
+    padding:5mm 6mm; 
+    border-radius:0 14px 14px 0; 
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.08);
+}
+.backcover-item-title { font-size:10pt; font-weight:700; color:#1E1B4B; margin-bottom:2mm; letter-spacing:1px; }
+.backcover-item-content { font-size:9pt; color:#4B5563; line-height:1.7; }
+.backcover-footer { margin-top:8mm; padding-top:6mm; border-top:1px solid #EDE9FE; text-align:center; }
+.backcover-copyright { font-size:8pt; color:#6D7280; line-height:1.6; margin-bottom:3mm; }
+.backcover-brand { font-size:9pt; font-weight:600; color:#8B5CF6; letter-spacing:1px; margin-bottom:4mm; }
+</style>
+</head>
+<body>
+
+
+<div class="page" data-layout="cover">
+
+
+
+
+
+<div class="cover">
+    <div class="watermark">Y4</div>
+    <img src="branding/logo_color.png" class="cover-logo" />
+    <div class="cover-title">凭远教育</div>
+    <div class="cover-subtitle">Y4 评测报告</div>
+    <div class="cover-subtitle-en">Y4 Assessment Report</div>
+    <div class="gold-line"></div>
+    <div class="info-card">
+        
+        <div class="row"><span class="label">姓名：</span><span class="value">Louis Chen</span></div>
+        
+        <div class="row"><span class="label">性别：</span><span class="value">男</span></div>
+        
+        <div class="row"><span class="label">生日：</span><span class="value">2009-03-15</span></div>
+        
+        <div class="row"><span class="label">年级：</span><span class="value">高一</span></div>
+        
+        <div class="row"><span class="label">学校：</span><span class="value">上海中学</span></div>
+        
+        <div class="row"><span class="label">测评日期：</span><span class="value">2026-07-10</span></div>
+        
+    </div>
+</div>
+
+
+
+
+
+</div>
+
+<div class="page" data-layout="y4_intro">
+
+<div class="watermark">Y4</div>
+
+
+
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">凭远教育 · 四个成长系统的综合画像</span></div>
+    <div class="right">Louis Chen · 2026-07-10</div>
+</div>
+
+
+
+<div class="y4-intro">
+    <div class="y4-title">Y4 | Youth Profile in Four Dimensions</div>
+    <div class="y4-en">凭远教育 · 四个成长系统的综合画像</div>
+    <div class="y4-sep"></div>
+    <div class="y4-content">
+        
+        
+        <p>Y4 是凭远从四个相互关联的成长系统出发，对青少年当前状态、发展资源和潜在困难形成的综合画像。</p>
+        
+        
+        
+        <p>Y 代表 Youth，也呼应 Why。Y4 不只描述一个学生“是什么样”，也试图进一步回答：</p>
+        
+        
+        
+        <p class="bullet-item">TA为什么会产生这样的情绪和行为；</p>
+        
+        
+        
+        <p class="bullet-item">TA为什么在某些环境中充满动力，在另一些环境中难以行动；</p>
+        
+        
+        
+        <p class="bullet-item">TA为什么在某些学习任务中表现突出，却在另一些任务中频繁受阻；</p>
+        
+        
+        
+        <p class="bullet-item">TA为什么被某些方向吸引；</p>
+        
+        
+        
+        <p class="bullet-item">什么样的成长支持，能够真正帮助TA把潜能转化为未来。</p>
+        
+        
+    </div>
+</div>
+
+
+
+
+<div class="page-footer">
+    <div class="decor"></div>
+    <div>第 2 页 / 共 9 页</div>
+</div>
+
+
+</div>
+
+<div class="page" data-layout="emotional_stability">
+
+<div class="watermark">Y4</div>
+
+
+
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">EMOTIONAL STABILITY</span></div>
+    <div class="right">Louis Chen · 2026-07-10</div>
+</div>
+
+
+
+<div class="page-title">情绪稳定性</div>
+<div class="page-title-en">Emotional Stability Assessment</div>
+
+
+<div class="emotion-gauge-section">
+    <div class="emotion-gauge">
+        <svg viewBox="0 0 400 150" style="width:130mm; height:50mm;">
+            <defs>
+                <linearGradient id="emotionGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1"/>
+                    <stop offset="50%" style="stop-color:#D97706;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#0D9488;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <path d="M 80.0 160.0 A 120 120 0 0 1 320.0 160.0" fill="none" stroke="#EDE9FE" stroke-width="18" stroke-linecap="round"/>
+            <path d="M 80.0 160.0 A 120 120 0 0 1 277.9 68.8" fill="none" stroke="url(#emotionGrad)" stroke-width="18" stroke-linecap="round"/>
+            <circle cx="200" cy="130" r="8" fill="#1E1B4B"/>
+            <circle cx="200" cy="130" r="4" fill="#FBBF24"/>
+            <line x1="200" y1="130" x2="277.93376579962205" y2="68.75128412799629" stroke="#1E1B4B" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+    </div>
+    <div class="emotion-score-row">
+        <span class="emotion-total">43.5</span>
+        <span class="emotion-total-max">/ 60</span>
+    </div>
+</div>
+
+
+<div class="polarity-item">
+    <div class="polarity-labels">
+        <div class="pol-left">
+            <div class="pol-zh">自卑</div>
+            <div class="pol-en">INFERIORITY</div>
+        </div>
+        <div class="pol-right">
+            <div class="pol-zh">自尊</div>
+            <div class="pol-en">SELF-ESTEEM</div>
+        </div>
+    </div>
+    <div class="polarity-bar-wrap">
+        <span class="pol-tick-min">1</span>
+        <div class="polarity-bar">
+            <div class="pol-dot" style="left:56%;">
+                <span>8.5</span>
+            </div>
+        </div>
+        <span class="pol-tick-max">15</span>
+    </div>
+</div>
+
+<div class="polarity-item">
+    <div class="polarity-labels">
+        <div class="pol-left">
+            <div class="pol-zh">抑郁</div>
+            <div class="pol-en">DEPRESSION</div>
+        </div>
+        <div class="pol-right">
+            <div class="pol-zh">愉快</div>
+            <div class="pol-en">PLEASURE</div>
+        </div>
+    </div>
+    <div class="polarity-bar-wrap">
+        <span class="pol-tick-min">1</span>
+        <div class="polarity-bar">
+            <div class="pol-dot" style="left:83%;">
+                <span>12.5</span>
+            </div>
+        </div>
+        <span class="pol-tick-max">15</span>
+    </div>
+</div>
+
+<div class="polarity-item">
+    <div class="polarity-labels">
+        <div class="pol-left">
+            <div class="pol-zh">焦虑</div>
+            <div class="pol-en">ANXIETY</div>
+        </div>
+        <div class="pol-right">
+            <div class="pol-zh">安详</div>
+            <div class="pol-en">SERENITY</div>
+        </div>
+    </div>
+    <div class="polarity-bar-wrap">
+        <span class="pol-tick-min">1</span>
+        <div class="polarity-bar">
+            <div class="pol-dot" style="left:80%;">
+                <span>12</span>
+            </div>
+        </div>
+        <span class="pol-tick-max">15</span>
+    </div>
+</div>
+
+<div class="polarity-item">
+    <div class="polarity-labels">
+        <div class="pol-left">
+            <div class="pol-zh">无力感</div>
+            <div class="pol-en">HELPLESSNESS</div>
+        </div>
+        <div class="pol-right">
+            <div class="pol-zh">掌控感</div>
+            <div class="pol-en">CONTROLLABILITY</div>
+        </div>
+    </div>
+    <div class="polarity-bar-wrap">
+        <span class="pol-tick-min">1</span>
+        <div class="polarity-bar">
+            <div class="pol-dot" style="left:70%;">
+                <span>10.5</span>
+            </div>
+        </div>
+        <span class="pol-tick-max">15</span>
+    </div>
+</div>
+
+
+
+
+
+<div class="page-footer">
+    <div class="decor"></div>
+    <div>第 3 页 / 共 9 页</div>
+</div>
+
+
+</div>
+
+<div class="page" data-layout="self_concept">
+
+<div class="watermark">Y4</div>
+
+
+
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">SELF CONCEPT</span></div>
+    <div class="right">Louis Chen · 2026-07-10</div>
+</div>
+
+
+
+<div class="page-title">自我概念</div>
+<div class="page-title-en">SELF CONCEPT</div>
+
+<div class="self-concept-score-bar">
+    <div class="score-bar-track">
+        <div class="score-segment low">
+            <div class="segment-text">
+                <div class="zh">偏低</div>
+                <div class="en">Low</div>
+            </div>
+        </div>
+        <div class="score-segment normal">
+            <div class="segment-text">
+                <div class="zh">正常</div>
+                <div class="en">Normal</div>
+            </div>
+        </div>
+        <div class="score-segment high">
+            <div class="segment-text">
+                <div class="zh">偏高</div>
+                <div class="en">High</div>
+            </div>
+        </div>
+    </div>
+    <div class="score-marker" style="left:95%">
+        <div class="marker-box">97</div>
+        <div class="marker-arrow"></div>
+    </div>
+</div>
+
+<div class="gold-divider"></div>
+
+<div style="font-size:10pt; font-weight:700; color:#1E1B4B; margin-bottom:3mm; letter-spacing:1px;">测评结果详情</div>
+
+
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">行为表现</div>
+        <div class="en-label">Behavioral Adjustment</div>
+    </div>
+    <div class="slider-wrap">
+        <div class="slider-bar">
+            <span class="value-dot" style="left:90%;"><span>9</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">9<small> /10</small></div>
+</div>
+
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">能力与学校表现</div>
+        <div class="en-label">Intellectual Status</div>
+    </div>
+    <div class="slider-wrap">
+        <div class="slider-bar">
+            <span class="value-dot" style="left:90%;"><span>9</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">9<small> /10</small></div>
+</div>
+
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">躯体外貌</div>
+        <div class="en-label">Physical Appearance</div>
+    </div>
+    <div class="slider-wrap">
+        <div class="slider-bar">
+            <span class="value-dot" style="left:100%;"><span>10</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">10<small> /10</small></div>
+</div>
+
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">情绪状态</div>
+        <div class="en-label">Freedom from Anxiety</div>
+    </div>
+    <div class="slider-wrap">
+        <div class="slider-bar">
+            <span class="value-dot" style="left:90%;"><span>9</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">9<small> /10</small></div>
+</div>
+
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">合群</div>
+        <div class="en-label">Popularity</div>
+    </div>
+    <div class="slider-wrap">
+        <div class="slider-bar">
+            <span class="value-dot" style="left:100%;"><span>10</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">10<small> /10</small></div>
+</div>
+
+<div class="progress-item">
+    <div class="label-wrap">
+        <div class="zh-label">幸福与满足</div>
+        <div class="en-label">Happiness</div>
+    </div>
+    <div class="slider-wrap">
+        <div class="slider-bar">
+            <span class="value-dot" style="left:90%;"><span>9</span></span>
+        </div>
+    </div>
+    <div class="val-wrap">9<small> /10</small></div>
+</div>
+
+
+
+
+
+<div class="page-footer">
+    <div class="decor"></div>
+    <div>第 4 页 / 共 9 页</div>
+</div>
+
+
+</div>
+
+<div class="page" data-layout="big_five">
+
+<div class="watermark">Y4</div>
+
+
+
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">PERSONALITY</span></div>
+    <div class="right">Louis Chen · 2026-07-10</div>
+</div>
+
+
+
+<div class="page-title">人格</div>
+<div class="page-title-en">PERSONALITY</div>
+
+<div class="radar-chart-wrap">
+    <svg viewBox="0 0 400.0 400.0">
+        <polygon points="200.0,170.0 228.5,190.7 217.6,224.3 182.4,224.3 171.5,190.7" fill="none" stroke="#EDE9FE" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,140.0 257.1,181.5 235.3,248.5 164.7,248.5 142.9,181.5" fill="none" stroke="#EDE9FE" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,110.0 285.6,172.2 252.9,272.8 147.1,272.8 114.4,172.2" fill="none" stroke="#EDE9FE" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,80.0 314.1,162.9 270.5,297.1 129.5,297.1 85.9,162.9" fill="none" stroke="#EDE9FE" stroke-width="1" stroke-dasharray="3,3"/>
+        <polygon points="200.0,120.8 289.0,171.1 249.4,268.0 153.4,264.1 117.8,173.3" fill="#8B5CF6" fill-opacity="0.2" stroke="#8B5CF6" stroke-width="3"/>
+        <line x1="200.0" y1="200.0" x2="200.0" y2="80.0" stroke="#EDE9FE" stroke-width="1"/><line x1="200.0" y1="200.0" x2="314.1" y2="162.9" stroke="#EDE9FE" stroke-width="1"/><line x1="200.0" y1="200.0" x2="270.5" y2="297.1" stroke="#EDE9FE" stroke-width="1"/><line x1="200.0" y1="200.0" x2="129.5" y2="297.1" stroke="#EDE9FE" stroke-width="1"/><line x1="200.0" y1="200.0" x2="85.9" y2="162.9" stroke="#EDE9FE" stroke-width="1"/>
+        <circle cx="200.0" cy="120.8" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="200.0" cy="120.8" r="4" fill="#8B5CF6"/><circle cx="289.0" cy="171.1" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="289.0" cy="171.1" r="4" fill="#8B5CF6"/><circle cx="249.4" cy="268.0" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="249.4" cy="268.0" r="4" fill="#8B5CF6"/><circle cx="153.4" cy="264.1" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="153.4" cy="264.1" r="4" fill="#8B5CF6"/><circle cx="117.8" cy="173.3" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="117.8" cy="173.3" r="4" fill="#8B5CF6"/>
+        <text x="200.0" y="35.0" text-anchor="middle" font-size="12" fill="#1E1B4B" font-weight="700">开放性</text><text x="200.0" y="35.0" dy="14" text-anchor="middle" font-size="8" fill="#6D7280">Openness</text><text x="356.9" y="149.0" text-anchor="middle" font-size="12" fill="#1E1B4B" font-weight="700">宜人性</text><text x="356.9" y="149.0" dy="14" text-anchor="middle" font-size="8" fill="#6D7280">Agreeableness</text><text x="297.0" y="333.5" text-anchor="middle" font-size="12" fill="#1E1B4B" font-weight="700">责任心</text><text x="297.0" y="333.5" dy="14" text-anchor="middle" font-size="8" fill="#6D7280">Conscientiousness</text><text x="103.0" y="333.5" text-anchor="middle" font-size="12" fill="#1E1B4B" font-weight="700">外倾性</text><text x="103.0" y="333.5" dy="14" text-anchor="middle" font-size="8" fill="#6D7280">Extraversion</text><text x="43.1" y="149.0" text-anchor="middle" font-size="12" fill="#1E1B4B" font-weight="700">神经质</text><text x="43.1" y="149.0" dy="14" text-anchor="middle" font-size="8" fill="#6D7280">Neuroticism</text>
+    </svg>
+</div>
+
+
+
+
+<div class="page-footer">
+    <div class="decor"></div>
+    <div>第 5 页 / 共 9 页</div>
+</div>
+
+
+</div>
+
+<div class="page" data-layout="physical_health">
+
+<div class="watermark">Y4</div>
+
+
+
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">PHYSICAL HEALTH</span></div>
+    <div class="right">Louis Chen · 2026-07-10</div>
+</div>
+
+
+
+<div class="page-title">体质健康</div>
+<div class="page-title-en">PHYSICAL HEALTH</div>
+
+<div class="dark-score-card">
+    <div class="left"><div><div class="title">体质健康测评结果</div><div class="subtitle">BMI RESULT</div></div></div>
+    <div class="right">
+        <div class="value-block"><div class="big-val">26</div><div class="label">BMI</div></div>
+        <div class="value-block"><div class="big-val" style="font-size:22pt;">超重</div><div class="label">LEVEL</div></div>
+    </div>
+</div>
+
+<div class="bmi-section">
+    <div class="bmi-section-title">身体形态等级图</div>
+    <div class="bmi-section-subtitle">· 身高：170CM　· 体重：76KG　· BMI：26 KG/M²</div>
+</div>
+
+<div style="font-size:10pt; font-weight:700; color:#1E1B4B; margin-top:4mm; margin-bottom:2mm; letter-spacing:1px;">影响体质健康的生活习惯</div>
+<div class="habit-cards">
+    
+    <div class="habit-card">
+        <div class="habit-title">饮食习惯</div>
+        <div class="habit-en">Diet</div>
+        <div class="habit-score">均衡饮食</div>
+        <div style="font-size:9pt; color:#6D7280; margin-top:1mm;">优</div>
+    </div>
+    
+    <div class="habit-card">
+        <div class="habit-title">睡眠习惯</div>
+        <div class="habit-en">Sleep</div>
+        <div class="habit-score">7.3</div>
+        <div style="font-size:9pt; color:#6D7280; margin-top:1mm;">优秀</div>
+    </div>
+    
+    <div class="habit-card">
+        <div class="habit-title">运动习惯</div>
+        <div class="habit-en">Exercise</div>
+        <div class="habit-score">2</div>
+        <div style="font-size:9pt; color:#6D7280; margin-top:1mm;">较差</div>
+    </div>
+    
+</div>
+
+
+
+
+<div class="page-footer">
+    <div class="decor"></div>
+    <div>第 6 页 / 共 9 页</div>
+</div>
+
+
+</div>
+
+<div class="page" data-layout="cognitive">
+
+<div class="watermark">Y4</div>
+
+
+
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">COGNITIVE ABILITY</span></div>
+    <div class="right">Louis Chen · 2026-07-10</div>
+</div>
+
+
+
+<div class="page-title">认知能力</div>
+<div class="page-title-en">COGNITIVE ABILITY</div>
+
+<div class="purple-card" style="margin-bottom:5mm;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <div style="font-size:10pt; opacity:0.9; margin-bottom:2mm;">认知能力总得分</div>
+            <div style="font-size:36pt; font-weight:700; color:#FBBF24; font-variant-numeric:tabular-nums;">129</div>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:10pt; opacity:0.9; margin-bottom:2mm;">百分位</div>
+            <div style="font-size:28pt; font-weight:700; color:#FBBF24; font-variant-numeric:tabular-nums;">97%</div>
+        </div>
+    </div>
+</div>
+
+<div style="font-size:10pt; font-weight:700; color:#1E1B4B; margin-bottom:3mm; letter-spacing:1px;">各维度得分详情</div>
+<div class="cog-grid">
+    
+    <div class="cog-item">
+        <div class="zh">感知觉</div>
+        <div class="en">Perception</div>
+        <div class="bar"><div class="bar-fill" style="width:70.0%;"></div></div>
+        <div class="pct">70%</div>
+        <div class="desc">感知是认知、理解的基础。</div>
+    </div>
+    
+    <div class="cog-item">
+        <div class="zh">注意力</div>
+        <div class="en">Attention</div>
+        <div class="bar"><div class="bar-fill" style="width:69.0%;"></div></div>
+        <div class="pct">69%</div>
+        <div class="desc">心理活动对一定对象的指向和集中。</div>
+    </div>
+    
+    <div class="cog-item">
+        <div class="zh">记忆力</div>
+        <div class="en">Memory</div>
+        <div class="bar"><div class="bar-fill" style="width:94.0%;"></div></div>
+        <div class="pct">94%</div>
+        <div class="desc">记忆力是神经系统存储过往经验的能力。</div>
+    </div>
+    
+    <div class="cog-item">
+        <div class="zh">推理能力</div>
+        <div class="en">Reasoning</div>
+        <div class="bar"><div class="bar-fill" style="width:97.0%;"></div></div>
+        <div class="pct">97%</div>
+        <div class="desc">推理能力是智力的核心成分。</div>
+    </div>
+    
+    <div class="cog-item">
+        <div class="zh">空间能力</div>
+        <div class="en">Spatial Ability</div>
+        <div class="bar"><div class="bar-fill" style="width:94.0%;"></div></div>
+        <div class="pct">94%</div>
+        <div class="desc">空间能力是大脑对物体形状、位置判断的能力。</div>
+    </div>
+    
+    <div class="cog-item">
+        <div class="zh">加工速度</div>
+        <div class="en">Processing Speed</div>
+        <div class="bar"><div class="bar-fill" style="width:89.0%;"></div></div>
+        <div class="pct">89%</div>
+        <div class="desc">加工速度是大脑处理信息的速度。</div>
+    </div>
+    
+</div>
+
+
+
+
+<div class="page-footer">
+    <div class="decor"></div>
+    <div>第 7 页 / 共 9 页</div>
+</div>
+
+
+</div>
+
+<div class="page" data-layout="holland">
+
+<div class="watermark">Y4</div>
+
+
+
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">VOCATIONAL INTEREST</span></div>
+    <div class="right">Louis Chen · 2026-07-10</div>
+</div>
+
+
+
+<div class="page-title">职业兴趣</div>
+<div class="page-title-en">VOCATIONAL INTEREST</div>
+
+<div class="holland-code-card">
+    <div class="label">职业兴趣代码</div>
+    <div class="code">IER</div>
+    <div class="sub">HOLLAND VOCATIONAL INTEREST TYPE</div>
+</div>
+
+<div class="radar-chart-wrap">
+    <svg viewBox="0 0 400.0 400.0">
+        <polygon points="200.0,175.0 221.7,187.5 221.7,212.5 200.0,225.0 178.3,212.5 178.3,187.5" fill="none" stroke="#EDE9FE" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,150.0 243.3,175.0 243.3,225.0 200.0,250.0 156.7,225.0 156.7,175.0" fill="none" stroke="#EDE9FE" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,125.0 265.0,162.5 265.0,237.5 200.0,275.0 135.0,237.5 135.0,162.5" fill="none" stroke="#EDE9FE" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,100.0 286.6,150.0 286.6,250.0 200.0,300.0 113.4,250.0 113.4,150.0" fill="none" stroke="#EDE9FE" stroke-width="1" stroke-dasharray="3,3"/>
+        <polygon points="200.0,130.0 286.6,150.0 226.0,215.0 200.0,270.0 122.1,245.0 165.4,180.0" fill="#8B5CF6" fill-opacity="0.2" stroke="#8B5CF6" stroke-width="3"/>
+        <line x1="200.0" y1="200.0" x2="200.0" y2="100.0" stroke="#EDE9FE" stroke-width="1"/><line x1="200.0" y1="200.0" x2="286.6" y2="150.0" stroke="#EDE9FE" stroke-width="1"/><line x1="200.0" y1="200.0" x2="286.6" y2="250.0" stroke="#EDE9FE" stroke-width="1"/><line x1="200.0" y1="200.0" x2="200.0" y2="300.0" stroke="#EDE9FE" stroke-width="1"/><line x1="200.0" y1="200.0" x2="113.4" y2="250.0" stroke="#EDE9FE" stroke-width="1"/><line x1="200.0" y1="200.0" x2="113.4" y2="150.0" stroke="#EDE9FE" stroke-width="1"/>
+        <circle cx="200.0" cy="130.0" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="200.0" cy="130.0" r="4" fill="#8B5CF6"/><circle cx="286.6" cy="150.0" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="286.6" cy="150.0" r="4" fill="#8B5CF6"/><circle cx="226.0" cy="215.0" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="226.0" cy="215.0" r="4" fill="#8B5CF6"/><circle cx="200.0" cy="270.0" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="200.0" cy="270.0" r="4" fill="#8B5CF6"/><circle cx="122.1" cy="245.0" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="122.1" cy="245.0" r="4" fill="#8B5CF6"/><circle cx="165.4" cy="180.0" r="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/><circle cx="165.4" cy="180.0" r="4" fill="#8B5CF6"/>
+        <text x="200.0" y="60.0" text-anchor="middle" font-size="14" fill="#1E1B4B" font-weight="700">R</text><text x="321.2" y="130.0" text-anchor="middle" font-size="14" fill="#1E1B4B" font-weight="700">I</text><text x="321.2" y="270.0" text-anchor="middle" font-size="14" fill="#1E1B4B" font-weight="700">A</text><text x="200.0" y="340.0" text-anchor="middle" font-size="14" fill="#1E1B4B" font-weight="700">S</text><text x="78.8" y="270.0" text-anchor="middle" font-size="14" fill="#1E1B4B" font-weight="700">E</text><text x="78.8" y="130.0" text-anchor="middle" font-size="14" fill="#1E1B4B" font-weight="700">C</text>
+    </svg>
+</div>
+
+<div class="gold-divider"></div>
+
+<div style="font-size:10pt; font-weight:700; color:#1E1B4B; margin-bottom:3mm; letter-spacing:1px;">各类型得分详情</div>
+<div class="holland-items">
+    
+    <div class="h-item">
+        <div class="h-row-1">
+            <span class="hl">R</span>
+            <div class="text"><div class="zh">现实型</div><div class="en">Realistic</div></div>
+            <div class="bar"><div class="bar-fill" style="width:70%;"></div></div>
+            <div class="val-wrap">7<small> /10</small></div>
+        </div>
+    </div>
+    
+    <div class="h-item">
+        <div class="h-row-1">
+            <span class="hl">I</span>
+            <div class="text"><div class="zh">研究型</div><div class="en">Investigative</div></div>
+            <div class="bar"><div class="bar-fill" style="width:100%;"></div></div>
+            <div class="val-wrap">10<small> /10</small></div>
+        </div>
+    </div>
+    
+    <div class="h-item">
+        <div class="h-row-1">
+            <span class="hl">A</span>
+            <div class="text"><div class="zh">艺术型</div><div class="en">Artistic</div></div>
+            <div class="bar"><div class="bar-fill" style="width:30%;"></div></div>
+            <div class="val-wrap">3<small> /10</small></div>
+        </div>
+    </div>
+    
+    <div class="h-item">
+        <div class="h-row-1">
+            <span class="hl">S</span>
+            <div class="text"><div class="zh">社会型</div><div class="en">Social</div></div>
+            <div class="bar"><div class="bar-fill" style="width:70%;"></div></div>
+            <div class="val-wrap">7<small> /10</small></div>
+        </div>
+    </div>
+    
+    <div class="h-item">
+        <div class="h-row-1">
+            <span class="hl">E</span>
+            <div class="text"><div class="zh">事业型</div><div class="en">Enterprising</div></div>
+            <div class="bar"><div class="bar-fill" style="width:90%;"></div></div>
+            <div class="val-wrap">9<small> /10</small></div>
+        </div>
+    </div>
+    
+    <div class="h-item">
+        <div class="h-row-1">
+            <span class="hl">C</span>
+            <div class="text"><div class="zh">常规型</div><div class="en">Conventional</div></div>
+            <div class="bar"><div class="bar-fill" style="width:40%;"></div></div>
+            <div class="val-wrap">4<small> /10</small></div>
+        </div>
+    </div>
+    
+</div>
+
+
+
+
+<div class="page-footer">
+    <div class="decor"></div>
+    <div>第 8 页 / 共 9 页</div>
+</div>
+
+
+</div>
+
+<div class="page" data-layout="backcover">
+
+<div class="watermark">Y4</div>
+
+
+
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag"></span></div>
+    <div class="right">Louis Chen · 2026-07-10</div>
+</div>
+
+
+
+<div class="backcover">
+    <div class="backcover-header">
+        <div class="backcover-title">Y4 测评报告 · 阅读与说明</div>
+    </div>
+    <div class="backcover-content">
+        
+        <div class="backcover-item">
+            <div class="backcover-item-title">测评不定义，亦不归类</div>
+            <div class="backcover-item-content">本报告旨在呈现特质，而非给学生贴上固定的标签。</div>
+        </div>
+        
+        <div class="backcover-item">
+            <div class="backcover-item-title">状态具有时效性</div>
+            <div class="backcover-item-content">报告所记录的是测试人在当下的即时状态。</div>
+        </div>
+        
+        <div class="backcover-item">
+            <div class="backcover-item-title">理解需结合情境</div>
+            <div class="backcover-item-content">对报告数据的理解与解读，绝不能脱离具体的成长背景。</div>
+        </div>
+        
+        <div class="backcover-item">
+            <div class="backcover-item-title">请务必咨询专业测评师</div>
+            <div class="backcover-item-content">为了确保您准确理解报告内涵，请咨询凭远专业老师。</div>
+        </div>
+        
+    </div>
+    <div class="backcover-footer">
+        <div class="backcover-copyright">本报告为凭远内部资料，所有权归凭远所有。</div>
+        <div class="backcover-brand">凭远教育 · PEC EDUCATION</div>
+    </div>
+</div>
+
+
+
+
+<div class="page-footer">
+    <div class="decor"></div>
+    <div>第 9 页 / 共 9 页</div>
+</div>
+
+
+</div>
+
+
+</body>
+</html>

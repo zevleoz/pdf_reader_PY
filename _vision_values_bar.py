@@ -328,33 +328,40 @@ def main() -> Dict[str, float]:
     min_score, max_score, min_label, max_label = extract_min_max_from_text(pdf_path)
     print(f"[视觉] 读取到: min={min_score}({min_label}), max={max_score}({max_label})")
     
-    prompt = f"""这是职业价值观测评报告的页面。页面上有15个卡片，排列成3行5列的网格。每个卡片左上角有一个大的粗体数字编号（1-15）。
+    prompt = f"""这是职业价值观测评报告的页面。页面上有15个卡片。每个卡片左上角有一个大的粗体数字编号（1-15）。
 
-重要规则：
-1. 第1行从左到右是编号1-5
-2. 第2行从左到右是编号6-10
-3. 第3行从左到右是编号11-15
-4. 请仔细识别每个卡片左上角的数字编号
-5. 按照数字编号1-15的顺序输出价值观名称，不要按分数排序
+你的任务：
+1. 仔细识别每个卡片左上角的数字编号（1-15）
+2. 识别每个编号卡片上的价值观名称（中文）
+3. 识别每个价值观的分数
+
+重要：不要假设任何固定顺序，必须按照卡片上的实际编号来识别。
 
 已知信息：
 - 最高分是{max_score}分，对应"{max_label}"
 - 最低分是{min_score}分，对应"{min_label}"
 
-请识别每个编号卡片对应的价值观名称，并提取其分数。
+请严格按照以下JSON格式输出，不要输出任何其他内容：
 
-请只输出JSON，不要输出其他任何文字。JSON格式如下：
 {{
-  "1": {{"名称": "价值观名称", "分数": 分数}},
-  "2": {{"名称": "价值观名称", "分数": 分数}},
-  ...
-  "15": {{"名称": "价值观名称", "分数": 分数}}
+  "number_mapping": {{
+    "1": "编号1对应的价值观名称",
+    "2": "编号2对应的价值观名称",
+    ...
+    "15": "编号15对应的价值观名称"
+  }},
+  "scores": {{
+    "价值观名称": 分数,
+    ...
+  }}
 }}
 
-其中数字键（1-15）代表卡片左上角的编号，每个编号对应一个对象，包含"名称"和"分数"字段。
-分数保留一位小数。
-请确保"{max_label}"的分数是{max_score}，"{min_label}"的分数是{min_score}。
-必须包含所有15个编号。"""
+要求：
+- number_mapping中的键是卡片左上角的数字编号（1-15），值是该卡片上的价值观名称
+- scores中的键是价值观名称，值是该价值观的得分（保留一位小数）
+- 必须包含所有15个编号
+- 请确保"{max_label}"的分数是{max_score}，"{min_label}"的分数是{min_score}
+- 价值观名称必须从图片中读取，不要猜测"""
     
     api_result = call_vision_api(image_b64, prompt)
     
@@ -368,12 +375,10 @@ def main() -> Dict[str, float]:
                 parsed = json.loads(json_match.group())
                 
                 results = {}
-                for num in range(1, 16):
-                    key = str(num)
-                    if key in parsed and isinstance(parsed[key], dict):
-                        name = parsed[key].get('名称', '')
-                        score = parsed[key].get('分数', '')
-                        
+                num_to_label = {}
+                
+                if 'scores' in parsed and isinstance(parsed['scores'], dict):
+                    for name, score in parsed['scores'].items():
                         matched_label = None
                         for known_label in VALUE_LABELS:
                             if known_label in name or name in known_label:
@@ -386,6 +391,30 @@ def main() -> Dict[str, float]:
                                 results[matched_label] = round(max(min_score, min(max_score, score_val)), 1)
                             except (ValueError, TypeError):
                                 pass
+                
+                if 'number_mapping' in parsed and isinstance(parsed['number_mapping'], dict):
+                    for num, name in parsed['number_mapping'].items():
+                        matched_label = None
+                        for known_label in VALUE_LABELS:
+                            if known_label in name or name in known_label:
+                                matched_label = known_label
+                                break
+                        
+                        if matched_label:
+                            num_to_label[str(num)] = matched_label
+                
+                if not num_to_label and isinstance(parsed, dict):
+                    for key, value in parsed.items():
+                        if key.isdigit() and 1 <= int(key) <= 15:
+                            if isinstance(value, dict) and '名称' in value:
+                                name = value['名称']
+                                matched_label = None
+                                for known_label in VALUE_LABELS:
+                                    if known_label in name or name in known_label:
+                                        matched_label = known_label
+                                        break
+                                if matched_label:
+                                    num_to_label[str(key)] = matched_label
                 
                 if results and len(results) >= 10:
                     print("\n[视觉] 解析API结果:")
@@ -407,16 +436,6 @@ def main() -> Dict[str, float]:
                         json.dump(results, f, ensure_ascii=False, indent=2)
                     
                     print(f"\n[视觉] 写入 {output_path}")
-                    
-                    num_to_label = {}
-                    for num in range(1, 16):
-                        key = str(num)
-                        if key in parsed and isinstance(parsed[key], dict):
-                            name = parsed[key].get('名称', '')
-                            for known_label in VALUE_LABELS:
-                                if known_label in name or name in known_label:
-                                    num_to_label[str(num)] = known_label
-                                    break
                     
                     if num_to_label:
                         mapping_output_path = base_dir / "data" / "_vision_b6_values_mapping.json"
