@@ -230,4 +230,5 @@ if __name__ == "__main__":
             sys.exit(1)
 
     else:
-        app.run(host="0.0.0.0", port=8000, debug=False, threaded=True)
+        port = int(os.environ.get("PORT", 8000))
+        app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
