@@ -632,31 +632,26 @@ def build_page_6() -> Dict[str, Any]:
 # ---------------- P07 内驱力（059-062） ----------------
 def build_page_7() -> Dict[str, Any]:
     mindset_raw = v("059")
-    # 思维模式可能是文本描述（无具体数字），需要从描述判断类型和数值
-    # 用户可以手动输入分值（0-100），0表示固定型，100表示成长型
+    # 思维模式值必须来自视觉API读取，不使用默认值
+    # 如果值为空或无法转换，明确报错而不是使用默认值
     try:
         mindset_val = float(mindset_raw)
         mindset_pct = max(0, min(100, int(mindset_val)))
-        # 如果值为空字符串或无法转换，使用默认值50（混合型）
-        # 注意：0是有效的固定型思维分值，不应被覆盖
     except (ValueError, TypeError):
-        mindset_val = 50.0
-        mindset_pct = 50
+        print(f"  [错误] 思维模式(059)值无效: '{mindset_raw}'，视觉API可能未成功读取")
+        print(f"  [错误] 不使用默认值，请检查视觉API是否正常工作")
+        # 使用0作为标记值，表示读取失败（不使用50.0默认值掩盖问题）
+        mindset_val = 0.0
+        mindset_pct = 0
     
-    # 判断思维模式类型（支持文本描述）
+    # 判断思维模式类型（根据数值判断，不再强制修改数值）
     text_lower = str(mindset_raw).lower()
     if "成长" in str(mindset_raw) or "growth" in text_lower:
         mindset_type = "成长型思维模式"
         mindset_type_en = "Growth Mindset"
-        if mindset_val == 50.0:
-            mindset_val = 75.0
-            mindset_pct = 75
     elif "固定" in str(mindset_raw) or "fixed" in text_lower:
         mindset_type = "固定型思维模式"
         mindset_type_en = "Fixed Mindset"
-        if mindset_val == 50.0:
-            mindset_val = 25.0
-            mindset_pct = 25
     elif mindset_val >= 60:
         mindset_type = "成长型思维模式"
         mindset_type_en = "Growth Mindset"
@@ -1033,36 +1028,36 @@ def build_page_17() -> Dict[str, Any]:
 # ---------------- P18 职业价值观（095-124） ----------------
 def build_page_18() -> Dict[str, Any]:
     values_def_default = [
-        ("同事关系", "Colleague Relations", "103", 1,
-         "一起工作的大多数同事，人品较好，相处愉快", "与喜欢的人共事"),
-        ("经济报酬", "Economic Reward", "106", 2,
+        ("经济报酬", "Economic Reward", "106", 1,
          "较高的报酬，生活过得较为富足", "薪酬高，福利好"),
-        ("安全稳定", "Security", "107", 3,
-         "工作稳定，收入有保障，不会失业", "安稳，不会失业"),
-        ("工作环境", "Work Environment", "102", 4,
+        ("工作环境", "Work Environment", "102", 2,
          "追求比较舒适、轻松、自由的工作环境", "工作环境舒适，轻松自由"),
-        ("成就感", "Achievement", "100", 5,
-         "不断取得新的成就，得到认可或实现自己想做的事", "能给我带来成就感"),
-        ("独立自主", "Independence", "096", 6,
-         "可以按自己的方式或想法工作，不受他人的影响", "能按自己想法和节奏做事"),
-        ("上司关系", "Supervisor Relations", "104", 7,
-         "有一个开明的、民主的、公正的好领导", "有一个好领导"),
-        ("多样变化", "Variety", "105", 8,
-         "讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作", "尝试不同的工作"),
-        ("生活方式", "Lifestyle", "109", 9,
+        ("生活方式", "Lifestyle", "109", 3,
          "可以选择过自己想过的生活，安逸、简单、快乐或充实", "有选择生活方式的权利"),
-        ("声望地位", "Social Status", "108", 10,
-         "所从事的工作在人们的心目中有较高的社会地位", "社会地位高，受人敬仰"),
+        ("上司关系", "Supervisor Relations", "104", 4,
+         "有一个开明的、民主的、公正的好领导", "有一个好领导"),
+        ("同事关系", "Colleague Relations", "103", 5,
+         "一起工作的大多数同事，人品较好，相处愉快", "与喜欢的人共事"),
+        ("成就感", "Achievement", "100", 6,
+         "不断取得新的成就，得到认可或实现自己想做的事", "能给我带来成就感"),
+        ("独立自主", "Independence", "096", 7,
+         "可以按自己的方式或想法工作，不受他人的影响", "能按自己想法和节奏做事"),
+        ("管理权力", "Management Power", "101", 8,
+         "管理和指挥他人做事", "影响和领导别人一起"),
+        ("创造发明", "Creativity", "095", 9,
+         "发明创造新的事物，可能是新产品，也可能是新观念或新方法", "发明创造新的事物"),
+        ("安全稳定", "Security", "107", 10,
+         "工作稳定，收入有保障，不会失业", "安稳，不会失业"),
         ("智力激发", "Intellectual Stimulation", "098", 11,
          "必须动脑筋思考、学习和探索新事物，解决新问题", "有挑战性"),
-        ("美的追求", "Aesthetic Pursuit", "097", 12,
-         "不断地追求美的东西，得到美的享受", "能体验和感受美"),
-        ("创造发明", "Creativity", "095", 13,
-         "发明创造新的事物，可能是新产品，也可能是新观念或新方法", "发明创造新的事物"),
-        ("利他助人", "Altruism", "099", 14,
+        ("利他助人", "Altruism", "099", 12,
          "为他人的幸福、利益尽一份力", "能帮助到他人"),
-        ("管理权力", "Management Power", "101", 15,
-         "管理和指挥他人做事", "影响和领导别人一起"),
+        ("声望地位", "Social Status", "108", 13,
+         "所从事的工作在人们的心目中有较高的社会地位", "社会地位高，受人敬仰"),
+        ("美的追求", "Aesthetic Pursuit", "097", 14,
+         "不断地追求美的东西，得到美的享受", "能体验和感受美"),
+        ("多样变化", "Variety", "105", 15,
+         "讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作", "尝试不同的工作"),
     ]
 
     mapping_path = Path(__file__).resolve().parent / "data" / "_vision_b6_values_mapping.json"
@@ -1103,14 +1098,8 @@ def build_page_18() -> Dict[str, Any]:
             "monologue": monologue,
         })
 
-    items_sorted_by_score = sorted(items_with_scores, key=lambda x: -x["score"])
-
-    score_to_rank = {}
-    current_rank = 1
-    for i, item in enumerate(items_sorted_by_score):
-        if i > 0 and item["score"] < items_sorted_by_score[i-1]["score"]:
-            current_rank = i + 1
-        score_to_rank[item["label"]] = current_rank
+    # 按卡片编号排序（编号1-15即为正确排名），不按分数排序
+    items_with_scores.sort(key=lambda x: x["num"])
 
     items = []
     for item in items_with_scores:
@@ -1118,7 +1107,7 @@ def build_page_18() -> Dict[str, Any]:
             "label": item["label"],
             "en": item["en"],
             "num": item["num"],
-            "rank": score_to_rank[item["label"]],
+            "rank": item["num"],  # 卡片编号即为排名
             "value": fmt(item["score"]),
             "pct": max(0, min(100, int(item["score"] / 10.0 * 100))),
             "feature": item["feature"],
@@ -1239,8 +1228,10 @@ def build_view_data() -> Dict[str, Any]:
         
         if layout == "inner_drive":
             if "mindset_gauge" not in page or not isinstance(page["mindset_gauge"], dict):
-                print(f"  [警告] inner_drive 页面缺少 mindset_gauge，补全默认值")
-                page["mindset_gauge"] = mindset_gauge_svg(50.0)
+                print(f"  [错误] inner_drive 页面缺少 mindset_gauge，视觉API可能未读取思维模式值")
+                print(f"  [错误] 不使用默认值，请检查视觉API是否正常工作")
+                # 不使用50.0默认值，使用0.0标记读取失败
+                page["mindset_gauge"] = mindset_gauge_svg(0.0)
             core_items = page.get("core_items", [])
             if isinstance(core_items, list):
                 for idx, item in enumerate(core_items):

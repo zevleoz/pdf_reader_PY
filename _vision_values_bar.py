@@ -8,7 +8,10 @@ import re
 from pathlib import Path
 from typing import Dict, Tuple, List
 
-import fitz
+try:
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 import cv2
 import numpy as np
 
@@ -379,29 +382,19 @@ def main() -> Dict[str, float]:
                 
                 if 'scores' in parsed and isinstance(parsed['scores'], dict):
                     for name, score in parsed['scores'].items():
-                        matched_label = None
-                        for known_label in VALUE_LABELS:
-                            if known_label in name or name in known_label:
-                                matched_label = known_label
-                                break
-                        
-                        if matched_label:
+                        name_clean = name.strip()
+                        if name_clean:
                             try:
                                 score_val = float(score)
-                                results[matched_label] = round(max(min_score, min(max_score, score_val)), 1)
+                                results[name_clean] = round(max(min_score, min(max_score, score_val)), 1)
                             except (ValueError, TypeError):
                                 pass
                 
                 if 'number_mapping' in parsed and isinstance(parsed['number_mapping'], dict):
                     for num, name in parsed['number_mapping'].items():
-                        matched_label = None
-                        for known_label in VALUE_LABELS:
-                            if known_label in name or name in known_label:
-                                matched_label = known_label
-                                break
-                        
-                        if matched_label:
-                            num_to_label[str(num)] = matched_label
+                        name_clean = name.strip()
+                        if name_clean:
+                            num_to_label[str(num)] = name_clean
                 
                 if not num_to_label and isinstance(parsed, dict):
                     for key, value in parsed.items():
@@ -421,13 +414,37 @@ def main() -> Dict[str, float]:
                     for label, score in results.items():
                         print(f"  {label}: {score}")
                     
-                    results[max_label] = max_score
-                    results[min_label] = min_score
+                    # 不强制覆盖视觉API读取的值，仅补充缺失的最高/最低分
+                    if max_label not in results:
+                        results[max_label] = max_score
+                    if min_label not in results:
+                        results[min_label] = min_score
                     
-                    print("\n[视觉] 最终结果:")
-                    sorted_results = sorted(results.items(), key=lambda x: -x[1])
-                    for rank, (label, score) in enumerate(sorted_results, 1):
-                        print(f"    排名 {rank}: {label} - {score:.1f}")
+                    # 按卡片编号排序（如果有编号映射）
+                    if num_to_label:
+                        # 创建按编号顺序排列的结果
+                        ordered_results = {}
+                        for i in range(1, 16):
+                            label_name = num_to_label.get(str(i), "")
+                            if label_name and label_name in results:
+                                ordered_results[label_name] = results[label_name]
+                        # 补充不在映射中的其他值
+                        for label_name, score in results.items():
+                            if label_name not in ordered_results:
+                                ordered_results[label_name] = score
+                        
+                        print("\n[视觉] 最终结果（按卡片编号排序）:")
+                        for i in range(1, 16):
+                            label_name = num_to_label.get(str(i), "")
+                            if label_name and label_name in ordered_results:
+                                print(f"    卡片 {i}: {label_name} - {ordered_results[label_name]:.1f}")
+                        
+                        results = ordered_results
+                    else:
+                        print("\n[视觉] 最终结果（按分数排序）:")
+                        sorted_results = sorted(results.items(), key=lambda x: -x[1])
+                        for rank, (label, score) in enumerate(sorted_results, 1):
+                            print(f"    排名 {rank}: {label} - {score:.1f}")
                     
                     output_path = base_dir / "data" / "_vision_b6_values_bar.json"
                     output_path.parent.mkdir(exist_ok=True)
@@ -447,76 +464,10 @@ def main() -> Dict[str, float]:
         except json.JSONDecodeError:
             pass
     
-    print("\n[视觉] API解析失败，使用条形图匹配")
-    
-    bars = analyze_vertical_bars(img_15)
-    
-    if len(bars) != 15:
-        print(f"[视觉] 只检测到 {len(bars)} 个条形，不足15个")
-        return {}
-    
-    heights = [bar['h'] for bar in bars]
-    min_height = min(heights)
-    max_height = max(heights)
-    score_range = max_score - min_score
-    
-    print(f"[视觉] 条形高度范围: {min_height} - {max_height}")
-    
-    sorted_bars_by_height = sorted(bars, key=lambda b: -b['h'])
-    
-    max_bar_index = bars.index(sorted_bars_by_height[0])
-    min_bar_index = bars.index(sorted_bars_by_height[-1])
-    
-    print(f"\n[视觉] 最高条形位置索引: {max_bar_index}")
-    print(f"[视觉] 最低条形位置索引: {min_bar_index}")
-    
-    position_labels = VALUE_LABELS.copy()
-    
-    old_max_label = position_labels[max_bar_index]
-    old_min_label = position_labels[min_bar_index]
-    
-    position_labels[max_bar_index] = max_label
-    position_labels[min_bar_index] = min_label
-    
-    max_label_original_pos = VALUE_LABELS.index(max_label)
-    min_label_original_pos = VALUE_LABELS.index(min_label)
-    
-    if max_label_original_pos != max_bar_index:
-        position_labels[max_label_original_pos] = old_max_label
-    
-    if min_label_original_pos != min_bar_index:
-        position_labels[min_label_original_pos] = old_min_label
-    
-    print(f"\n[视觉] 根据条形位置匹配标签:")
-    for i, label in enumerate(position_labels):
-        print(f"  位置{i}: {label}")
-    
-    results = {}
-    
-    for i, bar in enumerate(bars):
-        if i < len(position_labels):
-            label = position_labels[i]
-            normalized = (bar['h'] - min_height) / (max_height - min_height) if max_height > min_height else 0.5
-            score = min_score + normalized * score_range
-            results[label] = round(max(min_score, min(max_score, score)), 1)
-    
-    results[max_label] = max_score
-    results[min_label] = min_score
-    
-    print("\n[视觉] 最终结果:")
-    sorted_results = sorted(results.items(), key=lambda x: -x[1])
-    for rank, (label, score) in enumerate(sorted_results, 1):
-        print(f"    排名 {rank}: {label} - {score:.1f}")
-    
-    output_path = base_dir / "data" / "_vision_b6_values_bar.json"
-    output_path.parent.mkdir(exist_ok=True)
-    
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-    
-    print(f"\n[视觉] 写入 {output_path}")
-    
-    return results
+    # 视觉API解析失败，不使用条形图匹配的默认值，返回空字典
+    print("\n[视觉] API解析失败，不使用默认值，返回空结果")
+    print("[视觉] 请检查视觉API是否正常工作，或重试")
+    return {}
 
 
 if __name__ == "__main__":

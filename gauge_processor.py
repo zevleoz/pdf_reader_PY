@@ -107,20 +107,24 @@ class GaugeOCR:
         
         angle = self.pointer_angle
         
-        angle_0 = 186.0
-        angle_50 = 90.0
-        angle_100 = 26.0
+        # 仪表盘是半圆形，0分在左边(180度)，50分在正上方(90度)，100分在右边(0度/360度)
+        # atan2返回的角度：0度在右边，90度在上方，180度在左边，270度在下方
+        # 但由于我们用了 -dy，所以角度是倒置的
         
-        if angle >= angle_0 or angle <= angle_100:
-            if angle >= angle_0:
-                angle_diff = angle - angle_0
-            else:
-                angle_diff = (360 - angle_0) + angle
-            
-            total_range = (360 - angle_0) + angle_100
-            score = (angle_diff / total_range) * 100
+        # 计算分数：从左边(180度)顺时针到右边(0度/360度)
+        # 0分对应180度，100分对应0度/360度
+        
+        if 90 <= angle <= 180:
+            # 从正上方(90度)到左边(180度)：0-50分
+            score = 50 * (180 - angle) / 90
+        elif 0 <= angle < 90:
+            # 从正上方(90度)到右边(0度)：50-100分
+            score = 50 + 50 * (90 - angle) / 90
+        elif 270 <= angle <= 360:
+            # 从右边(360度=0度)到... (处理边界)
+            score = 50 + 50 * (90 - angle + 360) / 90
         else:
-            score = ((angle_0 - angle) / (angle_0 - angle_100)) * 100
+            score = 50
         
         score = max(0, min(100, score))
         self.score = round(score, 2)

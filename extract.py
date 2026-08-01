@@ -28,8 +28,12 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import sys
 
-import fitz
+try:
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 
 import dashscope
 
@@ -146,13 +150,17 @@ _SYSTEM_PROMPT = """你是专业的PDF报告数据提取助手。
 2) 区分"我的得分"和"同龄平均分"
 3) 区分百分比(%)和分数
 4) 提取BMI、身高、体重等体检数据
-5) **仪表盘识别**：识别半圆仪表盘的指针位置，读取刻度值（0-100），输出为"思维模式"指标
+5) **仪表盘识别**：仔细观察半圆仪表盘，找到指针（通常是黑色或深色的线段/箭头），读取指针尖端所指向的刻度数值。刻度范围是0-100，0在左（固定型思维模式），100在右（成长型思维模式）。如果指针在中间位置，请准确估算数值。
 6) 忽略页眉页脚和装饰性文字"""
 
 _USER_PROMPT = """分析PDF页面，提取所有数值数据。
 
 特别关注：
-- 半圆仪表盘：指针指向的刻度值（0=固定型，100=成长型）
+- 半圆仪表盘（思维模式）：这是一个半圆形的图表，有0-100的刻度。中心位置是50分。有一个指针（通常是黑色或深色的线段）从圆心指向刻度。请准确读取指针尖端所指向的刻度值。例如：
+  - 指针指向最左侧 = 0分（固定型）
+  - 指针指向中间 = 50分（混合型）
+  - 指针指向最右侧 = 100分（成长型）
+  - 如果指针在刻度40和60之间，应读取为相应的中间值
 - 甜甜圈图：中心的数值
 - 柱状图：柱顶或柱内的数值
 
@@ -1788,11 +1796,26 @@ def main(force_skip_vision: bool = False) -> int:
                     if code:
                         code_values[code] = score
                 
-                sorted_values = sorted(values_scores.items(), key=lambda kv: -kv[1])
-                for i, (label, _) in enumerate(sorted_values):
-                    rank_code = f"{110 + i:03d}"
-                    code_values[rank_code] = label
-                print(f"  [职业价值观条形图] 已更新排序")
+                # 按卡片编号排序（编号1-15对应排序110-124），而非按分数排序
+                # 读取编号映射文件
+                mapping_path = DATA_DIR / "_vision_b6_values_mapping.json"
+                if mapping_path.exists():
+                    with open(mapping_path, 'r', encoding='utf-8') as mf:
+                        num_to_label = json.load(mf)
+                    # 按编号1-15顺序排列
+                    for i in range(1, 16):
+                        label_name = num_to_label.get(str(i), "")
+                        if label_name:
+                            rank_code = f"{110 + i - 1:03d}"
+                            code_values[rank_code] = label_name
+                    print(f"  [职业价值观条形图] 已按卡片编号排序（编号1-15）")
+                else:
+                    # 后备：使用 values_scores 的 key 顺序
+                    value_list = list(values_scores.keys())
+                    for i, label_name in enumerate(value_list[:15]):
+                        rank_code = f"{110 + i:03d}"
+                        code_values[rank_code] = label_name
+                    print(f"  [职业价值观条形图] 使用后备排序")
             else:
                 print("  [职业价值观条形图] 解析失败，使用视觉API数据")
         except Exception as e:
@@ -2167,77 +2190,100 @@ def main(force_skip_vision: bool = False) -> int:
                     hard_values[code] = nums[pos]
 
     # ---- 思维模式 / 自驱力（B4）
-    # 思维模式：优先使用视觉API已读取的值，其次单独调用视觉API，最后仪表盘识别
-    # 注意：文本层包含两种思维模式的解释说明，不能简单匹配关键词
-    if "059" not in hard_values:
-        mindset_value = None
-        
-        if code_values.get("059"):
-            try:
-                mindset_value = float(code_values["059"])
-                print(f"  · 视觉API已读取思维模式: {mindset_value:.1f}")
-            except:
-                pass
-        
-        if mindset_value is None:
-            mindset_img = None
-            for img_path in sorted(PAGES_DIR.glob("report_B4_vision_*.png")):
-                pdf_path = INPUT_DIR / "report_B4.pdf"
-                if pdf_path.exists():
-                    try:
-                        doc = fitz.open(str(pdf_path))
-                        page_num = int(img_path.stem.split("_")[-1])
-                        if page_num > 0 and page_num <= len(doc):
-                            text = doc[page_num - 1].get_text()
-                            if "思维模式" in text or "成长型思维" in text:
-                                mindset_img = img_path
-                                break
-                        doc.close()
-                    except:
-                        pass
-            
-            if mindset_img is None:
-                for img_path in sorted(PAGES_DIR.glob("report_B4_vision_*.png")):
-                    mindset_img = img_path
+    # 思维模式：强制使用视觉API高精度读取仪表盘指针（高DPI+5次调用取平均）
+    # 不使用124项提取的值（精度不够），不使用任何默认值或文本匹配
+    # 每个input都重新读取，没有默认值
+    mindset_value = None
+    b4_pdf = INPUT_DIR / "report_B4.pdf"
+    if b4_pdf.exists():
+        try:
+            doc = fitz.open(str(b4_pdf))
+            # 找到思维模式页面
+            mindset_page_idx = None
+            for i in range(len(doc)):
+                text = doc[i].get_text()
+                if "思维模式" in text or "成长型思维" in text:
+                    mindset_page_idx = i
                     break
-            
-            if mindset_img:
+
+            if mindset_page_idx is not None:
+                print(f"  · 思维模式页面在第 {mindset_page_idx + 1} 页，高精度读取(5次取平均)...")
+                # 高DPI渲染（400 DPI）
+                page = doc[mindset_page_idx]
+                zoom = 400 / 72.0
+                mat = fitz.Matrix(zoom, zoom)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+                img_bytes = pix.tobytes("png")
+                img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+
+                # 视觉API prompt：要求极其仔细地分析指针位置
+                vision_prompt = '''请极其仔细地观察这张图片中的半圆形仪表盘（思维模式测评）。
+
+这是一个半圆形仪表盘：
+- 刻度从0到100
+- 0分在最左边（固定型思维模式，通常黄色/橙色区域）
+- 50分在正上方中间
+- 100分在最右边（成长型思维模式，通常青色/绿色区域）
+- 仪表盘上有一个指针（通常是深色/黑色的线段或箭头），从底部圆心指向弧形刻度
+
+请按以下步骤分析：
+1. 先找到半圆形仪表盘的位置
+2. 找到指针（从底部圆心出发的深色线段/箭头）
+3. 仔细观察指针尖端指向的位置
+4. 对照刻度（0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100），判断指针尖端落在哪个刻度上
+
+重要提示：
+- 指针可能指向两个刻度之间的位置，请尽量精确
+- 请仔细分辨指针尖端的实际位置，不要受颜色区域影响
+- 刻度0在最左，100在最右，50在正上方
+
+请先详细描述指针的位置（相对于刻度），然后给出分数值。
+
+返回JSON格式：
+{"description": "指针位置的详细描述", "score": 0到100的整数}'''
+
                 if HAS_VISION_API and VISION_ACTIVE_KEY:
-                    try:
-                        with open(mindset_img, "rb") as f:
-                            img_b64 = base64.b64encode(f.read()).decode("utf-8")
-                        prompt = '''这是一份思维模式测评报告页面，请找到仪表盘并读取指针指向的分数。
-仪表盘是一个半圆形或弧形刻度，0分代表固定型思维模式，100分代表成长型思维模式。
-请直接告诉我指针指向的分数值，只返回数字。'''
-                        result = call_vision_api(img_b64, prompt)
-                        if result.strip():
-                            mindset_value = float(result.strip())
-                            print(f"  · 视觉API读取思维模式: {mindset_value:.1f} (图片: {mindset_img.name})")
-                    except Exception as e:
-                        print(f"  · 视觉API读取失败: {e}")
-                
-                if mindset_value is None and HAS_MINDSET_GAUGE:
-                    try:
-                        mindset_value = extract_mindset_gauge(str(mindset_img))
-                        print(f"  · 仪表盘读取思维模式: {mindset_value:.1f} (图片: {mindset_img.name})")
-                    except Exception as e:
-                        print(f"  · 仪表盘读取失败: {e}")
-            
-            if mindset_value is None:
-                idx_think = b4.find("你的思维模式")
-                if idx_think >= 0:
-                    seg = b4[idx_think: idx_think + 1500]
-                    if "成长型思维模式" in seg and "固定型思维模式" in seg:
-                        pass
-                    elif "成长型思维模式" in seg:
-                        mindset_value = 80.0
-                    elif "固定型思维模式" in seg:
-                        mindset_value = 20.0
-                    elif "混合型思维模式" in seg:
-                        mindset_value = 50.0
-        
-        if mindset_value is not None:
-            hard_values["059"] = f"{mindset_value:.1f}"
+                    scores = []
+                    for i in range(5):  # 5次调用取平均
+                        try:
+                            result = call_vision_api(img_b64, vision_prompt)
+                            # 解析分数
+                            score = None
+                            json_match = re.search(r'\{[\s\S]*\}', result)
+                            if json_match:
+                                try:
+                                    parsed = json.loads(json_match.group())
+                                    s = parsed.get("score")
+                                    if s is not None:
+                                        score = float(s)
+                                except:
+                                    pass
+                            if score is None:
+                                # 提取最后一个0-100的数字
+                                nums = re.findall(r'(\d+)', result)
+                                for n in reversed(nums):
+                                    val = int(n)
+                                    if 0 <= val <= 100:
+                                        score = float(val)
+                                        break
+                            if score is not None:
+                                scores.append(score)
+                                print(f"  · 视觉API读取 #{i+1}/5: {score:.0f}")
+                        except Exception as e:
+                            print(f"  · 视觉API读取 #{i+1}/5 失败: {e}")
+
+                    if scores:
+                        mindset_value = sum(scores) / len(scores)
+                        print(f"  · 视觉API平均读取: {mindset_value:.1f} (共 {len(scores)} 次: {scores})")
+            doc.close()
+        except Exception as e:
+            print(f"  · 高精度读取思维模式失败: {e}")
+
+    # 视觉API成功才写入，不使用任何默认值
+    if mindset_value is not None:
+        hard_values["059"] = f"{mindset_value:.1f}"
+    else:
+        print("  [警告] 思维模式视觉API读取失败，未写入默认值（059保持空）")
     # 自主性 / 胜任感 / 归属感（B4 自驱力）
     drive_map = (("自主性", "060", "125"), ("胜任感", "061", "126"), ("归属感", "062", "127"))
     for kw, code_my, code_avg in drive_map:

@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import traceback
 from pathlib import Path
@@ -121,6 +122,23 @@ def api_generate():
                     from data_points import USER_DATA
                     USER_DATA['059'] = str(score_val)
                     print(f"[思维模式] 用户手动输入分值: {score_val}")
+
+                    # 同时更新 report_data.json，避免被 build_view_data() 中的
+                    # apply_report_data() 覆盖
+                    report_data_path = DATA_DIR / "report_data.json"
+                    if report_data_path.exists():
+                        try:
+                            with open(report_data_path, 'r', encoding='utf-8') as f:
+                                report_data = json.load(f)
+                            for item in report_data.get('schema_124', []):
+                                if item.get('code') == '059':
+                                    item['value'] = str(score_val)
+                                    break
+                            with open(report_data_path, 'w', encoding='utf-8') as f:
+                                json.dump(report_data, f, ensure_ascii=False, indent=2)
+                            print(f"[思维模式] 已更新 report_data.json 中的 059 值为 {score_val}")
+                        except Exception as e:
+                            print(f"[思维模式] 更新 report_data.json 失败: {e}")
             except ValueError:
                 pass
 
