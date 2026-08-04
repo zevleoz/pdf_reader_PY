@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -38,6 +39,27 @@ REQUIRED_KEYS: List[str] = ["A2", "B3", "B4", "B6"]
 
 app = Flask(__name__, template_folder=str(TEMPLATE_DIR),
             static_folder=str(OUTPUT_DIR), static_url_path="/output")
+
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+
+
+@app.route("/branding/<path:filename>")
+def branding(filename):
+    """Serve branding assets (logo, watermark) directly from the branding/ folder.
+
+    Needed so the topbar logo can display before generate.py has ever run
+    (generate.py copies branding → output/branding/ only once a report is produced).
+    """
+    target = BRANDING_DIR / filename
+    if not target.exists():
+        abort(404)
+    return send_from_directory(str(BRANDING_DIR), filename, as_attachment=False)
+
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({"ok": False, "error": "文件太大，单文件不超过 50MB"}), 413
 
 
 @app.route("/")

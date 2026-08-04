@@ -16,5 +16,5 @@ input/
 output/
 pages/
 data/
-branding/
 *.log
+.env.production

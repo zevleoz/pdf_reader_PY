@@ -1,0 +1,17 @@
+[Unit]
+Description=Y4 Report Generator (Gunicorn)
+After=network.target
+
+[Service]
+Type=notify
+User=y4report
+Group=y4report
+WorkingDirectory=/opt/y4_report
+EnvironmentFile=/opt/y4_report/.env.production
+ExecStart=/opt/y4_report/venv/bin/gunicorn -c gunicorn_config.py app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=multi-user.target
