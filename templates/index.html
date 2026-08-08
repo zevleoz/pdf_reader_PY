@@ -257,40 +257,8 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Steps */
-    .steps {
-      margin-top: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .step {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      color: #64748b;
-    }
-    .step.active { color: #1d4ed8; font-weight: 600; }
-    .step.done { color: #16a34a; }
-    .step .dot {
-      width: 16px; height: 16px;
-      border-radius: 50%;
-      background: #e2e8f0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-      font-weight: 700;
-      color: #ffffff;
-      flex-shrink: 0;
-    }
-    .step.active .dot { background: #1d4ed8; }
-    .step.done .dot { background: #16a34a; content: '✓'; }
-    .step.done .dot::before { content: '✓'; }
-
     /* =========================== */
-    /* Right: Preview panel        */
+    /* Right: AI Chat panel        */
     /* =========================== */
     .right-panel {
       background: #f8fafc;
@@ -299,34 +267,38 @@
       min-height: 0;
       height: calc(100vh - 61px);
     }
-    .pdf-toolbar {
+
+    .chat-toolbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 24px;
+      padding: 10px 20px;
       background: #ffffff;
       border-bottom: 1px solid #e2e8f0;
       gap: 12px;
       flex-shrink: 0;
     }
-    .pdf-info {
+    .chat-toolbar-left {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 10px;
-      min-width: 0;
     }
-    .pdf-filename {
-      font-weight: 600;
-      color: #0f172a;
-      font-size: 13px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 360px;
+    .chat-status {
+      font-size: 12px;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    .pdf-filename.muted { color: #94a3b8; font-weight: 500; }
-    .pdf-size { color: #64748b; font-size: 11px; flex-shrink: 0; }
-    .actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .chat-status .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+      flex-shrink: 0;
+    }
+    .chat-status.active .dot { background: #22c55e; }
+    .chat-status.loading .dot { background: #f59e0b; animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: 0.4; } }
 
     .btn {
       padding: 8px 16px;
@@ -361,96 +333,188 @@
       cursor: not-allowed;
     }
 
-    .pdf-preview {
+    /* Chat messages area */
+    .chat-messages {
       flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chat-message {
+      display: flex;
+      gap: 10px;
+      max-width: 85%;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .chat-message.assistant {
+      align-self: flex-start;
+    }
+    .chat-message.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .chat-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
-      min-height: 0;
-      padding: 24px;
+      font-size: 16px;
     }
-    .pdf-preview object,
-    .pdf-preview iframe {
-      width: 100%;
-      height: 100%;
+    .chat-message.assistant .chat-avatar {
+      background: #dbeafe;
+    }
+    .chat-message.user .chat-avatar {
+      background: #e2e8f0;
+    }
+
+    .chat-bubble {
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.7;
+      word-break: break-word;
+    }
+    .chat-message.assistant .chat-bubble {
       background: #ffffff;
       border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      box-shadow: 0 2px 12px rgba(15,23,42,0.05);
+      border-top-left-radius: 4px;
+      color: #1e293b;
+    }
+    .chat-message.user .chat-bubble {
+      background: #1d4ed8;
+      color: #ffffff;
+      border-top-right-radius: 4px;
+    }
+
+    /* Markdown rendering inside chat */
+    .chat-bubble h1, .chat-bubble h2, .chat-bubble h3 {
+      margin: 10px 0 6px;
+      font-weight: 700;
+    }
+    .chat-bubble h1 { font-size: 16px; }
+    .chat-bubble h2 { font-size: 15px; }
+    .chat-bubble h3 { font-size: 14px; }
+    .chat-bubble p { margin: 6px 0; }
+    .chat-bubble ul, .chat-bubble ol { margin: 6px 0 6px 20px; }
+    .chat-bubble li { margin: 3px 0; }
+    .chat-bubble strong { font-weight: 700; }
+    .chat-bubble code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .chat-bubble pre {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 10px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+    .chat-bubble pre code {
+      background: none;
+      padding: 0;
+    }
+    .chat-bubble table {
+      border-collapse: collapse;
+      margin: 8px 0;
+      width: 100%;
+    }
+    .chat-bubble th, .chat-bubble td {
+      border: 1px solid #e2e8f0;
+      padding: 6px 10px;
+      text-align: left;
+      font-size: 12px;
+    }
+    .chat-bubble th { background: #f8fafc; font-weight: 600; }
+
+    /* Typing indicator */
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 4px 0;
+    }
+    .typing-indicator span {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #94a3b8;
+      animation: typingBounce 1.2s ease-in-out infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes typingBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-4px); opacity: 1; }
     }
 
     /* Empty state */
-    .empty-state {
+    .chat-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       text-align: center;
       max-width: 360px;
+      margin: 0 auto;
     }
-    .empty-icon {
-      width: 72px;
-      height: 72px;
+    .chat-empty .empty-icon {
+      width: 64px; height: 64px;
       background: #e0e7ff;
       border-radius: 50%;
-      display: inline-flex;
+      display: flex;
       align-items: center;
       justify-content: center;
       margin-bottom: 16px;
+      font-size: 28px;
     }
-    .empty-icon svg { width: 36px; height: 36px; color: #4f46e5; }
-    .empty-title {
+    .chat-empty .empty-title {
       font-weight: 700;
       color: #1e293b;
       font-size: 16px;
       margin-bottom: 8px;
     }
-    .empty-sub {
+    .chat-empty .empty-sub {
       color: #64748b;
       font-size: 13px;
       line-height: 1.6;
     }
 
-    /* Loading state */
-    .loading-state {
-      text-align: center;
-      max-width: 360px;
+    /* Input area */
+    .chat-input-area {
+      display: flex;
+      gap: 10px;
+      padding: 14px 20px;
+      background: #ffffff;
+      border-top: 1px solid #e2e8f0;
+      flex-shrink: 0;
     }
-    .loading-big {
-      width: 56px; height: 56px;
-      border: 4px solid #c7d2fe;
-      border-top-color: #4f46e5;
-      border-radius: 50%;
-      animation: spin 0.9s linear infinite;
-      margin: 0 auto 18px;
+    .chat-input-area input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color .15s;
+      font-family: inherit;
     }
-    .loading-title {
-      font-weight: 700;
-      color: #1e293b;
-      font-size: 15px;
-      margin-bottom: 6px;
+    .chat-input-area input:focus {
+      border-color: #2563eb;
     }
-    .loading-sub {
-      color: #64748b;
-      font-size: 12px;
-      line-height: 1.6;
-      margin-bottom: 20px;
-    }
-    .loading-progress {
-      height: 6px;
-      background: #e2e8f0;
-      border-radius: 999px;
-      overflow: hidden;
-      margin-bottom: 16px;
-    }
-    .loading-progress-inner {
-      height: 100%;
-      background: linear-gradient(90deg, #1d4ed8, #6366f1);
-      width: 30%;
-      border-radius: 999px;
-      animation: progress 2.4s ease-in-out infinite;
-    }
-    @keyframes progress {
-      0% { width: 10%; margin-left: 0; }
-      50% { width: 70%; margin-left: 10%; }
-      100% { width: 10%; margin-left: 90%; }
+    .chat-input-area input:disabled {
+      background: #f8fafc;
+      cursor: not-allowed;
     }
 
     /* =========================== */
@@ -470,9 +534,9 @@
         height: 70vh;
       }
       .topbar { padding: 12px 16px; }
-      .pdf-toolbar { padding: 10px 16px; }
-      .pdf-preview { padding: 16px; }
-      .pdf-filename { max-width: 180px; }
+      .chat-toolbar { padding: 10px 16px; }
+      .chat-messages { padding: 16px; }
+      .chat-input-area { padding: 12px 16px; }
     }
   </style>
 </head>
@@ -484,7 +548,7 @@
            onerror="this.style.display='none'" />
       <span class="brand-name">Y4 综合测评报告生成器</span>
     </div>
-    <span class="topbar-sub">上传 PDF → AI 视觉解析 → 生成品牌报告</span>
+    <span class="topbar-sub">上传 PDF → AI 视觉解析 → 生成品牌报告 → AI 解读</span>
   </header>
 
   <main class="layout">
@@ -492,7 +556,7 @@
     <!-- LEFT: Upload panel                -->
     <!-- ================================= -->
     <aside class="left-panel">
-      <div class="panel-title">📄 上传报告</div>
+      <div class="panel-title">上传报告</div>
       <div class="panel-subtitle">按报告标识上传对应 PDF，至少 1 份即可生成综合报告。</div>
 
       <div class="hint">
@@ -514,39 +578,43 @@
       </div>
 
       <button class="gen-btn" id="genBtn" onclick="generate()" disabled>
-        🚀 生成并预览报告
+        生成报告 + AI 解读
       </button>
 
       <div class="status" id="status"></div>
     </aside>
 
     <!-- ================================= -->
-    <!-- RIGHT: PDF preview                -->
+    <!-- RIGHT: AI Chat panel              -->
     <!-- ================================= -->
     <section class="right-panel">
-      <div class="pdf-toolbar">
-        <div class="pdf-info">
-          <span class="pdf-filename muted" id="pdfFilename">综合测评报告.pdf</span>
-          <span class="pdf-size" id="pdfSize"></span>
+      <!-- Toolbar: PDF download + AI status -->
+      <div class="chat-toolbar">
+        <div class="chat-toolbar-left">
+          <button class="btn primary" id="downloadBtn" onclick="downloadPdf()" disabled>
+            下载报告
+          </button>
         </div>
-        <div class="actions">
-          <button class="btn secondary" id="openBtn" onclick="openInNewTab()" disabled>↗ 新窗口打开</button>
-          <button class="btn primary" id="downloadBtn" onclick="downloadPdf()" disabled>⬇ 下载 PDF</button>
+        <div class="chat-status" id="chatStatus">
+          <span class="dot"></span>
+          <span id="chatStatusText">AI 解读师待命</span>
         </div>
       </div>
-      <div class="pdf-preview" id="pdfPreview">
-        <div class="empty-state">
-          <div class="empty-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="9" y1="15" x2="15" y2="15"></line>
-              <line x1="9" y1="11" x2="15" y2="11"></line>
-            </svg>
-          </div>
-          <div class="empty-title">报告预览</div>
-          <div class="empty-sub">在左侧上传 PDF 并点击「生成并预览报告」后，<br/>综合测评报告将在此处预览和下载。</div>
+
+      <!-- Messages area -->
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-empty" id="chatEmpty">
+          <div class="empty-icon"></div>
+          <div class="empty-title">AI 解读师</div>
+          <div class="empty-sub">上传 PDF 并点击「生成报告 + AI 解读」后，<br/>AI 将自动解读测评结果，你也可以继续追问。</div>
         </div>
+      </div>
+
+      <!-- Input area -->
+      <div class="chat-input-area">
+        <input type="text" id="chatInput" placeholder="输入问题追问 AI..."
+               onkeypress="if(event.key==='Enter')sendMessage()" disabled />
+        <button class="btn primary" id="sendBtn" onclick="sendMessage()" disabled>发送</button>
       </div>
     </section>
   </main>
@@ -567,7 +635,7 @@
   ];
   const files = {};
   let lastBlobUrl = null;
-  let lastFilename = null;
+  let chatHistory = [];
 
   // =====================================
   // Brand logo: try several paths
@@ -606,8 +674,8 @@
         <div class="slot-title">${s.title}</div>
         <div class="slot-desc">${s.sub}</div>
         ${f
-          ? `<div class="slot-fname">📎 ${escapeHtml(f.name)}</div>`
-          : `<div class="slot-placeholder">📁 未选择文件 · 点击选择 ${s.key} 报告 PDF…</div>`
+          ? `<div class="slot-fname">${escapeHtml(f.name)}</div>`
+          : `<div class="slot-placeholder">未选择文件 · 点击选择 ${s.key} 报告 PDF…</div>`
         }
         <input type="file" accept="application/pdf"
                onchange="onPickFile('${s.key}', this)" />
@@ -635,118 +703,7 @@
   }
 
   // =====================================
-  // Right panel states
-  // =====================================
-  function showEmpty() {
-    const p = document.getElementById('pdfPreview');
-    p.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="9" y1="15" x2="15" y2="15"></line>
-            <line x1="9" y1="11" x2="15" y2="11"></line>
-          </svg>
-        </div>
-        <div class="empty-title">报告预览</div>
-        <div class="empty-sub">在左侧上传 PDF 并点击「生成并预览报告」后，<br/>综合测评报告将在此处预览和下载。</div>
-      </div>
-    `;
-    setToolbar(false);
-  }
-
-  function showGenerating() {
-    const p = document.getElementById('pdfPreview');
-    p.innerHTML = `
-      <div class="loading-state">
-        <div class="loading-big" aria-hidden="true"></div>
-        <div class="loading-title">正在生成综合测评报告</div>
-        <div class="loading-sub">视觉 OCR 解析通常需要 30-120 秒，请耐心等待。<br/>请不要关闭或刷新此页面。</div>
-        <div class="loading-progress" aria-hidden="true">
-          <div class="loading-progress-inner"></div>
-        </div>
-        <div class="steps" id="genSteps">
-          <div class="step active" id="step1"><span class="dot">1</span>提取数据中…（30-120s）</div>
-          <div class="step" id="step2"><span class="dot">2</span>校验完整性…（<5s）</div>
-          <div class="step" id="step3"><span class="dot">3</span>渲染 PDF 报告…（5-15s）</div>
-        </div>
-      </div>
-    `;
-    setToolbar(false);
-    // Approximate step transitions (polling based on elapsed time)
-    const start = Date.now();
-    const stepTimer = setInterval(() => {
-      const elapsed = Date.now() - start;
-      const s1 = document.getElementById('step1');
-      const s2 = document.getElementById('step2');
-      const s3 = document.getElementById('step3');
-      if (!s1) { clearInterval(stepTimer); return; }
-      if (elapsed > 130000) {
-        s1.className = 'step done'; s2.className = 'step done'; s3.className = 'step active';
-      } else if (elapsed > 120000) {
-        s1.className = 'step done'; s2.className = 'step done'; s3.className = 'step';
-      } else if (elapsed > 15000) {
-        s1.className = 'step active';
-      }
-    }, 1000);
-    window._genStepTimer = stepTimer;
-  }
-
-  function setToolbar(enabled, sizeBytes) {
-    document.getElementById('openBtn').disabled = !enabled;
-    document.getElementById('downloadBtn').disabled = !enabled;
-    const fn = document.getElementById('pdfFilename');
-    const sz = document.getElementById('pdfSize');
-    if (enabled) {
-      fn.classList.remove('muted');
-      if (sizeBytes != null) {
-        sz.textContent = formatBytes(sizeBytes);
-      }
-    } else {
-      fn.classList.add('muted');
-      sz.textContent = '';
-    }
-  }
-
-  function formatBytes(b) {
-    if (!b && b !== 0) return '';
-    if (b < 1024) return b + ' B';
-    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
-    return (b/1024/1024).toFixed(2) + ' MB';
-  }
-
-  function showPdfObject(blob) {
-    if (window._genStepTimer) {
-      clearInterval(window._genStepTimer);
-      window._genStepTimer = null;
-    }
-    if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-    lastBlobUrl = URL.createObjectURL(blob);
-    lastFilename = '综合测评报告.pdf';
-    const p = document.getElementById('pdfPreview');
-    const randomQ = '?_=' + Date.now();
-    // Use <object> first; if the browser can't embed, <iframe> or a fallback will be used
-    p.innerHTML = '';
-    const obj = document.createElement('object');
-    obj.type = 'application/pdf';
-    obj.data = lastBlobUrl + randomQ;
-    obj.setAttribute('aria-label', '综合测评报告 PDF');
-    // Fallback content for browsers that don't support <object> PDF
-    obj.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon" style="background:#fee2e2;"><svg viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg></div>
-        <div class="empty-title">浏览器不支持内嵌 PDF 预览</div>
-        <div class="empty-sub">请点击右侧「⬇ 下载 PDF」或「↗ 新窗口打开」查看报告。</div>
-      </div>
-    `;
-    p.appendChild(obj);
-    setToolbar(true, blob.size);
-  }
-
-  // =====================================
-  // Status
+  // Status helpers
   // =====================================
   function setStatus(text, type) {
     const el = document.getElementById('status');
@@ -763,8 +720,137 @@
     el.innerHTML = '';
   }
 
+  function setChatStatus(text, state) {
+    const el = document.getElementById('chatStatus');
+    el.className = 'chat-status' + (state ? ' ' + state : '');
+    document.getElementById('chatStatusText').textContent = text;
+  }
+
   // =====================================
-  // Generate action
+  // Chat message helpers
+  // =====================================
+  function renderMarkdown(text) {
+    // Minimal markdown rendering: headings, bold, lists, code, tables, paragraphs
+    let html = escapeHtml(text);
+
+    // Code blocks ```...```
+    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
+      return '<pre><code>' + code.trim() + '</code></pre>';
+    });
+
+    // Inline code `...`
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Headings
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    // Unordered lists
+    html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)/g, (m) => '<ul>' + m + '</ul>');
+    // Fix nested ul
+    html = html.replace(/<\/ul>\n<ul>/g, '');
+
+    // Ordered lists
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+    // Tables (simple pipe tables)
+    const lines = html.split('\n');
+    let inTable = false;
+    let tableHtml = '';
+    const result = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.startsWith('|') && line.endsWith('|')) {
+        const cells = line.split('|').slice(1, -1);
+        if (cells.every(c => c.trim() === '' || /^[-: ]+$/.test(c.trim()))) {
+          // separator row, skip
+          continue;
+        }
+        if (!inTable) {
+          inTable = true;
+          tableHtml = '<table><thead><tr>';
+          cells.forEach(c => tableHtml += '<th>' + c.trim() + '</th>');
+          tableHtml += '</tr></thead><tbody>';
+        } else {
+          tableHtml += '<tr>';
+          cells.forEach(c => tableHtml += '<td>' + c.trim() + '</td>');
+          tableHtml += '</tr>';
+        }
+      } else {
+        if (inTable) {
+          tableHtml += '</tbody></table>';
+          result.push(tableHtml);
+          inTable = false;
+          tableHtml = '';
+        }
+        result.push(lines[i]);
+      }
+    }
+    if (inTable) {
+      tableHtml += '</tbody></table>';
+      result.push(tableHtml);
+    }
+    html = result.join('\n');
+
+    // Paragraphs (split by double newline, wrap non-tag lines)
+    const blocks = html.split(/\n\n+/);
+    html = blocks.map(b => {
+      const t = b.trim();
+      if (!t) return '';
+      if (t.startsWith('<')) return t;
+      return '<p>' + t.replace(/\n/g, '<br>') + '</p>';
+    }).join('\n');
+
+    return html;
+  }
+
+  function addMessage(role, content) {
+    // Remove empty state if present
+    const empty = document.getElementById('chatEmpty');
+    if (empty) empty.remove();
+
+    const container = document.getElementById('chatMessages');
+    const msg = document.createElement('div');
+    msg.className = 'chat-message ' + role;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'chat-avatar';
+    avatar.textContent = role === 'assistant' ? 'AI' : 'Me';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+
+    if (role === 'assistant' && content === '__typing__') {
+      bubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+    } else {
+      bubble.innerHTML = renderMarkdown(content);
+    }
+
+    msg.appendChild(avatar);
+    msg.appendChild(bubble);
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+    return msg;
+  }
+
+  function updateLastMessage(role, content) {
+    const container = document.getElementById('chatMessages');
+    const messages = container.querySelectorAll('.chat-message.' + role);
+    const last = messages[messages.length - 1];
+    if (last) {
+      const bubble = last.querySelector('.chat-bubble');
+      bubble.innerHTML = renderMarkdown(content);
+    }
+    container.scrollTop = container.scrollHeight;
+  }
+
+  // =====================================
+  // Generate action (upload PDFs + generate report)
   // =====================================
   async function generate() {
     const picked = Object.keys(files).length;
@@ -773,7 +859,10 @@
     const btn = document.getElementById('genBtn');
     btn.disabled = true;
     setStatus('上传并解析 ' + picked + ' 份 PDF，约需 1-3 分钟，请耐心等待…', 'loading');
-    showGenerating();
+    setChatStatus('报告生成中…', 'loading');
+
+    // Show typing indicator in chat
+    addMessage('assistant', '正在生成报告，完成后将自动解读，请稍候…');
 
     const fd = new FormData();
     SLOTS.forEach(s => {
@@ -803,53 +892,136 @@
             if (err.trace) detail = '\n\n完整错误堆栈：\n' + err.trace;
           }
         } catch (_) {}
-        setStatus('❌ ' + msg, 'error');
-        showEmpty();
-        alert('❌ 生成失败：\n\n' + msg + detail);
+        setStatus(msg, 'error');
+        updateLastMessage('assistant', '生成失败：' + msg);
+        setChatStatus('生成失败', '');
         btn.disabled = Object.keys(files).length < 1;
         return;
       }
 
+      // Save PDF blob for download
       const blob = await resp.blob();
-      lastFilename = '综合测评报告.pdf';
-      const cd = resp.headers.get('Content-Disposition') || '';
-      const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-      if (m) { try { lastFilename = decodeURIComponent(m[1]); } catch(_){} }
-      document.getElementById('pdfFilename').textContent = lastFilename;
-      showPdfObject(blob);
+      if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+      lastBlobUrl = URL.createObjectURL(blob);
+
+      // Enable download button
+      document.getElementById('downloadBtn').disabled = false;
 
       const extra = resp.headers.get('X-Applied-Items') && resp.headers.get('X-Total-Items')
         ? '（回填了 ' + resp.headers.get('X-Applied-Items') + ' / ' + resp.headers.get('X-Total-Items') + ' 项数据）'
         : '';
-      setStatus('✅ 完成！综合测评报告已生成' + extra, 'ok');
+      setStatus('报告已生成' + extra + '，AI 正在解读…', 'ok');
+
+      // Auto-trigger AI interpretation
+      await autoStartAIInterpretation();
 
     } catch (err) {
       if (err.name === 'AbortError') {
-        setStatus('❌ 请求超时（超过 5 分钟），请稍后重试', 'error');
+        setStatus('请求超时（超过 5 分钟），请稍后重试', 'error');
+        updateLastMessage('assistant', '请求超时，请稍后重试。');
       } else {
-        setStatus('❌ 网络错误: ' + err, 'error');
+        setStatus('网络错误: ' + err, 'error');
+        updateLastMessage('assistant', '网络错误: ' + err);
       }
-      showEmpty();
+      setChatStatus('连接失败', '');
     } finally {
       btn.disabled = Object.keys(files).length < 1;
     }
   }
 
   // =====================================
-  // Toolbar actions
+  // Auto-start AI interpretation
+  // =====================================
+  async function autoStartAIInterpretation() {
+    setChatStatus('AI 解读中…', 'loading');
+
+    // Replace the "generating" message with typing indicator
+    updateLastMessage('assistant', '__typing__');
+
+    try {
+      const resp = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          message: '请根据这份综合测评数据，生成一份完整的解读报告。',
+          history: []
+        })
+      });
+
+      const data = await resp.json();
+      if (data.ok) {
+        updateLastMessage('assistant', data.reply);
+        chatHistory.push(
+          { role: 'user', content: '请根据这份综合测评数据，生成一份完整的解读报告。' },
+          { role: 'assistant', content: data.reply }
+        );
+        setChatStatus('AI 解读师就绪', 'active');
+        // Enable input
+        document.getElementById('chatInput').disabled = false;
+        document.getElementById('sendBtn').disabled = false;
+        document.getElementById('chatInput').focus();
+      } else {
+        updateLastMessage('assistant', '解读失败：' + data.error);
+        setChatStatus('解读失败', '');
+      }
+    } catch (err) {
+      updateLastMessage('assistant', '网络错误：' + err);
+      setChatStatus('连接失败', '');
+    }
+  }
+
+  // =====================================
+  // Send message (user follow-up)
+  // =====================================
+  async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage('user', text);
+    input.value = '';
+
+    // AI typing indicator
+    addMessage('assistant', '__typing__');
+    setChatStatus('AI 回复中…', 'loading');
+
+    try {
+      const resp = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          message: text,
+          history: chatHistory.slice(-10)
+        })
+      });
+
+      const data = await resp.json();
+      if (data.ok) {
+        updateLastMessage('assistant', data.reply);
+        chatHistory.push(
+          { role: 'user', content: text },
+          { role: 'assistant', content: data.reply }
+        );
+      } else {
+        updateLastMessage('assistant', '出错：' + data.error);
+      }
+    } catch (err) {
+      updateLastMessage('assistant', '网络错误：' + err);
+    }
+    setChatStatus('AI 解读师就绪', 'active');
+  }
+
+  // =====================================
+  // Download PDF
   // =====================================
   function downloadPdf() {
     if (!lastBlobUrl) return;
     const a = document.createElement('a');
     a.href = lastBlobUrl;
-    a.download = lastFilename || '综合测评报告.pdf';
+    a.download = '综合测评报告.pdf';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  }
-  function openInNewTab() {
-    if (!lastBlobUrl) return;
-    window.open(lastBlobUrl, '_blank', 'noopener');
   }
 
   // =====================================

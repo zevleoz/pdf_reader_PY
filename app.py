@@ -190,9 +190,26 @@ def api_generate():
 
         pdf_path = OUTPUT_DIR / "report.pdf"
         if not pdf_path.exists():
+            import subprocess as _sp
+            chrome_found = None
+            for p in ["/usr/bin/chromium-browser", "/usr/bin/chromium",
+                      "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"]:
+                if Path(p).exists():
+                    chrome_found = p
+                    break
+            if not chrome_found:
+                for cmd in ["chromium-browser", "chromium", "google-chrome", "google-chrome-stable"]:
+                    try:
+                        r = _sp.run(["which", cmd], capture_output=True, text=True)
+                        if r.returncode == 0 and r.stdout.strip():
+                            chrome_found = r.stdout.strip()
+                            break
+                    except Exception:
+                        pass
             return jsonify({
                 "ok": False,
-                "error": "生成流程完成，但未在 output/ 下找到 report.pdf。请检查 Chrome 是否可用（本地部署需安装 Chrome/Chromium）。"
+                "error": f"生成流程完成，但未在 output/ 下找到 report.pdf。Chrome 检测: {chrome_found or '未找到'}。请检查 Chrome 是否可用。",
+                "chrome_path": chrome_found,
             }), 500
 
         # 8) 返回 PDF 作为附件
@@ -212,6 +229,71 @@ def api_generate():
         return jsonify({"ok": False,
                          "error": f"服务端异常: {exc}",
                          "trace": tb}), 500
+
+
+# ---------------------------------------------------------------------------
+# AI 聊天接口：接收用户消息 + 历史对话 → 调 DashScope 文本 LLM → 返回回复
+# ---------------------------------------------------------------------------
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    import urllib.request as _ureq
+
+    data = request.get_json(force=True)
+    user_message = data.get("message", "").strip()
+    history = data.get("history", [])
+
+    if not user_message and not history:
+        return jsonify({"ok": False, "error": "消息不能为空"}), 400
+
+    # 1) 读取 AI prompt
+    prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
+    system_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "你是测评解读助手。"
+
+    # 2) 读取 report_data.json 作为上下文
+    report_path = DATA_DIR / "report_data.json"
+    if report_path.exists():
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        schema_items = report_data.get("schema_124", [])
+        data_text = "\n".join(
+            f"{it.get('code','?')} {it.get('label','?')}：{it.get('value', '—')}"
+            for it in schema_items if it.get("value")
+        )
+        student = report_data.get("student", {})
+        student_text = f"学生：{student.get('name','—')}，{student.get('gender','—')}，{student.get('grade','—')}"
+        context = f"{student_text}\n\n测评数据：\n{data_text}"
+    else:
+        context = "（暂无测评数据）"
+
+    # 3) 组装 messages
+    messages = [
+        {"role": "system", "content": system_prompt + "\n\n以下是学生测评数据：\n" + context},
+    ]
+    messages.extend(history[-10:])
+    if user_message:
+        messages.append({"role": "user", "content": user_message})
+
+    # 4) 调用 DashScope OpenAI 兼容接口
+    dashscope_key = os.environ.get("DASHSCOPE_API_KEY", extract.DEFAULT_DASHSCOPE_KEY).strip()
+    url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    payload = json.dumps({
+        "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
+        "messages": messages,
+        "temperature": 0.4,
+        "max_tokens": 4096,
+    }).encode("utf-8")
+    req = _ureq.Request(
+        url, data=payload,
+        headers={"Authorization": f"Bearer {dashscope_key}",
+                 "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with _ureq.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        reply = result["choices"][0]["message"]["content"]
+        return jsonify({"ok": True, "reply": reply})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"AI 调用失败: {exc}"}), 500
 
 
 # ---------------------------------------------------------------------------
