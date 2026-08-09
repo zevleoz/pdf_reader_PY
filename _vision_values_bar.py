@@ -323,7 +323,10 @@ def main() -> Dict[str, float]:
     img_15 = render_page(pdf_path, values_page_idx)
     
     full_page = img_15[150:1000, :]
-    cv2.imwrite('/Users/jefflau/projects/pdf_report_converter/PDF_converter/_full_page_for_api.png', cv2.cvtColor(full_page, cv2.COLOR_RGB2BGR))
+    try:
+        cv2.imwrite(str(base_dir / "_full_page_for_api.png"), cv2.cvtColor(full_page, cv2.COLOR_RGB2BGR))
+    except Exception:
+        pass
     
     _, img_bytes = cv2.imencode('.png', cv2.cvtColor(full_page, cv2.COLOR_RGB2BGR))
     image_b64 = base64.b64encode(img_bytes).decode("utf-8")
