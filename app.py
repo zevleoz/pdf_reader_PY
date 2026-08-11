@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import traceback
+from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
@@ -23,6 +24,7 @@ import extract
 import validate
 import generate as _generate_module
 from data_points import apply_report_data
+import db as _db
 
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_DIR = BASE_DIR / "input"
@@ -34,6 +36,7 @@ BRANDING_DIR = BASE_DIR / "branding"
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+_db.init_db()
 
 REQUIRED_KEYS: List[str] = ["A2", "B3", "B4", "B6"]
 
@@ -63,6 +66,11 @@ def request_entity_too_large(error):
 
 
 @app.route("/")
+def landing():
+    return render_template("landing.html")
+
+
+@app.route("/generate")
 def index():
     return render_template("index.html")
 
@@ -77,6 +85,20 @@ def preview():
     output_path = OUTPUT_DIR / "preview.html"
     render_html(view_data, output_path)
     return send_from_directory(str(OUTPUT_DIR), "preview.html")
+
+
+# ---------------------------------------------------------------------------
+# 进度查询接口（供前端进度条轮询）
+# ---------------------------------------------------------------------------
+@app.route("/api/progress", methods=["GET"])
+def api_progress():
+    prog_file = DATA_DIR / "_progress.json"
+    if prog_file.exists():
+        try:
+            return jsonify(json.loads(prog_file.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    return jsonify({"stage": "idle", "percent": 0, "message": ""})
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +129,14 @@ def api_generate():
     saved_names = {}
     try:
         for key, f in files_by_key.items():
-            target = INPUT_DIR / f"report_{key}.pdf"
+            # 保留原始文件名中的版本信息（初中/高中）
+            original_name = f.filename or ""
+            if key == "B6" and ("高中" in original_name or "初中" in original_name):
+                # 提取版本关键词，附加到标准文件名
+                version = "高中" if "高中" in original_name else "初中"
+                target = INPUT_DIR / f"report_{key}_{version}.pdf"
+            else:
+                target = INPUT_DIR / f"report_{key}.pdf"
             f.save(str(target))
             saved_names[key] = f.filename
     except Exception as exc:
@@ -165,9 +194,9 @@ def api_generate():
                 pass
 
         # 6) 清理 output/ 旧产物，避免 chrome 基于旧文件命名出错
-        for suffix in (".pdf", ".html"):
-            old = OUTPUT_DIR / f"report{suffix}"
-            if old.exists():
+        #    清理所有 report.pdf/html 以及动态命名的 凭远Y4评测报告_*.pdf/html
+        for pattern in ["report.pdf", "report.html", "凭远Y4评测报告_*.pdf", "凭远Y4评测报告_*.html"]:
+            for old in OUTPUT_DIR.glob(pattern):
                 try:
                     old.unlink()
                 except OSError:
@@ -188,8 +217,18 @@ def api_generate():
                              "error": f"生成 PDF 时异常: {exc}",
                              "trace": tb}), 500
 
-        pdf_path = OUTPUT_DIR / "report.pdf"
-        if not pdf_path.exists():
+        # Find the generated PDF (could be named with student name or report.pdf)
+        pdf_files = sorted(OUTPUT_DIR.glob("*.pdf"))
+        pdf_path = None
+        if pdf_files:
+            # Prefer the dynamically named file
+            named = [f for f in pdf_files if "凭远Y4评测报告" in f.name]
+            if named:
+                pdf_path = named[0]
+            else:
+                pdf_path = pdf_files[0]
+
+        if not pdf_path or not pdf_path.exists():
             import subprocess as _sp
             chrome_found = None
             for p in ["/usr/bin/chromium-browser", "/usr/bin/chromium",
@@ -208,16 +247,40 @@ def api_generate():
                         pass
             return jsonify({
                 "ok": False,
-                "error": f"生成流程完成，但未在 output/ 下找到 report.pdf。Chrome 检测: {chrome_found or '未找到'}。请检查 Chrome 是否可用。",
+                "error": f"生成流程完成，但未在 output/ 下找到 PDF。Chrome 检测: {chrome_found or '未找到'}。请检查 Chrome 是否可用。",
                 "chrome_path": chrome_found,
             }), 500
 
-        # 8) 返回 PDF 作为附件
-        #    同时把摘要放到自定义响应头里，前端若需要可读取做展示
+        # 8) Save to database (non-blocking, best-effort)
+        try:
+            report_data_path = DATA_DIR / "report_data.json"
+            if report_data_path.exists():
+                rd = json.loads(report_data_path.read_text(encoding="utf-8"))
+                student_info = rd.get("student", {}) or {}
+                sname = student_info.get("name", "").strip()
+                if sname:
+                    sid = _db.find_or_create_student(
+                        name=sname,
+                        gender=student_info.get("gender", ""),
+                        birthday=student_info.get("birthday", ""),
+                        grade=student_info.get("grade", ""),
+                    )
+                    _db.add_report(
+                        student_id=sid,
+                        report_date=date.today(),
+                        pdf_path=str(pdf_path),
+                        data_json=report_data_path.read_text(encoding="utf-8"),
+                    )
+                    print(f"[DB] 已保存报告: {sname} (id={sid})")
+        except Exception as e:
+            print(f"[DB] 保存报告失败 (非致命): {e}")
+
+        # 9) 返回 PDF 作为附件
+        download_filename = pdf_path.name
         resp = send_from_directory(
-            str(OUTPUT_DIR), "report.pdf",
+            str(OUTPUT_DIR), pdf_path.name,
             as_attachment=True,
-            download_name="综合测评报告.pdf",
+            download_name=download_filename,
             mimetype="application/pdf",
         )
         resp.headers["X-Applied-Items"] = str(apply_result.get("applied", 0))
@@ -305,6 +368,231 @@ def download(filename):
     if not target.exists():
         abort(404)
     return send_from_directory(str(OUTPUT_DIR), filename, as_attachment=False)
+
+
+# ---------------------------------------------------------------------------
+# 解读会会议纪要生成
+# ---------------------------------------------------------------------------
+@app.route("/transcript")
+def transcript_page():
+    """Render the transcript upload / summary generation page."""
+    return render_template("transcript.html")
+
+
+@app.route("/api/transcript", methods=["POST"])
+def api_transcript():
+    import urllib.request as _ureq
+
+    data = request.get_json(force=True)
+    transcript_text = (data.get("transcript") or "").strip()
+    student_name = (data.get("student_name") or "").strip()
+    student_grade = (data.get("student_grade") or "").strip()
+    student_gender = (data.get("student_gender") or "").strip()
+
+    if len(transcript_text) < 50:
+        return jsonify({"ok": False, "error": "逐字稿太短，至少 50 字"}), 400
+
+    # 1) 读取 transcript prompt
+    prompt_path = BASE_DIR / "prompts" / "transcript_summary.md"
+    system_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "你是解读会纪要撰写人。"
+
+    # 2) 读取 report_data.json 作为上下文（如果存在）
+    report_summary = "（暂无测评数据）"
+    report_path = DATA_DIR / "report_data.json"
+    if report_path.exists():
+        try:
+            rd = json.loads(report_path.read_text(encoding="utf-8"))
+            student_info = rd.get("student", {})
+            s124 = rd.get("schema_124", [])
+            lines = []
+            for item in s124:
+                val = item.get("value", "")
+                if val and val not in ("", "—", None):
+                    lines.append(f"  {item.get('label', item.get('code', '?'))}: {val}")
+            if lines:
+                report_summary = "\n".join(lines[:60])
+        except Exception:
+            pass
+
+    # 3) 组装 prompt 变量
+    system_prompt = system_prompt.replace("{student_name}", student_name or "未填写")
+    system_prompt = system_prompt.replace("{report_summary}", report_summary)
+    system_prompt = system_prompt.replace("{transcript}", transcript_text[:12000])
+
+    # 4) 组装 messages
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "请根据以上逐字稿和测评数据，撰写完整的解读会会议纪要。"},
+    ]
+
+    # 5) 调用 DashScope API
+    dashscope_key = os.environ.get("DASHSCOPE_API_KEY", extract.DEFAULT_DASHSCOPE_KEY).strip()
+    url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    payload = json.dumps({
+        "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
+        "messages": messages,
+        "temperature": 0.7,
+        "max_tokens": 8192,
+    }).encode("utf-8")
+    req = _ureq.Request(
+        url, data=payload,
+        headers={"Authorization": f"Bearer {dashscope_key}",
+                 "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with _ureq.urlopen(req, timeout=180) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        summary = result["choices"][0]["message"]["content"]
+        return jsonify({"ok": True, "summary": summary})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"AI 调用失败: {exc}"}), 500
+
+
+# ---------------------------------------------------------------------------
+# Student management
+# ---------------------------------------------------------------------------
+@app.route("/students")
+def students_page():
+    return render_template("students.html")
+
+
+@app.route("/api/students")
+def api_students():
+    students = _db.get_students()
+    return jsonify({"ok": True, "students": students})
+
+
+@app.route("/api/students/<int:student_id>/reports")
+def api_student_reports(student_id):
+    reports = _db.get_student_reports(student_id)
+    return jsonify({"ok": True, "reports": reports})
+
+
+# ---------------------------------------------------------------------------
+# Booking system
+# ---------------------------------------------------------------------------
+@app.route("/booking")
+def booking_page():
+    return render_template("booking.html")
+
+
+@app.route("/api/booking", methods=["POST"])
+def api_booking():
+    from datetime import datetime
+    data = request.get_json(force=True)
+    name = (data.get("student_name") or "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "学生姓名必填"}), 400
+    appt_time_str = data.get("appointment_time", "")
+    try:
+        appt_time = datetime.fromisoformat(appt_time_str)
+    except ValueError:
+        return jsonify({"ok": False, "error": "时间格式错误"}), 400
+    bid = _db.add_booking(
+        student_name=name,
+        appointment_time=appt_time,
+        student_email=data.get("student_email", ""),
+        student_phone=data.get("student_phone", ""),
+        notes=data.get("notes", ""),
+    )
+    return jsonify({"ok": True, "booking_id": bid})
+
+
+@app.route("/admin/bookings")
+def admin_bookings_page():
+    bookings = _db.get_bookings()
+    return render_template("admin_bookings.html", bookings=bookings)
+
+
+@app.route("/api/bookings")
+def api_bookings():
+    status = request.args.get("status")
+    bookings = _db.get_bookings(status=status)
+    return jsonify({"ok": True, "bookings": bookings})
+
+
+@app.route("/api/booking/<int:booking_id>/complete", methods=["POST"])
+def api_booking_complete(booking_id):
+    try:
+        sid = _db.complete_booking(booking_id)
+        return jsonify({"ok": True, "student_id": sid})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 404
+
+
+@app.route("/api/booking/<int:booking_id>/cancel", methods=["POST"])
+def api_booking_cancel(booking_id):
+    _db.update_booking_status(booking_id, "cancelled")
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Delete operations
+# ---------------------------------------------------------------------------
+@app.route("/api/students/<int:student_id>", methods=["DELETE"])
+def api_delete_student(student_id):
+    try:
+        _db.delete_student(student_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/reports/<int:report_id>", methods=["DELETE"])
+def api_delete_report(report_id):
+    try:
+        _db.delete_report(report_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/booking/<int:booking_id>", methods=["DELETE"])
+def api_delete_booking(booking_id):
+    try:
+        _db.delete_booking(booking_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# CSV export
+# ---------------------------------------------------------------------------
+@app.route("/api/export")
+def api_export():
+    import csv
+    import io
+    reports = _db.get_all_reports()
+    if not reports:
+        return jsonify({"ok": False, "error": "暂无数据"}), 404
+
+    # Collect all field codes across all reports
+    all_codes = set()
+    for r in reports:
+        all_codes.update(r["data"].keys())
+    sorted_codes = sorted(all_codes)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    header = ["报告ID", "学生姓名", "性别", "年级", "报告日期", "PDF路径"] + sorted_codes
+    writer.writerow(header)
+    for r in reports:
+        row = [
+            r["report_id"], r["student_name"], r["gender"] or "",
+            r["grade"] or "", r["report_date"] or "", r["pdf_path"] or "",
+        ]
+        row.extend(r["data"].get(c, "") for c in sorted_codes)
+        writer.writerow(row)
+
+    output.seek(0)
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment;filename=y4_students.csv"},
+    )
 
 
 if __name__ == "__main__":

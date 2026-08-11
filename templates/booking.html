@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>预约测评 — Y4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f8fafc; color: #0f172a; font-size: 14px; min-height: 100vh; display: flex; flex-direction: column; }
+    .brand-stripe { height: 3px; background: #1d4ed8; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 32px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+    .brand-name { font-weight: 700; font-size: 15px; }
+    .container { max-width: 600px; margin: 0 auto; padding: 32px 24px; width: 100%; flex: 1; }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 28px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; outline: none; font-family: inherit; }
+    .field input:focus, .field select:focus { border-color: #2563eb; }
+    .btn { background: #1d4ed8; color: #fff; border: none; padding: 11px 22px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 16px; }
+    .btn:hover:not(:disabled) { background: #1e40af; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .hint { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; padding: 12px 14px; border-radius: 8px; font-size: 12px; line-height: 1.7; margin-bottom: 20px; }
+    .time-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .time-slot { padding: 8px; border: 1.5px solid #e2e8f0; border-radius: 6px; text-align: center; cursor: pointer; font-size: 13px; transition: all .15s; }
+    .time-slot:hover { border-color: #2563eb; background: #eff6ff; }
+    .time-slot.selected { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+    .time-slot.disabled { opacity: .4; pointer-events: none; }
+    .success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; padding: 16px; border-radius: 8px; margin-top: 16px; text-align: center; }
+    .loader { display: inline-block; width: 16px; height: 16px; border: 2px solid #e2e8f0; border-top-color: #1d4ed8; border-radius: 50%; animation: spin .8s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="brand-stripe"></div>
+  <div class="topbar">
+    <div class="brand-name">凭远教育 · Y4 测评预约</div>
+    <a href="/" style="color:#1d4ed8;text-decoration:none;font-size:13px;font-weight:600;">← 返回首页</a>  </div>
+  <div class="container">
+    <h1>预约 Y4 测评</h1>
+    <p class="subtitle">请填写以下信息为学生预约一个测评时间。</p>
+
+    <div class="hint">
+      完成预约后，学生的信息将自动录入系统。学生完成测评后，上传 4 份 PDF 即可自动生成报告并归档。
+    </div>
+
+    <div class="card">
+      <div class="field">
+        <label>学生姓名 *</label>
+        <input type="text" id="studentName" placeholder="请输入学生姓名" />
+      </div>
+      <div class="field">
+        <label>联系邮箱</label>
+        <input type="email" id="studentEmail" placeholder="家长或学生邮箱" />
+      </div>
+      <div class="field">
+        <label>联系电话</label>
+        <input type="tel" id="studentPhone" placeholder="联系电话" />
+      </div>
+      <div class="field">
+        <label>预约日期 *</label>
+        <input type="date" id="apptDate" />
+      </div>
+      <div class="field">
+        <label>预约时间 *</label>
+        <div class="time-slots" id="timeSlots"></div>
+      </div>
+      <div class="field">
+        <label>备注</label>
+        <textarea id="notes" rows="2" placeholder="如有特殊要求请说明"></textarea>
+      </div>
+      <button class="btn" id="submitBtn" onclick="submitBooking()">提交预约</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
+    let selectedTime = null;
+
+    // Default date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('apptDate').value = tomorrow.toISOString().split('T')[0];
+    document.getElementById('apptDate').min = new Date().toISOString().split('T')[0];
+
+    const slotsEl = document.getElementById('timeSlots');
+    TIME_SLOTS.forEach(t => {
+      const div = document.createElement('div');
+      div.className = 'time-slot';
+      div.textContent = t;
+      div.onclick = () => {
+        document.querySelectorAll('.time-slot').forEach(s => s.classList.remove('selected'));
+        div.classList.add('selected');
+        selectedTime = t;
+      };
+      slotsEl.appendChild(div);
+    });
+
+    async function submitBooking() {
+      const name = document.getElementById('studentName').value.trim();
+      const date = document.getElementById('apptDate').value;
+      const email = document.getElementById('studentEmail').value.trim();
+      const phone = document.getElementById('studentPhone').value.trim();
+      const notes = document.getElementById('notes').value.trim();
+      const resultEl = document.getElementById('result');
+
+      if (!name) { alert('请填写学生姓名'); return; }
+      if (!date) { alert('请选择日期'); return; }
+      if (!selectedTime) { alert('请选择时间'); return; }
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loader"></span>提交中...';
+
+      const apptTime = `${date}T${selectedTime}:00`;
+
+      try {
+        const resp = await fetch('/api/booking', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            student_name: name,
+            student_email: email,
+            student_phone: phone,
+            appointment_time: apptTime,
+            notes: notes,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) throw new Error(data.error || '提交失败');
+
+        resultEl.innerHTML = `<div class="success">✓ 预约成功！<br><br>学生：<strong>${name}</strong><br>时间：${date} ${selectedTime}<br><br>可将此页面分享给家长，学生完成测评后即可上传 PDF 生成报告。</div>`;
+        document.querySelector('.card').style.display = 'none';
+      } catch (e) {
+        alert('提交失败：' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '提交预约';
+      }
+    }
+  </script>
+</body>
+</html>

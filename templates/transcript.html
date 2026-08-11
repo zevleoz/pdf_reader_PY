@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>解读会会议纪要生成 — Y4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "PingFang SC",
+                   "Microsoft YaHei", sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      font-size: 14px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+    }
+    .brand-stripe { height: 3px; background: #1d4ed8; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 32px; background: #fff; border-bottom: 1px solid #e2e8f0;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-name { font-weight: 700; font-size: 15px; color: #0f172a; }
+    .topbar a.back {
+      color: #1d4ed8; text-decoration: none; font-size: 13px; font-weight: 600;
+    }
+    .container {
+      max-width: 900px; margin: 0 auto; padding: 32px 24px; width: 100%;
+    }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 28px; }
+    .card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 24px; margin-bottom: 20px;
+    }
+    .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #0f172a; }
+    .student-info {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;
+    }
+    .student-info label { font-size: 12px; color: #64748b; display: block; margin-bottom: 4px; }
+    .student-info input {
+      width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0;
+      border-radius: 8px; font-size: 13px; outline: none;
+    }
+    .student-info input:focus { border-color: #2563eb; }
+    textarea {
+      width: 100%; min-height: 300px; padding: 14px; border: 1.5px solid #e2e8f0;
+      border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical;
+      outline: none; line-height: 1.7;
+    }
+    textarea:focus { border-color: #2563eb; }
+    .file-input-row {
+      display: flex; align-items: center; gap: 12px; margin-top: 10px;
+    }
+    .btn {
+      background: #1d4ed8; color: #fff; border: none; padding: 11px 20px;
+      border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+      transition: background .15s;
+    }
+    .btn:hover:not(:disabled) { background: #1e40af; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn.secondary {
+      background: #fff; color: #1d4ed8; border: 1.5px solid #1d4ed8;
+    }
+    .btn.secondary:hover:not(:disabled) { background: #eff6ff; }
+    .btn-row { display: flex; gap: 12px; margin-top: 16px; }
+    .status {
+      padding: 12px 14px; border-radius: 8px; font-size: 12px;
+      background: #f1f5f9; color: #475569; margin-top: 16px;
+    }
+    .status.error { background: #fef2f2; color: #dc2626; }
+    .status.success { background: #f0fdf4; color: #16a34a; }
+    .loader {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid #e2e8f0; border-top-color: #1d4ed8;
+      border-radius: 50%; animation: spin .8s linear infinite;
+      margin-right: 8px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .result {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 28px; margin-top: 20px; white-space: pre-wrap; font-size: 14px;
+      line-height: 1.8; color: #0f172a;
+    }
+    .result h3 { font-size: 16px; margin: 18px 0 8px; color: #1d4ed8; }
+    .result h3:first-child { margin-top: 0; }
+    .hint {
+      background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a;
+      padding: 12px 14px; border-radius: 8px; font-size: 12px; line-height: 1.7;
+      margin-bottom: 20px;
+    }
+    .hint strong { color: #1d4ed8; }
+    .section-label {
+      font-size: 12px; font-weight: 600; color: #64748b;
+      margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="brand-stripe"></div>
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-name">凭远教育 · Y4 解读会纪要</span>
+    </div>
+    <a href="/generate" class="back">← 返回报告生成</a>
+  </div>
+
+  <div class="container">
+    <h1>解读会会议纪要生成</h1>
+    <p class="subtitle">上传解读会逐字稿，AI 将根据 Y4 报告结构自动生成个性化会议纪要。</p>
+
+    <div class="hint">
+      <strong>使用说明：</strong>
+      在学生完成 Y4 测评后，进行 1 对 1 解读会时录音并转写为文字。将转写文本粘贴到下方，系统会结合测评数据生成结构化的会议纪要。
+    </div>
+
+    <div class="card">
+      <div class="section-label">学生信息</div>
+      <div class="student-info">
+        <div>
+          <label>学生姓名</label>
+          <input type="text" id="studentName" placeholder="张三" />
+        </div>
+        <div>
+          <label>年级</label>
+          <input type="text" id="studentGrade" placeholder="高一" />
+        </div>
+        <div>
+          <label>性别</label>
+          <input type="text" id="studentGender" placeholder="男/女" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">逐字稿</div>
+      <textarea id="transcript" placeholder="在此粘贴解读会逐字稿文本...
+
+例如：
+顾问：你觉得这次测评结果和你自己的感受符合吗？
+学生：基本上符合，特别是情绪那块，我确实有时候会很焦虑。
+顾问：能具体说说吗？
+学生：..."></textarea>
+      <div class="file-input-row">
+        <input type="file" id="fileInput" accept=".txt,.md" style="display:none" />
+        <button class="btn secondary" onclick="document.getElementById('fileInput').click()">选择文本文件</button>
+        <span id="fileName" style="font-size:12px;color:#64748b"></span>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="generateBtn" onclick="generateSummary()" disabled>
+          生成会议纪要
+        </button>
+        <button class="btn secondary" id="copyBtn" onclick="copyResult()" style="display:none">
+          复制结果
+        </button>
+        <button class="btn secondary" id="downloadBtn" onclick="downloadResult()" style="display:none">
+          下载为 TXT
+        </button>
+      </div>
+      <div id="status" class="status" style="display:none"></div>
+    </div>
+
+    <div id="result" class="result" style="display:none"></div>
+  </div>
+
+  <script>
+    const transcriptEl = document.getElementById('transcript');
+    const generateBtn = document.getElementById('generateBtn');
+    const statusEl = document.getElementById('status');
+    const resultEl = document.getElementById('result');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameEl = document.getElementById('fileName');
+    const copyBtn = document.getElementById('copyBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    let lastResult = '';
+
+    // Auto-fill student name from URL query param
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('name')) {
+      document.getElementById('studentName').value = urlParams.get('name');
+    }
+    if (urlParams.get('grade')) {
+      document.getElementById('studentGrade').value = urlParams.get('grade');
+    }
+
+    transcriptEl.addEventListener('input', () => {
+      generateBtn.disabled = transcriptEl.value.trim().length < 50;
+    });
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      fileNameEl.textContent = file.name;
+      const text = await file.text();
+      transcriptEl.value = text;
+      generateBtn.disabled = text.trim().length < 50;
+    });
+
+    function setStatus(msg, type) {
+      statusEl.style.display = 'block';
+      statusEl.className = 'status' + (type ? ' ' + type : '');
+      statusEl.innerHTML = msg;
+    }
+
+    async function generateSummary() {
+      const text = transcriptEl.value.trim();
+      const name = document.getElementById('studentName').value.trim();
+      const grade = document.getElementById('studentGrade').value.trim();
+      const gender = document.getElementById('studentGender').value.trim();
+
+      if (!text || text.length < 50) return;
+
+      generateBtn.disabled = true;
+      setStatus('<span class="loader"></span>正在生成会议纪要，请稍候...', '');
+      resultEl.style.display = 'none';
+      copyBtn.style.display = 'none';
+      downloadBtn.style.display = 'none';
+
+      try {
+        const resp = await fetch('/api/transcript', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transcript: text,
+            student_name: name,
+            student_grade: grade,
+            student_gender: gender,
+          }),
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || '生成失败');
+        }
+
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || '生成失败');
+
+        lastResult = data.summary;
+        resultEl.textContent = data.summary;
+        resultEl.style.display = 'block';
+        copyBtn.style.display = 'inline-block';
+        downloadBtn.style.display = 'inline-block';
+        setStatus('会议纪要已生成！', 'success');
+      } catch (e) {
+        setStatus('生成失败：' + e.message, 'error');
+      } finally {
+        generateBtn.disabled = false;
+      }
+    }
+
+    function copyResult() {
+      if (!lastResult) return;
+      navigator.clipboard.writeText(lastResult).then(() => {
+        copyBtn.textContent = '已复制 ✓';
+        setTimeout(() => copyBtn.textContent = '复制结果', 2000);
+      });
+    }
+
+    function downloadResult() {
+      if (!lastResult) return;
+      const name = document.getElementById('studentName').value.trim() || '学生';
+      const blob = new Blob([lastResult], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `凭远Y4解读会纪要_${name}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>

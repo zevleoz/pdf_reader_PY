@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>凭远教育 · Y4 综合测评报告</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Y4 综合测评系统,基于 AI 视觉解析生成专业学生发展报告" />
+  <link rel="stylesheet" href="/static/css/fontawesome.min.css" />
+  <style>
+    :root {
+      --navy-950: #0a1628;
+      --navy-900: #0f2554;
+      --navy-800: #163168;
+      --navy-700: #1d4ed8;
+      --navy-600: #2563eb;
+      --ink-900: #0f172a;
+      --ink-700: #334155;
+      --ink-500: #64748b;
+      --ink-400: #94a3b8;
+      --stone-50: #fafaf9;
+      --stone-100: #f5f5f4;
+      --stone-200: #e7e5e4;
+      --stone-300: #d6d3d1;
+      --amber-600: #c2792e;
+      --amber-500: #d4933d;
+      --amber-50: #fef6e9;
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+        "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+      color: var(--ink-900);
+      background: #ffffff;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
+
+    /* ===== NAV ===== */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--stone-200);
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 70px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.3px;
+    }
+    .nav-brand .logo-mark {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, var(--navy-800), var(--navy-600));
+      border-radius: var(--radius-sm);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 15px;
+    }
+    .nav-brand small {
+      display: block;
+      font-weight: 400;
+      font-size: 11px;
+      color: var(--ink-500);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--ink-700);
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--navy-700); }
+    .nav-cta {
+      padding: 9px 20px;
+      background: var(--navy-700);
+      color: #fff;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .nav-cta:hover { background: var(--navy-800); transform: translateY(-1px); }
+    .nav-cta:active { transform: translateY(0); }
+
+    /* ===== HERO ===== */
+    .hero {
+      padding: 96px 0 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 80px;
+      align-items: center;
+    }
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px;
+      background: var(--amber-50);
+      color: var(--amber-600);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 28px;
+    }
+    .hero-eyebrow::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: var(--amber-500);
+      border-radius: 50%;
+    }
+    .hero h1 {
+      font-size: clamp(40px, 5vw, 64px);
+      font-weight: 800;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      color: var(--navy-900);
+      margin-bottom: 24px;
+    }
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(135deg, var(--navy-700), var(--amber-600));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p.lead {
+      font-size: 18px;
+      color: var(--ink-700);
+      line-height: 1.7;
+      max-width: 520px;
+      margin-bottom: 36px;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 30px;
+      background: var(--navy-700);
+      color: #fff;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 600;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 14px rgba(29, 78, 216, 0.25);
+    }
+    .btn-primary:hover {
+      background: var(--navy-800);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(29, 78, 216, 0.3);
+    }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 30px;
+      background: #fff;
+      color: var(--navy-900);
+      border: 1.5px solid var(--stone-300);
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 600;
+      transition: border-color 0.2s, transform 0.15s, background 0.2s;
+    }
+    .btn-secondary:hover {
+      border-color: var(--navy-700);
+      color: var(--navy-700);
+      transform: translateY(-1px);
+    }
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ink-700);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s, gap 0.2s;
+    }
+    .btn-ghost:hover { color: var(--navy-700); gap: 12px; }
+
+    .hero-visual {
+      position: relative;
+      aspect-ratio: 4/5;
+      border-radius: var(--radius-lg);
+      background: linear-gradient(160deg, var(--navy-900) 0%, var(--navy-800) 40%, var(--navy-700) 100%);
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(15, 37, 84, 0.25);
+    }
+    .hero-visual::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle at 30% 20%, rgba(255,255,255,0.12) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(212, 147, 61, 0.2) 0%, transparent 40%);
+    }
+    .hero-visual::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(
+          135deg,
+          transparent 0px,
+          transparent 3px,
+          rgba(255,255,255,0.03) 3px,
+          rgba(255,255,255,0.03) 4px
+        );
+    }
+    .hero-visual-card {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 72%;
+      padding: 32px 28px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: var(--radius-md);
+      color: #fff;
+    }
+    .hero-visual-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      opacity: 0.8;
+      margin-bottom: 16px;
+    }
+    .hero-visual-card .metric {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .hero-visual-card .metric:last-child { margin-bottom: 0; }
+    .hero-visual-card .metric-value {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .hero-visual-card .metric-label {
+      font-size: 13px;
+      opacity: 0.75;
+    }
+    .hero-visual-card .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.15);
+      margin: 16px 0;
+    }
+    .hero-visual-card .bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 56px;
+      margin-top: 8px;
+    }
+    .hero-visual-card .bar {
+      flex: 1;
+      background: linear-gradient(to top, rgba(255,255,255,0.2), rgba(255,255,255,0.6));
+      border-radius: 2px 2px 0 0;
+    }
+    .hero-visual-card .bar.accent {
+      background: linear-gradient(to top, var(--amber-500), var(--amber-500));
+    }
+
+    .hero-tags {
+      display: flex;
+      gap: 18px;
+      margin-top: 48px;
+      padding-top: 28px;
+      border-top: 1px solid var(--stone-200);
+      flex-wrap: wrap;
+    }
+    .hero-tag {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--ink-500);
+    }
+    .hero-tag i { color: var(--navy-700); }
+
+    /* ===== FEATURES SECTION ===== */
+    .section {
+      padding: 100px 0;
+    }
+    .section-header {
+      max-width: 640px;
+      margin-bottom: 64px;
+    }
+    .section-header .label {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--navy-700);
+      margin-bottom: 16px;
+    }
+    .section-header h2 {
+      font-size: clamp(32px, 3.5vw, 44px);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.015em;
+      color: var(--navy-900);
+      margin-bottom: 16px;
+    }
+    .section-header p {
+      font-size: 17px;
+      color: var(--ink-700);
+      line-height: 1.7;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 20px;
+    }
+    .feature-card {
+      position: relative;
+      padding: 32px;
+      background: #fff;
+      border: 1px solid var(--stone-200);
+      border-radius: var(--radius-md);
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    .feature-card:hover {
+      border-color: var(--navy-700);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(15, 37, 84, 0.08);
+    }
+    .feature-card .icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+    .feature-card .icon.primary { background: var(--amber-50); color: var(--amber-600); }
+    .feature-card .icon.navy { background: #eff3fb; color: var(--navy-700); }
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--navy-900);
+      margin-bottom: 10px;
+    }
+    .feature-card p {
+      font-size: 14px;
+      color: var(--ink-500);
+      line-height: 1.7;
+    }
+    .feature-card span-3 { grid-column: span 3; }
+    .feature-card span-4 { grid-column: span 4; }
+    .feature-card span-6 { grid-column: span 6; }
+
+    /* ===== PROCESS SECTION ===== */
+    .process {
+      background: var(--stone-50);
+    }
+    .process-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      counter-reset: step;
+    }
+    .process-step {
+      position: relative;
+      padding: 40px 32px;
+      background: #fff;
+      border-radius: var(--radius-md);
+      counter-increment: step;
+    }
+    .process-step::before {
+      content: counter(step, decimal-leading-zero);
+      position: absolute;
+      top: 28px;
+      right: 32px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-400);
+      letter-spacing: 1px;
+    }
+    .process-step .step-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      background: var(--navy-900);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      margin-bottom: 24px;
+    }
+    .process-step h3 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--navy-900);
+      margin-bottom: 12px;
+    }
+    .process-step p {
+      font-size: 15px;
+      color: var(--ink-700);
+      line-height: 1.7;
+    }
+
+    /* ===== QUICK CTA STRIP ===== */
+    .cta-strip {
+      padding: 80px 0;
+    }
+    .cta-card {
+      position: relative;
+      padding: 72px 60px;
+      background: linear-gradient(135deg, var(--navy-900) 0%, var(--navy-700) 100%);
+      border-radius: var(--radius-lg);
+      color: #fff;
+      overflow: hidden;
+    }
+    .cta-card::before {
+      content: "";
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(212, 147, 61, 0.25) 0%, transparent 70%);
+    }
+    .cta-card-inner {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 48px;
+      align-items: center;
+    }
+    .cta-card h2 {
+      font-size: clamp(28px, 3vw, 40px);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+    }
+    .cta-card p {
+      font-size: 16px;
+      opacity: 0.85;
+      line-height: 1.7;
+      max-width: 480px;
+    }
+    .cta-card .btn-primary {
+      background: var(--amber-500);
+      color: var(--navy-900);
+      box-shadow: 0 4px 20px rgba(212, 147, 61, 0.3);
+      white-space: nowrap;
+    }
+    .cta-card .btn-primary:hover {
+      background: var(--amber-600);
+      color: #fff;
+    }
+    .cta-card .btn-secondary {
+      background: transparent;
+      color: #fff;
+      border-color: rgba(255,255,255,0.4);
+      white-space: nowrap;
+    }
+    .cta-card .btn-secondary:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border-color: #fff;
+    }
+    .cta-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      padding: 60px 0 40px;
+      border-top: 1px solid var(--stone-200);
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      color: var(--navy-900);
+    }
+    .footer-brand .logo-mark {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--navy-800), var(--navy-600));
+      border-radius: 4px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .footer-copy {
+      font-size: 13px;
+      color: var(--ink-400);
+    }
+
+    /* ===== ANIMATIONS ===== */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out);
+    }
+    .reveal.in {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 900px) {
+      .container { padding: 0 24px; }
+      .nav-links { display: none; }
+      .hero { padding: 56px 0 48px; }
+      .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+      .hero-visual { aspect-ratio: 16/12; max-width: 420px; margin: 0 auto; width: 100%; }
+      .hero h1 { font-size: 38px; }
+      .hero-tags { gap: 14px; }
+      .section { padding: 64px 0; }
+      .features-grid { grid-template-columns: 1fr; }
+      .feature-card span-3, .feature-card span-4, .feature-card span-6 { grid-column: span 1; }
+      .process-grid { grid-template-columns: 1fr; }
+      .cta-card { padding: 48px 32px; }
+      .cta-card-inner { grid-template-columns: 1fr; gap: 28px; }
+      .footer-inner { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <a href="/" class="nav-brand">
+      <span class="logo-mark">Y4</span>
+      <div>
+        凭远教育
+        <small>Assessment Platform</small>
+      </div>
+    </a>
+    <div class="nav-links">
+      <a href="#features">功能特性</a>
+      <a href="#process">使用流程</a>
+      <a href="/booking">预约测评</a>
+    </div>
+    <a href="/generate" class="nav-cta">生成报告</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="hero-copy reveal">
+      <div class="hero-eyebrow">专业教育测评 · AI 驱动</div>
+      <h1>读懂每一个<br/><em>学生的成长轨迹</em></h1>
+      <p class="lead">Y4 综合测评系统整合认知能力、学习动机、人格特质与职业兴趣四大维度,通过 AI 视觉解析生成可落地的学生发展报告,让每一次测评都成为下一步行动的起点。</p>
+      <div class="hero-ctas">
+        <a href="/generate" class="btn-primary">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          生成报告
+        </a>
+        <a href="/booking" class="btn-secondary">
+          <i class="fa-regular fa-calendar"></i>
+          预约测评
+        </a>
+      </div>
+      <div class="hero-tags">
+        <span class="hero-tag"><i class="fa-solid fa-shield-halved"></i>数据本地处理,隐私安全</span>
+        <span class="hero-tag"><i class="fa-solid fa-bolt"></i>AI 解析,1-3 分钟出报告</span>
+        <span class="hero-tag"><i class="fa-solid fa-chart-line"></i>四维度综合画像</span>
+      </div>
+    </div>
+
+    <div class="hero-visual reveal">
+      <div class="hero-visual-card">
+        <h3>学生发展画像</h3>
+        <div class="metric">
+          <span class="metric-value">A+</span>
+          <span class="metric-label">认知能力综合评级</span>
+        </div>
+        <div class="divider"></div>
+        <h3>核心指标分布</h3>
+        <div class="bars">
+          <div class="bar" style="height:40%"></div>
+          <div class="bar accent" style="height:72%"></div>
+          <div class="bar" style="height:55%"></div>
+          <div class="bar" style="height:88%"></div>
+          <div class="bar accent" style="height:64%"></div>
+          <div class="bar" style="height:35%"></div>
+          <div class="bar" style="height:78%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features" class="section">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="label">功能特性</div>
+      <h2>四大维度,一次完整的学生画像</h2>
+      <p>A2 核心素养 · B3 学习能力 · B4 认知思维 · B6 职业发展,每份报告从 200+ 指标中提炼关键洞察。</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card span-4 reveal">
+        <div class="icon primary"><i class="fa-solid fa-eye"></i></div>
+        <h3>AI 视觉解析</h3>
+        <p>上传纸质测评 PDF,AI 自动识别图表、刻度与标记,无需人工录入,准确率 98%+。</p>
+      </div>
+
+      <div class="feature-card span-4 reveal">
+        <div class="icon navy"><i class="fa-solid fa-brain"></i></div>
+        <h3>智能解读报告</h3>
+        <p>基于专业解读协议,自动产出三层穿透分析,识别五大核心悖论,给出可执行的行动建议。</p>
+      </div>
+
+      <div class="feature-card span-4 reveal">
+        <div class="icon primary"><i class="fa-solid fa-users"></i></div>
+        <h3>学生档案管理</h3>
+        <p>每位学生独立档案,历史报告一键回溯,支持导出 CSV/Excel 用于批量分析与纵向追踪。</p>
+      </div>
+
+      <div class="feature-card span-6 reveal">
+        <div class="icon navy"><i class="fa-regular fa-calendar-check"></i></div>
+        <h3>无缝预约与归档</h3>
+        <p>同事通过分享链接即可为学生预约测评时间,学生完成后上传 4 份 PDF 即可自动生成报告并归档至数据库,从预约到报告全流程打通。</p>
+      </div>
+
+      <div class="feature-card span-6 reveal">
+        <div class="icon primary"><i class="fa-solid fa-microphone-lines"></i></div>
+        <h3>解读会纪要生成</h3>
+        <p>上传解读会语音转写文本,AI 自动按照报告结构撰写会议纪要,总结关键发现与后续行动项,告别手写整理。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROCESS -->
+<section id="process" class="section process">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="label">使用流程</div>
+      <h2>三步完成从预约到报告</h2>
+      <p>简化每一步,让测评回到教学本身。</p>
+    </div>
+
+    <div class="process-grid">
+      <div class="process-step reveal">
+        <div class="step-icon"><i class="fa-regular fa-calendar-plus"></i></div>
+        <h3>预约测评</h3>
+        <p>同事打开预约页面,填写学生信息与时间,系统自动创建档案。链接可在团队内部分享。</p>
+      </div>
+
+      <div class="process-step reveal">
+        <div class="step-icon"><i class="fa-solid fa-file-pdf"></i></div>
+        <h3>上传报告</h3>
+        <p>学生完成测评后,上传 A2/B3/B4/B6 四份 PDF。AI 视觉解析自动提取所有数据指标。</p>
+      </div>
+
+      <div class="process-step reveal">
+        <div class="step-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+        <h3>生成与解读</h3>
+        <p>一键生成品牌定制 PDF 报告,AI 同时产出深度解读,支持追问与解读会纪要。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA STRIP -->
+<section class="cta-strip">
+  <div class="container">
+    <div class="cta-card reveal">
+      <div class="cta-card-inner">
+        <div>
+          <h2>准备好开始了吗?</h2>
+          <p>上传第一份 PDF,或先预约一位学生的测评时间,体验 Y4 的完整流程。</p>
+        </div>
+        <div class="cta-actions">
+          <a href="/generate" class="btn-primary">
+            <i class="fa-solid fa-rocket"></i>
+            立即生成报告
+          </a>
+          <a href="/booking" class="btn-secondary">
+            <i class="fa-regular fa-calendar"></i>
+            前往预约页
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="logo-mark">Y4</span>
+      凭远教育 · Y4 综合测评系统
+    </div>
+    <div class="footer-copy">© 2025 凭远教育. 仅供公司内部使用.</div>
+  </div>
+</footer>
+
+<script>
+  // Reveal on scroll
+  (function() {
+    const els = document.querySelectorAll('.reveal');
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    els.forEach(el => io.observe(el));
+  })();
+</script>
+
+</body>
+</html>
