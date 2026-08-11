@@ -32,6 +32,7 @@ import math
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -1361,12 +1362,17 @@ def generate_pdf_with_chrome(html_path: Path, pdf_path: Path) -> None:
     abs_html = str(html_path.resolve())
     file_url = f"file://{abs_html}"
 
+    # Use a dedicated writable dir for Chrome headless user data
+    chrome_user_dir = Path(tempfile.gettempdir()) / "chrome_y4report_headless"
+    chrome_user_dir.mkdir(parents=True, exist_ok=True)
+
     args = [
         chrome_path,
         "--headless",
         "--disable-gpu",
         "--no-sandbox",
         "--disable-dev-shm-usage",
+        f"--user-data-dir={str(chrome_user_dir)}",
         "--virtual-time-budget=5000",
         "--run-all-compositor-stages-before-draw",
         f"--print-to-pdf={str(pdf_path.resolve())}",
@@ -1375,7 +1381,14 @@ def generate_pdf_with_chrome(html_path: Path, pdf_path: Path) -> None:
     ]
 
     print(f"  Chrome 打印 PDF (using {chrome_path}) ...")
-    result = subprocess.run(args, capture_output=True, text=True, timeout=180)
+
+    # Ensure HOME is set so Chrome can find its config dir
+    env = os.environ.copy()
+    if not env.get("HOME"):
+        env["HOME"] = str(Path.home())
+
+    result = subprocess.run(args, capture_output=True, text=True, timeout=180, env=env)
+
     if result.stderr:
         last = result.stderr.strip().splitlines()[-3:]
         print("    stderr (last 3):", " | ".join(last))
@@ -1399,6 +1412,7 @@ def main() -> None:
 
     project_dir = Path(__file__).resolve().parent
     output_dir = project_dir / "output"
+    data_dir = project_dir / "data"
     output_dir.mkdir(exist_ok=True)
     html_path = output_dir / "report.html"
     pdf_path = output_dir / "report.pdf"
@@ -1420,8 +1434,39 @@ def main() -> None:
         print(f"  [警告] PDF 生成失败: {exc}")
         print("  可手动用 Chrome 打开 output/report.html 并打印为 PDF。")
 
+    # --- Rename output files with student name ---
+    student_name = ""
+    report_data_path = data_dir / "report_data.json"
+    if report_data_path.exists():
+        try:
+            rd = json.loads(report_data_path.read_text(encoding="utf-8"))
+            student_name = (rd.get("student", {}) or {}).get("name", "").strip()
+        except Exception:
+            pass
+
+    if student_name:
+        safe_name = student_name.replace("/", "_").replace("\\", "_").replace(" ", "")
+        new_base = f"凭远Y4评测报告_{safe_name}"
+        new_pdf = output_dir / f"{new_base}.pdf"
+        new_html = output_dir / f"{new_base}.html"
+
+        # Remove old files with same name if exists
+        for f in (new_pdf, new_html):
+            if f.exists():
+                f.unlink()
+
+        if pdf_path.exists():
+            pdf_path.rename(new_pdf)
+            print(f"\n  PDF 已重命名: {new_pdf.name}")
+        if html_path.exists():
+            html_path.rename(new_html)
+            print(f"  HTML 已重命名: {new_html.name}")
+    else:
+        # Still rename to standard name if no student name
+        print(f"\n  学生姓名为空，保留默认文件名")
+
     print("\n" + "=" * 60)
-    print(f"完成！输出: {html_path}, {pdf_path}")
+    print(f"完成！输出目录: {output_dir}")
     print("=" * 60)
     return 0
 

@@ -20,6 +20,22 @@ VALUE_LABELS = ["安全稳定", "生活方式", "利他助人", "工作环境", 
                 "上司关系", "同事关系", "成就感", "管理权力", "声望地位",
                 "独立自主", "创造发明", "智力激发", "美的追求", "多样变化"]
 
+# VALUE_LABELS 去空格版本 -> 标准名称映射（用于视觉 API 返回"美 的追求"这类变体时的标准化）
+_LABEL_NO_SPACE_MAP = {lbl.replace(" ", ""): lbl for lbl in VALUE_LABELS}
+
+
+def normalize_label(name: str) -> str:
+    """把视觉 API 返回的变体标签名规范化为 VALUE_LABELS 中的标准名称。
+    
+    例如 "美 的追求" → "美的追求"。
+    如果匹配不到，原样返回。
+    """
+    if not name:
+        return name
+    key = name.strip().replace(" ", "")
+    return _LABEL_NO_SPACE_MAP.get(key, name.strip())
+
+
 DEFAULT_DASHSCOPE_KEY = "sk-ws-H.RYLDEIE.E3Vt.MEUCIQDhlaQEMxHpnz09zmIpQONyI6aUfqP61xHF6ek9bKwGTwIgMxoi1LjUk0j7Lmc5piivXxONI52as5Zx_Dlj9mFt2Qs"
 
 
@@ -75,9 +91,7 @@ def render_page(pdf_path: Path, page_idx: int, dpi: int = 200) -> np.ndarray:
 def analyze_vertical_bars(img: np.ndarray) -> List[dict]:
     h, w = img.shape[:2]
     
-    chart_region = img[200:600, 50:w-50]
-    
-    hsv = cv2.cvtColor(chart_region, cv2.COLOR_RGB2HSV)
+    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
     
     yellow_mask = (hsv[:, :, 0] > 15) & (hsv[:, :, 0] < 50) & (hsv[:, :, 1] > 50) & (hsv[:, :, 2] > 80)
     blue_mask = (hsv[:, :, 0] > 90) & (hsv[:, :, 0] < 140) & (hsv[:, :, 1] > 30) & (hsv[:, :, 2] > 50)
@@ -167,29 +181,11 @@ def parse_api_result(api_result: str, min_score: float, max_score: float, min_la
                                     if matched_label in key or key in matched_label:
                                         try:
                                             score = float(value)
-                                            break
                                         except (ValueError, TypeError):
                                             pass
-                                
+                                        break
                                 if score is not None:
                                     results[matched_label] = round(max(min_score, min(max_score, score)), 1)
-                                else:
-                                    results[matched_label] = round(min_score + (max_score - min_score) * (i / 14), 1)
-                
-                elif '分数' in parsed and isinstance(parsed['分数'], dict):
-                    for key, value in parsed['分数'].items():
-                        matched_label = None
-                        for known_label in VALUE_LABELS:
-                            if known_label in key or key in known_label:
-                                matched_label = known_label
-                                break
-                        
-                        if matched_label:
-                            try:
-                                score = float(value)
-                                results[matched_label] = round(max(min_score, min(max_score, score)), 1)
-                            except (ValueError, TypeError):
-                                pass
                 elif len(parsed) <= 15:
                     for key, value in parsed.items():
                         matched_label = None
@@ -211,38 +207,27 @@ def parse_api_result(api_result: str, min_score: float, max_score: float, min_la
         lines = api_result.split('\n')
         in_table = False
         for line in lines:
-            if '|' in line and ('索引' in line or '价值观' in line or '分数' in line):
+            line = line.strip()
+            if '价值观' in line and ('分数' in line or '得分' in line):
                 in_table = True
                 continue
-            
-            if in_table and '|' in line:
-                parts = [p.strip() for p in line.split('|') if p.strip()]
+            if in_table:
+                parts = re.split(r'[\s,，\t]+', line)
                 if len(parts) >= 2:
-                    label = ''
-                    score_str = ''
-                    for part in parts:
-                        if any(known_label in part or part in known_label for known_label in VALUE_LABELS):
-                            label = part
+                    label = parts[0]
+                    score_str = parts[-1]
+                    matched_label = None
+                    for known_label in VALUE_LABELS:
+                        if known_label in label or label in known_label:
+                            matched_label = known_label
+                            break
+                    
+                    if matched_label:
                         try:
-                            score = float(part)
-                            if min_score <= score <= max_score + 1:
-                                score_str = part
+                            score = float(score_str)
+                            results[matched_label] = round(max(min_score, min(max_score, score)), 1)
                         except ValueError:
                             pass
-                    
-                    if label and score_str:
-                        matched_label = None
-                        for known_label in VALUE_LABELS:
-                            if known_label in label or label in known_label:
-                                matched_label = known_label
-                                break
-                        
-                        if matched_label:
-                            try:
-                                score = float(score_str)
-                                results[matched_label] = round(max(min_score, min(max_score, score)), 1)
-                            except ValueError:
-                                pass
             
             if in_table and not line.strip():
                 if len(results) >= 10:
@@ -267,42 +252,113 @@ def parse_api_result(api_result: str, min_score: float, max_score: float, min_la
                 except ValueError:
                     pass
     
-    if len(results) < 10:
-        pattern2 = re.compile(r'(\d+)\.\s*([^\d]+?)\s+(\d+\.?\d*)')
-        for match in pattern2.finditer(api_result):
-            label_text = match.group(2).strip()
-            score_str = match.group(3)
-            
-            matched_label = None
-            for known_label in VALUE_LABELS:
-                if known_label in label_text or label_text in known_label:
-                    matched_label = known_label
-                    break
-            
-            if matched_label:
-                try:
-                    score = float(score_str)
-                    results[matched_label] = round(max(min_score, min(max_score, score)), 1)
-                except ValueError:
-                    pass
-    
-    if max_label in VALUE_LABELS:
-        results[max_label] = max_score
-    if min_label in VALUE_LABELS:
-        results[min_label] = min_score
-    
     return results
 
 
+# ============================================================
+# B6 版本检测：初中版 vs 高中版
+# ============================================================
+
+def detect_b6_version(pdf_path: Path) -> str:
+    """检测 B6 是初中版还是高中版。直接从文件名判断。
+
+    文件名包含 "高中" → 高中版
+    文件名包含 "初中" → 初中版
+    默认 → 初中版
+    """
+    name = pdf_path.name
+    if "高中" in name:
+        print(f"[视觉] B6 版本检测: 高中版 (文件名: {name})")
+        return "高中版"
+    if "初中" in name:
+        print(f"[视觉] B6 版本检测: 初中版 (文件名: {name})")
+        return "初中版"
+    print(f"[视觉] B6 版本检测: 初中版 (默认, 文件名: {name})")
+    return "初中版"
+
+
 def find_values_page(pdf_path: Path) -> int:
-    doc = fitz.open(str(pdf_path))
-    for i in range(len(doc)):
-        text = doc[i].get_text()
-        if '我的职业价值观一览表' in text or ('价值观' in text and '1\n2\n3\n4\n5' in text):
-            doc.close()
-            return i
-    doc.close()
-    return 14
+    """返回职业价值观页面的 0-based 索引。
+
+    初中版 → page 12 (index 11)
+    高中版 → page 15 (index 14)
+    """
+    version = detect_b6_version(pdf_path)
+    return 11 if version == "初中版" else 14
+
+
+# ============================================================
+# Prompt 模板：初中版 vs 高中版
+# ============================================================
+
+PROMPT_CHUZHONG = """这是职业价值观测评报告的页面。页面上有15个卡片，排列成3行5列。
+每个卡片左上角有一个大的粗体数字编号（1-15）。
+
+卡片编号的空间布局：
+- 第1行（最上面）：编号 1, 2, 3, 4, 5（从左到右）
+- 第2行（中间）：编号 6, 7, 8, 9, 10（从左到右）
+- 第3行（最下面）：编号 11, 12, 13, 14, 15（从左到右）
+
+你的任务：按照上述布局，识别每个编号卡片上的价值观名称（中文）。
+
+请严格按照以下JSON格式输出，不要输出任何其他内容：
+
+{{
+  "1": "第1行第1列卡片的价值观名称",
+  "2": "第1行第2列卡片的价值观名称",
+  "3": "第1行第3列卡片的价值观名称",
+  "4": "第1行第4列卡片的价值观名称",
+  "5": "第1行第5列卡片的价值观名称",
+  "6": "第2行第1列卡片的价值观名称",
+  "7": "第2行第2列卡片的价值观名称",
+  "8": "第2行第3列卡片的价值观名称",
+  "9": "第2行第4列卡片的价值观名称",
+  "10": "第2行第5列卡片的价值观名称",
+  "11": "第3行第1列卡片的价值观名称",
+  "12": "第3行第2列卡片的价值观名称",
+  "13": "第3行第3列卡片的价值观名称",
+  "14": "第3行第4列卡片的价值观名称",
+  "15": "第3行第5列卡片的价值观名称"
+}}
+
+要求：
+- 价值观名称必须从图片中读取，不要猜测
+- 必须包含所有15个编号"""
+
+
+PROMPT_GAOZHONG = """这是高中版职业价值观测评报告的页面。页面上有15个卡片，排列成3行5列。
+每个卡片左上角有一个大的粗体数字编号（1-15）。
+
+卡片编号的空间布局：
+- 第1行（最上面）：编号 1, 2, 3, 4, 5（从左到右）
+- 第2行（中间）：编号 6, 7, 8, 9, 10（从左到右）
+- 第3行（最下面）：编号 11, 12, 13, 14, 15（从左到右）
+
+你的任务：按照上述布局，识别每个编号卡片上的价值观名称（中文）。
+
+请严格按照以下JSON格式输出，不要输出任何其他内容：
+
+{{
+  "1": "第1行第1列卡片的价值观名称",
+  "2": "第1行第2列卡片的价值观名称",
+  "3": "第1行第3列卡片的价值观名称",
+  "4": "第1行第4列卡片的价值观名称",
+  "5": "第1行第5列卡片的价值观名称",
+  "6": "第2行第1列卡片的价值观名称",
+  "7": "第2行第2列卡片的价值观名称",
+  "8": "第2行第3列卡片的价值观名称",
+  "9": "第2行第4列卡片的价值观名称",
+  "10": "第2行第5列卡片的价值观名称",
+  "11": "第3行第1列卡片的价值观名称",
+  "12": "第3行第2列卡片的价值观名称",
+  "13": "第3行第3列卡片的价值观名称",
+  "14": "第3行第4列卡片的价值观名称",
+  "15": "第3行第5列卡片的价值观名称"
+}}
+
+要求：
+- 价值观名称必须从图片中读取，不要猜测
+- 必须包含所有15个编号"""
 
 
 def main() -> Dict[str, float]:
@@ -317,12 +373,15 @@ def main() -> Dict[str, float]:
     pdf_path = b6_files[0]
     print(f"[视觉] 读取 {pdf_path.name}")
     
+    # 检测版本并选择页面
+    version = detect_b6_version(pdf_path)
     values_page_idx = find_values_page(pdf_path)
-    print(f"[视觉] 职业价值观页面在第 {values_page_idx + 1} 页")
+    print(f"[视觉] 职业价值观页面在第 {values_page_idx + 1} 页 (版本: {version})")
     
     img_15 = render_page(pdf_path, values_page_idx)
     
-    full_page = img_15[150:1000, :]
+    # 用整页图片，不裁剪（裁剪会切掉第二、三排卡片）
+    full_page = img_15
     try:
         cv2.imwrite(str(base_dir / "_full_page_for_api.png"), cv2.cvtColor(full_page, cv2.COLOR_RGB2BGR))
     except Exception:
@@ -334,40 +393,9 @@ def main() -> Dict[str, float]:
     min_score, max_score, min_label, max_label = extract_min_max_from_text(pdf_path)
     print(f"[视觉] 读取到: min={min_score}({min_label}), max={max_score}({max_label})")
     
-    prompt = f"""这是职业价值观测评报告的页面。页面上有15个卡片。每个卡片左上角有一个大的粗体数字编号（1-15）。
-
-你的任务：
-1. 仔细识别每个卡片左上角的数字编号（1-15）
-2. 识别每个编号卡片上的价值观名称（中文）
-3. 识别每个价值观的分数
-
-重要：不要假设任何固定顺序，必须按照卡片上的实际编号来识别。
-
-已知信息：
-- 最高分是{max_score}分，对应"{max_label}"
-- 最低分是{min_score}分，对应"{min_label}"
-
-请严格按照以下JSON格式输出，不要输出任何其他内容：
-
-{{
-  "number_mapping": {{
-    "1": "编号1对应的价值观名称",
-    "2": "编号2对应的价值观名称",
-    ...
-    "15": "编号15对应的价值观名称"
-  }},
-  "scores": {{
-    "价值观名称": 分数,
-    ...
-  }}
-}}
-
-要求：
-- number_mapping中的键是卡片左上角的数字编号（1-15），值是该卡片上的价值观名称
-- scores中的键是价值观名称，值是该价值观的得分（保留一位小数）
-- 必须包含所有15个编号
-- 请确保"{max_label}"的分数是{max_score}，"{min_label}"的分数是{min_score}
-- 价值观名称必须从图片中读取，不要猜测"""
+    # 根据版本选择 prompt
+    prompt = PROMPT_GAOZHONG if version == "高中版" else PROMPT_CHUZHONG
+    print(f"[视觉] 使用 {version} prompt")
     
     api_result = call_vision_api(image_b64, prompt)
     
@@ -380,88 +408,47 @@ def main() -> Dict[str, float]:
             if json_match:
                 parsed = json.loads(json_match.group())
                 
-                results = {}
+                # 解析 number_mapping（API 直接返回 {"1":"标签名",...,"15":"标签名"}）
                 num_to_label = {}
+                for key, value in parsed.items():
+                    if key.isdigit() and 1 <= int(key) <= 15:
+                        name_norm = normalize_label(str(value))
+                        if name_norm:
+                            num_to_label[str(key)] = name_norm
                 
-                if 'scores' in parsed and isinstance(parsed['scores'], dict):
-                    for name, score in parsed['scores'].items():
-                        name_clean = name.strip()
-                        if name_clean:
-                            try:
-                                score_val = float(score)
-                                results[name_clean] = round(max(min_score, min(max_score, score_val)), 1)
-                            except (ValueError, TypeError):
-                                pass
+                # 基本校验：必须有 15 个条目
+                if len(num_to_label) < 15:
+                    print(f"\n[视觉] 警告: number_mapping 不完整 (count={len(num_to_label)})，丢弃映射")
+                    num_to_label = {}
                 
-                if 'number_mapping' in parsed and isinstance(parsed['number_mapping'], dict):
-                    for num, name in parsed['number_mapping'].items():
-                        name_clean = name.strip()
-                        if name_clean:
-                            num_to_label[str(num)] = name_clean
-                
-                if not num_to_label and isinstance(parsed, dict):
-                    for key, value in parsed.items():
-                        if key.isdigit() and 1 <= int(key) <= 15:
-                            if isinstance(value, dict) and '名称' in value:
-                                name = value['名称']
-                                matched_label = None
-                                for known_label in VALUE_LABELS:
-                                    if known_label in name or name in known_label:
-                                        matched_label = known_label
-                                        break
-                                if matched_label:
-                                    num_to_label[str(key)] = matched_label
-                
-                if results and len(results) >= 10:
-                    print("\n[视觉] 解析API结果:")
-                    for label, score in results.items():
-                        print(f"  {label}: {score}")
+                # 构建 results（保持 extract.py 接口不变：返回 {标签: 分数}）
+                # 分数从 min/max 文本读取的值填充，不需要视觉 API 返回分数
+                results = {}
+                if num_to_label:
+                    for i in range(1, 16):
+                        label_name = num_to_label.get(str(i), "")
+                        if label_name:
+                            # 分数用默认值填充（extract.py 主要用 mapping 填排名 110-124）
+                            results[label_name] = max_score if label_name == max_label else (min_score if label_name == min_label else 5.0)
                     
-                    # 不强制覆盖视觉API读取的值，仅补充缺失的最高/最低分
-                    if max_label not in results:
-                        results[max_label] = max_score
-                    if min_label not in results:
-                        results[min_label] = min_score
+                    print("\n[视觉] 最终结果（按卡片编号排序）:")
+                    for i in range(1, 16):
+                        label_name = num_to_label.get(str(i), "")
+                        if label_name:
+                            print(f"    卡片 {i}: {label_name}")
                     
-                    # 按卡片编号排序（如果有编号映射）
-                    if num_to_label:
-                        # 创建按编号顺序排列的结果
-                        ordered_results = {}
-                        for i in range(1, 16):
-                            label_name = num_to_label.get(str(i), "")
-                            if label_name and label_name in results:
-                                ordered_results[label_name] = results[label_name]
-                        # 补充不在映射中的其他值
-                        for label_name, score in results.items():
-                            if label_name not in ordered_results:
-                                ordered_results[label_name] = score
-                        
-                        print("\n[视觉] 最终结果（按卡片编号排序）:")
-                        for i in range(1, 16):
-                            label_name = num_to_label.get(str(i), "")
-                            if label_name and label_name in ordered_results:
-                                print(f"    卡片 {i}: {label_name} - {ordered_results[label_name]:.1f}")
-                        
-                        results = ordered_results
-                    else:
-                        print("\n[视觉] 最终结果（按分数排序）:")
-                        sorted_results = sorted(results.items(), key=lambda x: -x[1])
-                        for rank, (label, score) in enumerate(sorted_results, 1):
-                            print(f"    排名 {rank}: {label} - {score:.1f}")
-                    
+                    # 写入 scores 文件（extract.py 读这个填 095-109）
                     output_path = base_dir / "data" / "_vision_b6_values_bar.json"
                     output_path.parent.mkdir(exist_ok=True)
-                    
                     with open(output_path, 'w', encoding='utf-8') as f:
                         json.dump(results, f, ensure_ascii=False, indent=2)
-                    
                     print(f"\n[视觉] 写入 {output_path}")
                     
-                    if num_to_label:
-                        mapping_output_path = base_dir / "data" / "_vision_b6_values_mapping.json"
-                        with open(mapping_output_path, 'w', encoding='utf-8') as f:
-                            json.dump(num_to_label, f, ensure_ascii=False, indent=2)
-                        print(f"\n[视觉] 写入编号映射 {mapping_output_path}")
+                    # 写入 mapping 文件（extract.py 读这个填 110-124）
+                    mapping_output_path = base_dir / "data" / "_vision_b6_values_mapping.json"
+                    with open(mapping_output_path, 'w', encoding='utf-8') as f:
+                        json.dump(num_to_label, f, ensure_ascii=False, indent=2)
+                    print(f"\n[视觉] 写入编号映射 {mapping_output_path}")
                     
                     return results
         except json.JSONDecodeError:

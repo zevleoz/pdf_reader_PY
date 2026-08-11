@@ -64,6 +64,21 @@ PAGES_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
 
 
+# ======================================================================
+# 进度上报（供前端进度条轮询）
+# ======================================================================
+def write_progress(stage: str, percent: int, message: str = ""):
+    """写入进度文件，供 /api/progress 轮询读取。"""
+    try:
+        import time as _t
+        prog = {"stage": stage, "percent": percent, "message": message, "ts": _t.time()}
+        (DATA_DIR / "_progress.json").write_text(
+            json.dumps(prog, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # 环境变量 / API 配置（与 extract_with_api.py 一致，保持可互换）
 # ---------------------------------------------------------------------------
@@ -1627,9 +1642,12 @@ def _render_pages_for_vision(max_per_pdf: int = 8,
                     break
         must_pages = sorted(set(must_pages))
         
-        if slot == "B6" and total >= 13:
-            must_pages.append(12)
-            must_pages.append(13)
+        if slot == "B6":
+            # 初中版价值观在第12页，高中版在第15页
+            from _vision_values_bar import find_values_page
+            vp_idx = find_values_page(pdf)
+            must_pages.append(vp_idx + 1)       # 价值观页面
+            must_pages.append(vp_idx + 2)       # 下一页（排名表）
             must_pages = sorted(set(must_pages))
         
         if slot == "B4":
@@ -1755,6 +1773,14 @@ def main(force_skip_vision: bool = False) -> int:
         print(f"[ERROR] {INPUT_DIR} 下没有 PDF")
         return 1
 
+    # Clear cached vision files from previous runs
+    for cache_name in ("_vision_b6_values_mapping.json", "_vision_b6_values_bar.json"):
+        cache_file = DATA_DIR / cache_name
+        if cache_file.exists():
+            cache_file.unlink()
+
+    write_progress("init", 5, "正在初始化…")
+
     # --- A. PDF 文本层基础提取（用于回填报告标题/学生元信息）
     all_text_blobs: List[str] = []
     pdf_titles: List[str] = []
@@ -1767,11 +1793,14 @@ def main(force_skip_vision: bool = False) -> int:
             pdf_titles.append(slot)
         text_items_by_pdf[slot].extend(items)
 
+    write_progress("text_extract", 15, f"文本层提取完成（{len(pdfs)} 份 PDF）")
+
     # --- B. 视觉 API 主路径：严格 124 项 schema
     if force_skip_vision:
         vision_result: Dict[str, Any] = {"provider": "skipped"}
         code_values: Dict[str, Any] = {}
     else:
+        write_progress("vision_124", 20, "正在调用视觉 API 识别 124 项数据…")
         code_values = extract_124_points_with_vision()
         vision_result = {
             "provider": ("openai-compat" if OPENAI_KEY else "none"),
@@ -1779,9 +1808,11 @@ def main(force_skip_vision: bool = False) -> int:
             "count_124": len(code_values),
         }
         print(f"  [调试] code_values['059'] = {code_values.get('059', 'NOT FOUND')}")
+        write_progress("vision_124_done", 55, f"视觉 API 读取 {len(code_values)} 项")
 
         # --- B2. 职业价值观条形图解析（B6 第13页）
         try:
+            write_progress("vision_values", 60, "正在解析职业价值观排名…")
             from _vision_values_bar import main as extract_values_bar
             values_scores = extract_values_bar()
             if values_scores:
@@ -1820,6 +1851,8 @@ def main(force_skip_vision: bool = False) -> int:
                 print("  [职业价值观条形图] 解析失败，使用视觉API数据")
         except Exception as e:
             print(f"  [职业价值观条形图] 模块加载失败: {e}")
+
+    write_progress("text_fallback", 75, "文本层兜底补充中…")
 
     # --- C. 文本层兜底（视觉 API 没抓到的项，尝试用文本匹配）
     #     先做"高优先级文本硬匹配"（针对体质健康、依恋关系、认知能力这些
@@ -2474,11 +2507,14 @@ def main(force_skip_vision: bool = False) -> int:
 
     if _HAS_OCR:
         try:
-            b6_pdf = INPUT_DIR / "report_B6.pdf"
-            if b6_pdf.exists():
+            b6_pdfs = sorted(INPUT_DIR.glob("report_B6*.pdf"))
+            b6_pdf = b6_pdfs[0] if b6_pdfs else None
+            if b6_pdf and b6_pdf.exists():
+                from _vision_values_bar import find_values_page
+                _values_page_idx = find_values_page(b6_pdf)
                 _doc = fitz.open(str(b6_pdf))
-                if len(_doc) > 11:
-                    _page = _doc[11]  # 第 12 页
+                if len(_doc) > _values_page_idx:
+                    _page = _doc[_values_page_idx]
                     _mat = fitz.Matrix(2.5, 2.5)
                     _pix = _page.get_pixmap(matrix=_mat, alpha=False)
                     _tmp_png = DATA_DIR / "_tmp_b6_p12.png"
@@ -2528,16 +2564,19 @@ def main(force_skip_vision: bool = False) -> int:
         except Exception as e:
             print(f"  [视觉本地OCR] 失败: {e}")
 
-    # === 图像处理 fallback（B6 第 14 页柱状图）：
+    # === 图像处理 fallback（B6 职业价值观页面柱状图）：
     # 当 val_values 不足 15 项时，用图像处理填充缺失项
     if len(val_values) < 15:
         try:
             import numpy as np
-            b6_pdf = INPUT_DIR / "report_B6.pdf"
-            if b6_pdf.exists():
+            b6_pdfs = sorted(INPUT_DIR.glob("report_B6*.pdf"))
+            b6_pdf = b6_pdfs[0] if b6_pdfs else None
+            if b6_pdf and b6_pdf.exists():
+                from _vision_values_bar import find_values_page
+                _vp_idx = find_values_page(b6_pdf)
                 _doc = fitz.open(str(b6_pdf))
-                if len(_doc) > 13:
-                    _page = _doc[13]  # 第 14 页：职业价值观图表
+                if len(_doc) > _vp_idx:
+                    _page = _doc[_vp_idx]
                     _zoom = 3.0
                     _mat = fitz.Matrix(_zoom, _zoom)
                     _pix = _page.get_pixmap(matrix=_mat, alpha=False)
@@ -2660,6 +2699,8 @@ def main(force_skip_vision: bool = False) -> int:
     student = extract_student_info(all_text_blobs)
     print("\n[学生信息]", student)
 
+    write_progress("assemble", 88, "正在组装数据…")
+
     # --- D. 按 section 组装（保留兼容结构，data_points.apply_report_data 能用）
     sections = organize_to_sections(text_items_by_pdf)
 
@@ -2686,6 +2727,7 @@ def main(force_skip_vision: bool = False) -> int:
     print(f"\n[DONE] 124 项数据：已填 {filled}/124")
     print(f"  详细 JSON: {out_file}")
     print(f"  纯文本:   {DATA_DIR / 'report_data_124.txt'}")
+    write_progress("extract_done", 95, f"数据提取完成（{filled}/124 项）")
     return 0
 
 
