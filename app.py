@@ -47,6 +47,13 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
 
 
+@app.route("/style.css")
+def serve_style():
+    """Serve shared design-system CSS from templates/style.css."""
+    css_path = TEMPLATE_DIR / "style.css"
+    return send_from_directory(str(TEMPLATE_DIR), "style.css", mimetype="text/css")
+
+
 @app.route("/branding/<path:filename>")
 def branding(filename):
     """Serve branding assets (logo, watermark) directly from the branding/ folder.
@@ -449,6 +456,251 @@ def api_transcript():
         return jsonify({"ok": False, "error": f"AI 调用失败: {exc}"}), 500
 
 
+def _build_docx(summary_text: str, student_name: str = "", student_grade: str = "",
+               student_gender: str = "") -> bytes:
+    """Convert markdown-style meeting minutes text into a styled Word .docx file.
+    Returns the raw bytes of the docx file.
+    """
+    import re
+    import io
+    from docx import Document
+    from docx.shared import Pt, RGBColor, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    doc = Document()
+
+    # ---- Page margins ----
+    for section in doc.sections:
+        section.top_margin = Cm(2.2)
+        section.bottom_margin = Cm(2.2)
+        section.left_margin = Cm(2.5)
+        section.right_margin = Cm(2.5)
+
+    # ---- Base styles ----
+    style = doc.styles["Normal"]
+    style.font.name = "微软雅黑"
+    style.font.size = Pt(11)
+    style.font.color.rgb = RGBColor(0x14, 0x14, 0x14)
+
+    # ---- Title ----
+    title_line = "凭远教育 · Y4 解读会会议纪要"
+    if student_name:
+        title_line += f" — {student_name}"
+    title_p = doc.add_paragraph()
+    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run = title_p.add_run(title_line)
+    title_run.bold = True
+    title_run.font.size = Pt(18)
+    title_run.font.color.rgb = RGBColor(0x14, 0x14, 0x14)
+    title_run.font.name = "微软雅黑"
+    title_p.paragraph_format.space_after = Pt(6)
+
+    # ---- Student info table ----
+    from datetime import datetime
+    info_line = f"学生：{student_name or '—'}"
+    if student_grade:
+        info_line += f"　｜　年级：{student_grade}"
+    if student_gender:
+        info_line += f"　｜　性别：{student_gender}"
+    info_line += f"　｜　生成时间：{datetime.now().strftime('%Y-%m-%d')}"
+    meta_p = doc.add_paragraph()
+    meta_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    meta_run = meta_p.add_run(info_line)
+    meta_run.font.size = Pt(10)
+    meta_run.font.color.rgb = RGBColor(0x6B, 0x72, 0x80)
+    meta_p.paragraph_format.space_after = Pt(16)
+
+    # ---- Red divider ----
+    div_p = doc.add_paragraph()
+    div_run = div_p.add_run("━" * 30)
+    div_run.font.color.rgb = RGBColor(0xB3, 0x3A, 0x3A)
+    div_run.font.size = Pt(10)
+    div_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    div_p.paragraph_format.space_after = Pt(12)
+
+    # ---- Parse lines and build document structure ----
+    # Heading patterns: **一、** **二、** etc
+    heading_re = re.compile(r"^\s*\*\*(.+?)\*\*\s*(?:（(.+?)）)?\s*$")
+    # Bullet: starts with • or - * or • [ ]
+    bullet_chars = ("•", "·", "-", "*", "【")
+
+    lines = summary_text.split("\n")
+    section_title = None
+    section_subtitle = None
+
+    for raw in lines:
+        line = raw.rstrip()
+        stripped = line.strip()
+
+        # Skip separator lines like "---"
+        if re.match(r"^-+$", stripped) or re.match(r"^=+$", stripped) or re.match(r"^━+$", stripped):
+            continue
+        if stripped.startswith("> ") or stripped == ">":
+            # Markdown quote line → treat as italic small paragraph
+            if stripped == ">":
+                continue
+            q = stripped[2:].strip()
+            if q:
+                p = doc.add_paragraph()
+                run = p.add_run(q)
+                run.italic = True
+                run.font.size = Pt(10)
+                run.font.color.rgb = RGBColor(0x4A, 0x4A, 0x4A)
+            continue
+
+        # Heading check: **一、核心发现 · 3 条**（...）
+        m = heading_re.match(stripped)
+        if m:
+            section_title = m.group(1).strip()
+            section_subtitle = m.group(2).strip() if m.group(2) else None
+            hp = doc.add_paragraph()
+            hrun = hp.add_run(section_title)
+            hrun.bold = True
+            hrun.font.size = Pt(14)
+            hrun.font.color.rgb = RGBColor(0xB3, 0x3A, 0x3A)
+            hrun.font.name = "微软雅黑"
+            hp.paragraph_format.space_before = Pt(12)
+            hp.paragraph_format.space_after = Pt(4)
+            if section_subtitle:
+                subrun = hp.add_run(f" （{section_subtitle}）")
+                subrun.bold = False
+                subrun.font.size = Pt(10)
+                subrun.font.color.rgb = RGBColor(0x8A, 0x8A, 0x8A)
+            continue
+
+        if not stripped:
+            continue  # empty line
+
+        # Check if it's a sub-heading line (bold **...** without a bullet)
+        if stripped.startswith("**") and stripped.endswith("**") and not any(stripped.startswith(b) for b in bullet_chars):
+            subh = stripped[2:-2]
+            hp2 = doc.add_paragraph()
+            r2 = hp2.add_run(subh)
+            r2.bold = True
+            r2.font.size = Pt(11.5)
+            r2.font.color.rgb = RGBColor(0x14, 0x14, 0x14)
+            hp2.paragraph_format.space_before = Pt(8)
+            hp2.paragraph_format.space_after = Pt(2)
+            continue
+
+        # Bullet lines (starts with bullet char, possibly after whitespace)
+        is_bullet = False
+        content = stripped
+        checkbox = ""
+        # Strip leading bullet marker
+        lead = re.match(r"^(\s*[-•·*·]\s*(?:\[\s*[xX\s]\]\s*)?)", content)
+        if lead:
+            marker = lead.group(1)
+            if "[ ]" in marker or "［］" in marker or "[  ]" in marker:
+                checkbox = "☐"
+            elif re.search(r"\[\s*[xX]\s*\]", marker):
+                checkbox = "☑"
+            content = content[lead.end():].strip()
+            is_bullet = True
+
+        if not is_bullet and (content.startswith("【") or content.startswith("• ") or content.startswith("· ")):
+            is_bullet = True
+            if content.startswith("• "):
+                content = content[2:]
+            elif content.startswith("· "):
+                content = content[2:]
+
+        # Strip inline **...** bold markers and convert to rich runs
+        tokens = re.split(r"(\*\*[^*]+\*\*)", content)
+        if is_bullet:
+            bullet_prefix = f"{checkbox} • " if checkbox else "• "
+            p = doc.add_paragraph(style="List Bullet")
+            # docx default bullet style might look odd; just prepend char
+            # Override: re-add as normal paragraph with bullet marker
+            try:
+                p.clear()
+            except Exception:
+                pass
+            # Build content without list style to avoid indent inconsistencies
+            p2 = doc.add_paragraph()
+            b_run = p2.add_run(bullet_prefix)
+            b_run.font.color.rgb = RGBColor(0xB3, 0x3A, 0x3A)
+            b_run.bold = True
+            p2.paragraph_format.space_before = Pt(2)
+            p2.paragraph_format.space_after = Pt(2)
+            p2.paragraph_format.left_indent = Cm(0.6)
+            # Remove the duplicate bullet paragraph 'p'
+            try:
+                p_elm = p._element
+                p_elm.getparent().remove(p_elm)
+            except Exception:
+                pass
+
+            # Append content tokens
+            for tok in tokens:
+                if tok.startswith("**") and tok.endswith("**"):
+                    r = p2.add_run(tok[2:-2])
+                    r.bold = True
+                    r.font.size = Pt(11)
+                else:
+                    r = p2.add_run(tok)
+                    r.font.size = Pt(11)
+            continue
+
+        # Plain paragraph (non-heading, non-bullet)
+        pp = doc.add_paragraph()
+        for tok in tokens:
+            if tok.startswith("**") and tok.endswith("**"):
+                r = pp.add_run(tok[2:-2])
+                r.bold = True
+                r.font.size = Pt(11)
+            else:
+                r = pp.add_run(tok)
+                r.font.size = Pt(11)
+
+    # ---- Footer divider ----
+    doc.add_paragraph()
+    footer_div = doc.add_paragraph()
+    fd_run = footer_div.add_run("— 凭远教育 · Y4 综合测评系统 —")
+    fd_run.font.size = Pt(9)
+    fd_run.font.color.rgb = RGBColor(0x8A, 0x8A, 0x8A)
+    footer_div.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+@app.route("/api/transcript/docx", methods=["POST"])
+def api_transcript_docx():
+    """Generate minutes as DOCX file. Accepts JSON with summary + student info,
+    returns the .docx binary as attachment download.
+    """
+    data = request.get_json(force=True)
+    summary_text = (data.get("summary") or "").strip()
+    student_name = (data.get("student_name") or "").strip()
+    student_grade = (data.get("student_grade") or "").strip()
+    student_gender = (data.get("student_gender") or "").strip()
+
+    if not summary_text:
+        return jsonify({"ok": False, "error": "纪要内容为空"}), 400
+
+    try:
+        docx_bytes = _build_docx(summary_text, student_name, student_grade, student_gender)
+    except Exception as exc:
+        import traceback
+        tb = traceback.format_exc()
+        return jsonify({"ok": False, "error": f"DOCX 生成失败: {exc}", "trace": tb}), 500
+
+    filename_suffix = student_name if student_name else "纪要"
+    filename = f"凭远Y4解读会纪要_{filename_suffix}.docx"
+    safe_name = filename.encode("utf-8").decode("latin-1", "ignore")
+    from flask import Response
+    resp = Response(
+        docx_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{safe_name}\"; filename*=UTF-8''{filename}"
+        }
+    )
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Student management
 # ---------------------------------------------------------------------------
@@ -495,6 +747,9 @@ def api_booking():
         student_email=data.get("student_email", ""),
         student_phone=data.get("student_phone", ""),
         notes=data.get("notes", ""),
+        advisor_name=(data.get("advisor_name") or "").strip(),
+        school=(data.get("school") or "").strip(),
+        single_parent=data.get("single_parent", "false"),
     )
     return jsonify({"ok": True, "booking_id": bid})
 
@@ -524,6 +779,49 @@ def api_booking_complete(booking_id):
 @app.route("/api/booking/<int:booking_id>/cancel", methods=["POST"])
 def api_booking_cancel(booking_id):
     _db.update_booking_status(booking_id, "cancelled")
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Availability management
+# ---------------------------------------------------------------------------
+@app.route("/api/availability")
+def api_get_availability():
+    """Get availability for a given date. Query param: date=YYYY-MM-DD"""
+    from datetime import date
+    date_str = request.args.get("date", "")
+    if not date_str:
+        return jsonify({"ok": False, "error": "请指定日期"}), 400
+    try:
+        date_val = date.fromisoformat(date_str)
+    except ValueError:
+        return jsonify({"ok": False, "error": "日期格式错误"}), 400
+    entries = _db.get_availability(date_val)
+    # Also return the full list of time slots with availability info
+    all_slots = []
+    available_map = {e["time_slot"]: e["is_available"] for e in entries}
+    for ts in _db.TIME_SLOTS:
+        is_av = available_map.get(ts, True)  # Default: all available
+        all_slots.append({"time_slot": ts, "is_available": is_av})
+    return jsonify({"ok": True, "date": date_str, "slots": all_slots})
+
+
+@app.route("/api/availability", methods=["POST"])
+def api_set_availability():
+    """Batch set availability for a date.
+    Body: {"date": "YYYY-MM-DD", "slots": [{"time_slot": "09:00", "is_available": true}, ...]}
+    """
+    from datetime import date
+    data = request.get_json(force=True)
+    date_str = data.get("date", "")
+    slots = data.get("slots", [])
+    if not date_str:
+        return jsonify({"ok": False, "error": "请指定日期"}), 400
+    try:
+        date_val = date.fromisoformat(date_str)
+    except ValueError:
+        return jsonify({"ok": False, "error": "日期格式错误"}), 400
+    _db.batch_set_availability(date_val, slots)
     return jsonify({"ok": True})
 
 

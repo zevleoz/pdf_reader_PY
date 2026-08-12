@@ -4,53 +4,61 @@
   <meta charset="utf-8" />
   <title>学生档案 — Y4</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f8fafc; color: #0f172a; font-size: 14px; }
-    .brand-stripe { height: 3px; background: #1d4ed8; }
-    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 32px; background: #fff; border-bottom: 1px solid #e2e8f0; }
-    .brand-name { font-weight: 700; font-size: 15px; }
-    .topbar a { color: #1d4ed8; text-decoration: none; font-weight: 600; font-size: 13px; }
-    .container { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
-    h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 24px; }
-    .toolbar { display: flex; gap: 12px; margin-bottom: 20px; }
-    .btn { background: #1d4ed8; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
-    .btn:hover { background: #1e40af; }
-    .btn.secondary { background: #fff; color: #1d4ed8; border: 1.5px solid #1d4ed8; }
-    .btn.secondary:hover { background: #eff6ff; }
-    .btn.danger { background: #fff; color: #dc2626; border: 1.5px solid #dc2626; padding: 4px 12px; font-size: 12px; }
-    .btn.danger:hover { background: #fef2f2; }
-    .btn.small { padding: 4px 12px; font-size: 12px; }
-    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
-    th { text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
-    td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #f8fafc; }
-    .badge { display: inline-block; background: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .empty { text-align: center; padding: 48px; color: #94a3b8; }
-    .report-list { margin-top: 20px; }
-    .report-list h3 { font-size: 15px; margin-bottom: 10px; }
+    .btn-danger {
+      background: var(--white);
+      color: var(--red);
+      border: 1.5px solid var(--line);
+    }
+    .btn-danger:hover:not(:disabled) {
+      border-color: var(--red);
+      background: #FEF2F2;
+    }
     .action-cell { display: flex; gap: 8px; align-items: center; }
-    .action-cell a { color: #1d4ed8; text-decoration: none; font-size: 12px; font-weight: 600; }
+    .action-link {
+      color: var(--red);
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: color .2s var(--ease);
+    }
+    .action-link:hover { color: var(--red-deep); }
+    .toolbar { display: flex; gap: 12px; margin-bottom: 20px; }
+    .report-list { margin-top: 24px; }
+    .report-list h3 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--ink);
+    }
   </style>
 </head>
 <body>
   <div class="brand-stripe"></div>
-  <div class="topbar">
-    <div class="brand-name">凭远教育 · Y4 学生档案</div>
-    <div style="display:flex;gap:16px;">
-      <a href="/">← 返回首页</a>
-      <a href="/admin/bookings">预约管理</a>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-name">凭远教育</span>
+      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
     </div>
-  </div>
+    <nav class="topbar-nav">
+      <a href="/">← 主页</a>
+      <a href="/admin/bookings">预约管理</a>
+      <a href="/booking">预约</a>
+      <a href="/generate">报告生成</a>
+    </nav>
+  </header>
   <div class="container">
-    <h1>学生档案</h1>
-    <p class="subtitle">所有已生成报告的学生记录。点击学生查看历史报告。</p>
+    <h1 class="page-title">学生档案</h1>
+    <p class="page-subtitle">所有已生成报告的学生记录。点击学生查看历史报告。</p>
     <div class="toolbar">
-      <button class="btn secondary" onclick="window.location.href='/api/export'">导出 CSV</button>
-      <button class="btn secondary" onclick="loadStudents()">刷新</button>
+      <button class="btn btn-secondary" onclick="window.location.href='/api/export'">导出 CSV</button>
+      <button class="btn btn-secondary" onclick="loadStudents()">刷新</button>
     </div>
     <div id="studentList"></div>
     <div id="reportList" class="report-list" style="display:none"></div>
@@ -74,8 +82,8 @@
           <td><span class="badge">${s.report_count}</span></td>
           <td>${s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : '-'}</td>
           <td><div class="action-cell">
-            <a href="#" onclick="showReports(${s.id});return false;">查看报告</a>
-            <button class="btn danger" onclick="deleteStudent(${s.id}, '${s.name}')">删除</button>
+            <a class="action-link" href="#" onclick="showReports(${s.id});return false;">查看报告</a>
+            <button class="btn btn-sm btn-danger" onclick="deleteStudent(${s.id}, '${s.name}')">删除</button>
           </div></td>
         </tr>`;
       }
@@ -98,7 +106,7 @@
           <td>${r.report_date || '-'}</td>
           <td><a href="/output/${r.pdf_path.split('/').pop()}" target="_blank">查看 PDF</a></td>
           <td>${r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-'}</td>
-          <td><button class="btn danger" onclick="deleteReport(${r.id})">删除</button></td>
+          <td><button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">删除</button></td>
         </tr>`;
       }
       html += '</tbody></table>';

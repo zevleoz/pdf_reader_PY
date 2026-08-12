@@ -66,12 +66,56 @@ class Booking(Base):
     appointment_time = Column(DateTime, nullable=False)
     status = Column(String(20), default="pending")
     notes = Column(Text)
+    advisor_name = Column(String(100))
+    school = Column(String(200))
+    single_parent = Column(String(10), default="false")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Availability(Base):
+    __tablename__ = "availability"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=False)
+    time_slot = Column(String(10), nullable=False)
+    is_available = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 def init_db() -> None:
-    """Create tables if they don't exist."""
+    """Create tables if they don't exist, and run migrations."""
     Base.metadata.create_all(engine)
+    _migrate_schema()
+
+
+def _migrate_schema() -> None:
+    """Add new columns/tables for schema evolution."""
+    import sqlite3
+    if not DATABASE_URL.startswith("sqlite"):
+        return
+    db_path = str(DEFAULT_DB)
+    if not Path(db_path).exists():
+        return
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Check existing columns in bookings table
+    cursor.execute("PRAGMA table_info(bookings)")
+    existing_cols = {row[1] for row in cursor.fetchall()}
+
+    migrations = [
+        ("advisor_name", "ALTER TABLE bookings ADD COLUMN advisor_name VARCHAR(100) DEFAULT ''"),
+        ("school", "ALTER TABLE bookings ADD COLUMN school VARCHAR(200) DEFAULT ''"),
+        ("single_parent", "ALTER TABLE bookings ADD COLUMN single_parent VARCHAR(10) DEFAULT 'false'"),
+    ]
+    for col_name, sql in migrations:
+        if col_name not in existing_cols:
+            try:
+                cursor.execute(sql)
+                conn.commit()
+            except Exception:
+                pass
+
+    conn.close()
 
 
 # ─── Student CRUD ───────────────────────────────────────────────
@@ -180,7 +224,8 @@ def get_all_reports() -> List[Dict[str, Any]]:
 
 def add_booking(student_name: str, appointment_time: datetime,
                 student_email: str = "", student_phone: str = "",
-                notes: str = "") -> int:
+                notes: str = "", advisor_name: str = "",
+                school: str = "", single_parent: str = "false") -> int:
     """Create a booking. Returns booking id."""
     with Session(engine) as sess:
         stmt = insert(Booking).values(
@@ -190,6 +235,9 @@ def add_booking(student_name: str, appointment_time: datetime,
             appointment_time=appointment_time,
             status="pending",
             notes=notes,
+            advisor_name=advisor_name,
+            school=school,
+            single_parent=single_parent,
         )
         result = sess.execute(stmt)
         sess.commit()
@@ -212,6 +260,9 @@ def get_bookings(status: Optional[str] = None) -> List[Dict[str, Any]]:
             "appointment_time": row[0].appointment_time.isoformat() if row[0].appointment_time else None,
             "status": row[0].status,
             "notes": row[0].notes,
+            "advisor_name": row[0].advisor_name,
+            "school": row[0].school,
+            "single_parent": row[0].single_parent,
             "created_at": row[0].created_at.isoformat() if row[0].created_at else None,
         } for row in rows]
 
@@ -263,3 +314,91 @@ def delete_booking(booking_id: int) -> None:
     with Session(engine) as sess:
         sess.execute(delete(Booking).where(Booking.id == booking_id))
         sess.commit()
+
+
+# ─── Availability CRUD ──────────────────────────────────────────
+
+TIME_SLOTS = [
+    "09:00", "09:30", "10:00", "10:30", "11:00",
+    "13:00", "13:30", "14:00", "14:30", "15:00",
+    "15:30", "16:00", "16:30", "17:00",
+]
+
+
+def get_availability(date_val: date) -> List[Dict[str, Any]]:
+    """Get all availability entries for a given date."""
+    with Session(engine) as sess:
+        stmt = select(Availability).where(Availability.date == date_val).order_by(Availability.time_slot)
+        rows = sess.execute(stmt).all()
+        result = []
+        for row in rows:
+            result.append({
+                "id": row[0].id,
+                "date": row[0].date.isoformat() if row[0].date else None,
+                "time_slot": row[0].time_slot,
+                "is_available": bool(row[0].is_available),
+            })
+        return result
+
+
+def set_availability(date_val: date, time_slot: str, is_available: bool) -> int:
+    """Create or update an availability entry. Returns the id."""
+    with Session(engine) as sess:
+        existing = sess.execute(
+            select(Availability).where(
+                Availability.date == date_val,
+                Availability.time_slot == time_slot
+            )
+        ).first()
+        if existing:
+            sess.execute(
+                update(Availability).where(Availability.id == existing[0].id)
+                .values(is_available=1 if is_available else 0)
+            )
+            sess.commit()
+            return existing[0].id
+        else:
+            stmt = insert(Availability).values(
+                date=date_val,
+                time_slot=time_slot,
+                is_available=1 if is_available else 0,
+            )
+            result = sess.execute(stmt)
+            sess.commit()
+            return result.lastrowid
+
+
+def batch_set_availability(date_val: date, slots: List[Dict[str, Any]]) -> None:
+    """Set availability for all time slots on a given date.
+    slots is a list of {"time_slot": "09:00", "is_available": True/False}
+    """
+    with Session(engine) as sess:
+        for slot in slots:
+            ts = slot["time_slot"]
+            av = 1 if slot.get("is_available", False) else 0
+            existing = sess.execute(
+                select(Availability).where(
+                    Availability.date == date_val,
+                    Availability.time_slot == ts
+                )
+            ).first()
+            if existing:
+                sess.execute(
+                    update(Availability).where(Availability.id == existing[0].id)
+                    .values(is_available=av)
+                )
+            else:
+                sess.execute(
+                    insert(Availability).values(
+                        date=date_val,
+                        time_slot=ts,
+                        is_available=av,
+                    )
+                )
+        sess.commit()
+
+
+def get_available_slots(date_val: date) -> List[str]:
+    """Get list of available time slot strings for a date."""
+    entries = get_availability(date_val)
+    return [e["time_slot"] for e in entries if e["is_available"]]

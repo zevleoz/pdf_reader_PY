@@ -4,113 +4,78 @@
   <meta charset="utf-8" />
   <title>解读会会议纪要生成 — Y4</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Inter", "PingFang SC",
-                   "Microsoft YaHei", sans-serif;
-      background: #f8fafc;
-      color: #0f172a;
-      font-size: 14px;
-      line-height: 1.6;
-      display: flex;
-      flex-direction: column;
-    }
-    .brand-stripe { height: 3px; background: #1d4ed8; }
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 32px; background: #fff; border-bottom: 1px solid #e2e8f0;
-    }
-    .brand { display: flex; align-items: center; gap: 10px; }
-    .brand-name { font-weight: 700; font-size: 15px; color: #0f172a; }
-    .topbar a.back {
-      color: #1d4ed8; text-decoration: none; font-size: 13px; font-weight: 600;
-    }
-    .container {
-      max-width: 900px; margin: 0 auto; padding: 32px 24px; width: 100%;
-    }
-    h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
-    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 28px; }
-    .card {
-      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
-      padding: 24px; margin-bottom: 20px;
-    }
-    .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #0f172a; }
-    .student-info {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;
-    }
-    .student-info label { font-size: 12px; color: #64748b; display: block; margin-bottom: 4px; }
-    .student-info input {
-      width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0;
-      border-radius: 8px; font-size: 13px; outline: none;
-    }
-    .student-info input:focus { border-color: #2563eb; }
     textarea {
-      width: 100%; min-height: 300px; padding: 14px; border: 1.5px solid #e2e8f0;
-      border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical;
-      outline: none; line-height: 1.7;
+      width: 100%;
+      min-height: 300px;
+      padding: 12px 14px;
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      outline: none;
+      line-height: 1.8;
+      background: var(--white);
+      color: var(--ink);
+      transition: border-color .2s var(--ease);
     }
-    textarea:focus { border-color: #2563eb; }
+    textarea:focus { border-color: var(--red); }
     .file-input-row {
-      display: flex; align-items: center; gap: 12px; margin-top: 10px;
+      display: flex; align-items: center; gap: 12px; margin-top: 12px;
     }
-    .btn {
-      background: #1d4ed8; color: #fff; border: none; padding: 11px 20px;
-      border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
-      transition: background .15s;
-    }
-    .btn:hover:not(:disabled) { background: #1e40af; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; }
-    .btn.secondary {
-      background: #fff; color: #1d4ed8; border: 1.5px solid #1d4ed8;
-    }
-    .btn.secondary:hover:not(:disabled) { background: #eff6ff; }
     .btn-row { display: flex; gap: 12px; margin-top: 16px; }
-    .status {
-      padding: 12px 14px; border-radius: 8px; font-size: 12px;
-      background: #f1f5f9; color: #475569; margin-top: 16px;
-    }
-    .status.error { background: #fef2f2; color: #dc2626; }
-    .status.success { background: #f0fdf4; color: #16a34a; }
-    .loader {
-      display: inline-block; width: 16px; height: 16px;
-      border: 2px solid #e2e8f0; border-top-color: #1d4ed8;
-      border-radius: 50%; animation: spin .8s linear infinite;
-      margin-right: 8px; vertical-align: middle;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
     .result {
-      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
-      padding: 28px; margin-top: 20px; white-space: pre-wrap; font-size: 14px;
-      line-height: 1.8; color: #0f172a;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 28px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--ink);
     }
-    .result h3 { font-size: 16px; margin: 18px 0 8px; color: #1d4ed8; }
+    .result h3 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 16px;
+      margin: 18px 0 8px;
+      color: var(--red);
+      font-weight: 600;
+    }
     .result h3:first-child { margin-top: 0; }
-    .hint {
-      background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a;
-      padding: 12px 14px; border-radius: 8px; font-size: 12px; line-height: 1.7;
-      margin-bottom: 20px;
-    }
-    .hint strong { color: #1d4ed8; }
     .section-label {
-      font-size: 12px; font-weight: 600; color: #64748b;
-      margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
     }
+    .file-name { font-size: 12px; color: var(--muted); }
   </style>
 </head>
 <body>
   <div class="brand-stripe"></div>
-  <div class="topbar">
+  <header class="topbar">
     <div class="brand">
-      <span class="brand-name">凭远教育 · Y4 解读会纪要</span>
+      <span class="brand-name">凭远教育</span>
+      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
     </div>
-    <a href="/generate" class="back">← 返回报告生成</a>
-  </div>
+    <nav class="topbar-nav">
+      <a href="/generate">← 报告生成</a>
+      <a href="/booking">预约</a>
+      <a href="/students">学生档案</a>
+    </nav>
+  </header>
 
   <div class="container">
-    <h1>解读会会议纪要生成</h1>
-    <p class="subtitle">上传解读会逐字稿，AI 将根据 Y4 报告结构自动生成个性化会议纪要。</p>
+    <h1 class="page-title">解读会会议纪要生成</h1>
+    <p class="page-subtitle">上传解读会逐字稿，AI 将根据 Y4 报告结构自动生成个性化会议纪要。</p>
 
     <div class="hint">
       <strong>使用说明：</strong>
@@ -119,17 +84,17 @@
 
     <div class="card">
       <div class="section-label">学生信息</div>
-      <div class="student-info">
-        <div>
-          <label>学生姓名</label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+        <div class="field">
+          <label class="field-label" for="studentName">学生姓名</label>
           <input type="text" id="studentName" placeholder="张三" />
         </div>
-        <div>
-          <label>年级</label>
+        <div class="field">
+          <label class="field-label" for="studentGrade">年级</label>
           <input type="text" id="studentGrade" placeholder="高一" />
         </div>
-        <div>
-          <label>性别</label>
+        <div class="field">
+          <label class="field-label" for="studentGender">性别</label>
           <input type="text" id="studentGender" placeholder="男/女" />
         </div>
       </div>
@@ -146,18 +111,21 @@
 学生：..."></textarea>
       <div class="file-input-row">
         <input type="file" id="fileInput" accept=".txt,.md" style="display:none" />
-        <button class="btn secondary" onclick="document.getElementById('fileInput').click()">选择文本文件</button>
-        <span id="fileName" style="font-size:12px;color:#64748b"></span>
+        <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">选择文本文件</button>
+        <span id="fileName" class="file-name"></span>
       </div>
       <div class="btn-row">
-        <button class="btn" id="generateBtn" onclick="generateSummary()" disabled>
+        <button class="btn btn-primary" id="generateBtn" onclick="generateSummary()" disabled>
           生成会议纪要
         </button>
-        <button class="btn secondary" id="copyBtn" onclick="copyResult()" style="display:none">
+        <button class="btn btn-secondary" id="copyBtn" onclick="copyResult()" style="display:none">
           复制结果
         </button>
-        <button class="btn secondary" id="downloadBtn" onclick="downloadResult()" style="display:none">
-          下载为 TXT
+        <button class="btn btn-secondary" id="downloadTxtBtn" onclick="downloadTxt()" style="display:none">
+          下载 TXT
+        </button>
+        <button class="btn btn-primary" id="downloadDocxBtn" onclick="downloadDocx()" style="display:none">
+          下载 DOCX
         </button>
       </div>
       <div id="status" class="status" style="display:none"></div>
@@ -174,10 +142,102 @@
     const fileInput = document.getElementById('fileInput');
     const fileNameEl = document.getElementById('fileName');
     const copyBtn = document.getElementById('copyBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
+    const downloadTxtBtn = document.getElementById('downloadTxtBtn');
+    const downloadDocxBtn = document.getElementById('downloadDocxBtn');
     let lastResult = '';
 
-    // Auto-fill student name from URL query param
+    // ===== Session persistence =====
+    const SESSION_KEY = 'y4_transcript_state';
+
+    function saveToSession() {
+      try {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+          transcript: transcriptEl.value,
+          studentName: document.getElementById('studentName').value,
+          studentGrade: document.getElementById('studentGrade').value,
+          studentGender: document.getElementById('studentGender').value,
+          summary: lastResult,
+        }));
+      } catch (e) { /* ignore quota */ }
+    }
+
+    function restoreFromSession() {
+      try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data.transcript) transcriptEl.value = data.transcript;
+        if (data.studentName) document.getElementById('studentName').value = data.studentName;
+        if (data.studentGrade) document.getElementById('studentGrade').value = data.studentGrade;
+        if (data.studentGender) document.getElementById('studentGender').value = data.studentGender;
+        if (data.summary) {
+          lastResult = data.summary;
+          resultEl.innerHTML = renderMinutesMarkdown(data.summary);
+          resultEl.style.display = 'block';
+          copyBtn.style.display = 'inline-block';
+          downloadTxtBtn.style.display = 'inline-block';
+          downloadDocxBtn.style.display = 'inline-block';
+        }
+        if (transcriptEl.value.trim().length >= 50) {
+          generateBtn.disabled = false;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // ===== Minimal markdown renderer for minutes (bullet-point focused) =====
+    function renderMinutesMarkdown(text) {
+      // Escape first, then selectively re-add formatting
+      let html = escapeHtml(text);
+
+      // Block separators ---  → thin red divider
+      html = html.replace(/^(\s*[\-\=━]{3,}\s*\n?)/gm,
+        '<hr style="border:none;border-top:1px dashed var(--line);margin:16px 0;">');
+
+      // Headings: **一、xxx**（yyy）
+      html = html.replace(/^\*\*(.+?)\*\*(?:（(.+?)）)?\s*$/gm, (m, title, sub) => {
+        const subPart = sub ? `<span style="color:var(--muted);font-size:0.85em;font-weight:500;">（${sub}）</span>` : '';
+        return `<h3>${title}${subPart}</h3>`;
+      });
+
+      // Inline bold **text**
+      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:var(--ink);">$1</strong>');
+
+      // Quote > lines
+      html = html.replace(/^&gt;\s*(.+?)$/gm,
+        '<div style="border-left:3px solid var(--red);padding:4px 12px;color:var(--ink-2);font-style:italic;margin:6px 0;font-size:0.95em;">$1</div>');
+
+      // Checkbox bullets: • [ ] item or - [x] item
+      html = html.replace(/^\s*(?:[-•·\*])\s*\[\s*([xX\s]?)\s*\]\s*(.+?)$/gm,
+        (m, check, content) => {
+          const box = (check === 'x' || check === 'X') ? '☑' : '☐';
+          return `<div style="padding:3px 0 3px 1em;text-indent:-1em;line-height:1.75;">
+            <span style="color:var(--red);font-weight:700;">${box} • </span>${content.trim()}</div>`;
+        });
+
+      // Standard bullet lines: •, -, *, ·
+      html = html.replace(/^\s*(?:[-•·\*])\s*(.+?)$/gm, (m, content) => {
+        return `<div style="padding:3px 0 3px 1em;text-indent:-1em;line-height:1.75;">
+          <span style="color:var(--red);font-weight:700;">• </span>${content.trim()}</div>`;
+      });
+
+      // Non-heading lines that start with **xxx** (subheading, no bullet)
+      html = html.replace(/^<strong[^>]*>(.+?)<\/strong>\s*$/gm,
+        '<div style="font-weight:700;margin-top:10px;color:var(--ink);">$1</div>');
+
+      // Line breaks for remaining newlines
+      html = html.replace(/\n{2,}/g, '<br><br>');
+      html = html.replace(/\n/g, '<br>');
+
+      return html;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
+    // ===== URL params =====
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('name')) {
       document.getElementById('studentName').value = urlParams.get('name');
@@ -186,8 +246,13 @@
       document.getElementById('studentGrade').value = urlParams.get('grade');
     }
 
+    // ===== Input listeners =====
     transcriptEl.addEventListener('input', () => {
       generateBtn.disabled = transcriptEl.value.trim().length < 50;
+      saveToSession();
+    });
+    ['studentName', 'studentGrade', 'studentGender'].forEach(id => {
+      document.getElementById(id).addEventListener('input', saveToSession);
     });
 
     fileInput.addEventListener('change', async (e) => {
@@ -197,6 +262,7 @@
       const text = await file.text();
       transcriptEl.value = text;
       generateBtn.disabled = text.trim().length < 50;
+      saveToSession();
     });
 
     function setStatus(msg, type) {
@@ -214,10 +280,11 @@
       if (!text || text.length < 50) return;
 
       generateBtn.disabled = true;
-      setStatus('<span class="loader"></span>正在生成会议纪要，请稍候...', '');
+      setStatus('<span class="spinner"></span>正在生成精简、可执行的会议纪要，请稍候...', 'loading');
       resultEl.style.display = 'none';
       copyBtn.style.display = 'none';
-      downloadBtn.style.display = 'none';
+      downloadTxtBtn.style.display = 'none';
+      downloadDocxBtn.style.display = 'none';
 
       try {
         const resp = await fetch('/api/transcript', {
@@ -240,11 +307,13 @@
         if (!data.ok) throw new Error(data.error || '生成失败');
 
         lastResult = data.summary;
-        resultEl.textContent = data.summary;
+        resultEl.innerHTML = renderMinutesMarkdown(data.summary);
         resultEl.style.display = 'block';
         copyBtn.style.display = 'inline-block';
-        downloadBtn.style.display = 'inline-block';
-        setStatus('会议纪要已生成！', 'success');
+        downloadTxtBtn.style.display = 'inline-block';
+        downloadDocxBtn.style.display = 'inline-block';
+        setStatus('会议纪要已生成！要点清晰、行动可执行。', 'ok');
+        saveToSession();
       } catch (e) {
         setStatus('生成失败：' + e.message, 'error');
       } finally {
@@ -260,7 +329,7 @@
       });
     }
 
-    function downloadResult() {
+    function downloadTxt() {
       if (!lastResult) return;
       const name = document.getElementById('studentName').value.trim() || '学生';
       const blob = new Blob([lastResult], { type: 'text/plain;charset=utf-8' });
@@ -273,6 +342,60 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
+
+    async function downloadDocx() {
+      if (!lastResult) return;
+      const name = document.getElementById('studentName').value.trim();
+      const grade = document.getElementById('studentGrade').value.trim();
+      const gender = document.getElementById('studentGender').value.trim();
+
+      // Use temporary loading state on the button
+      const oldText = downloadDocxBtn.textContent;
+      downloadDocxBtn.disabled = true;
+      downloadDocxBtn.textContent = '生成中…';
+
+      try {
+        const resp = await fetch('/api/transcript/docx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            summary: lastResult,
+            student_name: name,
+            student_grade: grade,
+            student_gender: gender,
+          }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || 'DOCX 生成失败');
+        }
+        const blob = await resp.blob();
+        // Extract filename from Content-Disposition if possible
+        const disp = resp.headers.get('Content-Disposition') || '';
+        let filename = `凭远Y4解读会纪要_${name || '学生'}.docx`;
+        const match = disp.match(/filename\*=UTF-8''([^;]+)/);
+        if (match) {
+          try { filename = decodeURIComponent(match[1]); } catch { /* use default */ }
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('下载 DOCX 失败：' + e.message);
+      } finally {
+        downloadDocxBtn.disabled = false;
+        downloadDocxBtn.textContent = oldText;
+      }
+    }
+
+    // Restore session state on load
+    restoreFromSession();
   </script>
 </body>
 </html>

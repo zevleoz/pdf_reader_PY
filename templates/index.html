@@ -4,57 +4,12 @@
   <meta charset="utf-8" />
   <title>报告生成 · Y4 综合测评</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Inter", "PingFang SC",
-                   "Microsoft YaHei", sans-serif;
-      background: #f8fafc;
-      color: #0f172a;
-      font-size: 14px;
-      line-height: 1.5;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* =========================== */
-    /* Brand stripe + topbar       */
-    /* =========================== */
-    .brand-stripe { height: 3px; background: #1d4ed8; }
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 32px;
-      background: #ffffff;
-      border-bottom: 1px solid #e2e8f0;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .brand img {
-      height: 28px;
-      width: auto;
-      max-height: 28px;
-      object-fit: contain;
-    }
-    .brand-name {
-      font-weight: 700;
-      font-size: 15px;
-      color: #0f172a;
-      letter-spacing: 0.2px;
-    }
-    .topbar-sub {
-      color: #64748b;
-      font-size: 12px;
-    }
-
-    /* =========================== */
-    /* Layout: 33 / 67 split       */
-    /* =========================== */
+    /* ========== Layout ========== */
     .layout {
       display: grid;
       grid-template-columns: minmax(360px, 33%) 1fr;
@@ -63,60 +18,54 @@
       flex: 1;
     }
 
-    /* =========================== */
-    /* Left: Upload panel          */
-    /* =========================== */
+    /* ========== Left Panel ========== */
     .left-panel {
-      padding: 24px 24px 32px;
-      border-right: 1px solid #e2e8f0;
-      background: #ffffff;
+      padding: 28px 28px 32px;
+      border-right: 1px solid var(--line);
+      background: var(--paper);
       overflow-y: auto;
       max-height: calc(100vh - 61px);
     }
+
     .panel-title {
-      font-size: 18px;
-      font-weight: 700;
-      color: #0f172a;
+      font-family: "Noto Serif SC", serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--ink);
       margin-bottom: 4px;
+      letter-spacing: 0.02em;
     }
+
     .panel-subtitle {
-      color: #64748b;
-      font-size: 12px;
-      margin-bottom: 20px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 22px;
+      line-height: 1.6;
     }
 
-    .hint {
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      color: #1e3a8a;
-      padding: 12px 14px;
-      border-radius: 8px;
-      font-size: 12px;
-      line-height: 1.7;
-      margin-bottom: 20px;
-    }
-    .hint strong { color: #1d4ed8; }
+    /* ========== Upload Slots ========== */
+    .slots { display: flex; flex-direction: column; gap: 12px; margin-bottom: 22px; }
 
-    /* Upload slots */
-    .slots { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
     .slot {
-      border: 2px dashed #cbd5e1;
-      border-radius: 10px;
+      border: 2px dashed var(--line);
+      border-radius: 8px;
       padding: 14px 16px;
-      transition: all .15s ease;
-      background: #fafbfc;
+      transition: all .2s var(--ease);
+      background: var(--paper-2);
       cursor: pointer;
     }
+
     .slot:hover {
-      border-color: #38bdf8;
-      background: #f0f9ff;
-      transform: translateY(-1px);
+      border-color: var(--red);
+      background: var(--white);
     }
+
     .slot.has-file {
-      border-color: #1d4ed8;
+      border-color: var(--red);
       border-style: solid;
-      background: #eff6ff;
+      background: #FEF6F6;
     }
+
     .slot-head {
       display: flex;
       align-items: center;
@@ -124,33 +73,39 @@
       gap: 8px;
       margin-bottom: 6px;
     }
+
     .slot-tag {
       display: inline-block;
-      background: #1d4ed8;
-      color: #fff;
+      background: var(--red);
+      color: var(--white);
       padding: 3px 10px;
-      border-radius: 999px;
+      border-radius: 4px;
       font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.6px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      font-family: "JetBrains Mono", monospace;
     }
+
     .slot-sub {
-      color: #64748b;
+      color: var(--muted);
       font-size: 11px;
     }
+
     .slot-title {
       font-weight: 600;
-      color: #0f172a;
+      color: var(--ink);
       font-size: 13px;
     }
+
     .slot-desc {
-      color: #475569;
-      font-size: 11px;
+      color: var(--ink-2);
+      font-size: 12px;
       margin-top: 2px;
     }
+
     .slot-fname {
       font-size: 12px;
-      color: #1e40af;
+      color: var(--red);
       margin-top: 10px;
       word-break: break-all;
       min-height: 16px;
@@ -158,131 +113,110 @@
       align-items: center;
       gap: 6px;
     }
+
     .slot-placeholder {
-      color: #94a3b8;
+      color: var(--muted);
       font-style: italic;
       font-size: 12px;
       margin-top: 10px;
     }
+
     .slot input[type=file] { display: none; }
 
-    /* Mindset score */
+    /* ========== Section Divider ========== */
     .section-divider {
-      border-top: 1px dashed #e2e8f0;
-      margin: 18px 0;
+      border-top: 1px dashed var(--line);
+      margin: 20px 0;
     }
-    .field-label {
-      font-weight: 600;
-      color: #0f172a;
-      font-size: 13px;
-      margin-bottom: 6px;
-    }
-    .field-hint {
-      color: #64748b;
-      font-size: 11px;
-      margin-bottom: 10px;
-    }
+
+    /* ========== Mindset Score Field ========== */
     .field-row {
       display: flex;
       align-items: center;
       gap: 10px;
     }
+
     .field-row input[type=number] {
-      flex: 0 0 120px;
-      padding: 9px 12px;
-      border: 1.5px solid #e2e8f0;
-      border-radius: 8px;
+      flex: 0 0 140px;
+      padding: 10px 12px;
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
       font-size: 13px;
       outline: none;
-      transition: border-color .15s;
+      transition: border-color .2s var(--ease);
+      background: var(--white);
+      color: var(--ink);
+      font-family: inherit;
     }
+
     .field-row input[type=number]:focus {
-      border-color: #2563eb;
+      border-color: var(--red);
     }
+
     .field-row span {
-      color: #64748b;
+      color: var(--muted);
       font-size: 12px;
     }
 
-    /* Button */
+    /* ========== Generate Button ========== */
     .gen-btn {
       width: 100%;
-      background: #1d4ed8;
-      color: #ffffff;
+      background: var(--red);
+      color: var(--white);
       border: none;
       padding: 13px 20px;
-      border-radius: 8px;
+      border-radius: 6px;
       font-size: 14px;
-      font-weight: 700;
+      font-weight: 600;
       cursor: pointer;
-      transition: background .15s, transform .1s;
-      margin-top: 20px;
-      letter-spacing: 0.3px;
+      transition: all .2s var(--ease);
+      margin-top: 22px;
+      letter-spacing: 0.04em;
+      font-family: inherit;
     }
+
     .gen-btn:hover:not(:disabled) {
-      background: #1e40af;
+      background: var(--red-deep);
+      transform: translateY(-1px);
     }
+
     .gen-btn:active:not(:disabled) {
-      transform: translateY(1px);
+      transform: translateY(0);
     }
+
     .gen-btn:disabled {
-      opacity: .45;
+      opacity: .4;
       cursor: not-allowed;
-      background: #94a3b8;
     }
 
-    /* Status */
-    .status {
-      margin-top: 16px;
-      padding: 12px 14px;
-      border-radius: 8px;
-      font-size: 12px;
-      line-height: 1.6;
-      display: none;
-      word-break: break-word;
-    }
-    .status.loading { display: block; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; }
-    .status.error   { display: block; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
-    .status.ok      { display: block; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    /* ========== Progress Bar ========== */
+    .progress-wrap { margin-top: 18px; }
 
-    /* Progress bar */
-    .progress-wrap { margin-top: 16px; }
     .progress-bar {
       width: 100%;
-      height: 8px;
-      background: #e5e7eb;
-      border-radius: 4px;
+      height: 6px;
+      background: var(--line);
+      border-radius: 3px;
       overflow: hidden;
     }
+
     .progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, #2A9D8F, #4cc4b5);
-      border-radius: 4px;
+      background: var(--red);
+      border-radius: 3px;
       transition: width 0.5s ease;
     }
+
     .progress-text {
       margin-top: 6px;
       font-size: 12px;
-      color: #6b7280;
+      color: var(--muted);
+      letter-spacing: 0.02em;
     }
 
-    .spinner {
-      display: inline-block;
-      width: 13px; height: 13px;
-      border: 2px solid #60a5fa;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      vertical-align: middle;
-      margin-right: 8px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* =========================== */
-    /* Right: AI Chat panel        */
-    /* =========================== */
+    /* ========== Right Panel ========== */
     .right-panel {
-      background: #f8fafc;
+      background: var(--paper-2);
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -293,80 +227,46 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 20px;
-      background: #ffffff;
-      border-bottom: 1px solid #e2e8f0;
+      padding: 12px 20px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
       gap: 12px;
       flex-shrink: 0;
     }
+
     .chat-toolbar-left {
       display: flex;
       align-items: center;
       gap: 10px;
     }
+
     .chat-status {
       font-size: 12px;
-      color: #64748b;
+      color: var(--muted);
       display: flex;
       align-items: center;
       gap: 6px;
+      letter-spacing: 0.02em;
     }
+
     .chat-status .dot {
-      width: 8px; height: 8px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      background: #94a3b8;
+      background: var(--line);
       flex-shrink: 0;
+      transition: background .2s;
     }
-    .chat-status.active .dot { background: #22c55e; }
-    .chat-status.loading .dot { background: #f59e0b; animation: pulse 1s ease-in-out infinite; }
+
+    .chat-status.active .dot { background: #16A34A; }
+    .chat-status.loading .dot { background: var(--red); animation: pulse 1s ease-in-out infinite; }
     @keyframes pulse { 50% { opacity: 0.4; } }
 
-    .btn {
-      padding: 8px 16px;
-      border-radius: 7px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: all .15s;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .btn.secondary {
-      background: #ffffff;
-      border-color: #cbd5e1;
-      color: #334155;
-    }
-    .btn.secondary:hover:not(:disabled) {
-      background: #f1f5f9;
-      border-color: #94a3b8;
-    }
-    .btn.primary {
-      background: #1d4ed8;
-      color: #ffffff;
-    }
-    .btn.primary:hover:not(:disabled) {
-      background: #1e40af;
-    }
-    .btn.secondary {
-      background: #ffffff;
-      color: #1d4ed8;
-      border: 1.5px solid #1d4ed8;
-    }
-    .btn.secondary:hover:not(:disabled) {
-      background: #eff6ff;
-    }
-    .btn:disabled {
-      opacity: .45;
-      cursor: not-allowed;
-    }
-
-    /* Chat messages area */
+    /* ========== Chat Messages ========== */
     .chat-messages {
       flex: 1;
       overflow-y: auto;
-      padding: 20px;
+      padding: 24px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -376,57 +276,68 @@
       display: flex;
       gap: 10px;
       max-width: 85%;
-      animation: fadeIn 0.2s ease;
+      animation: fadeIn 0.25s ease;
     }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-    .chat-message.assistant {
-      align-self: flex-start;
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
     }
+
+    .chat-message.assistant { align-self: flex-start; }
     .chat-message.user {
       align-self: flex-end;
       flex-direction: row-reverse;
     }
 
     .chat-avatar {
-      width: 32px; height: 32px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 13px;
+      font-weight: 600;
     }
+
     .chat-message.assistant .chat-avatar {
-      background: #dbeafe;
+      background: var(--red);
+      color: var(--white);
     }
+
     .chat-message.user .chat-avatar {
-      background: #e2e8f0;
+      background: var(--ink);
+      color: var(--white);
     }
 
     .chat-bubble {
       padding: 12px 16px;
-      border-radius: 12px;
+      border-radius: 10px;
       font-size: 13px;
-      line-height: 1.7;
+      line-height: 1.75;
       word-break: break-word;
     }
+
     .chat-message.assistant .chat-bubble {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
+      background: var(--white);
+      border: 1px solid var(--line);
       border-top-left-radius: 4px;
-      color: #1e293b;
+      color: var(--ink);
     }
+
     .chat-message.user .chat-bubble {
-      background: #1d4ed8;
-      color: #ffffff;
+      background: var(--red);
+      color: var(--white);
       border-top-right-radius: 4px;
     }
 
-    /* Markdown rendering inside chat */
+    /* Markdown in chat */
     .chat-bubble h1, .chat-bubble h2, .chat-bubble h3 {
       margin: 10px 0 6px;
-      font-weight: 700;
+      font-weight: 600;
+      font-family: "Noto Serif SC", serif;
     }
     .chat-bubble h1 { font-size: 16px; }
     .chat-bubble h2 { font-size: 15px; }
@@ -434,18 +345,20 @@
     .chat-bubble p { margin: 6px 0; }
     .chat-bubble ul, .chat-bubble ol { margin: 6px 0 6px 20px; }
     .chat-bubble li { margin: 3px 0; }
-    .chat-bubble strong { font-weight: 700; }
+    .chat-bubble strong { font-weight: 600; color: var(--red); }
+    .chat-message.user .chat-bubble strong { color: #FFE0E0; }
     .chat-bubble code {
-      background: #f1f5f9;
+      background: var(--paper-2);
       padding: 2px 6px;
       border-radius: 4px;
       font-size: 12px;
+      font-family: "JetBrains Mono", monospace;
     }
     .chat-bubble pre {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
+      background: var(--paper-2);
+      border: 1px solid var(--line);
       border-radius: 6px;
-      padding: 10px;
+      padding: 12px;
       overflow-x: auto;
       margin: 8px 0;
     }
@@ -457,36 +370,44 @@
       border-collapse: collapse;
       margin: 8px 0;
       width: 100%;
-    }
-    .chat-bubble th, .chat-bubble td {
-      border: 1px solid #e2e8f0;
-      padding: 6px 10px;
-      text-align: left;
       font-size: 12px;
     }
-    .chat-bubble th { background: #f8fafc; font-weight: 600; }
+    .chat-bubble th, .chat-bubble td {
+      border: 1px solid var(--line);
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .chat-bubble th {
+      background: var(--paper-2);
+      font-weight: 600;
+      color: var(--ink);
+    }
 
-    /* Typing indicator */
+    /* ========== Typing Indicator ========== */
     .typing-indicator {
       display: flex;
       gap: 4px;
       align-items: center;
       padding: 4px 0;
     }
+
     .typing-indicator span {
-      width: 7px; height: 7px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
-      background: #94a3b8;
+      background: var(--red);
       animation: typingBounce 1.2s ease-in-out infinite;
     }
+
     .typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
     .typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
+
     @keyframes typingBounce {
       0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
       30% { transform: translateY(-4px); opacity: 1; }
     }
 
-    /* Empty state */
+    /* ========== Empty State ========== */
     .chat-empty {
       flex: 1;
       display: flex;
@@ -497,58 +418,69 @@
       max-width: 360px;
       margin: 0 auto;
     }
+
     .chat-empty .empty-icon {
-      width: 64px; height: 64px;
-      background: #e0e7ff;
+      width: 64px;
+      height: 64px;
+      background: var(--white);
+      border: 1.5px solid var(--line);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       margin-bottom: 16px;
-      font-size: 28px;
-    }
-    .chat-empty .empty-title {
-      font-weight: 700;
-      color: #1e293b;
-      font-size: 16px;
-      margin-bottom: 8px;
-    }
-    .chat-empty .empty-sub {
-      color: #64748b;
-      font-size: 13px;
-      line-height: 1.6;
+      font-size: 26px;
+      color: var(--red);
     }
 
-    /* Input area */
+    .chat-empty .empty-title {
+      font-family: "Noto Serif SC", serif;
+      font-weight: 600;
+      color: var(--ink);
+      font-size: 17px;
+      margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .chat-empty .empty-sub {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    /* ========== Input Area ========== */
     .chat-input-area {
       display: flex;
       gap: 10px;
       padding: 14px 20px;
-      background: #ffffff;
-      border-top: 1px solid #e2e8f0;
+      background: var(--paper);
+      border-top: 1px solid var(--line);
       flex-shrink: 0;
     }
+
     .chat-input-area input {
       flex: 1;
       padding: 10px 14px;
-      border: 1.5px solid #e2e8f0;
-      border-radius: 8px;
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
       font-size: 13px;
       outline: none;
-      transition: border-color .15s;
+      transition: border-color .2s var(--ease);
       font-family: inherit;
+      background: var(--white);
+      color: var(--ink);
     }
+
     .chat-input-area input:focus {
-      border-color: #2563eb;
+      border-color: var(--red);
     }
+
     .chat-input-area input:disabled {
-      background: #f8fafc;
+      background: var(--paper-2);
       cursor: not-allowed;
     }
 
-    /* =========================== */
-    /* Responsive                  */
-    /* =========================== */
+    /* ========== Responsive ========== */
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: 1fr;
@@ -556,7 +488,7 @@
       }
       .left-panel {
         border-right: none;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid var(--line);
         max-height: none;
       }
       .right-panel {
@@ -573,17 +505,18 @@
   <div class="brand-stripe"></div>
   <header class="topbar">
     <div class="brand">
-      <img id="brandLogo" alt="品牌 Logo"
+      <img id="brandLogo" class="brand-logo" alt="品牌 Logo"
            onerror="this.style.display='none'" />
-      <span class="brand-name">Y4 报告生成</span>
+      <span class="brand-name">凭远教育</span>
+      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
     </div>
-    <div style="display:flex;gap:16px;align-items:center;">
-      <a href="/" style="color:#334155;text-decoration:none;font-size:12px;font-weight:500;">← 主页</a>
-      <a href="/booking" style="color:#1d4ed8;text-decoration:none;font-size:12px;font-weight:600;">预约</a>
-      <a href="/admin/bookings" style="color:#1d4ed8;text-decoration:none;font-size:12px;font-weight:600;">预约管理</a>
-      <a href="/students" style="color:#1d4ed8;text-decoration:none;font-size:12px;font-weight:600;">学生档案</a>
-      <span class="topbar-sub">上传 PDF → AI 视觉解析 → 生成品牌报告 → AI 解读</span>
-    </div>
+    <nav class="topbar-nav">
+      <a href="/" data-path="/">← 主页</a>
+      <a href="/booking" data-path="/booking">预约</a>
+      <a href="/admin/bookings" data-path="/admin/bookings">预约管理</a>
+      <a href="/students" data-path="/students">学生档案</a>
+      <a href="/transcript" data-path="/transcript">解读会纪要</a>
+    </nav>
   </header>
 
   <main class="layout">
@@ -597,19 +530,21 @@
       <div class="hint">
         <strong>上传说明</strong><br/>
         1. 每个上传框标有报告类型：<strong>A2</strong> · <strong>B3</strong> · <strong>B4</strong> · <strong>B6</strong>。请按标签上传。<br/>
-        2. <strong style="color:#991b1c;">报告依赖视觉 OCR API</strong>，处理时间约 1-3 分钟，请耐心等待。
+        2. 报告依赖视觉 OCR API，处理时间约 1-3 分钟，请耐心等待。
       </div>
 
       <div class="slots" id="slots"></div>
 
       <div class="section-divider"></div>
 
-      <div class="field-label">思维模式分值（可选）</div>
-      <div class="field-hint">如果 PDF 中思维模式数据提取不准确，可手动输入覆盖。</div>
-      <div class="field-row">
-        <input type="number" id="mindsetScore" min="0" max="100" step="0.1" placeholder="0 - 100"
-               onchange="if(this.value !== '') this.value = Math.max(0, Math.min(100, Number(this.value)))">
-        <span>分（0=固定型 · 50=混合型 · 100=成长型）</span>
+      <div class="field">
+        <label class="field-label" for="mindsetScore">思维模式分值（可选）</label>
+        <div class="field-hint">如果 PDF 中思维模式数据提取不准确，可手动输入覆盖。</div>
+        <div class="field-row">
+          <input type="number" id="mindsetScore" min="0" max="100" step="0.1" placeholder="0 - 100"
+                 onchange="if(this.value !== '') this.value = Math.max(0, Math.min(100, Number(this.value)))">
+          <span>分（0=固定型 · 50=混合型 · 100=成长型）</span>
+        </div>
       </div>
 
       <button class="gen-btn" id="genBtn" onclick="generate()" disabled>
@@ -634,10 +569,10 @@
       <!-- Toolbar: PDF download + AI status -->
       <div class="chat-toolbar">
         <div class="chat-toolbar-left">
-          <button class="btn primary" id="downloadBtn" onclick="downloadPdf()" disabled>
+          <button class="btn btn-primary" id="downloadBtn" onclick="downloadPdf()" disabled>
             下载报告
           </button>
-          <button class="btn secondary" onclick="goToTranscript()">
+          <button class="btn btn-secondary" onclick="goToTranscript()">
             解读会纪要
           </button>
         </div>
@@ -650,7 +585,7 @@
       <!-- Messages area -->
       <div class="chat-messages" id="chatMessages">
         <div class="chat-empty" id="chatEmpty">
-          <div class="empty-icon"></div>
+          <div class="empty-icon">✦</div>
           <div class="empty-title">AI 解读师</div>
           <div class="empty-sub">上传 PDF 并点击「生成报告 + AI 解读」后，<br/>AI 将自动解读测评结果，你也可以继续追问。</div>
         </div>
@@ -660,7 +595,7 @@
       <div class="chat-input-area">
         <input type="text" id="chatInput" placeholder="输入问题追问 AI..."
                onkeypress="if(event.key==='Enter')sendMessage()" disabled />
-        <button class="btn primary" id="sendBtn" onclick="sendMessage()" disabled>发送</button>
+        <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()" disabled>发送</button>
       </div>
     </section>
   </main>
@@ -683,6 +618,116 @@
   let lastBlobUrl = null;
   let lastPdfFilename = '综合测评报告.pdf';
   let chatHistory = [];
+
+  // =====================================
+  // Blob <-> Base64 helpers for sessionStorage
+  // =====================================
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function base64ToBlob(base64, type) {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: type || 'application/pdf' });
+  }
+
+  // =====================================
+  // SessionStorage save/restore
+  // =====================================
+  async function saveReportToSession(blob, filename) {
+    try {
+      const base64 = await blobToBase64(blob);
+      sessionStorage.setItem('y4_report', JSON.stringify({
+        pdfBase64: base64,
+        pdfFilename: filename
+      }));
+    } catch (e) {
+      console.warn('Failed to save report to sessionStorage:', e);
+    }
+  }
+
+  function saveChatToSession() {
+    try {
+      sessionStorage.setItem('y4_chat_history', JSON.stringify(chatHistory));
+    } catch (e) {
+      console.warn('Failed to save chat to sessionStorage:', e);
+    }
+  }
+
+  function saveMindsetToSession() {
+    try {
+      const val = document.getElementById('mindsetScore').value;
+      sessionStorage.setItem('y4_mindset_score', val || '');
+    } catch (e) {}
+  }
+
+  function restoreFromSession() {
+    try {
+      // Restore mindset score
+      const mindset = sessionStorage.getItem('y4_mindset_score');
+      if (mindset !== null) {
+        document.getElementById('mindsetScore').value = mindset;
+      }
+
+      // Restore report
+      const reportStr = sessionStorage.getItem('y4_report');
+      if (reportStr) {
+        const report = JSON.parse(reportStr);
+        const blob = base64ToBlob(report.pdfBase64, 'application/pdf');
+        lastBlobUrl = URL.createObjectURL(blob);
+        lastPdfFilename = report.pdfFilename || '综合测评报告.pdf';
+        document.getElementById('downloadBtn').disabled = false;
+        setStatus('已恢复上次生成的报告，可直接下载。', 'ok');
+      }
+
+      // Restore chat history
+      const chatStr = sessionStorage.getItem('y4_chat_history');
+      if (chatStr) {
+        const savedHistory = JSON.parse(chatStr);
+        if (Array.isArray(savedHistory) && savedHistory.length > 0) {
+          chatHistory = savedHistory;
+          const empty = document.getElementById('chatEmpty');
+          if (empty) empty.remove();
+
+          // Rebuild messages from history
+          savedHistory.forEach(msg => {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = 'chat-message ' + msg.role;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'chat-avatar';
+            avatar.textContent = msg.role === 'assistant' ? 'AI' : 'Me';
+
+            const bubble = document.createElement('div');
+            bubble.className = 'chat-bubble';
+            bubble.innerHTML = renderMarkdown(msg.content);
+
+            div.appendChild(avatar);
+            div.appendChild(bubble);
+            container.appendChild(div);
+          });
+
+          // Enable input
+          document.getElementById('chatInput').disabled = false;
+          document.getElementById('sendBtn').disabled = false;
+          setChatStatus('AI 解读师就绪', 'active');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to restore from sessionStorage:', e);
+    }
+  }
 
   // =====================================
   // Brand logo: try several paths
@@ -981,6 +1026,9 @@
       // Enable download button
       document.getElementById('downloadBtn').disabled = false;
 
+      // Save report to sessionStorage
+      saveReportToSession(blob, lastPdfFilename);
+
       clearInterval(progressTimer);
       progFill.style.width = '100%';
       progText.textContent = '完成';
@@ -1036,6 +1084,7 @@
           { role: 'user', content: '请根据这份综合测评数据，生成一份完整的解读报告。' },
           { role: 'assistant', content: data.reply }
         );
+        saveChatToSession();
         setChatStatus('AI 解读师就绪', 'active');
         // Enable input
         document.getElementById('chatInput').disabled = false;
@@ -1083,6 +1132,7 @@
           { role: 'user', content: text },
           { role: 'assistant', content: data.reply }
         );
+        saveChatToSession();
       } else {
         updateLastMessage('assistant', '出错：' + data.error);
       }
@@ -1118,6 +1168,22 @@
   // Init
   // =====================================
   renderSlots();
+
+  // Set active nav link based on current path
+  (function initNav() {
+    const path = window.location.pathname;
+    document.querySelectorAll('.topbar-nav a').forEach(a => {
+      if (a.dataset.path === path) {
+        a.classList.add('active');
+      }
+    });
+  })();
+
+  // Restore session data
+  restoreFromSession();
+
+  // Save mindset score on change
+  document.getElementById('mindsetScore').addEventListener('change', saveMindsetToSession);
 </script>
 </body>
 </html>
