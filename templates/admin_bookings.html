@@ -8,25 +8,59 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
+  <style>
+    .login-panel { max-width: 380px; margin: 60px auto; background: var(--white); border: 1px solid var(--line-soft); border-radius: 12px; padding: 40px 32px; }
+    .login-panel h2 { font-family: "Noto Serif SC", serif; font-size: 20px; font-weight: 600; margin-bottom: 8px; text-align: center; }
+    .login-panel p { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+    .badge-y4-done { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; }
+    .badge-y4-pending { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--paper-2); color: var(--muted); }
+    .avail-day { margin-bottom: 20px; }
+    .avail-day-header { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; letter-spacing: .06em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+    .avail-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+    .avail-slot { padding: 10px 8px; border: 1.5px solid var(--line); border-radius: 6px; text-align: center; cursor: pointer; transition: all .2s var(--ease); font-family: "Inter", sans-serif; font-size: 13px; font-weight: 500; background: var(--white); }
+    .avail-slot.on { border-color: var(--red); color: var(--red); background: #FEF2F2; }
+    .avail-slot.off { opacity: .4; text-decoration: line-through; }
+    .avail-slot.new-slot { border-style: dashed; color: var(--muted); }
+    .avail-toolbar { display: flex; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+  </style>
 </head>
 <body>
   <div class="brand-stripe"></div>
-  <div class="topbar">
+  <header class="topbar">
     <div class="brand">
-      <div class="brand-name">凭远教育</div>
-      <div class="brand-name">Y4<span class="red">测评</span></div>
+      <span class="brand-name">凭远教育</span>
+      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
     </div>
-    <div class="topbar-nav">
-      <a href="/">← 主页</a>
-      <a href="/booking">预约</a>
-      <a href="/students">学生档案</a>
-      <a href="/generate">报告生成</a>
+    <nav class="topbar-nav">
+      <a href="/" data-path="/">← 主页</a>
+      <a href="/booking" data-path="/booking">预约</a>
+      <a href="/students" data-path="/students">学生档案</a>
+      <a href="/generate" data-path="/generate">报告生成</a>
+    </nav>
+  </header>
+
+  <!-- 登录页 -->
+  <div class="container container-narrow" id="loginView">
+    <div class="login-panel">
+      <h2>管理员登录</h2>
+      <p>输入密码管理可用时间与预约</p>
+      <div class="field">
+        <input type="password" id="adminPassword" placeholder="管理员密码" style="width:100%;" onkeydown="if(event.key==='Enter')doLogin()" />
+      </div>
+      <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px;" onclick="doLogin()">登录</button>
+      <div id="loginError" style="color:var(--red);text-align:center;font-size:13px;margin-top:12px;display:none;"></div>
     </div>
   </div>
 
-  <div class="container">
-    <h1 class="page-title">预约管理</h1>
-    <p class="page-subtitle">管理所有测评预约，完成预约后学生信息将自动录入档案。</p>
+  <!-- 管理界面 -->
+  <div class="container" id="adminView" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:4px;">预约管理</h1>
+        <p class="page-subtitle" style="margin:0;">管理预约与可用时间，预约后学生档案自动创建。</p>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="doLogout()">退出登录</button>
+    </div>
 
     <div class="tabs">
       <div class="tab active" data-status="" onclick="loadBookings('')">全部</div>
@@ -37,11 +71,11 @@
 
     <div id="bookingList"></div>
 
-    <div class="card" id="availabilityCard" style="margin-top: 28px;">
+    <div class="card" id="availabilityCard" style="margin-top: 32px;">
       <h2 class="card-title">可用时间管理</h2>
-      <p class="card-subtitle">管理员可设置本周可预约的时间段，点击时间段切换可用性。</p>
+      <p class="card-subtitle">点击时间段切换可用性。未开放的日期学生无法预约。</p>
       <div id="availabilityContent">
-        <div class="status loading" id="availabilityStatus">加载可用时间中…</div>
+        <div class="empty">加载中…</div>
       </div>
     </div>
   </div>
@@ -49,12 +83,59 @@
   <script>
     let currentStatus = '';
 
+    // ─── 登录逻辑 ───
+    async function checkLogin() {
+      try {
+        const resp = await fetch('/api/admin/check');
+        const data = await resp.json();
+        if (data.is_admin) showAdmin();
+      } catch (e) {}
+    }
+
+    async function doLogin() {
+      const pwd = document.getElementById('adminPassword').value;
+      const errEl = document.getElementById('loginError');
+      errEl.style.display = 'none';
+      try {
+        const resp = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          showAdmin();
+        } else {
+          errEl.textContent = data.error || '登录失败';
+          errEl.style.display = 'block';
+        }
+      } catch (e) {
+        errEl.textContent = '网络错误';
+        errEl.style.display = 'block';
+      }
+    }
+
+    async function doLogout() {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      document.getElementById('adminView').style.display = 'none';
+      document.getElementById('loginView').style.display = 'block';
+      document.getElementById('adminPassword').value = '';
+    }
+
+    function showAdmin() {
+      document.getElementById('loginView').style.display = 'none';
+      document.getElementById('adminView').style.display = 'block';
+      loadBookings('');
+      loadAvailability();
+    }
+
+    // ─── 预约列表 ───
     async function loadBookings(status) {
       currentStatus = status;
       document.querySelectorAll('.tab').forEach(t => {
         t.classList.toggle('active', t.dataset.status === status);
       });
-      const url = status ? `/api/bookings?status=${status}` : '/api/bookings';
+      const url = status ? '/api/bookings?status=' + status : '/api/bookings';
       const resp = await fetch(url);
       const data = await resp.json();
       const el = document.getElementById('bookingList');
@@ -62,178 +143,163 @@
         el.innerHTML = '<div class="empty">暂无预约</div>';
         return;
       }
-      let html = '<table><thead><tr><th>学生姓名</th><th>联系方式</th><th>预约时间</th><th>状态</th><th>备注</th><th>操作</th></tr></thead><tbody>';
+      let html = '<table><thead><tr><th>学生</th><th>顾问</th><th>学校</th><th>预约时间</th><th>状态</th><th>Y4</th><th>操作</th></tr></thead><tbody>';
       for (const b of data.bookings) {
-        const t = b.appointment_time ? new Date(b.appointment_time).toLocaleString('zh-CN') : '-';
+        const t = b.appointment_time ? new Date(b.appointment_time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
         let badgeClass = 'badge-pending';
         let badgeText = '待完成';
         if (b.status === 'completed') { badgeClass = 'badge-completed'; badgeText = '已完成'; }
         else if (b.status === 'cancelled') { badgeClass = 'badge-cancelled'; badgeText = '已取消'; }
-        const badge = `<span class="badge ${badgeClass}">${badgeText}</span>`;
+        const badge = '<span class="badge ' + badgeClass + '">' + badgeText + '</span>';
+        const y4Badge = b.report_count > 0
+          ? '<span class="badge-y4-done">✓ 已生成</span>'
+          : '<span class="badge-y4-pending">未测评</span>';
         let actions = '';
         if (b.status === 'pending') {
-          actions = `<button class="btn btn-sm btn-primary" onclick="completeBooking(${b.id})">完成</button>
-                     <button class="btn btn-sm btn-secondary" onclick="cancelBooking(${b.id})">取消</button>`;
+          actions = '<button class="btn btn-sm btn-primary" onclick="completeBooking(' + b.id + ')">完成</button> '
+                   + '<button class="btn btn-sm btn-secondary" onclick="cancelBooking(' + b.id + ')">取消</button> ';
         }
-        actions += `<button class="btn btn-sm btn-secondary" style="color:var(--red);border-color:var(--red);" onclick="deleteBooking(${b.id})">删除</button>`;
-        html += `<tr>
-          <td><strong>${b.student_name}</strong></td>
-          <td>${b.student_email || '-'}<br>${b.student_phone || ''}</td>
-          <td>${t}</td>
-          <td>${badge}</td>
-          <td>${b.notes || '-'}</td>
-          <td>${actions}</td>
-        </tr>`;
+        actions += '<button class="btn btn-sm btn-secondary" style="color:var(--red);border-color:var(--red);" onclick="deleteBooking(' + b.id + ')">删除</button>';
+        html += '<tr>'
+          + '<td><strong>' + b.student_name + '</strong></td>'
+          + '<td>' + (b.advisor_name || '-') + '</td>'
+          + '<td>' + (b.school || '-') + '</td>'
+          + '<td>' + t + '</td>'
+          + '<td>' + badge + '</td>'
+          + '<td>' + y4Badge + '</td>'
+          + '<td>' + actions + '</td>'
+          + '</tr>';
       }
       html += '</tbody></table>';
       el.innerHTML = html;
     }
 
     async function completeBooking(id) {
-      if (!confirm('确认完成此预约？学生信息将录入档案。')) return;
-      await fetch(`/api/booking/${id}/complete`, { method: 'POST' });
+      if (!confirm('确认完成此预约？')) return;
+      await fetch('/api/booking/' + id + '/complete', { method: 'POST' });
       loadBookings(currentStatus);
     }
 
     async function cancelBooking(id) {
       if (!confirm('确认取消此预约？')) return;
-      await fetch(`/api/booking/${id}/cancel`, { method: 'POST' });
+      await fetch('/api/booking/' + id + '/cancel', { method: 'POST' });
       loadBookings(currentStatus);
     }
 
     async function deleteBooking(id) {
       if (!confirm('确认彻底删除此预约？此操作不可撤销。')) return;
-      const resp = await fetch(`/api/booking/${id}`, { method: 'DELETE' });
+      const resp = await fetch('/api/booking/' + id, { method: 'DELETE' });
       const data = await resp.json();
-      if (data.ok) {
-        loadBookings(currentStatus);
-      } else {
-        alert('删除失败：' + (data.error || '未知错误'));
-      }
+      if (data.ok) loadBookings(currentStatus);
+      else alert('删除失败：' + (data.error || '未知错误'));
     }
+
+    // ─── 可用时间管理 ───
+    const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
+    let availData = {};
 
     async function loadAvailability() {
       const content = document.getElementById('availabilityContent');
-      const status = document.getElementById('availabilityStatus');
-
       try {
-        const resp = await fetch('/api/availability');
+        const resp = await fetch('/api/availability/week');
         const data = await resp.json();
-
-        if (!data.slots || data.slots.length === 0) {
-          status.className = 'status';
-          status.style.display = 'block';
-          status.textContent = '本周暂无可预约时间';
-          status.style.background = 'var(--paper-2)';
-          status.style.border = '1px solid var(--line)';
-          status.style.color = 'var(--ink-2)';
-          return;
-        }
-
-        status.style.display = 'none';
-
-        const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-        const startOfWeek = new Date();
-        const day = startOfWeek.getDay();
-        const diff = day === 0 ? -6 : 1 - day;
-        startOfWeek.setDate(startOfWeek.getDate() + diff);
-        startOfWeek.setHours(0, 0, 0, 0);
-
-        let html = '';
-        const slotsByDay = {};
-        for (const slot of data.slots) {
-          const date = new Date(slot.date);
-          const dayKey = date.toISOString().split('T')[0];
-          if (!slotsByDay[dayKey]) slotsByDay[dayKey] = [];
-          slotsByDay[dayKey].push({ ...slot, time: date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) });
-        }
-
-        for (let i = 0; i < 7; i++) {
-          const dayDate = new Date(startOfWeek);
-          dayDate.setDate(dayDate.getDate() + i);
-          const dayKey = dayDate.toISOString().split('T')[0];
-          const daySlots = slotsByDay[dayKey] || [];
-
-          html += `<div style="margin-bottom:18px;">
-            <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:.06em;text-transform:uppercase;">${weekDays[i]} · ${dayKey.slice(5)}</div>
-            <div class="time-slots">`;
-
-          if (daySlots.length === 0) {
-            html += `<div style="color:var(--muted);font-size:13px;padding:8px 0;">无可用时间</div>`;
-          } else {
-            for (const s of daySlots) {
-              const available = s.available !== false;
-              html += `<div class="time-slot admin-available ${available ? '' : 'disabled'}"
-                        data-slot-id="${s.id || ''}"
-                        onclick="toggleAvailability(${JSON.stringify(dayKey).replace(/"/g, '&quot;')}, '${s.time}', this)">
-                ${s.time}${available ? '' : ' (不可用)'}
-              </div>`;
-            }
-          }
-
-          html += `</div></div>`;
-        }
-
-        html += `<div style="margin-top:20px;display:flex;gap:10px;">
-          <button class="btn btn-sm btn-primary" onclick="saveAvailability()">保存更改</button>
-          <button class="btn btn-sm btn-secondary" onclick="loadAvailability()">重置</button>
-        </div>`;
-
-        content.innerHTML = html;
-        window._availabilityData = data;
-
+        availData = data.data || {};
+        renderAvailability();
       } catch (err) {
-        status.className = 'status error';
-        status.textContent = '加载可用时间失败：' + err.message;
+        content.innerHTML = '<div class="empty">加载失败：' + err.message + '</div>';
       }
     }
 
-    function toggleAvailability(date, time, el) {
-      el.classList.toggle('disabled');
-      const available = !el.classList.contains('disabled');
-      el.textContent = time + (available ? '' : ' (不可用)');
-      el.dataset.available = available ? 'true' : 'false';
+    function renderAvailability() {
+      const content = document.getElementById('availabilityContent');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dowNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+      let html = '';
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        const daySlots = availData[dateStr] || [];
+        const slotMap = {};
+        daySlots.forEach(s => { slotMap[s.time_slot] = s.is_available; });
+
+        const isToday = i === 0;
+        html += '<div class="avail-day">';
+        html += '<div class="avail-day-header"><span>' + dowNames[d.getDay()] + ' · ' + (d.getMonth() + 1) + '/' + d.getDate() + (isToday ? ' (今天)' : '') + '</span></div>';
+        html += '<div class="avail-slots">';
+        TIME_SLOTS.forEach(ts => {
+          const hasRecord = ts in slotMap;
+          const isOn = slotMap[ts] === true;
+          const cls = isOn ? 'avail-slot on' : (hasRecord ? 'avail-slot off' : 'avail-slot off new-slot');
+          html += '<div class="' + cls + '" data-date="' + dateStr + '" data-time="' + ts + '" onclick="toggleSlot(this)">' + ts + '</div>';
+        });
+        html += '</div></div>';
+      }
+
+      html += '<div class="avail-toolbar">'
+        + '<button class="btn btn-sm btn-primary" onclick="saveAvailability()">保存更改</button>'
+        + '<button class="btn btn-sm btn-secondary" onclick="loadAvailability()">重置</button>'
+        + '<span style="color:var(--muted);font-size:12px;align-self:center;">虚线=未设置，实线删除线=已关闭，红色=开放</span>'
+        + '</div>';
+
+      content.innerHTML = html;
+    }
+
+    function toggleSlot(el) {
+      if (el.classList.contains('on')) {
+        el.classList.remove('on');
+        el.classList.add('off');
+      } else {
+        el.classList.remove('off', 'new-slot');
+        el.classList.add('on');
+      }
     }
 
     async function saveAvailability() {
-      const content = document.getElementById('availabilityContent');
-      const slots = content.querySelectorAll('.time-slot.admin-available');
-      const updates = [];
-
-      slots.forEach(el => {
-        const date = el.getAttribute('onclick').match(/'([^']+)'/);
-        if (date) {
-          updates.push({
-            date: date[1],
-            time: el.textContent.trim().replace(' (不可用)', ''),
-            available: !el.classList.contains('disabled')
-          });
-        }
+      const slotsByDate = {};
+      document.querySelectorAll('.avail-slot').forEach(el => {
+        const ds = el.dataset.date;
+        const ts = el.dataset.time;
+        if (!slotsByDate[ds]) slotsByDate[ds] = [];
+        slotsByDate[ds].push({ time_slot: ts, is_available: el.classList.contains('on') });
       });
 
-      try {
-        const resp = await fetch('/api/availability', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ updates })
-        });
-        const data = await resp.json();
-        if (data.ok) {
-          const status = document.getElementById('availabilityStatus');
-          status.className = 'status ok';
-          status.textContent = '已保存可用时间';
-          status.style.display = 'block';
-          setTimeout(() => { status.style.display = 'none'; }, 3000);
-        } else {
-          alert('保存失败：' + (data.error || '未知错误'));
+      let okCount = 0;
+      let failCount = 0;
+      for (const [ds, slots] of Object.entries(slotsByDate)) {
+        try {
+          const resp = await fetch('/api/availability', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: ds, slots: slots }),
+          });
+          const data = await resp.json();
+          if (data.ok) okCount++;
+          else failCount++;
+        } catch (e) {
+          failCount++;
         }
-      } catch (err) {
-        alert('保存失败：' + err.message);
       }
+
+      if (failCount === 0) {
+        alert('已保存 ' + okCount + ' 天的可用时间');
+      } else {
+        alert('保存完成：成功 ' + okCount + ' 天，失败 ' + failCount + ' 天');
+      }
+      loadAvailability();
     }
 
-    loadBookings('');
-    loadAvailability();
+    // ─── 初始化 ───
+    (function initNav() {
+      const path = window.location.pathname;
+      document.querySelectorAll('.topbar-nav a').forEach(function(a) {
+        if (a.dataset.path === path) a.classList.add('active');
+      });
+    })();
+
+    checkLogin();
   </script>
 </body>
 </html>

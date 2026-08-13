@@ -37,6 +37,8 @@
       margin-bottom: 12px;
       color: var(--ink);
     }
+    .y4-done { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; }
+    .y4-pending { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--paper-2); color: var(--muted); }
   </style>
 </head>
 <body>
@@ -72,14 +74,18 @@
         el.innerHTML = '<div class="empty">暂无学生记录</div>';
         return;
       }
-      let html = '<table><thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>年级</th><th>报告数</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+      let html = '<table><thead><tr><th>ID</th><th>姓名</th><th>顾问</th><th>学校</th><th>年级</th><th>Y4 状态</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
       for (const s of data.students) {
+        const y4Status = s.report_count > 0
+          ? '<span class="y4-done">✓ 已完成' + (s.latest_report_date ? ' (' + s.latest_report_date + ')' : '') + '</span>'
+          : '<span class="y4-pending">未测评</span>';
         html += `<tr>
           <td>${s.id}</td>
           <td><strong>${s.name}</strong></td>
-          <td>${s.gender || '-'}</td>
+          <td>${s.advisor_name || '-'}</td>
+          <td>${s.school || '-'}</td>
           <td>${s.grade || '-'}</td>
-          <td><span class="badge">${s.report_count}</span></td>
+          <td>${y4Status}</td>
           <td>${s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : '-'}</td>
           <td><div class="action-cell">
             <a class="action-link" href="#" onclick="showReports(${s.id});return false;">查看报告</a>

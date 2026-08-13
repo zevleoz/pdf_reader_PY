@@ -44,6 +44,9 @@ class Student(Base):
     grade = Column(String(50))
     email = Column(String(200))
     phone = Column(String(50))
+    advisor_name = Column(String(100))
+    school = Column(String(200))
+    single_parent = Column(String(10), default="false")
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -61,6 +64,7 @@ class Booking(Base):
     __tablename__ = "bookings"
     id = Column(Integer, primary_key=True, autoincrement=True)
     student_name = Column(String(100), nullable=False)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=True)
     student_email = Column(String(200))
     student_phone = Column(String(50))
     appointment_time = Column(DateTime, nullable=False)
@@ -106,9 +110,26 @@ def _migrate_schema() -> None:
         ("advisor_name", "ALTER TABLE bookings ADD COLUMN advisor_name VARCHAR(100) DEFAULT ''"),
         ("school", "ALTER TABLE bookings ADD COLUMN school VARCHAR(200) DEFAULT ''"),
         ("single_parent", "ALTER TABLE bookings ADD COLUMN single_parent VARCHAR(10) DEFAULT 'false'"),
+        ("student_id", "ALTER TABLE bookings ADD COLUMN student_id INTEGER"),
     ]
     for col_name, sql in migrations:
         if col_name not in existing_cols:
+            try:
+                cursor.execute(sql)
+                conn.commit()
+            except Exception:
+                pass
+
+    # Check existing columns in students table
+    cursor.execute("PRAGMA table_info(students)")
+    student_cols = {row[1] for row in cursor.fetchall()}
+    student_migrations = [
+        ("advisor_name", "ALTER TABLE students ADD COLUMN advisor_name VARCHAR(100) DEFAULT ''"),
+        ("school", "ALTER TABLE students ADD COLUMN school VARCHAR(200) DEFAULT ''"),
+        ("single_parent", "ALTER TABLE students ADD COLUMN single_parent VARCHAR(10) DEFAULT 'false'"),
+    ]
+    for col_name, sql in student_migrations:
+        if col_name not in student_cols:
             try:
                 cursor.execute(sql)
                 conn.commit()
@@ -134,18 +155,42 @@ def add_student(name: str, gender: str = "", birthday: str = "",
 
 
 def find_or_create_student(name: str, gender: str = "", birthday: str = "",
-                           grade: str = "", email: str = "", phone: str = "") -> int:
-    """Find student by name, or create one. Returns student id."""
+                           grade: str = "", email: str = "", phone: str = "",
+                           advisor_name: str = "", school: str = "",
+                           single_parent: str = "false") -> int:
+    """Find student by name, or create one. Returns student id.
+    If found, update advisor/school/single_parent fields."""
     with Session(engine) as sess:
         stmt = select(Student).where(Student.name == name)
         row = sess.execute(stmt).first()
         if row:
-            return row[0].id
-    return add_student(name, gender, birthday, grade, email, phone)
+            student = row[0]
+            # Update booking-related fields if provided
+            update_values = {}
+            if advisor_name:
+                update_values["advisor_name"] = advisor_name
+            if school:
+                update_values["school"] = school
+            if single_parent and single_parent != "false":
+                update_values["single_parent"] = single_parent
+            if update_values:
+                sess.execute(update(Student).where(Student.id == student.id).values(**update_values))
+                sess.commit()
+            return student.id
+    # Create new student
+    with Session(engine) as sess:
+        stmt = insert(Student).values(
+            name=name, gender=gender, birthday=birthday,
+            grade=grade, email=email, phone=phone,
+            advisor_name=advisor_name, school=school, single_parent=single_parent,
+        )
+        result = sess.execute(stmt)
+        sess.commit()
+        return result.lastrowid
 
 
 def get_students() -> List[Dict[str, Any]]:
-    """List all students with their report counts."""
+    """List all students with their report counts and latest report date."""
     with Session(engine) as sess:
         stmt = select(Student).order_by(Student.created_at.desc())
         rows = sess.execute(stmt).all()
@@ -154,6 +199,9 @@ def get_students() -> List[Dict[str, Any]]:
             student = row[0]
             count_stmt = select(func.count(Report.id)).where(Report.student_id == student.id)
             report_count = sess.execute(count_stmt).scalar() or 0
+            latest_stmt = select(Report).where(Report.student_id == student.id).order_by(Report.created_at.desc()).limit(1)
+            latest_row = sess.execute(latest_stmt).first()
+            latest_report_date = latest_row[0].report_date.isoformat() if latest_row and latest_row[0].report_date else None
             results.append({
                 "id": student.id,
                 "name": student.name,
@@ -161,8 +209,12 @@ def get_students() -> List[Dict[str, Any]]:
                 "grade": student.grade,
                 "email": student.email,
                 "phone": student.phone,
+                "advisor_name": student.advisor_name or "",
+                "school": student.school or "",
+                "single_parent": student.single_parent or "false",
                 "created_at": student.created_at.isoformat() if student.created_at else None,
                 "report_count": report_count,
+                "latest_report_date": latest_report_date,
             })
         return results
 
@@ -225,13 +277,15 @@ def get_all_reports() -> List[Dict[str, Any]]:
 def add_booking(student_name: str, appointment_time: datetime,
                 student_email: str = "", student_phone: str = "",
                 notes: str = "", advisor_name: str = "",
-                school: str = "", single_parent: str = "false") -> int:
+                school: str = "", single_parent: str = "false",
+                student_id: Optional[int] = None) -> int:
     """Create a booking. Returns booking id."""
     with Session(engine) as sess:
         stmt = insert(Booking).values(
             student_name=student_name,
             student_email=student_email,
             student_phone=student_phone,
+            student_id=student_id,
             appointment_time=appointment_time,
             status="pending",
             notes=notes,
@@ -244,27 +298,76 @@ def add_booking(student_name: str, appointment_time: datetime,
         return result.lastrowid
 
 
+def create_booking_with_student(student_name: str, appointment_time: datetime,
+                                advisor_name: str = "", school: str = "",
+                                single_parent: str = "false",
+                                notes: str = "") -> tuple:
+    """Create student + booking in one transaction. Returns (student_id, booking_id)."""
+    with Session(engine) as sess:
+        # 1. Find or create student
+        existing = sess.execute(select(Student).where(Student.name == student_name)).first()
+        if existing:
+            student = existing[0]
+            update_values = {}
+            if advisor_name:
+                update_values["advisor_name"] = advisor_name
+            if school:
+                update_values["school"] = school
+            if single_parent and single_parent != "false":
+                update_values["single_parent"] = single_parent
+            if update_values:
+                sess.execute(update(Student).where(Student.id == student.id).values(**update_values))
+            sess.flush()
+            student_id = student.id
+        else:
+            result = sess.execute(insert(Student).values(
+                name=student_name, advisor_name=advisor_name,
+                school=school, single_parent=single_parent))
+            sess.flush()
+            student_id = result.lastrowid
+
+        # 2. Create booking linked to student
+        result = sess.execute(insert(Booking).values(
+            student_name=student_name, student_id=student_id,
+            appointment_time=appointment_time, status="pending",
+            notes=notes, advisor_name=advisor_name,
+            school=school, single_parent=single_parent))
+        booking_id = result.lastrowid
+        sess.commit()
+        return student_id, booking_id
+
+
 def get_bookings(status: Optional[str] = None) -> List[Dict[str, Any]]:
-    """List bookings, optionally filtered by status."""
+    """List bookings, optionally filtered by status. Includes report_count per booking."""
     with Session(engine) as sess:
         stmt = select(Booking)
         if status:
             stmt = stmt.where(Booking.status == status)
         stmt = stmt.order_by(Booking.appointment_time.desc())
         rows = sess.execute(stmt).all()
-        return [{
-            "id": row[0].id,
-            "student_name": row[0].student_name,
-            "student_email": row[0].student_email,
-            "student_phone": row[0].student_phone,
-            "appointment_time": row[0].appointment_time.isoformat() if row[0].appointment_time else None,
-            "status": row[0].status,
-            "notes": row[0].notes,
-            "advisor_name": row[0].advisor_name,
-            "school": row[0].school,
-            "single_parent": row[0].single_parent,
-            "created_at": row[0].created_at.isoformat() if row[0].created_at else None,
-        } for row in rows]
+        results = []
+        for row in rows:
+            booking = row[0]
+            report_count = 0
+            if booking.student_id:
+                count_stmt = select(func.count(Report.id)).where(Report.student_id == booking.student_id)
+                report_count = sess.execute(count_stmt).scalar() or 0
+            results.append({
+                "id": booking.id,
+                "student_name": booking.student_name,
+                "student_id": booking.student_id,
+                "student_email": booking.student_email,
+                "student_phone": booking.student_phone,
+                "appointment_time": booking.appointment_time.isoformat() if booking.appointment_time else None,
+                "status": booking.status,
+                "notes": booking.notes,
+                "advisor_name": booking.advisor_name,
+                "school": booking.school,
+                "single_parent": booking.single_parent,
+                "created_at": booking.created_at.isoformat() if booking.created_at else None,
+                "report_count": report_count,
+            })
+        return results
 
 
 def update_booking_status(booking_id: int, status: str) -> None:
@@ -275,20 +378,22 @@ def update_booking_status(booking_id: int, status: str) -> None:
 
 
 def complete_booking(booking_id: int) -> int:
-    """Mark booking completed and create student record. Returns student id."""
+    """Mark booking completed. Student is already created at booking time.
+    Returns student_id if linked, else creates one for backward compat."""
     with Session(engine) as sess:
         stmt = select(Booking).where(Booking.id == booking_id)
         row = sess.execute(stmt).first()
         if not row:
             raise ValueError(f"Booking {booking_id} not found")
         booking = row[0]
-        # Create student from booking info
-        student_id = add_student(
-            name=booking.student_name,
-            email=booking.student_email or "",
-            phone=booking.student_phone or "",
-        )
-        update_booking_status(booking_id, "completed")
+        if booking.student_id:
+            update_booking_status(booking_id, "completed")
+            return booking.student_id
+        # Backward compat: old bookings without student_id
+        student_id = find_or_create_student(name=booking.student_name)
+        sess.execute(update(Booking).where(Booking.id == booking_id).values(
+            status="completed", student_id=student_id))
+        sess.commit()
         return student_id
 
 
@@ -402,3 +507,29 @@ def get_available_slots(date_val: date) -> List[str]:
     """Get list of available time slot strings for a date."""
     entries = get_availability(date_val)
     return [e["time_slot"] for e in entries if e["is_available"]]
+
+
+def get_availability_range(start_date: date, end_date: date) -> Dict[str, List[Dict[str, Any]]]:
+    """Get availability for a date range, grouped by date string.
+    Returns {"2026-08-13": [{"time_slot": "09:00", "is_available": true}, ...], ...}
+    Only returns dates that have at least one record.
+    """
+    with Session(engine) as sess:
+        stmt = select(Availability).where(
+            Availability.date >= start_date,
+            Availability.date <= end_date
+        ).order_by(Availability.date, Availability.time_slot)
+        rows = sess.execute(stmt).all()
+        result: Dict[str, List[Dict[str, Any]]] = {}
+        for row in rows:
+            av = row[0]
+            date_str = av.date.isoformat() if av.date else None
+            if date_str not in result:
+                result[date_str] = []
+            result[date_str].append({
+                "id": av.id,
+                "date": date_str,
+                "time_slot": av.time_slot,
+                "is_available": bool(av.is_available),
+            })
+        return result

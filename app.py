@@ -13,12 +13,13 @@ import json
 import os
 import sys
 import traceback
-from datetime import date
+from datetime import date, timedelta
+from functools import wraps
 from pathlib import Path
 from typing import List, Optional
 
 from flask import (Flask, jsonify, render_template, request,
-                   send_from_directory, abort)
+                   send_from_directory, abort, session)
 
 import extract
 import validate
@@ -45,6 +46,18 @@ app = Flask(__name__, template_folder=str(TEMPLATE_DIR),
 
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'y4admin2026')
+
+
+def admin_required(f):
+    """Decorator: require admin session for mutating endpoints."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get('is_admin'):
+            return jsonify({"ok": False, "error": "需要管理员权限"}), 403
+        return f(*args, **kwargs)
+    return wrapper
 
 
 @app.route("/style.css")
@@ -722,6 +735,30 @@ def api_student_reports(student_id):
 
 
 # ---------------------------------------------------------------------------
+# Admin authentication
+# ---------------------------------------------------------------------------
+@app.route("/api/admin/login", methods=["POST"])
+def api_admin_login():
+    data = request.get_json(force=True)
+    password = data.get("password", "")
+    if password == ADMIN_PASSWORD:
+        session['is_admin'] = True
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "密码错误"}), 401
+
+
+@app.route("/api/admin/logout", methods=["POST"])
+def api_admin_logout():
+    session.pop('is_admin', None)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/check")
+def api_admin_check():
+    return jsonify({"ok": True, "is_admin": bool(session.get('is_admin'))})
+
+
+# ---------------------------------------------------------------------------
 # Booking system
 # ---------------------------------------------------------------------------
 @app.route("/booking")
@@ -741,23 +778,21 @@ def api_booking():
         appt_time = datetime.fromisoformat(appt_time_str)
     except ValueError:
         return jsonify({"ok": False, "error": "时间格式错误"}), 400
-    bid = _db.add_booking(
+    # Create student + booking in one transaction (auto-archive)
+    student_id, booking_id = _db.create_booking_with_student(
         student_name=name,
         appointment_time=appt_time,
-        student_email=data.get("student_email", ""),
-        student_phone=data.get("student_phone", ""),
-        notes=data.get("notes", ""),
         advisor_name=(data.get("advisor_name") or "").strip(),
         school=(data.get("school") or "").strip(),
         single_parent=data.get("single_parent", "false"),
+        notes=data.get("notes", ""),
     )
-    return jsonify({"ok": True, "booking_id": bid})
+    return jsonify({"ok": True, "booking_id": booking_id, "student_id": student_id})
 
 
 @app.route("/admin/bookings")
 def admin_bookings_page():
-    bookings = _db.get_bookings()
-    return render_template("admin_bookings.html", bookings=bookings)
+    return render_template("admin_bookings.html")
 
 
 @app.route("/api/bookings")
@@ -787,8 +822,10 @@ def api_booking_cancel(booking_id):
 # ---------------------------------------------------------------------------
 @app.route("/api/availability")
 def api_get_availability():
-    """Get availability for a given date. Query param: date=YYYY-MM-DD"""
-    from datetime import date
+    """Get availability for a given date. Query param: date=YYYY-MM-DD
+    Public endpoint (students need this to see available slots).
+    No record = unavailable (Calendly behavior: admin must explicitly open slots).
+    """
     date_str = request.args.get("date", "")
     if not date_str:
         return jsonify({"ok": False, "error": "请指定日期"}), 400
@@ -797,21 +834,32 @@ def api_get_availability():
     except ValueError:
         return jsonify({"ok": False, "error": "日期格式错误"}), 400
     entries = _db.get_availability(date_val)
-    # Also return the full list of time slots with availability info
+    # Build full slot list: no record = unavailable
     all_slots = []
     available_map = {e["time_slot"]: e["is_available"] for e in entries}
     for ts in _db.TIME_SLOTS:
-        is_av = available_map.get(ts, True)  # Default: all available
+        is_av = available_map.get(ts, False)  # Default: unavailable
         all_slots.append({"time_slot": ts, "is_available": is_av})
     return jsonify({"ok": True, "date": date_str, "slots": all_slots})
 
 
+@app.route("/api/availability/week")
+def api_availability_week():
+    """Get availability for next 14 days (for admin calendar management).
+    Public to read (admin page checks login in JS), but mutation requires admin.
+    """
+    today = date.today()
+    end = today + timedelta(days=13)
+    range_data = _db.get_availability_range(today, end)
+    return jsonify({"ok": True, "start": today.isoformat(), "end": end.isoformat(), "data": range_data})
+
+
 @app.route("/api/availability", methods=["POST"])
+@admin_required
 def api_set_availability():
-    """Batch set availability for a date.
+    """Batch set availability for a date. Admin only.
     Body: {"date": "YYYY-MM-DD", "slots": [{"time_slot": "09:00", "is_available": true}, ...]}
     """
-    from datetime import date
     data = request.get_json(force=True)
     date_str = data.get("date", "")
     slots = data.get("slots", [])

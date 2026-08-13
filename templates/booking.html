@@ -8,6 +8,41 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
+  <style>
+    .calendly-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+    .calendly-panel { background: var(--white); border: 1px solid var(--line-soft); border-radius: 12px; padding: 28px; }
+    .calendly-panel h3 { font-family: "Noto Serif SC", serif; font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--ink); }
+    .date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 16px; }
+    .date-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px solid var(--line-soft); border-radius: 8px; cursor: pointer; transition: all .2s var(--ease); background: var(--paper); }
+    .date-cell:hover:not(.disabled) { border-color: var(--ink); }
+    .date-cell.selected { border-color: var(--red); background: var(--red); color: var(--white); }
+    .date-cell.disabled { opacity: .35; cursor: not-allowed; }
+    .date-cell .dow { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+    .date-cell .day { font-size: 18px; font-weight: 600; font-family: "Inter", sans-serif; }
+    .date-cell.selected .dow, .date-cell.selected .day { opacity: 1; }
+    .dow-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 8px; }
+    .dow-header div { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .time-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .time-slot-btn { padding: 14px 12px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--white); cursor: pointer; transition: all .2s var(--ease); text-align: center; font-family: "Inter", sans-serif; font-weight: 500; font-size: 15px; }
+    .time-slot-btn:hover:not(.disabled) { border-color: var(--red); color: var(--red); }
+    .time-slot-btn.selected { border-color: var(--red); background: var(--red); color: var(--white); }
+    .time-slot-btn.disabled { opacity: .35; cursor: not-allowed; text-decoration: line-through; }
+    .no-slots { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+    .form-section { margin-top: 24px; display: none; }
+    .form-section.visible { display: block; animation: slideUp .4s var(--ease); }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .summary-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--paper-2); border-radius: 8px; margin-bottom: 20px; }
+    .summary-bar .label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .summary-bar .value { font-family: "Noto Serif SC", serif; font-size: 15px; font-weight: 600; color: var(--ink); }
+    .success-page { text-align: center; padding: 40px 20px; }
+    .success-icon { width: 56px; height: 56px; margin: 0 auto 20px; border-radius: 50%; background: var(--red); display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 28px; }
+    .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .month-label { font-family: "Noto Serif SC", serif; font-size: 15px; font-weight: 600; }
+    .nav-btn { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s var(--ease); }
+    .nav-btn:hover:not(:disabled) { border-color: var(--ink); }
+    .nav-btn:disabled { opacity: .3; cursor: not-allowed; }
+    @media (max-width: 768px) { .calendly-layout { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
   <div class="brand-stripe"></div>
@@ -18,168 +53,256 @@
     </div>
     <nav class="topbar-nav">
       <a href="/" data-path="/">← 主页</a>
-      <a href="/admin/bookings" data-path="/admin/bookings">预约管理</a>
       <a href="/students" data-path="/students">学生档案</a>
       <a href="/generate" data-path="/generate">报告生成</a>
     </nav>
   </header>
 
   <main class="container container-narrow">
-    <h1 class="page-title">预约 Y4 测评</h1>
-    <p class="page-subtitle">请填写以下信息为学生预约一个测评时间。</p>
+    <div id="bookingView">
+      <h1 class="page-title">预约 Y4 测评</h1>
+      <p class="page-subtitle">选择合适的日期与时间，为学生预约一次 Y4 综合测评。</p>
 
-    <div class="hint">
-      完成预约后，学生的信息将自动录入系统。学生完成测评后，上传 4 份 PDF 即可自动生成报告并归档。
-    </div>
+      <div class="calendly-layout">
+        <!-- 左栏：日期选择 -->
+        <div class="calendly-panel">
+          <h3>选择日期</h3>
+          <div class="month-nav">
+            <button class="nav-btn" id="prevMonth" onclick="changeMonth(-1)">‹</button>
+            <span class="month-label" id="monthLabel"></span>
+            <button class="nav-btn" id="nextMonth" onclick="changeMonth(1)">›</button>
+          </div>
+          <div class="dow-header">
+            <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
+          </div>
+          <div class="date-grid" id="dateGrid"></div>
+        </div>
 
-    <div class="card" id="bookingCard">
-      <div class="field">
-        <label class="field-label" for="studentName">学生姓名 <span class="required">*</span></label>
-        <input type="text" id="studentName" placeholder="请输入学生姓名" />
-      </div>
-      <div class="field">
-        <label class="field-label" for="advisorName">顾问名字</label>
-        <input type="text" id="advisorName" placeholder="请输入顾问名字" />
-      </div>
-      <div class="field">
-        <label class="field-label" for="school">学校</label>
-        <input type="text" id="school" placeholder="请输入学校名称" />
-      </div>
-      <div class="field">
-        <label class="field-label" for="studentEmail">联系邮箱</label>
-        <input type="email" id="studentEmail" placeholder="家长或学生邮箱" />
-      </div>
-      <div class="field">
-        <label class="field-label" for="studentPhone">联系电话</label>
-        <input type="tel" id="studentPhone" placeholder="联系电话" />
-      </div>
-      <div class="field">
-        <label class="field-label" for="apptDate">预约日期 <span class="required">*</span></label>
-        <input type="date" id="apptDate" />
-      </div>
-      <div class="field">
-        <label class="field-label">预约时间 <span class="required">*</span></label>
-        <div class="time-slots" id="timeSlots"></div>
-      </div>
-      <div class="field">
-        <label class="field-label" for="notes">备注</label>
-        <textarea id="notes" rows="2" placeholder="如有特殊要求请说明"></textarea>
-      </div>
-      <div class="field">
-        <div class="checkbox-row">
-          <input type="checkbox" id="singleParent" />
-          <label for="singleParent">单亲家庭/离异</label>
+        <!-- 右栏：时间段 + 表单 -->
+        <div class="calendly-panel">
+          <h3 id="timePanelTitle">选择时间</h3>
+          <div id="timeContent">
+            <div class="no-slots">请先在左侧选择一个日期</div>
+          </div>
+
+          <div class="form-section" id="formSection">
+            <div class="summary-bar">
+              <div>
+                <div class="label">日期</div>
+                <div class="value" id="summaryDate">-</div>
+              </div>
+              <div>
+                <div class="label">时间</div>
+                <div class="value" id="summaryTime">-</div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="studentName">学生姓名 <span class="required">*</span></label>
+              <input type="text" id="studentName" placeholder="请输入学生姓名" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="advisorName">顾问名字</label>
+              <input type="text" id="advisorName" placeholder="请输入顾问名字" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="school">学校</label>
+              <input type="text" id="school" placeholder="请输入学校名称" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="notes">备注</label>
+              <textarea id="notes" rows="2" placeholder="如有特殊要求请说明"></textarea>
+            </div>
+            <div class="field">
+              <div class="checkbox-row">
+                <input type="checkbox" id="singleParent" />
+                <label for="singleParent">单亲家庭/离异</label>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-lg" id="submitBtn" onclick="submitBooking()" style="width:100%;">确认预约</button>
+          </div>
         </div>
       </div>
-      <button class="btn btn-primary btn-lg" id="submitBtn" onclick="submitBooking()">提交预约</button>
     </div>
 
-    <div id="result"></div>
+    <!-- 成功页 -->
+    <div id="successView" style="display:none;">
+      <div class="calendly-panel success-page">
+        <div class="success-icon">✓</div>
+        <h2 style="font-family:'Noto Serif SC',serif;font-size:22px;font-weight:600;margin-bottom:8px;">预约成功</h2>
+        <p style="color:var(--muted);margin-bottom:24px;">学生档案已自动创建，Y4 报告生成后可在档案页查看。</p>
+        <div style="background:var(--paper-2);border-radius:8px;padding:20px;text-align:left;margin-bottom:24px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+            <span style="color:var(--muted);font-size:13px;">学生</span>
+            <strong id="successName" style="font-size:14px;">-</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+            <span style="color:var(--muted);font-size:13px;">时间</span>
+            <strong id="successTime" style="font-size:14px;">-</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:var(--muted);font-size:13px;">顾问</span>
+            <strong id="successAdvisor" style="font-size:14px;">-</strong>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:center;">
+          <a href="/students" class="btn btn-secondary">查看学生档案</a>
+          <button class="btn btn-primary" onclick="resetBooking()">再预约一个</button>
+        </div>
+      </div>
+    </div>
   </main>
 
   <script>
     const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 13);
+
+    let currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    let selectedDate = null;
     let selectedTime = null;
+    let availableSlots = new Set();
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const dateGridEl = document.getElementById('dateGrid');
+    const monthLabelEl = document.getElementById('monthLabel');
+    const timeContentEl = document.getElementById('timeContent');
+    const formSectionEl = document.getElementById('formSection');
+    const timePanelTitle = document.getElementById('timePanelTitle');
 
-    const dateInput = document.getElementById('apptDate');
-    dateInput.min = todayStr;
-
-    const savedDate = sessionStorage.getItem('booking_date');
-    if (savedDate) {
-      dateInput.value = savedDate;
-    } else {
-      dateInput.value = tomorrowStr;
+    function isSameDay(a, b) {
+      return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
     }
 
-    const savedTime = sessionStorage.getItem('booking_time');
-    if (savedTime) {
-      selectedTime = savedTime;
+    function dateToStr(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
     }
 
-    const slotsEl = document.getElementById('timeSlots');
+    function renderCalendar() {
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth();
+      const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+      monthLabelEl.textContent = year + '年 ' + monthNames[month];
 
-    function renderTimeSlots(disabledSet) {
-      slotsEl.innerHTML = '';
-      TIME_SLOTS.forEach(function(t) {
-        const div = document.createElement('div');
-        div.className = 'time-slot';
-        div.textContent = t;
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      let startDay = firstDay.getDay();
+      if (startDay === 0) startDay = 7;
+      startDay -= 1;
 
-        if (disabledSet && disabledSet.has(t)) {
-          div.classList.add('disabled');
+      dateGridEl.innerHTML = '';
+
+      for (let i = 0; i < startDay; i++) {
+        const empty = document.createElement('div');
+        empty.style.visibility = 'hidden';
+        dateGridEl.appendChild(empty);
+      }
+
+      for (let d = 1; d <= lastDay.getDate(); d++) {
+        const cellDate = new Date(year, month, d);
+        cellDate.setHours(0, 0, 0, 0);
+        const cell = document.createElement('div');
+        cell.className = 'date-cell';
+        const dowNames = ['日', '一', '二', '三', '四', '五', '六'];
+        cell.innerHTML = '<span class="dow">' + dowNames[cellDate.getDay()] + '</span><span class="day">' + d + '</span>';
+
+        if (cellDate < today || cellDate > maxDate) {
+          cell.classList.add('disabled');
+        } else {
+          cell.onclick = function() { selectDate(cellDate, cell); };
         }
 
-        if (selectedTime === t) {
-          div.classList.add('selected');
+        if (selectedDate && isSameDay(cellDate, selectedDate)) {
+          cell.classList.add('selected');
         }
 
-        div.onclick = function() {
-          if (div.classList.contains('disabled')) return;
-          document.querySelectorAll('.time-slot').forEach(function(s) { s.classList.remove('selected'); });
-          div.classList.add('selected');
-          selectedTime = t;
-          sessionStorage.setItem('booking_time', t);
-        };
-        slotsEl.appendChild(div);
-      });
+        dateGridEl.appendChild(cell);
+      }
+
+      document.getElementById('prevMonth').disabled = (year === today.getFullYear() && month === today.getMonth());
     }
 
-    async function fetchAvailability(date) {
+    function changeMonth(delta) {
+      currentMonth.setMonth(currentMonth.getMonth() + delta);
+      renderCalendar();
+    }
+
+    async function selectDate(d, cellEl) {
+      document.querySelectorAll('.date-cell').forEach(function(c) { c.classList.remove('selected'); });
+      cellEl.classList.add('selected');
+      selectedDate = d;
+      selectedTime = null;
+      formSectionEl.classList.remove('visible');
+      sessionStorage.setItem('booking_date', dateToStr(d));
+
+      timePanelTitle.textContent = d.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' });
+      timeContentEl.innerHTML = '<div class="no-slots">加载中…</div>';
+
       try {
-        const resp = await fetch('/api/availability?date=' + date);
-        if (!resp.ok) return null;
+        const resp = await fetch('/api/availability?date=' + dateToStr(d));
         const data = await resp.json();
-        if (data && Array.isArray(data.available)) {
-          const disabledSlots = TIME_SLOTS.filter(function(t) { return !data.available.includes(t); });
-          return new Set(disabledSlots);
+        availableSlots = new Set();
+        if (data.ok && data.slots) {
+          data.slots.forEach(function(s) {
+            if (s.is_available) availableSlots.add(s.time_slot);
+          });
         }
-        return null;
+        renderTimeSlots();
       } catch (e) {
-        return null;
+        timeContentEl.innerHTML = '<div class="no-slots">加载失败，请重试</div>';
       }
     }
 
-    async function loadAvailabilityAndRender() {
-      const date = dateInput.value;
-      const disabledSet = await fetchAvailability(date);
-      renderTimeSlots(disabledSet);
+    function renderTimeSlots() {
+      if (availableSlots.size === 0) {
+        timeContentEl.innerHTML = '<div class="no-slots">该日暂无可预约时间<br><span style="font-size:12px;">请联系管理员开放时段</span></div>';
+        return;
+      }
+
+      let html = '<div class="time-grid">';
+      TIME_SLOTS.forEach(function(t) {
+        const isAvail = availableSlots.has(t);
+        const selClass = selectedTime === t ? ' selected' : '';
+        const disClass = isAvail ? '' : ' disabled';
+        html += '<div class="time-slot-btn' + selClass + disClass + '" data-time="' + t + '"' + (isAvail ? ' onclick="selectTime(\'' + t + '\')"' : '') + '>' + t + '</div>';
+      });
+      html += '</div>';
+      timeContentEl.innerHTML = html;
     }
 
-    dateInput.addEventListener('change', function() {
-      const date = dateInput.value;
-      sessionStorage.setItem('booking_date', date);
-      selectedTime = null;
-      sessionStorage.removeItem('booking_time');
-      loadAvailabilityAndRender();
-    });
+    function selectTime(t) {
+      document.querySelectorAll('.time-slot-btn').forEach(function(b) { b.classList.remove('selected'); });
+      const btn = document.querySelector('.time-slot-btn[data-time="' + t + '"]');
+      if (btn) btn.classList.add('selected');
+      selectedTime = t;
+      sessionStorage.setItem('booking_time', t);
 
-    loadAvailabilityAndRender();
+      document.getElementById('summaryDate').textContent = selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+      document.getElementById('summaryTime').textContent = t;
+      formSectionEl.classList.add('visible');
+      formSectionEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     async function submitBooking() {
       const name = document.getElementById('studentName').value.trim();
-      const date = document.getElementById('apptDate').value;
-      const email = document.getElementById('studentEmail').value.trim();
-      const phone = document.getElementById('studentPhone').value.trim();
       const notes = document.getElementById('notes').value.trim();
       const advisorName = document.getElementById('advisorName').value.trim();
       const school = document.getElementById('school').value.trim();
       const singleParent = document.getElementById('singleParent').checked;
-      const resultEl = document.getElementById('result');
 
       if (!name) { alert('请填写学生姓名'); return; }
-      if (!date) { alert('请选择日期'); return; }
+      if (!selectedDate) { alert('请选择日期'); return; }
       if (!selectedTime) { alert('请选择时间'); return; }
 
       const btn = document.getElementById('submitBtn');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>提交中...';
 
-      const apptTime = date + 'T' + selectedTime + ':00';
+      const apptTime = dateToStr(selectedDate) + 'T' + selectedTime + ':00';
 
       try {
         const resp = await fetch('/api/booking', {
@@ -187,8 +310,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             student_name: name,
-            student_email: email,
-            student_phone: phone,
             appointment_time: apptTime,
             notes: notes,
             advisor_name: advisorName,
@@ -199,8 +320,12 @@
         const data = await resp.json();
         if (!resp.ok || !data.ok) throw new Error(data.error || '提交失败');
 
-        resultEl.innerHTML = '<div class="success">✓ 预约成功！<br><br>学生：<strong>' + name + '</strong><br>时间：' + date + ' ' + selectedTime + '<br><br>可将此页面分享给家长，学生完成测评后即可上传 PDF 生成报告。</div>';
-        document.getElementById('bookingCard').style.display = 'none';
+        document.getElementById('successName').textContent = name;
+        document.getElementById('successTime').textContent = selectedDate.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }) + ' ' + selectedTime;
+        document.getElementById('successAdvisor').textContent = advisorName || '-';
+
+        document.getElementById('bookingView').style.display = 'none';
+        document.getElementById('successView').style.display = 'block';
 
         sessionStorage.removeItem('booking_date');
         sessionStorage.removeItem('booking_time');
@@ -208,18 +333,34 @@
         alert('提交失败：' + e.message);
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '提交预约';
+        btn.innerHTML = '确认预约';
       }
+    }
+
+    function resetBooking() {
+      document.getElementById('successView').style.display = 'none';
+      document.getElementById('bookingView').style.display = 'block';
+      document.getElementById('studentName').value = '';
+      document.getElementById('advisorName').value = '';
+      document.getElementById('school').value = '';
+      document.getElementById('notes').value = '';
+      document.getElementById('singleParent').checked = false;
+      selectedDate = null;
+      selectedTime = null;
+      formSectionEl.classList.remove('visible');
+      timeContentEl.innerHTML = '<div class="no-slots">请先在左侧选择一个日期</div>';
+      timePanelTitle.textContent = '选择时间';
+      renderCalendar();
     }
 
     (function initNav() {
       const path = window.location.pathname;
       document.querySelectorAll('.topbar-nav a').forEach(function(a) {
-        if (a.dataset.path === path) {
-          a.classList.add('active');
-        }
+        if (a.dataset.path === path) a.classList.add('active');
       });
     })();
+
+    renderCalendar();
   </script>
 </body>
 </html>
