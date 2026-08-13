@@ -13,8 +13,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .page:last-child { page-break-after:auto; }
 .page-break { page-break-after:always; }
 
-.page::before { content:""; position:absolute; top:0; left:0; width:210mm; height:297mm; background-image:url('branding/watermark.jpg'); background-size:45mm 45mm; background-repeat:repeat; opacity:0.15; z-index:0; pointer-events:none; }
-.page > * { position:relative; z-index:1; }
+
 
 .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4mm; font-size:8.5pt; color:#8C8C8C; letter-spacing:0.5px; }
 .page-header .left { display:flex; align-items:center; gap:2.5mm; }
@@ -299,8 +298,8 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .ar-fill { height:100%; background:linear-gradient(90deg, #E76F51 0%, #F4A261 50%, #2A9D8F 100%); border-radius:3px; }
 
 /* 自我概念页面 P05 - 评分条 */
-.self-concept-score-bar { display:flex; flex-direction:column; align-items:center; margin:8mm 0; }
-.score-bar-track { display:flex; width:95%; height:10mm; border-radius:8px; overflow:hidden; border:1px solid #E5E5E5; position:relative; }
+.self-concept-score-bar { display:flex; flex-direction:column; align-items:center; margin:8mm 0; padding-top:8mm; position:relative; }
+.score-bar-track { display:flex; width:95%; height:10mm; border-radius:8px; overflow:hidden; border:1px solid #E5E5E5; }
 .score-segment { flex:1; display:flex; align-items:center; justify-content:center; }
 .score-segment.low { background:#FBBF24; flex:0 0 30%; }
 .score-segment.normal { background:#2A9D8F; flex:0 0 60%; }
@@ -308,9 +307,9 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .segment-text { text-align:center; color:white; }
 .segment-text .zh { font-size:9pt; font-weight:700; margin-bottom:0.3mm; }
 .segment-text .en { font-size:6pt; letter-spacing:1px; opacity:0.9; }
-.score-marker { position:absolute; top:-5mm; transform:translateX(-50%); z-index:10; }
+.score-marker { position:absolute; top:0; transform:translateX(-50%); z-index:10; display:flex; flex-direction:column; align-items:center; }
 .marker-box { background:#1F2937; color:white; padding:1mm 2.5mm; border-radius:6px; font-size:11pt; font-weight:700; font-variant-numeric:tabular-nums; }
-.marker-line { width:2px; height:3mm; background:#1F2937; margin:0 auto; }
+.marker-arrow { width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:8px solid #1F2937; margin-top:0; }
 
 .self-concept-divider { margin:6mm 0; }
 .divider-line { height:1px; background:#E5E5E5; }
@@ -353,35 +352,28 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 .cog-value small { font-size:8pt; color:#8C8C8C; font-weight:400; }
 .cog-desc { font-size:8.5pt; color:#4B5563; line-height:1.7; text-align:justify; }
 
-/* 职业价值观页面 P18 - 现代网格布局 */
-.values-section-title { font-size:11pt; font-weight:700; color:#1A1A1A; letter-spacing:1px; margin-bottom:3mm; }
+/* 职业价值观页面 P18 - 3x5网格布局 */
+.values-grid-container { padding:4mm 2mm; }
+.values-grid { display:grid; grid-template-columns:repeat(5, 1fr); grid-template-rows:repeat(3, 1fr); gap:2.5mm; }
+.value-card { background:white; border-radius:12px; padding:3.5mm; position:relative; border:1px solid #E0E0E0; min-height:30mm; display:flex; flex-direction:column; }
+.value-card[data-num="1"], .value-card[data-num="2"], .value-card[data-num="3"], .value-card[data-num="4"], .value-card[data-num="5"] { border-top:4px solid #00A896; }
+.value-card[data-num="6"], .value-card[data-num="7"], .value-card[data-num="8"], .value-card[data-num="9"], .value-card[data-num="10"] { border-top:4px solid #FFB347; }
+.value-card[data-num="11"], .value-card[data-num="12"], .value-card[data-num="13"], .value-card[data-num="14"], .value-card[data-num="15"] { border-top:4px solid #00A896; }
+.value-number { position:absolute; top:-4px; right:-4px; width:28px; height:28px; border-radius:50%; background:#00A896; color:white; font-size:10pt; font-weight:700; display:flex; align-items:center; justify-content:center; }
+.value-card[data-num="6"] .value-number,
+.value-card[data-num="7"] .value-number,
+.value-card[data-num="8"] .value-number,
+.value-card[data-num="9"] .value-number,
+.value-card[data-num="10"] .value-number { background:#FFB347; color:#1A1A1A; }
+.value-label { font-size:9pt; font-weight:700; color:#1A1A1A; margin-bottom:0.5mm; padding-right:3mm; }
+.value-en { font-size:6pt; color:#8C8C8C; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2mm; padding-right:3mm; }
+.value-feature-box { display:flex; align-items:flex-start; gap:1mm; margin-bottom:1.5mm; }
+.feature-dot { color:#00A896; font-size:8pt; flex-shrink:0; margin-top:0.5mm; }
+.feature-text { font-size:7.5pt; color:#4B5563; line-height:1.6; }
+.value-monologue-box { display:flex; align-items:flex-start; gap:1mm; margin-bottom:auto; }
+.monologue-dot { color:#FFB347; font-size:7pt; flex-shrink:0; margin-top:0.5mm; }
+.monologue-text { font-size:7.5pt; color:#8C8C8C; line-height:1.6; font-style:italic; }
 
-.values-top5-section { margin-bottom:4mm; }
-.values-top5-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:2mm; }
-.value-card-top { background:linear-gradient(135deg, #1F2937 0%, #374151 100%); border-radius:16px; padding:5mm 4mm; position:relative; color:white; min-height:38mm; }
-.value-card-top::before { content:""; position:absolute; top:0; left:0; width:100%; height:4px; background:linear-gradient(90deg, #F4A261, #E76F51); }
-.value-badge { position:absolute; top:-5px; right:-5px; width:36px; height:36px; border-radius:50%; background:#F4A261; color:#1F2937; font-size:14pt; font-weight:700; display:flex; align-items:center; justify-content:center; }
-.value-header { padding-right:4mm; margin-bottom:3mm; }
-.value-label-top { font-size:10pt; font-weight:700; color:white; margin-bottom:1mm; letter-spacing:0.5px; }
-.value-en-top { font-size:7pt; color:rgba(255,255,255,0.6); letter-spacing:0.5px; text-transform:uppercase; }
-.value-feature { margin-bottom:2mm; display:flex; align-items:flex-start; gap:2mm; }
-.feature-icon { color:#F4A261; font-size:8pt; flex-shrink:0; margin-top:1mm; }
-.feature-text { font-size:8pt; color:rgba(255,255,255,0.9); line-height:1.6; }
-.value-monologue { display:flex; align-items:flex-start; gap:2mm; }
-.monologue-icon { color:#60A5FA; font-size:7pt; flex-shrink:0; margin-top:1mm; }
-.monologue-text { font-size:8pt; color:rgba(255,255,255,0.7); line-height:1.6; font-style:italic; }
-
-.values-remaining-section { }
-.values-remaining-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:1.5mm; }
-.value-card-remaining { background:white; border:1px solid #E5E5E5; border-radius:12px; padding:3mm; position:relative; min-height:28mm; }
-.value-num-remaining { position:absolute; top:-3px; right:-3px; width:26px; height:26px; border-radius:50%; background:#E5E5E5; color:#8C8C8C; font-size:9pt; font-weight:600; display:flex; align-items:center; justify-content:center; }
-.value-header-remaining { padding-right:3mm; margin-bottom:2mm; }
-.value-label-remaining { font-size:9pt; font-weight:600; color:#1A1A1A; margin-bottom:0.5mm; letter-spacing:0.3px; }
-.value-en-remaining { font-size:6pt; color:#8C8C8C; letter-spacing:0.3px; text-transform:uppercase; }
-.value-feature-remaining { margin-bottom:1.5mm; }
-.feature-text-sm { font-size:7.5pt; color:#4B5563; line-height:1.5; }
-.value-monologue-remaining { }
-.monologue-text-sm { font-size:7pt; color:#8C8C8C; line-height:1.5; font-style:italic; }
 
 /* 封底页 P19 */
 .backcover { padding:12mm; height:100%; box-sizing:border-box; display:flex; flex-direction:column; }
@@ -412,10 +404,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="cover-subtitle-en">Y4 Assessment Report</div>
     <div class="red-line"></div>
     <div class="info-card">
-        <div class="row"><span class="label">姓　名：</span><span class="value">Jeff</span></div>
-        <div class="row"><span class="label">年　级：</span><span class="value">高二</span></div>
-        <div class="row"><span class="label">学　校：</span><span class="value">shsid</span></div>
-        <div class="row"><span class="label">测评日期：</span><span class="value" style="color:#B33A3A; font-weight:700;">2026-05-10</span></div>
+        <div class="row"><span class="label">姓　名：</span><span class="value">Zaylin</span></div>
+        <div class="row"><span class="label">年　级：</span><span class="value">高一</span></div>
+        <div class="row"><span class="label">学　校：</span><span class="value">世外</span></div>
+        <div class="row"><span class="label">测评日期：</span><span class="value" style="color:#B33A3A; font-weight:700;">2026-08-10</span></div>
     </div>
 </div>
 
@@ -430,7 +422,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">INTRODUCTION</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="y4-intro">
     <div class="y4-title">Y4 | Youth Profile in Four Dimensions</div>
@@ -538,7 +530,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">EMOTIONAL STABILITY</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">情绪稳定性</div>
 <div class="page-title-en">Emotional Stability Assessment</div>
@@ -555,14 +547,14 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
                 </linearGradient>
             </defs>
             <path d="M 80.0 160.0 A 120 120 0 0 1 320.0 160.0" fill="none" stroke="#E0E0E0" stroke-width="16" stroke-linecap="round"/>
-            <path d="M 80.0 160.0 A 120 120 0 0 1 260.0 56.1" fill="none" stroke="url(#emotionGrad)" stroke-width="16" stroke-linecap="round"/>
+            <path d="M 80.0 160.0 A 120 120 0 0 1 221.9 42.0" fill="none" stroke="url(#emotionGrad)" stroke-width="16" stroke-linecap="round"/>
             <circle cx="200" cy="130" r="7" fill="#1F2937"/>
             <circle cx="200" cy="130" r="3.5" fill="#FFFFFF"/>
-            <line x1="200" y1="130" x2="260.0" y2="56.07695154586736" stroke="#1F2937" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="200" y1="130" x2="221.8682630590577" y2="42.009411092325465" stroke="#1F2937" stroke-width="2.5" stroke-linecap="round"/>
         </svg>
     </div>
     <div class="emotion-score-row">
-        <span class="emotion-total">40</span>
+        <span class="emotion-total">33.5</span>
         <span class="emotion-total-max">/ 60</span>
     </div>
     <div class="emotion-labels">
@@ -592,8 +584,8 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="polarity-bar-wrap">
         <span class="pol-tick-min">1</span>
         <div class="polarity-bar">
-            <div class="pol-dot" style="left:63%;">
-                <span>9.5</span>
+            <div class="pol-dot" style="left:30%;">
+                <span>4.5</span>
             </div>
         </div>
         <span class="pol-tick-max">15</span>
@@ -614,8 +606,8 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="polarity-bar-wrap">
         <span class="pol-tick-min">1</span>
         <div class="polarity-bar">
-            <div class="pol-dot" style="left:56%;">
-                <span>8.5</span>
+            <div class="pol-dot" style="left:86%;">
+                <span>13</span>
             </div>
         </div>
         <span class="pol-tick-max">15</span>
@@ -636,8 +628,8 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="polarity-bar-wrap">
         <span class="pol-tick-min">1</span>
         <div class="polarity-bar">
-            <div class="pol-dot" style="left:66%;">
-                <span>10</span>
+            <div class="pol-dot" style="left:60%;">
+                <span>9</span>
             </div>
         </div>
         <span class="pol-tick-max">15</span>
@@ -658,8 +650,8 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="polarity-bar-wrap">
         <span class="pol-tick-min">1</span>
         <div class="polarity-bar">
-            <div class="pol-dot" style="left:80%;">
-                <span>12</span>
+            <div class="pol-dot" style="left:46%;">
+                <span>7</span>
             </div>
         </div>
         <span class="pol-tick-max">15</span>
@@ -678,7 +670,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">Self-Concept Dimensions</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">自我概念</div>
 <div class="page-title-en">SELF-CONCEPT DIMENSIONS</div>
@@ -705,9 +697,9 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             </div>
         </div>
     </div>
-    <div class="score-marker" style="left:86%">
-        <div class="marker-box">86</div>
-        <div class="marker-line"></div>
+    <div class="score-marker" style="left:47%">
+        <div class="marker-box">47</div>
+        <div class="marker-arrow"></div>
     </div>
 </div>
 
@@ -729,10 +721,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="slider-wrap">
         <div class="slider-bar">
             <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:100%;"><span>10</span></span>
+            <span class="value-dot" style="left:80%;"><span>8</span></span>
         </div>
     </div>
-    <div class="val-wrap">10<small> /10.0</small></div>
+    <div class="val-wrap">8<small> /10.0</small></div>
 </div>
 
 <div class="progress-item">
@@ -743,10 +735,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="slider-wrap">
         <div class="slider-bar">
             <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:80%;"><span>8</span></span>
+            <span class="value-dot" style="left:60%;"><span>6</span></span>
         </div>
     </div>
-    <div class="val-wrap">8<small> /10.0</small></div>
+    <div class="val-wrap">6<small> /10.0</small></div>
 </div>
 
 <div class="progress-item">
@@ -757,10 +749,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="slider-wrap">
         <div class="slider-bar">
             <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:70%;"><span>7</span></span>
+            <span class="value-dot" style="left:40%;"><span>4</span></span>
         </div>
     </div>
-    <div class="val-wrap">7<small> /10.0</small></div>
+    <div class="val-wrap">4<small> /10.0</small></div>
 </div>
 
 <div class="progress-item">
@@ -771,10 +763,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="slider-wrap">
         <div class="slider-bar">
             <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:70%;"><span>7</span></span>
+            <span class="value-dot" style="left:40%;"><span>4</span></span>
         </div>
     </div>
-    <div class="val-wrap">7<small> /10.0</small></div>
+    <div class="val-wrap">4<small> /10.0</small></div>
 </div>
 
 <div class="progress-item">
@@ -785,10 +777,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="slider-wrap">
         <div class="slider-bar">
             <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:70%;"><span>7</span></span>
+            <span class="value-dot" style="left:80%;"><span>8</span></span>
         </div>
     </div>
-    <div class="val-wrap">7<small> /10.0</small></div>
+    <div class="val-wrap">8<small> /10.0</small></div>
 </div>
 
 <div class="progress-item">
@@ -799,10 +791,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="slider-wrap">
         <div class="slider-bar">
             <span class="tick-min">1</span><span class="tick-max">10</span>
-            <span class="value-dot" style="left:80%;"><span>8</span></span>
+            <span class="value-dot" style="left:60%;"><span>6</span></span>
         </div>
     </div>
-    <div class="val-wrap">8<small> /10.0</small></div>
+    <div class="val-wrap">6<small> /10.0</small></div>
 </div>
 
 
@@ -817,7 +809,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">Social Attachment Dimensions</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">依恋关系</div>
 <div class="page-title-en">SOCIAL ATTACHMENT DIMENSIONS</div>
@@ -832,7 +824,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     
     <div class="attachment-type-card" style="padding:4mm 3mm;">
         <div class="role" style="font-size:10pt; margin-bottom:1.5mm;">父亲</div>
-        <div class="type" style="font-size:10pt;">回避型</div>
+        <div class="type" style="font-size:10pt;">安全型</div>
     </div>
     
     <div class="attachment-type-card" style="padding:4mm 3mm;">
@@ -858,11 +850,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">50</span>
-                <span class="value-dot" style="left:84%;"></span>
+                <span class="value-dot" style="left:57%;"></span>
             </div>
         </div>
-        <div class="val-wrap" style="font-size:11pt;">42<small> /50</small></div>
-        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">高</div>
+        <div class="val-wrap" style="font-size:11pt;">29<small> /50</small></div>
+        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">不低</div>
     </div>
     
     <div class="progress-item" style="padding:1.5mm 0;">
@@ -872,10 +864,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">50</span>
-                <span class="value-dot" style="left:56%;"></span>
+                <span class="value-dot" style="left:64%;"></span>
             </div>
         </div>
-        <div class="val-wrap" style="font-size:11pt;">28<small> /50</small></div>
+        <div class="val-wrap" style="font-size:11pt;">32<small> /50</small></div>
         <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">不低</div>
     </div>
     
@@ -886,10 +878,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">50</span>
-                <span class="value-dot" style="left:74%;"></span>
+                <span class="value-dot" style="left:78%;"></span>
             </div>
         </div>
-        <div class="val-wrap" style="font-size:11pt;">37<small> /50</small></div>
+        <div class="val-wrap" style="font-size:11pt;">39<small> /50</small></div>
         <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">高</div>
     </div>
     
@@ -908,10 +900,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">45</span>
-                <span class="value-dot" style="left:46%;"></span>
+                <span class="value-dot" style="left:53%;"></span>
             </div>
         </div>
-        <div class="val-wrap" style="font-size:11pt;">21<small> /45</small></div>
+        <div class="val-wrap" style="font-size:11pt;">24<small> /45</small></div>
         <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">不低</div>
     </div>
     
@@ -922,11 +914,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">45</span>
-                <span class="value-dot" style="left:33%;"></span>
+                <span class="value-dot" style="left:51%;"></span>
             </div>
         </div>
-        <div class="val-wrap" style="font-size:11pt;">15<small> /45</small></div>
-        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">偏低</div>
+        <div class="val-wrap" style="font-size:11pt;">23<small> /45</small></div>
+        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">不低</div>
     </div>
     
     <div class="progress-item" style="padding:1.5mm 0;">
@@ -936,11 +928,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">45</span>
-                <span class="value-dot" style="left:71%;"></span>
+                <span class="value-dot" style="left:60%;"></span>
             </div>
         </div>
-        <div class="val-wrap" style="font-size:11pt;">32<small> /45</small></div>
-        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">高</div>
+        <div class="val-wrap" style="font-size:11pt;">27<small> /45</small></div>
+        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">不低</div>
     </div>
     
 </div>
@@ -972,11 +964,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">30</span>
-                <span class="value-dot" style="left:20%;"></span>
+                <span class="value-dot" style="left:36%;"></span>
             </div>
         </div>
-        <div class="val-wrap" style="font-size:11pt;">6<small> /30</small></div>
-        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">偏低</div>
+        <div class="val-wrap" style="font-size:11pt;">11<small> /30</small></div>
+        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">不低</div>
     </div>
     
     <div class="progress-item" style="padding:1.5mm 0;">
@@ -986,11 +978,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">0</span><span class="tick-max">30</span>
-                <span class="value-dot" style="left:73%;"></span>
+                <span class="value-dot" style="left:63%;"></span>
             </div>
         </div>
-        <div class="val-wrap" style="font-size:11pt;">22<small> /30</small></div>
-        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">高</div>
+        <div class="val-wrap" style="font-size:11pt;">19<small> /30</small></div>
+        <div style="flex:0 0 20mm; font-size:8.5pt; color:#B33A3A; font-weight:600; text-align:right;">不低</div>
     </div>
     
 </div>
@@ -1007,7 +999,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">INNER DRIVE</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">内驱力</div>
 <div class="page-title-en">Inner Drive Dimensions</div>
@@ -1078,11 +1070,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             
             <text x="348.0" y="164.0" text-anchor="middle" font-size="9" fill="#1A1A1A" font-weight="600">100</text>
             
-            <line x1="200" y1="160" x2="274.42956348249515" y2="105.92375678909247" stroke="#1F2937" stroke-width="4" stroke-linecap="round"/>
+            <line x1="200" y1="160" x2="228.97875980828803" y2="72.6831546608929" stroke="#1F2937" stroke-width="4" stroke-linecap="round"/>
             <circle cx="200" cy="160" r="7" fill="#1F2937"/>
             <circle cx="200" cy="160" r="3" fill="#FFFFFF"/>
-            <circle cx="274.42956348249515" cy="105.92375678909247" r="7" fill="#1F2937"/>
-            <circle cx="274.42956348249515" cy="105.92375678909247" r="3" fill="#FFFFFF"/>
+            <circle cx="228.97875980828803" cy="72.6831546608929" r="7" fill="#1F2937"/>
+            <circle cx="228.97875980828803" cy="72.6831546608929" r="3" fill="#FFFFFF"/>
         </svg>
     </div>
     <div style="display:flex; justify-content:space-between; margin-top:2mm; padding:0 8mm;">
@@ -1110,11 +1102,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="cd-gauge-wrap">
         <svg viewBox="0 0 120 120" style="width:28mm; height:28mm;">
             <path d="M 110 60 A 50 50 0 1 1 10 60 A 50 50 0 1 1 110 60" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-            <path d="M 60.0 10.0 A 50 50 0 1 1 25.8 96.4" fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 60.0 10.0 A 50 50 0 1 1 53.7 109.6" fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round"/>
             
             <line x1="79.68" y1="60" x2="77.22" y2="60" stroke="#F4A261" stroke-width="3" stroke-linecap="round"/>
             
-            <text x="60" y="65" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A">6.2</text>
+            <text x="60" y="65" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A">5.2</text>
         </svg>
     </div>
     <div class="cd-range">/ 10.0</div>
@@ -1129,11 +1121,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="cd-gauge-wrap">
         <svg viewBox="0 0 120 120" style="width:28mm; height:28mm;">
             <path d="M 110 60 A 50 50 0 1 1 10 60 A 50 50 0 1 1 110 60" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-            <path d="M 60.0 10.0 A 50 50 0 1 1 16.2 84.1" fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 60.0 10.0 A 50 50 0 1 1 13.5 78.4" fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round"/>
             
             <line x1="77.75999999999999" y1="60" x2="75.53999999999999" y2="60" stroke="#F4A261" stroke-width="3" stroke-linecap="round"/>
             
-            <text x="60" y="65" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A">6.7</text>
+            <text x="60" y="65" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A">6.9</text>
         </svg>
     </div>
     <div class="cd-range">/ 10.0</div>
@@ -1148,11 +1140,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="cd-gauge-wrap">
         <svg viewBox="0 0 120 120" style="width:28mm; height:28mm;">
             <path d="M 110 60 A 50 50 0 1 1 10 60 A 50 50 0 1 1 110 60" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-            <path d="M 60.0 10.0 A 50 50 0 1 1 13.5 78.4" fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 60.0 10.0 A 50 50 0 1 1 12.4 44.5" fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round"/>
             
             <line x1="75.36" y1="60" x2="73.44" y2="60" stroke="#F4A261" stroke-width="3" stroke-linecap="round"/>
             
-            <text x="60" y="65" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A">6.9</text>
+            <text x="60" y="65" text-anchor="middle" font-size="14" font-weight="700" fill="#1A1A1A">8</text>
         </svg>
     </div>
     <div class="cd-range">/ 10.0</div>
@@ -1174,7 +1166,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">Big Five Personality Dimensions</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">人格</div>
 <div class="page-title-en">BIG FIVE PERSONALITY DIMENSIONS</div>
@@ -1184,10 +1176,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <svg viewBox="0 0 400.0 400.0">
         <polygon points="200.0,170.0 228.5,190.7 217.6,224.3 182.4,224.3 171.5,190.7" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,140.0 257.1,181.5 235.3,248.5 164.7,248.5 142.9,181.5" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,110.0 285.6,172.2 252.9,272.8 147.1,272.8 114.4,172.2" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/><polygon points="200.0,80.0 314.1,162.9 270.5,297.1 129.5,297.1 85.9,162.9" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3,3"/>
         <polygon points="200.0,128.0 268.5,177.8 242.3,258.2 157.7,258.2 131.5,177.8" fill="none" stroke="#F4A261" stroke-width="2" stroke-dasharray="6,4"/>
-        <polygon points="200.0,113.6 268.5,177.8 249.4,268.0 167.6,244.7 152.1,184.4" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2.5"/>
+        <polygon points="200.0,118.4 270.8,177.0 235.3,248.5 163.3,250.5 127.0,176.3" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2.5"/>
         <line x1="200.0" y1="200.0" x2="200.0" y2="80.0" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="314.1" y2="162.9" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="270.5" y2="297.1" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="129.5" y2="297.1" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="85.9" y2="162.9" stroke="#E0E0E0" stroke-width="1"/>
-        <circle cx="200.0" cy="113.6" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="200.0" cy="113.6" r="3" fill="#2A9D8F"/><circle cx="268.5" cy="177.8" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="268.5" cy="177.8" r="3" fill="#2A9D8F"/><circle cx="249.4" cy="268.0" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="249.4" cy="268.0" r="3" fill="#2A9D8F"/><circle cx="167.6" cy="244.7" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="167.6" cy="244.7" r="3" fill="#2A9D8F"/><circle cx="152.1" cy="184.4" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="152.1" cy="184.4" r="3" fill="#2A9D8F"/>
-        <text x="200.0" y="35.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">开放性</text><text x="200.0" y="35.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Openness</text><text x="200.0" y="35.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3.6/5.0</text><text x="356.9" y="149.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">宜人性</text><text x="356.9" y="149.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Agreeableness</text><text x="356.9" y="149.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3/5.0</text><text x="297.0" y="333.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">责任心</text><text x="297.0" y="333.5" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Conscientiousness</text><text x="297.0" y="333.5" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3.5/5.0</text><text x="103.0" y="333.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">外倾性</text><text x="103.0" y="333.5" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Extraversion</text><text x="103.0" y="333.5" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">2.3/5.0</text><text x="43.1" y="149.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">神经质</text><text x="43.1" y="149.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Neuroticism</text><text x="43.1" y="149.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">2.1/5.0</text>
+        <circle cx="200.0" cy="118.4" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="200.0" cy="118.4" r="3" fill="#2A9D8F"/><circle cx="270.8" cy="177.0" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="270.8" cy="177.0" r="3" fill="#2A9D8F"/><circle cx="235.3" cy="248.5" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="235.3" cy="248.5" r="3" fill="#2A9D8F"/><circle cx="163.3" cy="250.5" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="163.3" cy="250.5" r="3" fill="#2A9D8F"/><circle cx="127.0" cy="176.3" r="6" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2.5"/><circle cx="127.0" cy="176.3" r="3" fill="#2A9D8F"/>
+        <text x="200.0" y="35.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">开放性</text><text x="200.0" y="35.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Openness</text><text x="200.0" y="35.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3.4/5.0</text><text x="356.9" y="149.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">宜人性</text><text x="356.9" y="149.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Agreeableness</text><text x="356.9" y="149.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3.1/5.0</text><text x="297.0" y="333.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">责任心</text><text x="297.0" y="333.5" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Conscientiousness</text><text x="297.0" y="333.5" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">2.5/5.0</text><text x="103.0" y="333.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">外倾性</text><text x="103.0" y="333.5" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Extraversion</text><text x="103.0" y="333.5" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">2.6/5.0</text><text x="43.1" y="149.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">神经质</text><text x="43.1" y="149.0" dy="14" text-anchor="middle" font-size="8" fill="#8C8C8C">Neuroticism</text><text x="43.1" y="149.0" dy="26" text-anchor="middle" font-size="10" fill="#2A9D8F" font-weight="700">3.2/5.0</text>
     </svg>
 </div>
 
@@ -1244,7 +1236,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">Physical Health Assessment</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">体质健康</div>
 <div class="page-title-en">PHYSICAL HEALTH ASSESSMENT</div>
@@ -1252,14 +1244,14 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="dark-score-card" style="margin-bottom:5mm;">
     <div class="left"><div><div class="title">体质健康测评结果</div><div class="subtitle">BMI RESULT</div></div></div>
     <div class="right">
-        <div class="value-block"><div class="big-val">21</div><div class="label">BMI</div></div>
-        <div class="value-block"><div class="level-val">正常</div><div class="label">LEVEL</div></div>
+        <div class="value-block"><div class="big-val">16</div><div class="label">BMI</div></div>
+        <div class="value-block"><div class="level-val">偏低</div><div class="label">LEVEL</div></div>
     </div>
 </div>
 
 <div class="bmi-section">
     <div class="bmi-section-title">身体形态等级图</div>
-    <div class="bmi-section-subtitle">· 身高：182CM　· 体重：70KG　· BMI：21 KG/M²</div>
+    <div class="bmi-section-subtitle">· 身高：175CM　· 体重：50KG　· BMI：16 KG/M²</div>
     <div class="bmi-figures">
         
         <div class="bmi-figure">
@@ -1272,7 +1264,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         </div>
         
         <div class="bmi-figure">
-            <span class="current-tag">当前</span>
+            
             <div class="body-icon-wrap">
                 <i class="fa-solid fa-person body-icon" style="color:#2A9D8F; transform: scaleX(1.0);"></i>
             </div>
@@ -1310,7 +1302,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="habit-title">饮食习惯</div>
         <div class="habit-en">Diet</div>
         
-        <div style="font-size:9pt; color:#4B5563; margin-top:2mm;">差</div>
+        <div style="font-size:9pt; color:#4B5563; margin-top:2mm;">中等</div>
         
     </div>
     
@@ -1318,7 +1310,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="habit-title">睡眠习惯</div>
         <div class="habit-en">Sleep</div>
         
-        <div class="habit-score-row"><span class="habit-score">7.4</span><small style="font-size:8pt; color:#8C8C8C;"> 小时/天</small><span class="habit-level" style="margin-left:3mm;">优秀</span></div>
+        <div class="habit-score-row"><span class="habit-score">7.8</span><small style="font-size:8pt; color:#8C8C8C;"> 小时/天</small><span class="habit-level" style="margin-left:3mm;">优秀</span></div>
         
     </div>
     
@@ -1326,7 +1318,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="habit-title">运动习惯</div>
         <div class="habit-en">Exercise</div>
         
-        <div class="habit-score-row"><span class="habit-score">7</span><small style="font-size:8pt; color:#8C8C8C;"> 小时/周</small><span class="habit-level" style="margin-left:3mm;">中等</span></div>
+        <div class="habit-score-row"><span class="habit-score">2</span><small style="font-size:8pt; color:#8C8C8C;"> 小时/周</small><span class="habit-level" style="margin-left:3mm;">较差</span></div>
         
     </div>
     
@@ -1387,6 +1379,12 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <!-- ============ P01 COVER ============ -->
 
+<div class="page-header">
+    <div class="left"><span class="logo-mini"></span><span class="tag">Cognitive Resource Overview</span></div>
+    <div class="right">Zaylin · 2026-08-10</div>
+</div>
+<div class="page-title">认知资源</div>
+<div class="page-title-en">COGNITIVE RESOURCE OVERVIEW</div>
 <div class="cog-hero">
     <div class="cog-hero-left">
         <div class="cog-title">认知资源</div>
@@ -1399,7 +1397,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <div class="cog-score-header-en">Results Summary</div>
             <div class="cog-score-values">
                 <div class="cog-score-item">
-                    <div class="cog-score-num">137</div>
+                    <div class="cog-score-num">135</div>
                     <div class="cog-score-label">总得分</div>
                     <div class="cog-score-label-en">Total Score</div>
                 </div>
@@ -1459,14 +1457,14 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
                 </linearGradient>
             </defs>
             <path d="M 32.0 50.0 A 38 38 0 0 1 108.0 50.0" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-            <path d="M 32.0 50.0 A 38 38 0 0 1 107.9 47.6" fill="none" stroke="url(#cogGrad1)" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 32.0 50.0 A 38 38 0 0 1 106.5 39.4" fill="none" stroke="url(#cogGrad1)" stroke-width="8" stroke-linecap="round"/>
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
-            <line x1="70" y1="50" x2="107.92501568027433" y2="47.61396025788609" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="70" y1="50" x2="106.49116005572384" y2="39.398337970509296" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
         <div class="cog-info">
             <div class="cog-label">感知觉</div>
             <div class="cog-en">Perception</div>
-            <div class="cog-value">98<small>%</small></div>
+            <div class="cog-value">91<small>%</small></div>
         </div>
         <div class="cog-desc">感知是认知、理解的基础。感知觉是大脑对作用于大脑的外部信息的整体看法和理解，整个加工过程包括获取信息、理解信息、选择信息和组织信息。</div>
     </div>
@@ -1503,14 +1501,14 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
                 </linearGradient>
             </defs>
             <path d="M 32.0 50.0 A 38 38 0 0 1 108.0 50.0" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-            <path d="M 32.0 50.0 A 38 38 0 0 1 106.8 40.5" fill="none" stroke="url(#cogGrad3)" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 32.0 50.0 A 38 38 0 0 1 107.3 42.9" fill="none" stroke="url(#cogGrad3)" stroke-width="8" stroke-linecap="round"/>
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
-            <line x1="70" y1="50" x2="106.80616012288799" y2="40.54978428773552" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="70" y1="50" x2="107.32691552769018" y2="42.87951004574246" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
         <div class="cog-info">
             <div class="cog-label">记忆力</div>
             <div class="cog-en">Memory</div>
-            <div class="cog-value">92<small>%</small></div>
+            <div class="cog-value">94<small>%</small></div>
         </div>
         <div class="cog-desc">记忆力是神经系统存储过往经验的能力，是学习的基础，一般包括识记、保持、再认和重现。记忆力的个体差异影响学习效率，如有的同学看3遍就记住了一个单词，而有的同学可能要7-8遍。</div>
     </div>
@@ -1525,14 +1523,14 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
                 </linearGradient>
             </defs>
             <path d="M 32.0 50.0 A 38 38 0 0 1 108.0 50.0" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-            <path d="M 32.0 50.0 A 38 38 0 0 1 107.9 47.6" fill="none" stroke="url(#cogGrad4)" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 32.0 50.0 A 38 38 0 0 1 107.3 42.9" fill="none" stroke="url(#cogGrad4)" stroke-width="8" stroke-linecap="round"/>
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
-            <line x1="70" y1="50" x2="107.92501568027433" y2="47.61396025788609" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="70" y1="50" x2="107.32691552769018" y2="42.87951004574246" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
         <div class="cog-info">
             <div class="cog-label">推理能力</div>
             <div class="cog-en">Reasoning</div>
-            <div class="cog-value">98<small>%</small></div>
+            <div class="cog-value">94<small>%</small></div>
         </div>
         <div class="cog-desc">推理能力是智力的核心成分，是一个人通过已有知识和经验，通过综合分析做出新判断的过程。推理能力的差异往往反应一个人洞悉事物本质，事物联系能力的高低。</div>
     </div>
@@ -1547,14 +1545,14 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
                 </linearGradient>
             </defs>
             <path d="M 32.0 50.0 A 38 38 0 0 1 108.0 50.0" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-            <path d="M 32.0 50.0 A 38 38 0 0 1 107.8 46.4" fill="none" stroke="url(#cogGrad5)" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 32.0 50.0 A 38 38 0 0 1 105.3 36.0" fill="none" stroke="url(#cogGrad5)" stroke-width="8" stroke-linecap="round"/>
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
-            <line x1="70" y1="50" x2="107.83135465491705" y2="46.42388409389646" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="70" y1="50" x2="105.33150646375356" y2="36.01126699798223" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
         <div class="cog-info">
             <div class="cog-label">空间能力</div>
             <div class="cog-en">Spatial Ability</div>
-            <div class="cog-value">97<small>%</small></div>
+            <div class="cog-value">88<small>%</small></div>
         </div>
         <div class="cog-desc">空间能力是大脑通过观察、触摸及想象对物体形状、位置判断的能力。它是大脑对外部信息的抽象表征和推理，是数学、自然科学、工程等重要学科领域用到的重要心理能力。</div>
     </div>
@@ -1569,14 +1567,14 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
                 </linearGradient>
             </defs>
             <path d="M 32.0 50.0 A 38 38 0 0 1 108.0 50.0" fill="none" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-            <path d="M 32.0 50.0 A 38 38 0 0 1 106.1 38.3" fill="none" stroke="url(#cogGrad6)" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 32.0 50.0 A 38 38 0 0 1 107.1 41.7" fill="none" stroke="url(#cogGrad6)" stroke-width="8" stroke-linecap="round"/>
             <circle cx="70" cy="50" r="4" fill="#1F2937"/>
-            <line x1="70" y1="50" x2="106.14014761921584" y2="38.257354213751995" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="70" y1="50" x2="107.08483695367241" y2="41.710556826931395" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
         <div class="cog-info">
             <div class="cog-label">加工速度</div>
             <div class="cog-en">Processing Speed</div>
-            <div class="cog-value">90<small>%</small></div>
+            <div class="cog-value">93<small>%</small></div>
         </div>
         <div class="cog-desc">加工速度是大脑处理内部或外部信息的速度，和网速、手机使用流畅性一样，大脑的信息加工速度直接影响学习、思考和人际沟通的效率。</div>
     </div>
@@ -1594,7 +1592,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">Executive Functions Overview</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">执行功能</div>
 <div class="page-title-en">EXECUTIVE FUNCTIONS OVERVIEW</div>
@@ -1602,10 +1600,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 <div class="radar-chart-wrap">
     <svg viewBox="0 0 400.0 400.0" class="radar-svg">
         <polygon points="200.0,175.0 221.7,212.5 178.3,212.5" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/><polygon points="200.0,150.0 243.3,225.0 156.7,225.0" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/><polygon points="200.0,125.0 265.0,237.5 135.0,237.5" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/><polygon points="200.0,100.0 286.6,250.0 113.4,250.0" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="2,2"/>
-        <polygon points="200.0,113.0 279.7,246.0 136.8,236.5" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2"/>
+        <polygon points="200.0,113.0 277.9,245.0 130.7,240.0" fill="#2A9D8F" fill-opacity="0.25" stroke="#2A9D8F" stroke-width="2"/>
         <line x1="200.0" y1="200.0" x2="200.0" y2="100.0" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="286.6" y2="250.0" stroke="#E0E0E0" stroke-width="1"/><line x1="200.0" y1="200.0" x2="113.4" y2="250.0" stroke="#E0E0E0" stroke-width="1"/>
-        <circle cx="200.0" cy="113.0" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="200.0" cy="113.0" r="2.5" fill="#2A9D8F"/><circle cx="279.7" cy="246.0" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="279.7" cy="246.0" r="2.5" fill="#2A9D8F"/><circle cx="136.8" cy="236.5" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="136.8" cy="236.5" r="2.5" fill="#2A9D8F"/>
-        <text x="200.0" y="55.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">抑制控制</text><text x="200.0" y="55.0" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Inhibitory Control</text><text x="200.0" y="55.0" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">87%</text><text x="325.6" y="272.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">工作记忆</text><text x="325.6" y="272.5" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Working Memory</text><text x="325.6" y="272.5" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">92%</text><text x="74.4" y="272.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">认知灵活性</text><text x="74.4" y="272.5" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Cognitive Flexibility</text><text x="74.4" y="272.5" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">73%</text>
+        <circle cx="200.0" cy="113.0" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="200.0" cy="113.0" r="2.5" fill="#2A9D8F"/><circle cx="277.9" cy="245.0" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="277.9" cy="245.0" r="2.5" fill="#2A9D8F"/><circle cx="130.7" cy="240.0" r="5" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="2"/><circle cx="130.7" cy="240.0" r="2.5" fill="#2A9D8F"/>
+        <text x="200.0" y="55.0" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">抑制控制</text><text x="200.0" y="55.0" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Inhibitory Control</text><text x="200.0" y="55.0" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">87%</text><text x="325.6" y="272.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">工作记忆</text><text x="325.6" y="272.5" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Working Memory</text><text x="325.6" y="272.5" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">90%</text><text x="74.4" y="272.5" text-anchor="middle" font-size="12" fill="#1A1A1A" font-weight="700">认知灵活性</text><text x="74.4" y="272.5" dy="13" text-anchor="middle" font-size="7.5" fill="#8C8C8C">Cognitive Flexibility</text><text x="74.4" y="272.5" dy="26" text-anchor="middle" font-size="11" fill="#2A9D8F" font-weight="700">80%</text>
     </svg>
 </div>
 
@@ -1621,14 +1619,14 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
     <div class="exec-card red">
         <div class="zh">工作记忆</div>
         <div class="en">Working Memory</div>
-        <div class="val">92<small>%</small></div>
+        <div class="val">90<small>%</small></div>
         <div class="exec-desc">工作记忆是有意识地在头脑中保存和操纵信息的能力。我们依靠记忆信息预测未来，信息是周全还是片面直接影响预测的准确性。我们依靠记忆制定目标、安排计划、执行任务，而目标是否清晰，计划是否详细，执行是否到位均与记忆力有关。</div>
     </div>
     
     <div class="exec-card amber">
         <div class="zh">认知灵活性</div>
         <div class="en">Cognitive Flexibility</div>
-        <div class="val">73<small>%</small></div>
+        <div class="val">80<small>%</small></div>
         <div class="exec-desc">认知灵活性是指个体大脑适应新的、变化的或计划以外事件的能力。比如当情况有变，原有计划被打破或最初的方案行不通时，认知灵活性高的人能根据变化从不同角度看问题，及时调整心态，改变思路，快速找到解决问题的新方案。认知灵活性影响孩子的自我调节能力和心理韧性。</div>
     </div>
     
@@ -1645,7 +1643,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">Learning Motivation and Strategies</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">学习动机与策略</div>
 <div class="page-title-en">LEARNING MOTIVATION AND STRATEGIES</div>
@@ -1663,11 +1661,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar red-only">
                 <span class="tick-min">1</span><span class="tick-max">10</span>
-                <span class="value-dot" style="left:72%;"></span>
+                <span class="value-dot" style="left:40%;"></span>
                 <span class="peer-marker" style="left:74%;"></span>
             </div>
         </div>
-        <div class="val-wrap">7.2<small> /10.0</small></div>
+        <div class="val-wrap">4<small> /10.0</small></div>
         <div class="norm-wrap">7.4</div>
     </div>
     <div class="motivation-card-desc">深层动机是对学习本身感兴趣，学习本身使个体感到满足和兴奋的内部动机。深层动机得分高的个体一般学习动力足，主动学习、不需要外部监督和督促。</div>
@@ -1682,11 +1680,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar red-only">
                 <span class="tick-min">1</span><span class="tick-max">10</span>
-                <span class="value-dot" style="left:64%;"></span>
+                <span class="value-dot" style="left:68%;"></span>
                 <span class="peer-marker" style="left:47%;"></span>
             </div>
         </div>
-        <div class="val-wrap">6.4<small> /10.0</small></div>
+        <div class="val-wrap">6.8<small> /10.0</small></div>
         <div class="norm-wrap">4.7</div>
     </div>
     <div class="motivation-card-desc">表面动机是对学习不感兴趣，为了通过考试、得到奖励或避免惩罚而学习的外部动机。表面动机难以维持长期学习，一旦外部奖励或惩罚退去，个体可能不再学习。</div>
@@ -1701,11 +1699,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar red-only">
                 <span class="tick-min">1</span><span class="tick-max">10</span>
-                <span class="value-dot" style="left:100%;"></span>
+                <span class="value-dot" style="left:84%;"></span>
                 <span class="peer-marker" style="left:81%;"></span>
             </div>
         </div>
-        <div class="val-wrap">10<small> /10.0</small></div>
+        <div class="val-wrap">8.4<small> /10.0</small></div>
         <div class="norm-wrap">8.1</div>
     </div>
     <div class="motivation-card-desc">自我效能感是个体对自己能否成功完成某事的主观判断。个体的自我效能感源于过往的成功经验以及对自己的准确的评估。</div>
@@ -1725,11 +1723,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">1</span><span class="tick-max">10</span>
-                <span class="value-dot" style="left:60%;"></span>
+                <span class="value-dot" style="left:36%;"></span>
                 <span class="peer-marker" style="left:78%;"></span>
             </div>
         </div>
-        <div class="val-wrap">6<small> /10.0</small></div>
+        <div class="val-wrap">3.6<small> /10.0</small></div>
         <div class="norm-wrap">7.8</div>
     </div>
     <div class="motivation-card-desc">学习深层方法与策略是为了深入理解知识本身而采取的学习方法和策略，是一种建立在理解和应用基础之上的深度学习。这种学习方法使学习记忆更牢、理解更深刻。</div>
@@ -1763,11 +1761,11 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="slider-wrap">
             <div class="slider-bar">
                 <span class="tick-min">1</span><span class="tick-max">10</span>
-                <span class="value-dot" style="left:86%;"></span>
+                <span class="value-dot" style="left:64%;"></span>
                 <span class="peer-marker" style="left:63%;"></span>
             </div>
         </div>
-        <div class="val-wrap">8.7<small> /10.0</small></div>
+        <div class="val-wrap">6.4<small> /10.0</small></div>
         <div class="norm-wrap">6.3</div>
     </div>
     <div class="motivation-card-desc">学习自我调节是学习过程中遇到困难或挫折时采取的自我调节的方法。比如即使遇到了自己不喜欢的老师或科目，但为了取得好成绩也会进行自我调节、努力学习。</div>
@@ -1832,7 +1830,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">HOLLAND VOCATIONAL INTEREST TYPES</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">职业兴趣</div>
 <div class="page-title-en">HOLLAND VOCATIONAL INTEREST TYPES</div>
@@ -1840,7 +1838,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="holland-code-card">
     <div class="label">YOUR HOLLAND CODE</div>
-    <div class="code">REI</div>
+    <div class="code">SCR</div>
 </div>
 <div class="holland-items">
 
@@ -1852,10 +1850,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <div class="en">Realistic</div>
         </div>
         <div class="bar">
-            <div class="bar-fill" style="width:80%;"></div>
-            <div class="value-dot" style="left:80%;"><span>8</span></div>
+            <div class="bar-fill" style="width:60%;"></div>
+            <div class="value-dot" style="left:60%;"><span>6</span></div>
         </div>
-        <div class="val-wrap">8<small> /10</small></div>
+        <div class="val-wrap">6<small> /10</small></div>
     </div>
     <div class="desc">喜欢具体的、可操作性的工作，比如修理、组装或建造东西；喜欢动手操作、操作设备、工具或机器；偏好具体任务，而不是抽象思考，或与人讨论；不善言辞，更喜欢独立工作。</div>
 </div>
@@ -1868,10 +1866,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <div class="en">Investigative</div>
         </div>
         <div class="bar">
-            <div class="bar-fill" style="width:70%;"></div>
-            <div class="value-dot" style="left:70%;"><span>7</span></div>
+            <div class="bar-fill" style="width:50%;"></div>
+            <div class="value-dot" style="left:50%;"><span>5</span></div>
         </div>
-        <div class="val-wrap">7<small> /10</small></div>
+        <div class="val-wrap">5<small> /10</small></div>
     </div>
     <div class="desc">喜欢研究抽象问题，善于逻辑分析，喜欢探索未知；喜欢观察、学习、思考、调查和实验研究；善于提出问题和解决问题；个性独立，为人谨慎。</div>
 </div>
@@ -1884,10 +1882,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <div class="en">Artistic</div>
         </div>
         <div class="bar">
-            <div class="bar-fill" style="width:30%;"></div>
-            <div class="value-dot" style="left:30%;"><span>3</span></div>
+            <div class="bar-fill" style="width:50%;"></div>
+            <div class="value-dot" style="left:50%;"><span>5</span></div>
         </div>
-        <div class="val-wrap">3<small> /10</small></div>
+        <div class="val-wrap">5<small> /10</small></div>
     </div>
     <div class="desc">文艺青年；用文字、艺术、音乐或戏剧来交流、表演或表达自己，创造和设计事物；想象力丰富，喜欢创造与表达；喜欢无拘无束的自由生活，喜欢新鲜刺激的生活，讨厌一成不变的生活。</div>
 </div>
@@ -1900,10 +1898,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <div class="en">Social</div>
         </div>
         <div class="bar">
-            <div class="bar-fill" style="width:50%;"></div>
-            <div class="value-dot" style="left:50%;"><span>5</span></div>
+            <div class="bar-fill" style="width:80%;"></div>
+            <div class="value-dot" style="left:80%;"><span>8</span></div>
         </div>
-        <div class="val-wrap">5<small> /10</small></div>
+        <div class="val-wrap">8<small> /10</small></div>
     </div>
     <div class="desc">温暖、和善；乐于帮助他人；关心社会问题，喜欢与人一起帮助和服务他人；关心他人的幸福和福利。</div>
 </div>
@@ -1916,10 +1914,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
             <div class="en">Enterprising</div>
         </div>
         <div class="bar">
-            <div class="bar-fill" style="width:70%;"></div>
-            <div class="value-dot" style="left:70%;"><span>7</span></div>
+            <div class="bar-fill" style="width:40%;"></div>
+            <div class="value-dot" style="left:40%;"><span>4</span></div>
         </div>
-        <div class="val-wrap">7<small> /10</small></div>
+        <div class="val-wrap">4<small> /10</small></div>
     </div>
     <div class="desc">追求权利、利益；喜欢竞争，有野心和抱负；喜欢影响他人、领导他人完成目标；精力充沛，掌控大局。</div>
 </div>
@@ -1953,7 +1951,7 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">MULTIPLE INTELLIGENCES</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">能力优势</div>
 <div class="page-title-en">GARDNER&#39;S MULTIPLE INTELLIGENCES</div>
@@ -1965,72 +1963,12 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         <div class="ability-item">
             <div class="ability-rank max">1</div>
             <div class="ability-info">
-                <div class="ability-name">逻辑数学能力</div>
-                <div class="ability-en">Logical-Mathematical</div>
-            </div>
-            <div class="ability-bar-wrap">
-                <div class="ability-bar">
-                    <div class="ability-fill" style="width:90%;background:#2A9D8F;"></div>
-                    <div class="ability-dot" style="left:90%;"></div>
-                </div>
-            </div>
-            <div class="ability-score">9</div>
-        </div>
-        
-        <div class="ability-item">
-            <div class="ability-rank ">2</div>
-            <div class="ability-info">
-                <div class="ability-name">内省能力</div>
-                <div class="ability-en">Intrapersonal</div>
-            </div>
-            <div class="ability-bar-wrap">
-                <div class="ability-bar">
-                    <div class="ability-fill" style="width:80%;background:#F4A261;"></div>
-                    <div class="ability-dot" style="left:80%;"></div>
-                </div>
-            </div>
-            <div class="ability-score">8</div>
-        </div>
-        
-        <div class="ability-item">
-            <div class="ability-rank ">3</div>
-            <div class="ability-info">
-                <div class="ability-name">语言能力</div>
-                <div class="ability-en">Linguistic</div>
-            </div>
-            <div class="ability-bar-wrap">
-                <div class="ability-bar">
-                    <div class="ability-fill" style="width:70%;background:#F4A261;"></div>
-                    <div class="ability-dot" style="left:70%;"></div>
-                </div>
-            </div>
-            <div class="ability-score">7</div>
-        </div>
-        
-        <div class="ability-item">
-            <div class="ability-rank ">4</div>
-            <div class="ability-info">
-                <div class="ability-name">空间能力</div>
-                <div class="ability-en">Spatial</div>
-            </div>
-            <div class="ability-bar-wrap">
-                <div class="ability-bar">
-                    <div class="ability-fill" style="width:60%;background:#F4A261;"></div>
-                    <div class="ability-dot" style="left:60%;"></div>
-                </div>
-            </div>
-            <div class="ability-score">6</div>
-        </div>
-        
-        <div class="ability-item">
-            <div class="ability-rank ">5</div>
-            <div class="ability-info">
                 <div class="ability-name">身体运动能力</div>
                 <div class="ability-en">Bodily-Kinesthetic</div>
             </div>
             <div class="ability-bar-wrap">
                 <div class="ability-bar">
-                    <div class="ability-fill" style="width:60%;background:#F4A261;"></div>
+                    <div class="ability-fill" style="width:60%;background:#2A9D8F;"></div>
                     <div class="ability-dot" style="left:60%;"></div>
                 </div>
             </div>
@@ -2038,10 +1976,10 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         </div>
         
         <div class="ability-item">
-            <div class="ability-rank ">6</div>
+            <div class="ability-rank ">2</div>
             <div class="ability-info">
-                <div class="ability-name">自然能力</div>
-                <div class="ability-en">Naturalist</div>
+                <div class="ability-name">空间能力</div>
+                <div class="ability-en">Spatial</div>
             </div>
             <div class="ability-bar-wrap">
                 <div class="ability-bar">
@@ -2053,10 +1991,55 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         </div>
         
         <div class="ability-item">
-            <div class="ability-rank ">7</div>
+            <div class="ability-rank ">3</div>
             <div class="ability-info">
                 <div class="ability-name">音乐能力</div>
                 <div class="ability-en">Musical</div>
+            </div>
+            <div class="ability-bar-wrap">
+                <div class="ability-bar">
+                    <div class="ability-fill" style="width:40%;background:#F4A261;"></div>
+                    <div class="ability-dot" style="left:40%;"></div>
+                </div>
+            </div>
+            <div class="ability-score">4</div>
+        </div>
+        
+        <div class="ability-item">
+            <div class="ability-rank ">4</div>
+            <div class="ability-info">
+                <div class="ability-name">人际关系能力</div>
+                <div class="ability-en">Interpersonal</div>
+            </div>
+            <div class="ability-bar-wrap">
+                <div class="ability-bar">
+                    <div class="ability-fill" style="width:40%;background:#F4A261;"></div>
+                    <div class="ability-dot" style="left:40%;"></div>
+                </div>
+            </div>
+            <div class="ability-score">4</div>
+        </div>
+        
+        <div class="ability-item">
+            <div class="ability-rank ">5</div>
+            <div class="ability-info">
+                <div class="ability-name">内省能力</div>
+                <div class="ability-en">Intrapersonal</div>
+            </div>
+            <div class="ability-bar-wrap">
+                <div class="ability-bar">
+                    <div class="ability-fill" style="width:40%;background:#F4A261;"></div>
+                    <div class="ability-dot" style="left:40%;"></div>
+                </div>
+            </div>
+            <div class="ability-score">4</div>
+        </div>
+        
+        <div class="ability-item">
+            <div class="ability-rank ">6</div>
+            <div class="ability-info">
+                <div class="ability-name">自然能力</div>
+                <div class="ability-en">Naturalist</div>
             </div>
             <div class="ability-bar-wrap">
                 <div class="ability-bar">
@@ -2068,18 +2051,33 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
         </div>
         
         <div class="ability-item">
-            <div class="ability-rank min">8</div>
+            <div class="ability-rank ">7</div>
             <div class="ability-info">
-                <div class="ability-name">人际关系能力</div>
-                <div class="ability-en">Interpersonal</div>
+                <div class="ability-name">逻辑数学能力</div>
+                <div class="ability-en">Logical-Mathematical</div>
             </div>
             <div class="ability-bar-wrap">
                 <div class="ability-bar">
-                    <div class="ability-fill" style="width:30%;background:#E76F51;"></div>
-                    <div class="ability-dot" style="left:30%;"></div>
+                    <div class="ability-fill" style="width:20%;background:#F4A261;"></div>
+                    <div class="ability-dot" style="left:20%;"></div>
                 </div>
             </div>
-            <div class="ability-score">3</div>
+            <div class="ability-score">2</div>
+        </div>
+        
+        <div class="ability-item">
+            <div class="ability-rank min">8</div>
+            <div class="ability-info">
+                <div class="ability-name">语言能力</div>
+                <div class="ability-en">Linguistic</div>
+            </div>
+            <div class="ability-bar-wrap">
+                <div class="ability-bar">
+                    <div class="ability-fill" style="width:10%;background:#E76F51;"></div>
+                    <div class="ability-dot" style="left:10%;"></div>
+                </div>
+            </div>
+            <div class="ability-score">1</div>
         </div>
         
     </div>
@@ -2096,244 +2094,226 @@ html, body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; colo
 
 <div class="page-header">
     <div class="left"><span class="logo-mini"></span><span class="tag">TOP WORK VALUES &amp; PRIORITIES</span></div>
-    <div class="right">Jeff · 2026-05-10</div>
+    <div class="right">Zaylin · 2026-08-10</div>
 </div>
 <div class="page-title">职业价值观</div>
 <div class="page-title-en">TOP WORK VALUES &amp; PRIORITIES</div>
 
 
-<div class="values-top5-section">
-    <div class="values-section-title">核心价值观 TOP 5</div>
-    <div class="values-top5-grid">
+<div class="values-grid-container">
+    <div class="values-grid">
         
-        <div class="value-card-top">
-            <div class="value-badge">1</div>
-            <div class="value-header">
-                <div class="value-label-top">经济报酬</div>
-                <div class="value-en-top">Economic Reward</div>
-            </div>
-            <div class="value-feature">
-                <span class="feature-icon">●</span>
+        <div class="value-card" data-num="1" data-rank="1">
+            <div class="value-number">1</div>
+            <div class="value-label">经济报酬</div>
+            <div class="value-en">Economic Reward</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
                 <span class="feature-text">较高的报酬，生活过得较为富足</span>
             </div>
-            <div class="value-monologue">
-                <span class="monologue-icon">◆</span>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
                 <span class="monologue-text">薪酬高，福利好</span>
             </div>
         </div>
         
-        <div class="value-card-top">
-            <div class="value-badge">2</div>
-            <div class="value-header">
-                <div class="value-label-top">生活方式</div>
-                <div class="value-en-top">Lifestyle</div>
-            </div>
-            <div class="value-feature">
-                <span class="feature-icon">●</span>
-                <span class="feature-text">可以选择过自己想过的生活，安逸、简单、快乐或充实</span>
-            </div>
-            <div class="value-monologue">
-                <span class="monologue-icon">◆</span>
-                <span class="monologue-text">有选择生活方式的权利</span>
-            </div>
-        </div>
-        
-        <div class="value-card-top">
-            <div class="value-badge">3</div>
-            <div class="value-header">
-                <div class="value-label-top">工作环境</div>
-                <div class="value-en-top">Work Environment</div>
-            </div>
-            <div class="value-feature">
-                <span class="feature-icon">●</span>
+        <div class="value-card" data-num="2" data-rank="2">
+            <div class="value-number">2</div>
+            <div class="value-label">工作环境</div>
+            <div class="value-en">Work Environment</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
                 <span class="feature-text">追求比较舒适、轻松、自由的工作环境</span>
             </div>
-            <div class="value-monologue">
-                <span class="monologue-icon">◆</span>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
                 <span class="monologue-text">工作环境舒适，轻松自由</span>
             </div>
         </div>
         
-        <div class="value-card-top">
-            <div class="value-badge">4</div>
-            <div class="value-header">
-                <div class="value-label-top">上司关系</div>
-                <div class="value-en-top">Supervisor Relations</div>
+        <div class="value-card" data-num="3" data-rank="3">
+            <div class="value-number">3</div>
+            <div class="value-label">生活方式</div>
+            <div class="value-en">Lifestyle</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">可以选择过自己想过的生活，安逸、简单、快乐或充实</span>
             </div>
-            <div class="value-feature">
-                <span class="feature-icon">●</span>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">有选择生活方式的权利</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="4" data-rank="4">
+            <div class="value-number">4</div>
+            <div class="value-label">上司关系</div>
+            <div class="value-en">Supervisor Relations</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
                 <span class="feature-text">有一个开明的、民主的、公正的好领导</span>
             </div>
-            <div class="value-monologue">
-                <span class="monologue-icon">◆</span>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
                 <span class="monologue-text">有一个好领导</span>
             </div>
         </div>
         
-        <div class="value-card-top">
-            <div class="value-badge">5</div>
-            <div class="value-header">
-                <div class="value-label-top">成就感</div>
-                <div class="value-en-top">Achievement</div>
+        <div class="value-card" data-num="5" data-rank="5">
+            <div class="value-number">5</div>
+            <div class="value-label">同事关系</div>
+            <div class="value-en">Colleague Relations</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">一起工作的大多数同事，人品较好，相处愉快</span>
             </div>
-            <div class="value-feature">
-                <span class="feature-icon">●</span>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">与喜欢的人共事</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="6" data-rank="6">
+            <div class="value-number">6</div>
+            <div class="value-label">成就感</div>
+            <div class="value-en">Achievement</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
                 <span class="feature-text">不断取得新的成就，得到认可或实现自己想做的事</span>
             </div>
-            <div class="value-monologue">
-                <span class="monologue-icon">◆</span>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
                 <span class="monologue-text">能给我带来成就感</span>
             </div>
         </div>
         
+        <div class="value-card" data-num="7" data-rank="7">
+            <div class="value-number">7</div>
+            <div class="value-label">独立自主</div>
+            <div class="value-en">Independence</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">可以按自己的方式或想法工作，不受他人的影响</span>
+            </div>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">能按自己想法和节奏做事</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="8" data-rank="8">
+            <div class="value-number">8</div>
+            <div class="value-label">管理权力</div>
+            <div class="value-en">Management Power</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">管理和指挥他人做事</span>
+            </div>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">影响和领导别人一起</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="9" data-rank="9">
+            <div class="value-number">9</div>
+            <div class="value-label">创造发明</div>
+            <div class="value-en">Creativity</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">发明创造新的事物，可能是新产品，也可能是新观念或新方法</span>
+            </div>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">发明创造新的事物</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="10" data-rank="10">
+            <div class="value-number">10</div>
+            <div class="value-label">安全稳定</div>
+            <div class="value-en">Security</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">工作稳定，收入有保障，不会失业</span>
+            </div>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">安稳，不会失业</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="11" data-rank="11">
+            <div class="value-number">11</div>
+            <div class="value-label">智力激发</div>
+            <div class="value-en">Intellectual Stimulation</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">必须动脑筋思考、学习和探索新事物，解决新问题</span>
+            </div>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">有挑战性</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="12" data-rank="12">
+            <div class="value-number">12</div>
+            <div class="value-label">利他助人</div>
+            <div class="value-en">Altruism</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">为他人的幸福、利益尽一份力</span>
+            </div>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">能帮助到他人</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="13" data-rank="13">
+            <div class="value-number">13</div>
+            <div class="value-label">声望地位</div>
+            <div class="value-en">Social Status</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">所从事的工作在人们的心目中有较高的社会地位</span>
+            </div>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">社会地位高，受人敬仰</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="14" data-rank="14">
+            <div class="value-number">14</div>
+            <div class="value-label">美的追求</div>
+            <div class="value-en">Aesthetic Pursuit</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">不断地追求美的东西，得到美的享受</span>
+            </div>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">能体验和感受美</span>
+            </div>
+        </div>
+        
+        <div class="value-card" data-num="15" data-rank="15">
+            <div class="value-number">15</div>
+            <div class="value-label">多样变化</div>
+            <div class="value-en">Variety</div>
+            <div class="value-feature-box">
+                <span class="feature-dot"></span>
+                <span class="feature-text">讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作</span>
+            </div>
+            <div class="value-monologue-box">
+                <span class="monologue-dot"></span>
+                <span class="monologue-text">尝试不同的工作</span>
+            </div>
+        </div>
+        
     </div>
-</div>
-
-<div class="values-remaining-section">
-    <div class="values-section-title">其他价值观</div>
-    <div class="values-remaining-grid">
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">6</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">智力激发</div>
-                <div class="value-en-remaining">Intellectual Stimulation</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">必须动脑筋思考、学习和探索新事物，解决新问题</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">有挑战性</span>
-            </div>
-        </div>
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">7</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">声望地位</div>
-                <div class="value-en-remaining">Social Status</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">所从事的工作在人们的心目中有较高的社会地位</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">社会地位高，受人敬仰</span>
-            </div>
-        </div>
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">8</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">安全稳定</div>
-                <div class="value-en-remaining">Security</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">工作稳定，收入有保障，不会失业</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">安稳，不会失业</span>
-            </div>
-        </div>
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">9</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">独立自主</div>
-                <div class="value-en-remaining">Independence</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">可以按自己的方式或想法工作，不受他人的影响</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">能按自己想法和节奏做事</span>
-            </div>
-        </div>
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">10</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">管理权力</div>
-                <div class="value-en-remaining">Management Power</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">管理和指挥他人做事</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">影响和领导别人一起</span>
-            </div>
-        </div>
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">11</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">创造发明</div>
-                <div class="value-en-remaining">Creativity</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">发明创造新的事物，可能是新产品，也可能是新观念或新方法</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">发明创造新的事物</span>
-            </div>
-        </div>
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">12</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">同事关系</div>
-                <div class="value-en-remaining">Colleague Relations</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">一起工作的大多数同事，人品较好，相处愉快</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">与喜欢的人共事</span>
-            </div>
-        </div>
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">13</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">多样变化</div>
-                <div class="value-en-remaining">Variety</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">尝试不同的工作</span>
-            </div>
-        </div>
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">14</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">利TA助人</div>
-                <div class="value-en-remaining">Altruism</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">为他人的幸福、利益尽一份力</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">能帮助到他人</span>
-            </div>
-        </div>
-        
-        <div class="value-card-remaining">
-            <div class="value-num-remaining">15</div>
-            <div class="value-header-remaining">
-                <div class="value-label-remaining">美的追求</div>
-                <div class="value-en-remaining">Aesthetic Pursuit</div>
-            </div>
-            <div class="value-feature-remaining">
-                <span class="feature-text-sm">不断地追求美的东西，得到美的享受</span>
-            </div>
-            <div class="value-monologue-remaining">
-                <span class="monologue-text-sm">能体验和感受美</span>
-            </div>
-        </div>
-        
-   </div>
 </div>
 
 <!-- ============ BACKCOVER (P19) ============ -->

@@ -538,6 +538,19 @@
       <div class="section-divider"></div>
 
       <div class="field">
+        <label class="field-label" for="studentSelect">归档到学生（可选）</label>
+        <div class="field-hint">选择已预约的学生，生成的报告将自动关联到该学生档案。</div>
+        <select id="studentSelect" onchange="onStudentChange()">
+          <option value="">— 不关联，手动输入 —</option>
+        </select>
+      </div>
+
+      <div class="field" id="manualNameField" style="display:none;">
+        <label class="field-label" for="manualName">学生姓名（手动输入）</label>
+        <input type="text" id="manualName" placeholder="如果不在列表中，请手动输入姓名" />
+      </div>
+
+      <div class="field">
         <label class="field-label" for="mindsetScore">思维模式分值（可选）</label>
         <div class="field-hint">如果 PDF 中思维模式数据提取不准确，可手动输入覆盖。</div>
         <div class="field-row">
@@ -984,6 +997,14 @@
     if (mindset && mindset.value.trim()) {
       fd.append('mindset_score', mindset.value.trim());
     }
+    // Pass selected student_id or manual name for archiving
+    const studentSelect = document.getElementById('studentSelect');
+    const manualName = document.getElementById('manualName');
+    if (studentSelect && studentSelect.value) {
+      fd.append('student_id', studentSelect.value);
+    } else if (manualName && manualName.value.trim()) {
+      fd.append('manual_student_name', manualName.value.trim());
+    }
 
     const controller = new AbortController();
     const tid = setTimeout(() => controller.abort(), 900000);
@@ -1170,6 +1191,36 @@
   renderSlots();
 
   // Set active nav link based on current path
+  // ─── Student dropdown for archiving ───
+  async function loadStudentDropdown() {
+    try {
+      const resp = await fetch('/api/students');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const sel = document.getElementById('studentSelect');
+      if (!sel) return;
+      // Keep the first option, clear the rest
+      while (sel.options.length > 1) sel.remove(1);
+      (data.students || []).forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        const y4Tag = s.report_count > 0 ? ' [Y4已完成]' : ' [未测评]';
+        opt.textContent = s.name + ' · ' + (s.school || '未知学校') + y4Tag;
+        sel.appendChild(opt);
+      });
+    } catch (e) {
+      // Silent fail — dropdown is optional
+    }
+  }
+
+  function onStudentChange() {
+    const sel = document.getElementById('studentSelect');
+    const manualField = document.getElementById('manualNameField');
+    if (sel && manualField) {
+      manualField.style.display = sel.value ? 'none' : 'block';
+    }
+  }
+
   (function initNav() {
     const path = window.location.pathname;
     document.querySelectorAll('.topbar-nav a').forEach(a => {
@@ -1184,6 +1235,9 @@
 
   // Save mindset score on change
   document.getElementById('mindsetScore').addEventListener('change', saveMindsetToSession);
+
+  // Load student list for dropdown
+  loadStudentDropdown();
 </script>
 </body>
 </html>

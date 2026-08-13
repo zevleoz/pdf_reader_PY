@@ -112,6 +112,7 @@ def index():
 
 
 @app.route("/preview")
+@page_login_required
 def preview():
     from generate import build_view_data, render_html
     from data_points import apply_report_data
@@ -294,20 +295,45 @@ def api_generate():
                 rd = json.loads(report_data_path.read_text(encoding="utf-8"))
                 student_info = rd.get("student", {}) or {}
                 sname = student_info.get("name", "").strip()
-                if sname:
+
+                # Use student_id from dropdown if provided, else manual name, else from PDF
+                selected_sid = request.form.get("student_id", "").strip()
+                manual_name = request.form.get("manual_student_name", "").strip()
+
+                if selected_sid:
+                    # Use the pre-selected student from booking
+                    sid = int(selected_sid)
+                    sname = sname or manual_name or f"学生#{sid}"
+                    # Update student info from PDF if available
+                    if student_info:
+                        _db.update_student(sid, **{k: v for k, v in {
+                            "gender": student_info.get("gender", ""),
+                            "birthday": student_info.get("birthday", ""),
+                            "grade": student_info.get("grade", ""),
+                        }.items() if v})
+                    print(f"[DB] 关联到预约学生: {sname} (id={sid})")
+                elif manual_name:
+                    sid = _db.find_or_create_student(name=manual_name)
+                    sname = manual_name
+                    print(f"[DB] 手动输入学生: {sname} (id={sid})")
+                elif sname:
                     sid = _db.find_or_create_student(
                         name=sname,
                         gender=student_info.get("gender", ""),
                         birthday=student_info.get("birthday", ""),
                         grade=student_info.get("grade", ""),
                     )
+                    print(f"[DB] 从PDF提取学生: {sname} (id={sid})")
+                else:
+                    sid = None
+
+                if sid:
                     _db.add_report(
                         student_id=sid,
                         report_date=date.today(),
                         pdf_path=str(pdf_path),
                         data_json=report_data_path.read_text(encoding="utf-8"),
                     )
-                    print(f"[DB] 已保存报告: {sname} (id={sid})")
         except Exception as e:
             print(f"[DB] 保存报告失败 (非致命): {e}")
 
@@ -825,6 +851,7 @@ def api_booking():
 
 
 @app.route("/admin/bookings")
+@page_login_required
 def admin_bookings_page():
     return render_template("admin_bookings.html")
 

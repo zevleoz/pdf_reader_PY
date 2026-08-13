@@ -3,6 +3,8 @@
 *.jpg
 *.jpeg
 *.json
+# Allow the landing page screenshot through
+!output/report_title_page.png
 __pycache__/
 *.pyc
 *.pyo
@@ -13,7 +15,8 @@ build/
 .vscode/
 .DS_Store
 input/
-output/
+output/*
+!output/report_title_page.png
 pages/
 data/
 *.log

@@ -407,6 +407,15 @@ def delete_student(student_id: int) -> None:
         sess.commit()
 
 
+def update_student(student_id: int, **kwargs) -> None:
+    """Update a student's fields. Only non-empty values are applied."""
+    if not kwargs:
+        return
+    with Session(engine) as sess:
+        sess.execute(update(Student).where(Student.id == student_id).values(**kwargs))
+        sess.commit()
+
+
 def delete_report(report_id: int) -> None:
     """Delete a single report."""
     with Session(engine) as sess:
