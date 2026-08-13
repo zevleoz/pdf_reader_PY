@@ -778,6 +778,22 @@ def api_booking():
         appt_time = datetime.fromisoformat(appt_time_str)
     except ValueError:
         return jsonify({"ok": False, "error": "时间格式错误"}), 400
+
+    # Check slot capacity
+    booking_date = appt_time.date()
+    time_slot_str = appt_time.strftime("%H:%M")
+    booking_counts = _db.get_slot_booking_counts(booking_date)
+    booked = booking_counts.get(time_slot_str, 0)
+    if booked >= SLOT_CAPACITY:
+        return jsonify({"ok": False, "error": "该时段已满（" + str(booked) + "/" + str(SLOT_CAPACITY) + "），请选择其他时间"}), 409
+
+    # Check admin hasn't closed this slot
+    avail_entries = _db.get_availability(booking_date)
+    avail_map = {e["time_slot"]: e["is_available"] for e in avail_entries}
+    is_open = avail_map.get(time_slot_str, True)
+    if not is_open:
+        return jsonify({"ok": False, "error": "该时段已关闭，请选择其他时间"}), 409
+
     # Create student + booking in one transaction (auto-archive)
     student_id, booking_id = _db.create_booking_with_student(
         student_name=name,
@@ -820,11 +836,14 @@ def api_booking_cancel(booking_id):
 # ---------------------------------------------------------------------------
 # Availability management
 # ---------------------------------------------------------------------------
+SLOT_CAPACITY = 4  # Max students per time slot
+
+
 @app.route("/api/availability")
 def api_get_availability():
     """Get availability for a given date. Query param: date=YYYY-MM-DD
-    Public endpoint (students need this to see available slots).
-    No record = unavailable (Calendly behavior: admin must explicitly open slots).
+    Returns each slot with is_available, booked_count, and capacity.
+    Default: all slots available. Admin can close slots. Full slots (4/4) are unavailable.
     """
     date_str = request.args.get("date", "")
     if not date_str:
@@ -834,22 +853,29 @@ def api_get_availability():
     except ValueError:
         return jsonify({"ok": False, "error": "日期格式错误"}), 400
     entries = _db.get_availability(date_val)
+    booking_counts = _db.get_slot_booking_counts(date_val)
     # Build full slot list: no record = available (admin closes slots manually)
     all_slots = []
     available_map = {e["time_slot"]: e["is_available"] for e in entries}
     for ts in _db.TIME_SLOTS:
-        is_av = available_map.get(ts, True)  # Default: available
-        all_slots.append({"time_slot": ts, "is_available": is_av})
+        is_open = available_map.get(ts, True)  # Default: available
+        booked = booking_counts.get(ts, 0)
+        is_av = is_open and booked < SLOT_CAPACITY
+        all_slots.append({
+            "time_slot": ts,
+            "is_available": is_av,
+            "is_open": is_open,
+            "booked_count": booked,
+            "capacity": SLOT_CAPACITY,
+        })
     return jsonify({"ok": True, "date": date_str, "slots": all_slots})
 
 
-@app.route("/api/availability/week")
-def api_availability_week():
-    """Get availability for next 14 days (for admin calendar management).
-    Public to read (admin page checks login in JS), but mutation requires admin.
-    """
+@app.route("/api/availability/month")
+def api_availability_month():
+    """Get availability for next 30 days (for admin calendar management)."""
     today = date.today()
-    end = today + timedelta(days=13)
+    end = today + timedelta(days=29)
     range_data = _db.get_availability_range(today, end)
     return jsonify({"ok": True, "start": today.isoformat(), "end": end.isoformat(), "data": range_data})
 

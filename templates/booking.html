@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>预约测评 — Y4</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -23,10 +23,13 @@
     .dow-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 10px; }
     .dow-header div { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
     .time-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .time-slot-btn { padding: 16px 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--white); cursor: pointer; transition: all .2s var(--ease); text-align: center; font-family: "Inter", sans-serif; font-weight: 500; font-size: 16px; }
+    .time-slot-btn { padding: 16px 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--white); cursor: pointer; transition: all .2s var(--ease); text-align: center; font-family: "Inter", sans-serif; font-weight: 500; font-size: 16px; position: relative; }
     .time-slot-btn:hover:not(.disabled) { border-color: var(--red); color: var(--red); transform: translateY(-1px); }
     .time-slot-btn.selected { border-color: var(--red); background: var(--red); color: var(--white); }
-    .time-slot-btn.disabled { opacity: .3; cursor: not-allowed; text-decoration: line-through; }
+    .time-slot-btn.disabled { opacity: .35; cursor: not-allowed; text-decoration: line-through; }
+    .time-slot-btn .slot-count { display: block; font-size: 11px; font-weight: 400; margin-top: 4px; opacity: .7; }
+    .time-slot-btn.selected .slot-count { opacity: .9; }
+    .time-slot-btn.full { border-color: var(--line); background: var(--paper-2); color: var(--muted); cursor: not-allowed; opacity: .5; }
     .no-slots { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
     .form-section { margin-top: 28px; display: none; }
     .form-section.visible { display: block; animation: slideUp .4s var(--ease); }
@@ -39,14 +42,34 @@
     .success-icon { width: 64px; height: 64px; margin: 0 auto 24px; border-radius: 50%; background: var(--red); display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 32px; }
     .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
     .month-label { font-family: "Noto Serif SC", serif; font-size: 16px; font-weight: 600; }
-    .nav-btn { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s var(--ease); font-size: 18px; color: var(--ink-2); }
+    .nav-btn { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s var(--ease); font-size: 18px; color: var(--ink-2); flex-shrink: 0; }
     .nav-btn:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
     .nav-btn:disabled { opacity: .3; cursor: not-allowed; }
     .timezone-note { font-size: 12px; color: var(--muted); margin-top: 16px; text-align: center; }
+
+    /* ─── Mobile responsive ─── */
     @media (max-width: 900px) {
       .calendly-layout { grid-template-columns: 1fr; gap: 24px; }
       .form-row { grid-template-columns: 1fr; }
       .time-grid { grid-template-columns: repeat(2, 1fr); }
+      .calendly-panel { padding: 20px; }
+      .summary-bar { gap: 20px; padding: 14px 16px; flex-wrap: wrap; }
+    }
+    @media (max-width: 480px) {
+      .calendly-panel { padding: 16px; border-radius: 10px; }
+      .date-grid { gap: 4px; }
+      .dow-header { gap: 4px; }
+      .date-cell { border-radius: 6px; }
+      .date-cell .day { font-size: 16px; }
+      .date-cell .dow { font-size: 9px; }
+      .time-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .time-slot-btn { padding: 12px 6px; font-size: 14px; }
+      .summary-bar { gap: 12px; padding: 12px; }
+      .summary-bar .value { font-size: 14px; }
+      .page-title { font-size: 22px; }
+      .container { padding: 20px 16px; }
+      .nav-btn { width: 32px; height: 32px; font-size: 16px; }
+      .month-label { font-size: 14px; }
     }
   </style>
 </head>
@@ -68,7 +91,7 @@
     <div id="bookingView">
       <h1 class="page-title">预约 Y4 测评</h1>
       <p class="page-subtitle">选择合适的日期与时间，为学生预约一次 Y4 综合测评。</p>
-      <div class="hint" style="margin-bottom:24px;">需提前一天预约。所有时段默认开放，如需关闭特定时段请联系管理员。</div>
+      <div class="hint" style="margin-bottom:24px;">需提前一天预约。每时段最多 4 人，所有时段默认开放。</div>
 
       <div class="calendly-layout">
         <!-- 左栏：日期选择 -->
@@ -83,7 +106,7 @@
             <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
           </div>
           <div class="date-grid" id="dateGrid"></div>
-          <div class="timezone-note">时区：中国标准时间 (UTC+8)</div>
+          <div class="timezone-note">时区：中国标准时间 (UTC+8) · 可选未来 30 天</div>
         </div>
 
         <!-- 右栏：时间段 + 表单 -->
@@ -155,7 +178,7 @@
             <strong id="successAdvisor" style="font-size:14px;">-</strong>
           </div>
         </div>
-        <div style="display:flex;gap:12px;justify-content:center;">
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
           <a href="/students" class="btn btn-secondary">查看学生档案</a>
           <button class="btn btn-primary" onclick="resetBooking()">再预约一个</button>
         </div>
@@ -165,18 +188,19 @@
 
   <script>
     const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
+    const SLOT_CAPACITY = 4;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // Rule: must book at least 1 day in advance
+    // Rule: must book at least 1 day in advance; window = 30 days
     const minDate = new Date(today);
     minDate.setDate(minDate.getDate() + 1);
     const maxDate = new Date(today);
-    maxDate.setDate(maxDate.getDate() + 13);
+    maxDate.setDate(maxDate.getDate() + 29);
 
     let currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     let selectedDate = null;
     let selectedTime = null;
-    let availableSlots = new Set();
+    let slotData = []; // full slot data from API
 
     const dateGridEl = document.getElementById('dateGrid');
     const monthLabelEl = document.getElementById('monthLabel');
@@ -236,7 +260,13 @@
         dateGridEl.appendChild(cell);
       }
 
-      document.getElementById('prevMonth').disabled = (year === minDate.getFullYear() && month <= minDate.getMonth());
+      // Enable prev month nav if minDate is in an earlier month
+      const minMonth = minDate.getFullYear() * 12 + minDate.getMonth();
+      const curMonth = year * 12 + month;
+      document.getElementById('prevMonth').disabled = (curMonth <= minMonth);
+      // Enable next month nav if maxDate is in a later month
+      const maxMonth = maxDate.getFullYear() * 12 + maxDate.getMonth();
+      document.getElementById('nextMonth').disabled = (curMonth >= maxMonth);
     }
 
     function changeMonth(delta) {
@@ -258,11 +288,9 @@
       try {
         const resp = await fetch('/api/availability?date=' + dateToStr(d));
         const data = await resp.json();
-        availableSlots = new Set();
+        slotData = [];
         if (data.ok && data.slots) {
-          data.slots.forEach(function(s) {
-            if (s.is_available) availableSlots.add(s.time_slot);
-          });
+          slotData = data.slots;
         }
         renderTimeSlots();
       } catch (e) {
@@ -271,17 +299,32 @@
     }
 
     function renderTimeSlots() {
-      if (availableSlots.size === 0) {
+      const openSlots = slotData.filter(function(s) { return s.is_open; });
+      if (openSlots.length === 0) {
         timeContentEl.innerHTML = '<div class="no-slots">该日暂无可预约时间<br><span style="font-size:12px;">请联系管理员开放时段</span></div>';
         return;
       }
 
       let html = '<div class="time-grid">';
-      TIME_SLOTS.forEach(function(t) {
-        const isAvail = availableSlots.has(t);
-        const selClass = selectedTime === t ? ' selected' : '';
-        const disClass = isAvail ? '' : ' disabled';
-        html += '<div class="time-slot-btn' + selClass + disClass + '" data-time="' + t + '"' + (isAvail ? ' onclick="selectTime(\'' + t + '\')"' : '') + '>' + t + '</div>';
+      slotData.forEach(function(s) {
+        const ts = s.time_slot;
+        const isOpen = s.is_open;
+        const isFull = s.booked_count >= s.capacity;
+        const isAvail = s.is_available; // open AND not full
+
+        let cls = 'time-slot-btn';
+        let click = '';
+        if (!isOpen) {
+          cls += ' disabled';
+        } else if (isFull) {
+          cls += ' full';
+        } else {
+          click = ' onclick="selectTime(\'' + ts + '\')"';
+          if (selectedTime === ts) cls += ' selected';
+        }
+
+        const countLabel = isOpen ? (s.booked_count + '/' + s.capacity) : '关闭';
+        html += '<div class="' + cls + '" data-time="' + ts + '"' + click + '>' + ts + '<span class="slot-count">' + countLabel + '</span></div>';
       });
       html += '</div>';
       timeContentEl.innerHTML = html;

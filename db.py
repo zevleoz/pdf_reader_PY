@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
@@ -507,6 +507,27 @@ def get_available_slots(date_val: date) -> List[str]:
     """Get list of available time slot strings for a date."""
     entries = get_availability(date_val)
     return [e["time_slot"] for e in entries if e["is_available"]]
+
+
+def get_slot_booking_counts(date_val: date) -> Dict[str, int]:
+    """Count non-cancelled bookings per time_slot for a given date.
+    Returns {"09:00": 2, "10:00": 0, ...}
+    """
+    from sqlalchemy import extract
+    with Session(engine) as sess:
+        stmt = select(Booking).where(
+            Booking.status != "cancelled",
+            Booking.appointment_time >= date_val,
+            Booking.appointment_time < date_val + timedelta(days=1),
+        )
+        rows = sess.execute(stmt).all()
+        counts: Dict[str, int] = {}
+        for row in rows:
+            booking = row[0]
+            if booking.appointment_time:
+                ts = booking.appointment_time.strftime("%H:%M")
+                counts[ts] = counts.get(ts, 0) + 1
+        return counts
 
 
 def get_availability_range(start_date: date, end_date: date) -> Dict[str, List[Dict[str, Any]]]:

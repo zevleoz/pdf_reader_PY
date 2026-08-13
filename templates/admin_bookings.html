@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>预约管理 — Y4</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -14,14 +14,28 @@
     .login-panel p { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 24px; }
     .badge-y4-done { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; }
     .badge-y4-pending { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--paper-2); color: var(--muted); }
-    .avail-day { margin-bottom: 20px; }
-    .avail-day-header { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; letter-spacing: .06em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
-    .avail-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
-    .avail-slot { padding: 10px 8px; border: 1.5px solid var(--line); border-radius: 6px; text-align: center; cursor: pointer; transition: all .2s var(--ease); font-family: "Inter", sans-serif; font-size: 13px; font-weight: 500; background: var(--white); }
+    .avail-day { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
+    .avail-day:last-child { border-bottom: none; }
+    .avail-day-header { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 10px; letter-spacing: .06em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+    .avail-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; }
+    .avail-slot { padding: 8px 6px; border: 1.5px solid var(--line); border-radius: 6px; text-align: center; cursor: pointer; transition: all .2s var(--ease); font-family: "Inter", sans-serif; font-size: 13px; font-weight: 500; background: var(--white); position: relative; }
     .avail-slot.on { border-color: var(--red); color: var(--red); background: #FEF2F2; }
-    .avail-slot.off { opacity: .4; text-decoration: line-through; }
-    .avail-slot.new-slot { border-style: dashed; color: var(--muted); }
-    .avail-toolbar { display: flex; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+    .avail-slot.off { opacity: .35; text-decoration: line-through; background: var(--paper-2); }
+    .avail-slot .slot-booked { display: block; font-size: 10px; font-weight: 400; margin-top: 2px; opacity: .7; }
+    .avail-toolbar { display: flex; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; align-items: center; }
+    .avail-legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid; }
+    .legend-dot.on { border-color: var(--red); background: #FEF2F2; }
+    .legend-dot.off { border-color: var(--line); background: var(--paper-2); opacity: .35; }
+
+    /* Mobile */
+    @media (max-width: 768px) {
+      .avail-slots { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 6px; }
+      .avail-slot { padding: 6px 4px; font-size: 12px; }
+      .container { padding: 20px 16px; }
+      .login-panel { margin: 30px 16px; padding: 28px 20px; }
+    }
   </style>
 </head>
 <body>
@@ -54,10 +68,10 @@
 
   <!-- 管理界面 -->
   <div class="container" id="adminView" style="display:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
       <div>
         <h1 class="page-title" style="margin-bottom:4px;">预约管理</h1>
-        <p class="page-subtitle" style="margin:0;">管理预约与可用时间，预约后学生档案自动创建。</p>
+        <p class="page-subtitle" style="margin:0;">管理预约与可用时间。默认全部开放，点击关闭特定时段。</p>
       </div>
       <button class="btn btn-sm btn-secondary" onclick="doLogout()">退出登录</button>
     </div>
@@ -72,8 +86,12 @@
     <div id="bookingList"></div>
 
     <div class="card" id="availabilityCard" style="margin-top: 32px;">
-      <h2 class="card-title">可用时间管理</h2>
-      <p class="card-subtitle">点击时间段切换可用性。未开放的日期学生无法预约。</p>
+      <h2 class="card-title">可用时间管理（未来 30 天）</h2>
+      <p class="card-subtitle">所有时段默认开放（红色=开放，灰色=已关闭）。点击切换状态，保存后生效。</p>
+      <div class="avail-legend" style="margin-bottom:16px;">
+        <div class="legend-item"><div class="legend-dot on"></div> 开放</div>
+        <div class="legend-item"><div class="legend-dot off"></div> 已关闭</div>
+      </div>
       <div id="availabilityContent">
         <div class="empty">加载中…</div>
       </div>
@@ -201,7 +219,7 @@
     async function loadAvailability() {
       const content = document.getElementById('availabilityContent');
       try {
-        const resp = await fetch('/api/availability/week');
+        const resp = await fetch('/api/availability/month');
         const data = await resp.json();
         availData = data.data || {};
         renderAvailability();
@@ -217,7 +235,7 @@
       const dowNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
       let html = '';
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < 30; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() + i);
         const dateStr = d.toISOString().split('T')[0];
@@ -230,10 +248,11 @@
         html += '<div class="avail-day-header"><span>' + dowNames[d.getDay()] + ' · ' + (d.getMonth() + 1) + '/' + d.getDate() + (isToday ? ' (今天)' : '') + '</span></div>';
         html += '<div class="avail-slots">';
         TIME_SLOTS.forEach(ts => {
+          // Default: no record = available (on). Only explicit false = off.
           const hasRecord = ts in slotMap;
-          const isOn = slotMap[ts] === true;
-          const cls = isOn ? 'avail-slot on' : (hasRecord ? 'avail-slot off' : 'avail-slot off new-slot');
-          html += '<div class="' + cls + '" data-date="' + dateStr + '" data-time="' + ts + '" onclick="toggleSlot(this)">' + ts + '</div>';
+          const isOn = hasRecord ? slotMap[ts] : true;
+          const cls = isOn ? 'avail-slot on' : 'avail-slot off';
+          html += '<div class="' + cls + '" data-date="' + dateStr + '" data-time="' + ts + '" data-original="' + (isOn ? 'on' : 'off') + '" onclick="toggleSlot(this)">' + ts + '</div>';
         });
         html += '</div></div>';
       }
@@ -241,7 +260,7 @@
       html += '<div class="avail-toolbar">'
         + '<button class="btn btn-sm btn-primary" onclick="saveAvailability()">保存更改</button>'
         + '<button class="btn btn-sm btn-secondary" onclick="loadAvailability()">重置</button>'
-        + '<span style="color:var(--muted);font-size:12px;align-self:center;">虚线=未设置，实线删除线=已关闭，红色=开放</span>'
+        + '<span style="color:var(--muted);font-size:12px;">只保存已修改的时段</span>'
         + '</div>';
 
       content.innerHTML = html;
@@ -252,23 +271,34 @@
         el.classList.remove('on');
         el.classList.add('off');
       } else {
-        el.classList.remove('off', 'new-slot');
+        el.classList.remove('off');
         el.classList.add('on');
       }
     }
 
     async function saveAvailability() {
-      const slotsByDate = {};
+      // Only save slots that changed from their original state
+      const changedByDate = {};
       document.querySelectorAll('.avail-slot').forEach(el => {
-        const ds = el.dataset.date;
-        const ts = el.dataset.time;
-        if (!slotsByDate[ds]) slotsByDate[ds] = [];
-        slotsByDate[ds].push({ time_slot: ts, is_available: el.classList.contains('on') });
+        const original = el.dataset.original;
+        const current = el.classList.contains('on') ? 'on' : 'off';
+        if (original !== current) {
+          const ds = el.dataset.date;
+          const ts = el.dataset.time;
+          if (!changedByDate[ds]) changedByDate[ds] = [];
+          changedByDate[ds].push({ time_slot: ts, is_available: current === 'on' });
+        }
       });
+
+      const changedCount = Object.values(changedByDate).reduce((sum, slots) => sum + slots.length, 0);
+      if (changedCount === 0) {
+        alert('没有更改需要保存');
+        return;
+      }
 
       let okCount = 0;
       let failCount = 0;
-      for (const [ds, slots] of Object.entries(slotsByDate)) {
+      for (const [ds, slots] of Object.entries(changedByDate)) {
         try {
           const resp = await fetch('/api/availability', {
             method: 'POST',
@@ -284,7 +314,7 @@
       }
 
       if (failCount === 0) {
-        alert('已保存 ' + okCount + ' 天的可用时间');
+        alert('已保存 ' + changedCount + ' 个时段的更改');
       } else {
         alert('保存完成：成功 ' + okCount + ' 天，失败 ' + failCount + ' 天');
       }
