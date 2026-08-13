@@ -62,6 +62,7 @@
     <div id="bookingView">
       <h1 class="page-title">预约 Y4 测评</h1>
       <p class="page-subtitle">选择合适的日期与时间，为学生预约一次 Y4 综合测评。</p>
+      <div class="hint" style="margin-bottom:20px;">需提前一天预约。所有时段默认开放，如需关闭特定时段请联系管理员。</div>
 
       <div class="calendly-layout">
         <!-- 左栏：日期选择 -->
@@ -157,6 +158,9 @@
     const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    // Rule: must book at least 1 day in advance
+    const minDate = new Date(today);
+    minDate.setDate(minDate.getDate() + 1);
     const maxDate = new Date(today);
     maxDate.setDate(maxDate.getDate() + 13);
 
@@ -210,7 +214,7 @@
         const dowNames = ['日', '一', '二', '三', '四', '五', '六'];
         cell.innerHTML = '<span class="dow">' + dowNames[cellDate.getDay()] + '</span><span class="day">' + d + '</span>';
 
-        if (cellDate < today || cellDate > maxDate) {
+        if (cellDate < minDate || cellDate > maxDate) {
           cell.classList.add('disabled');
         } else {
           cell.onclick = function() { selectDate(cellDate, cell); };
@@ -223,7 +227,7 @@
         dateGridEl.appendChild(cell);
       }
 
-      document.getElementById('prevMonth').disabled = (year === today.getFullYear() && month === today.getMonth());
+      document.getElementById('prevMonth').disabled = (year === minDate.getFullYear() && month <= minDate.getMonth());
     }
 
     function changeMonth(delta) {

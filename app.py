@@ -834,11 +834,11 @@ def api_get_availability():
     except ValueError:
         return jsonify({"ok": False, "error": "日期格式错误"}), 400
     entries = _db.get_availability(date_val)
-    # Build full slot list: no record = unavailable
+    # Build full slot list: no record = available (admin closes slots manually)
     all_slots = []
     available_map = {e["time_slot"]: e["is_available"] for e in entries}
     for ts in _db.TIME_SLOTS:
-        is_av = available_map.get(ts, False)  # Default: unavailable
+        is_av = available_map.get(ts, True)  # Default: available
         all_slots.append({"time_slot": ts, "is_available": is_av})
     return jsonify({"ok": True, "date": date_str, "slots": all_slots})
 
