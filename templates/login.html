@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>登录 — Y4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .login-panel { max-width: 380px; margin: 80px auto; background: var(--white); border: 1px solid var(--line-soft); border-radius: 14px; padding: 40px 32px; }
+    .login-panel h2 { font-family: "Noto Serif SC", serif; font-size: 22px; font-weight: 600; margin-bottom: 8px; text-align: center; color: var(--ink); }
+    .login-panel p { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+    @media (max-width: 480px) {
+      .login-panel { margin: 40px 16px; padding: 28px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="brand-stripe"></div>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-name">凭远教育</span>
+      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
+    </div>
+    <nav class="topbar-nav">
+      <a href="/">← 主页</a>
+      <a href="/booking">预约</a>
+    </nav>
+  </header>
+
+  <main class="container container-narrow">
+    <div class="login-panel">
+      <h2>管理员登录</h2>
+      <p>输入密码以访问管理功能</p>
+      <div class="field">
+        <input type="password" id="pwd" placeholder="管理员密码" style="width:100%;"
+               onkeydown="if(event.key==='Enter')doLogin()" autofocus />
+      </div>
+      <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px;" onclick="doLogin()">登录</button>
+      <div id="err" style="color:var(--red);text-align:center;font-size:13px;margin-top:12px;display:none;"></div>
+    </div>
+  </main>
+
+  <script>
+    async function doLogin() {
+      const pwd = document.getElementById('pwd').value;
+      const errEl = document.getElementById('err');
+      errEl.style.display = 'none';
+      try {
+        const resp = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          const next = new URLSearchParams(window.location.search).get('next') || '/students';
+          window.location.href = next;
+        } else {
+          errEl.textContent = data.error || '登录失败';
+          errEl.style.display = 'block';
+        }
+      } catch (e) {
+        errEl.textContent = '网络错误';
+        errEl.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>

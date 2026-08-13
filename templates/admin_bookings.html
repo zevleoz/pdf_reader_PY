@@ -21,7 +21,8 @@
     .avail-slot { padding: 8px 6px; border: 1.5px solid var(--line); border-radius: 6px; text-align: center; cursor: pointer; transition: all .2s var(--ease); font-family: "Inter", sans-serif; font-size: 13px; font-weight: 500; background: var(--white); position: relative; }
     .avail-slot.on { border-color: var(--red); color: var(--red); background: #FEF2F2; }
     .avail-slot.off { opacity: .35; text-decoration: line-through; background: var(--paper-2); }
-    .avail-slot .slot-booked { display: block; font-size: 10px; font-weight: 400; margin-top: 2px; opacity: .7; }
+    .avail-slot .slot-booked { display: block; font-size: 10px; font-weight: 700; margin-top: 2px; color: var(--red); }
+    .avail-slot.off .slot-booked { color: var(--muted); }
     .avail-toolbar { display: flex; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; align-items: center; }
     .avail-legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); }
     .legend-item { display: flex; align-items: center; gap: 4px; }
@@ -215,6 +216,7 @@
     // ─── 可用时间管理 ───
     const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
     let availData = {};
+    let bookingData = {};
 
     async function loadAvailability() {
       const content = document.getElementById('availabilityContent');
@@ -222,6 +224,7 @@
         const resp = await fetch('/api/availability/month');
         const data = await resp.json();
         availData = data.data || {};
+        bookingData = data.bookings || {};
         renderAvailability();
       } catch (err) {
         content.innerHTML = '<div class="empty">加载失败：' + err.message + '</div>';
@@ -242,6 +245,7 @@
         const daySlots = availData[dateStr] || [];
         const slotMap = {};
         daySlots.forEach(s => { slotMap[s.time_slot] = s.is_available; });
+        const dayBookings = bookingData[dateStr] || {};
 
         const isToday = i === 0;
         html += '<div class="avail-day">';
@@ -251,8 +255,10 @@
           // Default: no record = available (on). Only explicit false = off.
           const hasRecord = ts in slotMap;
           const isOn = hasRecord ? slotMap[ts] : true;
+          const booked = dayBookings[ts] || 0;
           const cls = isOn ? 'avail-slot on' : 'avail-slot off';
-          html += '<div class="' + cls + '" data-date="' + dateStr + '" data-time="' + ts + '" data-original="' + (isOn ? 'on' : 'off') + '" onclick="toggleSlot(this)">' + ts + '</div>';
+          const bookedLabel = booked > 0 ? '<span class="slot-booked">' + booked + '人</span>' : '';
+          html += '<div class="' + cls + '" data-date="' + dateStr + '" data-time="' + ts + '" data-original="' + (isOn ? 'on' : 'off') + '" onclick="toggleSlot(this)">' + ts + bookedLabel + '</div>';
         });
         html += '</div></div>';
       }
@@ -260,7 +266,7 @@
       html += '<div class="avail-toolbar">'
         + '<button class="btn btn-sm btn-primary" onclick="saveAvailability()">保存更改</button>'
         + '<button class="btn btn-sm btn-secondary" onclick="loadAvailability()">重置</button>'
-        + '<span style="color:var(--muted);font-size:12px;">只保存已修改的时段</span>'
+        + '<span style="color:var(--muted);font-size:12px;">只保存已修改的时段 · 红色数字表示已预约人数</span>'
         + '</div>';
 
       content.innerHTML = html;

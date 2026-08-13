@@ -530,6 +530,29 @@ def get_slot_booking_counts(date_val: date) -> Dict[str, int]:
         return counts
 
 
+def get_booking_counts_range(start_date: date, end_date: date) -> Dict[str, Dict[str, int]]:
+    """Count non-cancelled bookings per time_slot for a date range.
+    Returns {"2026-08-13": {"09:00": 2, "10:00": 1}, ...}
+    """
+    with Session(engine) as sess:
+        stmt = select(Booking).where(
+            Booking.status != "cancelled",
+            Booking.appointment_time >= start_date,
+            Booking.appointment_time < end_date + timedelta(days=1),
+        )
+        rows = sess.execute(stmt).all()
+        result: Dict[str, Dict[str, int]] = {}
+        for row in rows:
+            booking = row[0]
+            if booking.appointment_time:
+                date_str = booking.appointment_time.date().isoformat()
+                ts = booking.appointment_time.strftime("%H:%M")
+                if date_str not in result:
+                    result[date_str] = {}
+                result[date_str][ts] = result[date_str].get(ts, 0) + 1
+        return result
+
+
 def get_availability_range(start_date: date, end_date: date) -> Dict[str, List[Dict[str, Any]]]:
     """Get availability for a date range, grouped by date string.
     Returns {"2026-08-13": [{"time_slot": "09:00", "is_available": true}, ...], ...}

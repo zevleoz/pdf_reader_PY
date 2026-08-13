@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from flask import (Flask, jsonify, render_template, request,
-                   send_from_directory, abort, session)
+                   send_from_directory, abort, session, redirect)
 
 import extract
 import validate
@@ -60,6 +60,16 @@ def admin_required(f):
     return wrapper
 
 
+def page_login_required(f):
+    """Decorator: require admin session for page routes. Redirects to /login if not logged in."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get('is_admin'):
+            return redirect('/login?next=' + request.path)
+        return f(*args, **kwargs)
+    return wrapper
+
+
 @app.route("/style.css")
 def serve_style():
     """Serve shared design-system CSS from templates/style.css."""
@@ -90,7 +100,13 @@ def landing():
     return render_template("landing.html")
 
 
+@app.route("/login")
+def login_page():
+    return render_template("login.html")
+
+
 @app.route("/generate")
+@page_login_required
 def index():
     return render_template("index.html")
 
@@ -394,6 +410,7 @@ def download(filename):
 # 解读会会议纪要生成
 # ---------------------------------------------------------------------------
 @app.route("/transcript")
+@page_login_required
 def transcript_page():
     """Render the transcript upload / summary generation page."""
     return render_template("transcript.html")
@@ -718,6 +735,7 @@ def api_transcript_docx():
 # Student management
 # ---------------------------------------------------------------------------
 @app.route("/students")
+@page_login_required
 def students_page():
     return render_template("students.html")
 
@@ -873,11 +891,18 @@ def api_get_availability():
 
 @app.route("/api/availability/month")
 def api_availability_month():
-    """Get availability for next 30 days (for admin calendar management)."""
+    """Get availability + booking counts for next 30 days (for admin calendar management)."""
     today = date.today()
     end = today + timedelta(days=29)
     range_data = _db.get_availability_range(today, end)
-    return jsonify({"ok": True, "start": today.isoformat(), "end": end.isoformat(), "data": range_data})
+    booking_counts = _db.get_booking_counts_range(today, end)
+    return jsonify({
+        "ok": True,
+        "start": today.isoformat(),
+        "end": end.isoformat(),
+        "data": range_data,
+        "bookings": booking_counts,
+    })
 
 
 @app.route("/api/availability", methods=["POST"])

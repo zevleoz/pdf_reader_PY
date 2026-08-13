@@ -27,8 +27,11 @@
     .time-slot-btn:hover:not(.disabled) { border-color: var(--red); color: var(--red); transform: translateY(-1px); }
     .time-slot-btn.selected { border-color: var(--red); background: var(--red); color: var(--white); }
     .time-slot-btn.disabled { opacity: .35; cursor: not-allowed; text-decoration: line-through; }
-    .time-slot-btn .slot-count { display: block; font-size: 11px; font-weight: 400; margin-top: 4px; opacity: .7; }
-    .time-slot-btn.selected .slot-count { opacity: .9; }
+    .time-slot-btn .slot-count { display: block; font-size: 11px; font-weight: 600; margin-top: 4px; opacity: .8; color: var(--red); }
+    .time-slot-btn.selected .slot-count { opacity: 1; color: var(--white); }
+    .time-slot-btn.disabled .slot-count, .time-slot-btn.full .slot-count { color: var(--muted); }
+    .time-slot-btn.has-bookings { border-color: var(--red); border-width: 2px; }
+    .time-slot-btn.has-bookings.selected { border-color: var(--red); }
     .time-slot-btn.full { border-color: var(--line); background: var(--paper-2); color: var(--muted); cursor: not-allowed; opacity: .5; }
     .no-slots { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
     .form-section { margin-top: 28px; display: none; }
@@ -310,7 +313,7 @@
         const ts = s.time_slot;
         const isOpen = s.is_open;
         const isFull = s.booked_count >= s.capacity;
-        const isAvail = s.is_available; // open AND not full
+        const hasBookings = s.booked_count > 0;
 
         let cls = 'time-slot-btn';
         let click = '';
@@ -322,8 +325,9 @@
           click = ' onclick="selectTime(\'' + ts + '\')"';
           if (selectedTime === ts) cls += ' selected';
         }
+        if (hasBookings && !cls.includes('selected')) cls += ' has-bookings';
 
-        const countLabel = isOpen ? (s.booked_count + '/' + s.capacity) : '关闭';
+        const countLabel = isOpen ? (s.booked_count + '/' + s.capacity + ' 已约') : '关闭';
         html += '<div class="' + cls + '" data-time="' + ts + '"' + click + '>' + ts + '<span class="slot-count">' + countLabel + '</span></div>';
       });
       html += '</div>';
