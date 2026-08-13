@@ -9,39 +9,45 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
   <style>
-    .calendly-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
-    .calendly-panel { background: var(--white); border: 1px solid var(--line-soft); border-radius: 12px; padding: 28px; }
-    .calendly-panel h3 { font-family: "Noto Serif SC", serif; font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--ink); }
-    .date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 16px; }
-    .date-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px solid var(--line-soft); border-radius: 8px; cursor: pointer; transition: all .2s var(--ease); background: var(--paper); }
-    .date-cell:hover:not(.disabled) { border-color: var(--ink); }
+    .calendly-layout { display: grid; grid-template-columns: 5fr 7fr; gap: 40px; align-items: start; }
+    .calendly-panel { background: var(--white); border: 1px solid var(--line-soft); border-radius: 14px; padding: 32px; }
+    .calendly-panel h3 { font-family: "Noto Serif SC", serif; font-size: 17px; font-weight: 600; margin-bottom: 20px; color: var(--ink); }
+    .date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 16px; }
+    .date-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px solid var(--line-soft); border-radius: 10px; cursor: pointer; transition: all .2s var(--ease); background: var(--paper); }
+    .date-cell:hover:not(.disabled) { border-color: var(--ink); transform: translateY(-1px); }
     .date-cell.selected { border-color: var(--red); background: var(--red); color: var(--white); }
-    .date-cell.disabled { opacity: .35; cursor: not-allowed; }
+    .date-cell.disabled { opacity: .3; cursor: not-allowed; }
     .date-cell .dow { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
-    .date-cell .day { font-size: 18px; font-weight: 600; font-family: "Inter", sans-serif; }
+    .date-cell .day { font-size: 20px; font-weight: 600; font-family: "Inter", sans-serif; margin-top: 2px; }
     .date-cell.selected .dow, .date-cell.selected .day { opacity: 1; }
-    .dow-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 8px; }
-    .dow-header div { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-    .time-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .time-slot-btn { padding: 14px 12px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--white); cursor: pointer; transition: all .2s var(--ease); text-align: center; font-family: "Inter", sans-serif; font-weight: 500; font-size: 15px; }
-    .time-slot-btn:hover:not(.disabled) { border-color: var(--red); color: var(--red); }
+    .dow-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 10px; }
+    .dow-header div { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .time-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .time-slot-btn { padding: 16px 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--white); cursor: pointer; transition: all .2s var(--ease); text-align: center; font-family: "Inter", sans-serif; font-weight: 500; font-size: 16px; }
+    .time-slot-btn:hover:not(.disabled) { border-color: var(--red); color: var(--red); transform: translateY(-1px); }
     .time-slot-btn.selected { border-color: var(--red); background: var(--red); color: var(--white); }
-    .time-slot-btn.disabled { opacity: .35; cursor: not-allowed; text-decoration: line-through; }
-    .no-slots { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
-    .form-section { margin-top: 24px; display: none; }
+    .time-slot-btn.disabled { opacity: .3; cursor: not-allowed; text-decoration: line-through; }
+    .no-slots { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
+    .form-section { margin-top: 28px; display: none; }
     .form-section.visible { display: block; animation: slideUp .4s var(--ease); }
     @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-    .summary-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--paper-2); border-radius: 8px; margin-bottom: 20px; }
-    .summary-bar .label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-    .summary-bar .value { font-family: "Noto Serif SC", serif; font-size: 15px; font-weight: 600; color: var(--ink); }
-    .success-page { text-align: center; padding: 40px 20px; }
-    .success-icon { width: 56px; height: 56px; margin: 0 auto 20px; border-radius: 50%; background: var(--red); display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 28px; }
-    .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .month-label { font-family: "Noto Serif SC", serif; font-size: 15px; font-weight: 600; }
-    .nav-btn { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s var(--ease); }
-    .nav-btn:hover:not(:disabled) { border-color: var(--ink); }
+    .summary-bar { display: flex; align-items: center; gap: 32px; padding: 18px 24px; background: var(--paper-2); border-radius: 10px; margin-bottom: 24px; }
+    .summary-bar .label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 2px; }
+    .summary-bar .value { font-family: "Noto Serif SC", serif; font-size: 16px; font-weight: 600; color: var(--ink); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .success-page { text-align: center; padding: 48px 32px; }
+    .success-icon { width: 64px; height: 64px; margin: 0 auto 24px; border-radius: 50%; background: var(--red); display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 32px; }
+    .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .month-label { font-family: "Noto Serif SC", serif; font-size: 16px; font-weight: 600; }
+    .nav-btn { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s var(--ease); font-size: 18px; color: var(--ink-2); }
+    .nav-btn:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
     .nav-btn:disabled { opacity: .3; cursor: not-allowed; }
-    @media (max-width: 768px) { .calendly-layout { grid-template-columns: 1fr; } }
+    .timezone-note { font-size: 12px; color: var(--muted); margin-top: 16px; text-align: center; }
+    @media (max-width: 900px) {
+      .calendly-layout { grid-template-columns: 1fr; gap: 24px; }
+      .form-row { grid-template-columns: 1fr; }
+      .time-grid { grid-template-columns: repeat(2, 1fr); }
+    }
   </style>
 </head>
 <body>
@@ -58,11 +64,11 @@
     </nav>
   </header>
 
-  <main class="container container-narrow">
+  <main class="container">
     <div id="bookingView">
       <h1 class="page-title">预约 Y4 测评</h1>
       <p class="page-subtitle">选择合适的日期与时间，为学生预约一次 Y4 综合测评。</p>
-      <div class="hint" style="margin-bottom:20px;">需提前一天预约。所有时段默认开放，如需关闭特定时段请联系管理员。</div>
+      <div class="hint" style="margin-bottom:24px;">需提前一天预约。所有时段默认开放，如需关闭特定时段请联系管理员。</div>
 
       <div class="calendly-layout">
         <!-- 左栏：日期选择 -->
@@ -77,6 +83,7 @@
             <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
           </div>
           <div class="date-grid" id="dateGrid"></div>
+          <div class="timezone-note">时区：中国标准时间 (UTC+8)</div>
         </div>
 
         <!-- 右栏：时间段 + 表单 -->
@@ -102,13 +109,15 @@
               <label class="field-label" for="studentName">学生姓名 <span class="required">*</span></label>
               <input type="text" id="studentName" placeholder="请输入学生姓名" />
             </div>
-            <div class="field">
-              <label class="field-label" for="advisorName">顾问名字</label>
-              <input type="text" id="advisorName" placeholder="请输入顾问名字" />
-            </div>
-            <div class="field">
-              <label class="field-label" for="school">学校</label>
-              <input type="text" id="school" placeholder="请输入学校名称" />
+            <div class="form-row">
+              <div class="field">
+                <label class="field-label" for="advisorName">顾问名字</label>
+                <input type="text" id="advisorName" placeholder="请输入顾问名字" />
+              </div>
+              <div class="field">
+                <label class="field-label" for="school">学校</label>
+                <input type="text" id="school" placeholder="请输入学校名称" />
+              </div>
             </div>
             <div class="field">
               <label class="field-label" for="notes">备注</label>
@@ -120,7 +129,7 @@
                 <label for="singleParent">单亲家庭/离异</label>
               </div>
             </div>
-            <button class="btn btn-primary btn-lg" id="submitBtn" onclick="submitBooking()" style="width:100%;">确认预约</button>
+            <button class="btn btn-primary btn-lg" id="submitBtn" onclick="submitBooking()" style="width:100%;margin-top:8px;">确认预约</button>
           </div>
         </div>
       </div>
@@ -130,14 +139,14 @@
     <div id="successView" style="display:none;">
       <div class="calendly-panel success-page">
         <div class="success-icon">✓</div>
-        <h2 style="font-family:'Noto Serif SC',serif;font-size:22px;font-weight:600;margin-bottom:8px;">预约成功</h2>
-        <p style="color:var(--muted);margin-bottom:24px;">学生档案已自动创建，Y4 报告生成后可在档案页查看。</p>
-        <div style="background:var(--paper-2);border-radius:8px;padding:20px;text-align:left;margin-bottom:24px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+        <h2 style="font-family:'Noto Serif SC',serif;font-size:24px;font-weight:600;margin-bottom:8px;">预约成功</h2>
+        <p style="color:var(--muted);margin-bottom:28px;">学生档案已自动创建，Y4 报告生成后可在档案页查看。</p>
+        <div style="background:var(--paper-2);border-radius:10px;padding:24px;text-align:left;margin-bottom:28px;max-width:420px;margin-left:auto;margin-right:auto;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
             <span style="color:var(--muted);font-size:13px;">学生</span>
             <strong id="successName" style="font-size:14px;">-</strong>
           </div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
             <span style="color:var(--muted);font-size:13px;">时间</span>
             <strong id="successTime" style="font-size:14px;">-</strong>
           </div>
