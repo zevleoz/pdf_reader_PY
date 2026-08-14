@@ -403,8 +403,8 @@ def api_chat():
     payload = json.dumps({
         "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
         "messages": messages,
-        "temperature": 0.4,
-        "max_tokens": 4096,
+        "temperature": 0.5,
+        "max_tokens": 8192,
     }).encode("utf-8")
     req = _ureq.Request(
         url, data=payload,
