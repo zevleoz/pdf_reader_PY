@@ -1019,7 +1019,232 @@ def api_export():
     )
 
 
-if __name__ == "__main__":
+# ---------------------------------------------------------------------------
+# Prompt 迭代测试台 (Prompt Lab)
+# ---------------------------------------------------------------------------
+PROMPT_VERSIONS_DIR = BASE_DIR / "prompts" / "versions"
+PROMPT_VERSIONS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _get_next_prompt_version() -> int:
+    """Scan prompts/versions/ and return next version number."""
+    existing = sorted(PROMPT_VERSIONS_DIR.glob("ai_interpreter_v*.md"))
+    if not existing:
+        return 1
+    nums = []
+    for f in existing:
+        try:
+            n = int(f.stem.split("_v")[1])
+            nums.append(n)
+        except (ValueError, IndexError):
+            pass
+    return max(nums) + 1 if nums else 1
+
+
+@app.route("/prompt-lab")
+@page_login_required
+def prompt_lab_page():
+    """Prompt iteration test bench."""
+    return render_template("prompt_lab.html")
+
+
+@app.route("/api/prompt-lab/run", methods=["POST"])
+def prompt_lab_run():
+    """Run AI interpretation using current prompt + report_data.json."""
+    import urllib.request as _ureq
+    import time as _time
+
+    data = request.get_json(force=True)
+    user_message = (data.get("message") or "请给出这份 Y4 报告的完整解读").strip()
+
+    # 1) Read prompt
+    prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
+    system_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "你是测评解读助手。"
+
+    # 2) Read report data
+    report_path = DATA_DIR / "report_data.json"
+    if not report_path.exists():
+        return jsonify({"ok": False, "error": "没有测试数据 (report_data.json 不存在)"}), 400
+
+    report_data = json.loads(report_path.read_text(encoding="utf-8"))
+    schema_items = report_data.get("schema_124", [])
+    data_text = "\n".join(
+        f"{it.get('code','?')} {it.get('label','?')}：{it.get('value', '—')}"
+        for it in schema_items if it.get("value")
+    )
+    student = report_data.get("student", {})
+    student_text = f"学生：{student.get('name','—')}，{student.get('gender','—')}，{student.get('grade','—')}"
+    context = f"{student_text}\n\n测评数据：\n{data_text}"
+
+    # 3) Build messages
+    messages = [
+        {"role": "system", "content": system_prompt + "\n\n以下是学生测评数据：\n" + context},
+        {"role": "user", "content": user_message},
+    ]
+
+    # 4) Call DashScope
+    dashscope_key = os.environ.get("DASHSCOPE_API_KEY", extract.DEFAULT_DASHSCOPE_KEY).strip()
+    url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    payload = json.dumps({
+        "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
+        "messages": messages,
+        "temperature": float(os.environ.get("AI_TEMPERATURE", "0.5")),
+        "max_tokens": 8192,
+    }).encode("utf-8")
+    req = _ureq.Request(
+        url, data=payload,
+        headers={"Authorization": f"Bearer {dashscope_key}",
+                 "Content-Type": "application/json"},
+        method="POST",
+    )
+    t0 = _time.time()
+    try:
+        with _ureq.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        reply = result["choices"][0]["message"]["content"]
+        tokens_used = result.get("usage", {}).get("total_tokens", 0)
+        elapsed_ms = int((_time.time() - t0) * 1000)
+        return jsonify({"ok": True, "reply": reply, "tokens": tokens_used, "time_ms": elapsed_ms})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"AI 调用失败: {exc}"}), 500
+
+
+@app.route("/api/prompt-lab/iterate", methods=["POST"])
+def prompt_lab_iterate():
+    """Auto-modify prompt based on user feedback, then return new prompt."""
+    import urllib.request as _ureq
+
+    data = request.get_json(force=True)
+    feedback = (data.get("feedback") or "").strip()
+    rating = data.get("rating", 3)
+    last_output = (data.get("last_output") or "").strip()
+
+    if not feedback:
+        return jsonify({"ok": False, "error": "反馈不能为空"}), 400
+
+    # 1) Read current prompt
+    prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
+    current_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else ""
+
+    # 2) Save current version
+    version_num = _get_next_prompt_version()
+    old_version_path = PROMPT_VERSIONS_DIR / f"ai_interpreter_v{version_num}.md"
+    old_version_path.write_text(current_prompt, encoding="utf-8")
+
+    # 3) Build meta-prompt for AI to improve the prompt
+    meta_prompt = f"""你是一个 prompt 优化专家。你需要根据用户的反馈，修改 Y4 测评解读的 system prompt。
+
+以下是当前用于 Y4 测评解读的 system prompt：
+---
+{current_prompt}
+---
+
+以下是用户对这个 prompt 生成输出的反馈：
+评分：{rating}/5
+反馈：{feedback}
+
+上次 AI 的输出（供参考）：
+---
+{last_output[:3000]}
+---
+
+请根据用户反馈，修改上面的 system prompt。
+要求：
+- 只修改需要改进的部分，保留好的部分
+- 输出完整的修改后的 prompt（不是 diff，不是解释，直接输出 prompt 全文）
+- 保持 Y4 四维框架（心力/精力/学习力/生涯力）作为唯一语言体系
+- 保持指标编号引用规范
+- 不要加任何前缀说明或后缀解释"""
+
+    messages = [{"role": "user", "content": meta_prompt}]
+
+    # 4) Call DashScope to get improved prompt
+    dashscope_key = os.environ.get("DASHSCOPE_API_KEY", extract.DEFAULT_DASHSCOPE_KEY).strip()
+    url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    payload = json.dumps({
+        "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
+        "messages": messages,
+        "temperature": 0.3,
+        "max_tokens": 8192,
+    }).encode("utf-8")
+    req = _ureq.Request(
+        url, data=payload,
+        headers={"Authorization": f"Bearer {dashscope_key}",
+                 "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with _ureq.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        new_prompt = result["choices"][0]["message"]["content"].strip()
+
+        # 5) Write new prompt
+        prompt_path.write_text(new_prompt, encoding="utf-8")
+
+        # 6) Simple diff: find first and last differing lines
+        old_lines = current_prompt.split("\n")
+        new_lines = new_prompt.split("\n")
+        diff_parts = []
+        max_compare = min(len(old_lines), len(new_lines))
+        first_diff = None
+        last_diff = None
+        for i in range(max_compare):
+            if old_lines[i] != new_lines[i]:
+                if first_diff is None:
+                    first_diff = i
+                last_diff = i
+        if first_diff is not None:
+            start = max(0, first_diff - 2)
+            end = min(max_compare, last_diff + 3)
+            diff_parts.append(f"改动区域（第 {start+1}-{end} 行附近）：")
+            for i in range(start, end):
+                marker = "→" if old_lines[i] != new_lines[i] else " "
+                if old_lines[i] != new_lines[i]:
+                    diff_parts.append(f"  {marker} 旧: {old_lines[i][:80]}")
+                    diff_parts.append(f"  {marker} 新: {new_lines[i][:80]}")
+        if len(new_lines) != len(old_lines):
+            diff_parts.append(f"\n行数变化：{len(old_lines)} → {len(new_lines)}")
+        diff_summary = "\n".join(diff_parts) if diff_parts else "无明显差异"
+
+        return jsonify({
+            "ok": True,
+            "old_prompt": current_prompt,
+            "new_prompt": new_prompt,
+            "diff": diff_summary,
+            "version": version_num,
+        })
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"Prompt 迭代失败: {exc}"}), 500
+
+
+@app.route("/api/prompt-lab/save", methods=["POST"])
+def prompt_lab_save():
+    """Manually save edited prompt."""
+    data = request.get_json(force=True)
+    prompt_text = data.get("prompt", "").strip()
+    if not prompt_text:
+        return jsonify({"ok": False, "error": "Prompt 不能为空"}), 400
+
+    # Save old version first
+    prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
+    if prompt_path.exists():
+        version_num = _get_next_prompt_version()
+        old_version_path = PROMPT_VERSIONS_DIR / f"ai_interpreter_v{version_num}.md"
+        old_version_path.write_text(prompt_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    prompt_path.write_text(prompt_text, encoding="utf-8")
+    return jsonify({"ok": True})
+
+
+@app.route("/api/prompt-lab/prompt", methods=["GET"])
+def prompt_lab_get_prompt():
+    """Get current prompt text."""
+    prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
+    content = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else ""
+    return jsonify({"ok": True, "prompt": content})
+
+
+if __name__ == "__main__:
     if len(sys.argv) > 1 and sys.argv[1] == "run":
         print("="*60)
         print("开始执行完整流程: extract → validate → generate")

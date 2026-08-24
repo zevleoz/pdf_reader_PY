@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Y4 Prompt Lab — AI 解读迭代测试台</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .lab-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 16px;
+      height: calc(100vh - 60px);
+      padding: 16px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+    .lab-col {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .lab-col-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .lab-col-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0;
+    }
+    .lab-col-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .lab-col-footer {
+      padding: 8px 12px;
+      border-top: 1px solid var(--line-soft);
+      flex-shrink: 0;
+    }
+    .prompt-textarea {
+      width: 100%;
+      height: 100%;
+      min-height: 400px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      resize: none;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .prompt-textarea:focus {
+      outline: 2px solid var(--red);
+      outline-offset: -1px;
+    }
+    .output-content {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--ink);
+    }
+    .output-content h1, .output-content h2, .output-content h3 {
+      color: var(--red-deep);
+      margin: 12px 0 6px;
+    }
+    .output-content strong { color: var(--ink); }
+    .output-content ul, .output-content ol {
+      padding-left: 20px;
+      margin: 6px 0;
+    }
+    .output-content li { margin: 4px 0; }
+    .output-content p { margin: 8px 0; }
+    .output-meta {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-top: 1px solid var(--line-soft);
+      display: flex;
+      gap: 16px;
+    }
+    .output-meta span { white-space: nowrap; }
+    .star-rating {
+      display: flex;
+      gap: 4px;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    .star {
+      color: var(--line);
+      transition: color 0.2s;
+      user-select: none;
+    }
+    .star.active { color: var(--red); }
+    .star:hover { color: var(--red-deep); }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 13px;
+      line-height: 1.6;
+      resize: vertical;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: inherit;
+    }
+    .feedback-textarea:focus {
+      outline: 2px solid var(--red);
+      outline-offset: -1px;
+    }
+    .diff-box {
+      background: var(--paper);
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--ink-2);
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 8px;
+    }
+    .history-tabs {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      padding: 6px 0;
+    }
+    .history-tab {
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: var(--white);
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .history-tab.active {
+      background: var(--red);
+      color: var(--white);
+      border-color: var(--red);
+    }
+    .history-tab:hover:not(.active) {
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .empty-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .lab-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      height: 52px;
+      background: var(--white);
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .lab-topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .lab-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .lab-version {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 2px 8px;
+      background: var(--paper-2);
+      border-radius: 4px;
+    }
+    .lab-status {
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .lab-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .lab-status.idle .dot { background: var(--muted); }
+    .lab-status.running .dot { background: var(--red); animation: pulse 1s ease-in-out infinite; }
+    .lab-status.done .dot { background: #16A34A; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .btn-sm {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: var(--white);
+      color: var(--ink);
+      transition: all 0.2s;
+    }
+    .btn-sm:hover { border-color: var(--red); color: var(--red); }
+    .btn-sm.primary {
+      background: var(--red);
+      color: var(--white);
+      border-color: var(--red);
+    }
+    .btn-sm.primary:hover { background: var(--red-deep); }
+    .btn-sm:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .prompt-input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      background: var(--paper);
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .prompt-input:focus {
+      outline: 2px solid var(--red);
+      outline-offset: -1px;
+    }
+    .label-sm {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+      display: block;
+    }
+    .loading-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(250, 247, 242, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      border-radius: 12px;
+    }
+    .loading-overlay span {
+      font-size: 14px;
+      color: var(--red);
+    }
+    .lab-col { position: relative; }
+    @media (max-width: 1000px) {
+      .lab-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+      .lab-col { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="lab-topbar">
+  <div class="lab-topbar-left">
+    <a href="/" style="font-size: 13px; color: var(--muted); text-decoration: none;">← 返回</a>
+    <span class="lab-title">Y4 Prompt Lab</span>
+    <span class="lab-version" id="versionLabel">v1</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <span class="lab-status idle" id="statusBar"><span class="dot"></span><span id="statusText">就绪</span></span>
+    <button class="btn-sm primary" id="runBtn" onclick="runInterpretation()">运行解读</button>
+  </div>
+</div>
+
+<div class="lab-layout">
+
+  <!-- 左栏：Prompt -->
+  <div class="lab-col">
+    <div class="lab-col-header">
+      <h3>Prompt（可编辑）</h3>
+      <button class="btn-sm" onclick="savePrompt()">保存</button>
+    </div>
+    <div class="lab-col-body" style="padding: 0; flex: 1; display: flex;">
+      <textarea class="prompt-textarea" id="promptEditor" spellcheck="false" placeholder="加载中..."></textarea>
+    </div>
+    <div class="lab-col-footer">
+      <span class="label-sm">测试数据：data/report_data.json</span>
+    </div>
+  </div>
+
+  <!-- 中栏：AI 输出 -->
+  <div class="lab-col">
+    <div class="lab-col-header">
+      <h3>AI 输出</h3>
+      <span style="font-size: 11px; color: var(--muted);" id="outputMeta"></span>
+    </div>
+    <div class="history-tabs" id="historyTabs" style="padding: 6px 12px 0;"></div>
+    <div class="lab-col-body" id="outputArea">
+      <div class="empty-state">点击「运行解读」开始</div>
+    </div>
+    <div class="output-meta" id="outputMetaBar" style="display: none;">
+      <span id="metaTokens"></span>
+      <span id="metaTime"></span>
+    </div>
+  </div>
+
+  <!-- 右栏：反馈 + 迭代 -->
+  <div class="lab-col">
+    <div class="lab-col-header">
+      <h3>反馈 & 迭代</h3>
+    </div>
+    <div class="lab-col-body">
+      <div style="margin-bottom: 16px;">
+        <span class="label-sm">评分</span>
+        <div class="star-rating" id="starRating">
+          <span class="star" data-val="1">★</span>
+          <span class="star" data-val="2">★</span>
+          <span class="star" data-val="3">★</span>
+          <span class="star" data-val="4">★</span>
+          <span class="star" data-val="5">★</span>
+        </div>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <span class="label-sm">反馈意见（越具体越好）</span>
+        <textarea class="feedback-textarea" id="feedbackInput" placeholder="例：输出太长，没有锚定四维框架，自创了'内耗型'这个术语..." spellcheck="false"></textarea>
+      </div>
+      <button class="btn-sm primary" id="iterateBtn" onclick="submitFeedback()" style="width: 100%;" disabled>
+        提交反馈并自动迭代
+      </button>
+      <div id="diffArea" style="margin-top: 16px; display: none;">
+        <span class="label-sm">Prompt 改动</span>
+        <div class="diff-box" id="diffContent"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let currentRating = 0;
+  let lastOutput = '';
+  let outputs = []; // {version, text, tokens, time_ms}
+  let outputVersion = 0;
+  let isRunning = false;
+
+  // Load prompt on page load
+  (async () => {
+    try {
+      const resp = await fetch('/api/prompt-lab/prompt');
+      const data = await resp.json();
+      if (data.ok) {
+        document.getElementById('promptEditor').value = data.prompt;
+      }
+    } catch (e) {
+      console.error('Failed to load prompt:', e);
+    }
+  })();
+
+  // Star rating
+  document.querySelectorAll('.star').forEach(star => {
+    star.addEventListener('click', () => {
+      const val = parseInt(star.dataset.val);
+      currentRating = val;
+      document.querySelectorAll('.star').forEach((s, i) => {
+        s.classList.toggle('active', i < val);
+      });
+      document.getElementById('iterateBtn').disabled = (val === 0 || !lastOutput);
+    });
+  });
+
+  function setStatus(state, text) {
+    const bar = document.getElementById('statusBar');
+    bar.className = `lab-status ${state}`;
+    document.getElementById('statusText').textContent = text;
+  }
+
+  // Simple markdown render
+  function renderMarkdown(text) {
+    let html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    // Headings
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Bullet lists
+    html = html.replace(/^[-•] (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.+<\/li>\n?)+/g, '<ul>$&</ul>');
+    // Numbered lists
+    html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+    // Line breaks
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  async function runInterpretation() {
+    if (isRunning) return;
+    isRunning = true;
+    document.getElementById('runBtn').disabled = true;
+    setStatus('running', 'AI 解读中...');
+    document.getElementById('outputArea').innerHTML = '<div class="empty-state">等待 AI 响应...</div>';
+    document.getElementById('outputMetaBar').style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/prompt-lab/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: '请给出这份 Y4 报告的完整解读' }),
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        outputVersion++;
+        lastOutput = data.reply;
+        outputs.push({
+          version: outputVersion,
+          text: data.reply,
+          tokens: data.tokens,
+          time_ms: data.time_ms,
+        });
+
+        document.getElementById('outputArea').innerHTML =
+          `<div class="output-content">${renderMarkdown(data.reply)}</div>`;
+        document.getElementById('outputMetaBar').style.display = 'flex';
+        document.getElementById('metaTokens').textContent = `Tokens: ${data.tokens}`;
+        document.getElementById('metaTime').textContent = `耗时: ${(data.time_ms / 1000).toFixed(1)}s`;
+        document.getElementById('outputMeta').textContent = `v${outputVersion}`;
+
+        updateHistoryTabs();
+        setStatus('done', '完成');
+        document.getElementById('iterateBtn').disabled = (currentRating === 0);
+      } else {
+        document.getElementById('outputArea').innerHTML =
+          `<div class="empty-state" style="color: var(--red);">${data.error || '解读失败'}</div>`;
+        setStatus('idle', '错误');
+      }
+    } catch (e) {
+      document.getElementById('outputArea').innerHTML =
+        `<div class="empty-state" style="color: var(--red);">网络错误: ${e.message}</div>`;
+      setStatus('idle', '错误');
+    }
+
+    isRunning = false;
+    document.getElementById('runBtn').disabled = false;
+  }
+
+  async function submitFeedback() {
+    const feedback = document.getElementById('feedbackInput').value.trim();
+    if (!feedback || currentRating === 0 || !lastOutput) return;
+
+    const btn = document.getElementById('iterateBtn');
+    btn.disabled = true;
+    btn.textContent = 'AI 迭代 prompt 中...';
+    setStatus('running', '迭代 prompt...');
+    document.getElementById('diffArea').style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/prompt-lab/iterate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feedback: feedback,
+          rating: currentRating,
+          last_output: lastOutput,
+        }),
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        // Update prompt editor
+        document.getElementById('promptEditor').value = data.new_prompt;
+
+        // Show diff
+        document.getElementById('diffArea').style.display = 'block';
+        document.getElementById('diffContent').textContent = data.diff || '无明显差异';
+
+        // Update version label
+        document.getElementById('versionLabel').textContent = `v${data.version + 1}`;
+
+        setStatus('done', 'Prompt 已更新，重新运行中...');
+
+        // Auto re-run
+        setTimeout(() => runInterpretation(), 500);
+      } else {
+        setStatus('idle', '迭代失败');
+        alert(data.error || '迭代失败');
+      }
+    } catch (e) {
+      setStatus('idle', '网络错误');
+      alert('网络错误: ' + e.message);
+    }
+
+    btn.disabled = false;
+    btn.textContent = '提交反馈并自动迭代';
+  }
+
+  async function savePrompt() {
+    const promptText = document.getElementById('promptEditor').value.trim();
+    if (!promptText) return;
+
+    try {
+      const resp = await fetch('/api/prompt-lab/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptText }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        setStatus('done', 'Prompt 已保存');
+        setTimeout(() => setStatus('idle', '就绪'), 2000);
+      } else {
+        alert(data.error || '保存失败');
+      }
+    } catch (e) {
+      alert('网络错误: ' + e.message);
+    }
+  }
+
+  function updateHistoryTabs() {
+    const container = document.getElementById('historyTabs');
+    container.innerHTML = '';
+    outputs.forEach(o => {
+      const tab = document.createElement('span');
+      tab.className = 'history-tab' + (o.version === outputVersion ? ' active' : '');
+      tab.textContent = `v${o.version}`;
+      tab.onclick = () => {
+        outputVersion = o.version;
+        document.getElementById('outputArea').innerHTML =
+          `<div class="output-content">${renderMarkdown(o.text)}</div>`;
+        document.getElementById('metaTokens').textContent = `Tokens: ${o.tokens}`;
+        document.getElementById('metaTime').textContent = `耗时: ${(o.time_ms / 1000).toFixed(1)}s`;
+        document.getElementById('outputMeta').textContent = `v${o.version}`;
+        updateHistoryTabs();
+      };
+      container.appendChild(tab);
+    });
+  }
+</script>
+
+</body>
+</html>
