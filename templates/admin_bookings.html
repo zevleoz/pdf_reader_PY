@@ -30,6 +30,14 @@
     .legend-dot.on { border-color: var(--red); background: #FEF2F2; }
     .legend-dot.off { border-color: var(--line); background: var(--paper-2); opacity: .35; }
 
+    /* Responsive booking table */
+    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
+    .table-wrap table { min-width: 720px; }
+    .booking-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .booking-actions .btn-sm { padding: 4px 10px; font-size: 11px; }
+    td .student-name { font-weight: 600; color: var(--ink); }
+    td .advisor-cell, td .school-cell { color: var(--ink-2); font-size: 12px; }
+
     /* Mobile */
     @media (max-width: 768px) {
       .avail-slots { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 6px; }
@@ -162,7 +170,7 @@
         el.innerHTML = '<div class="empty">暂无预约</div>';
         return;
       }
-      let html = '<table><thead><tr><th>学生</th><th>顾问</th><th>学校</th><th>预约时间</th><th>状态</th><th>Y4</th><th>操作</th></tr></thead><tbody>';
+      let html = '<div class="table-wrap"><table><thead><tr><th>学生</th><th>顾问</th><th>学校</th><th>预约时间</th><th>状态</th><th>Y4</th><th>操作</th></tr></thead><tbody>';
       for (const b of data.bookings) {
         const t = b.appointment_time ? new Date(b.appointment_time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
         let badgeClass = 'badge-pending';
@@ -173,23 +181,23 @@
         const y4Badge = b.report_count > 0
           ? '<span class="badge-y4-done">✓ 已生成</span>'
           : '<span class="badge-y4-pending">未测评</span>';
-        let actions = '';
+        let actions = '<div class="booking-actions">';
         if (b.status === 'pending') {
-          actions = '<button class="btn btn-sm btn-primary" onclick="completeBooking(' + b.id + ')">完成</button> '
-                   + '<button class="btn btn-sm btn-secondary" onclick="cancelBooking(' + b.id + ')">取消</button> ';
+          actions += '<button class="btn btn-sm btn-primary" onclick="completeBooking(' + b.id + ')">完成</button>'
+                   + '<button class="btn btn-sm btn-secondary" onclick="cancelBooking(' + b.id + ')">取消</button>';
         }
-        actions += '<button class="btn btn-sm btn-secondary" style="color:var(--red);border-color:var(--red);" onclick="deleteBooking(' + b.id + ')">删除</button>';
+        actions += '<button class="btn btn-sm btn-secondary" style="color:var(--red);border-color:var(--red);" onclick="deleteBooking(' + b.id + ')">删除</button></div>';
         html += '<tr>'
-          + '<td><strong>' + b.student_name + '</strong></td>'
-          + '<td>' + (b.advisor_name || '-') + '</td>'
-          + '<td>' + (b.school || '-') + '</td>'
+          + '<td><span class="student-name">' + b.student_name + '</span></td>'
+          + '<td><span class="advisor-cell">' + (b.advisor_name || '-') + '</span></td>'
+          + '<td><span class="school-cell">' + (b.school || '-') + '</span></td>'
           + '<td>' + t + '</td>'
           + '<td>' + badge + '</td>'
           + '<td>' + y4Badge + '</td>'
           + '<td>' + actions + '</td>'
           + '</tr>';
       }
-      html += '</tbody></table>';
+      html += '</tbody></table></div>';
       el.innerHTML = html;
     }
 
@@ -241,7 +249,7 @@
       for (let i = 0; i < 30; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() + i);
-        const dateStr = d.toISOString().split('T')[0];
+        const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         const daySlots = availData[dateStr] || [];
         const slotMap = {};
         daySlots.forEach(s => { slotMap[s.time_slot] = s.is_available; });
