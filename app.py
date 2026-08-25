@@ -1244,7 +1244,7 @@ def prompt_lab_get_prompt():
     return jsonify({"ok": True, "prompt": content})
 
 
-if __name__ == "__main__:
+if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "run":
         print("="*60)
         print("开始执行完整流程: extract → validate → generate")
