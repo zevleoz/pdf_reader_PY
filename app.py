@@ -128,6 +128,7 @@ def preview():
 # 进度查询接口（供前端进度条轮询）
 # ---------------------------------------------------------------------------
 @app.route("/api/progress", methods=["GET"])
+@admin_required
 def api_progress():
     prog_file = DATA_DIR / "_progress.json"
     if prog_file.exists():
@@ -142,6 +143,7 @@ def api_progress():
 # 核心接口：接收 4 份 PDF → 跑管道 → 返回 report.pdf
 # ---------------------------------------------------------------------------
 @app.route("/api/generate", methods=["POST"])
+@admin_required
 def api_generate():
     # 1) 接收1-4个文件，不再强制要求4个
     files_by_key = {}
@@ -360,6 +362,7 @@ def api_generate():
 # AI 聊天接口：接收用户消息 + 历史对话 → 调 DashScope 文本 LLM → 返回回复
 # ---------------------------------------------------------------------------
 @app.route("/api/chat", methods=["POST"])
+@admin_required
 def api_chat():
     import urllib.request as _ureq
 
@@ -425,6 +428,7 @@ def api_chat():
 # 静态输出文件访问
 # ---------------------------------------------------------------------------
 @app.route("/output/<path:filename>")
+@admin_required
 def download(filename):
     target = OUTPUT_DIR / filename
     if not target.exists():
@@ -443,6 +447,7 @@ def transcript_page():
 
 
 @app.route("/api/transcript", methods=["POST"])
+@admin_required
 def api_transcript():
     import urllib.request as _ureq
 
@@ -723,6 +728,7 @@ def _build_docx(summary_text: str, student_name: str = "", student_grade: str = 
 
 
 @app.route("/api/transcript/docx", methods=["POST"])
+@admin_required
 def api_transcript_docx():
     """Generate minutes as DOCX file. Accepts JSON with summary + student info,
     returns the .docx binary as attachment download.
@@ -767,12 +773,14 @@ def students_page():
 
 
 @app.route("/api/students")
+@admin_required
 def api_students():
     students = _db.get_students()
     return jsonify({"ok": True, "students": students})
 
 
 @app.route("/api/students/<int:student_id>/reports")
+@admin_required
 def api_student_reports(student_id):
     reports = _db.get_student_reports(student_id)
     return jsonify({"ok": True, "reports": reports})
@@ -857,6 +865,7 @@ def admin_bookings_page():
 
 
 @app.route("/api/bookings")
+@admin_required
 def api_bookings():
     status = request.args.get("status")
     bookings = _db.get_bookings(status=status)
@@ -864,6 +873,7 @@ def api_bookings():
 
 
 @app.route("/api/booking/<int:booking_id>/complete", methods=["POST"])
+@admin_required
 def api_booking_complete(booking_id):
     try:
         sid = _db.complete_booking(booking_id)
@@ -873,6 +883,7 @@ def api_booking_complete(booking_id):
 
 
 @app.route("/api/booking/<int:booking_id>/cancel", methods=["POST"])
+@admin_required
 def api_booking_cancel(booking_id):
     _db.update_booking_status(booking_id, "cancelled")
     return jsonify({"ok": True})
@@ -955,6 +966,7 @@ def api_set_availability():
 # Delete operations
 # ---------------------------------------------------------------------------
 @app.route("/api/students/<int:student_id>", methods=["DELETE"])
+@admin_required
 def api_delete_student(student_id):
     try:
         _db.delete_student(student_id)
@@ -964,6 +976,7 @@ def api_delete_student(student_id):
 
 
 @app.route("/api/reports/<int:report_id>", methods=["DELETE"])
+@admin_required
 def api_delete_report(report_id):
     try:
         _db.delete_report(report_id)
@@ -973,6 +986,7 @@ def api_delete_report(report_id):
 
 
 @app.route("/api/booking/<int:booking_id>", methods=["DELETE"])
+@admin_required
 def api_delete_booking(booking_id):
     try:
         _db.delete_booking(booking_id)
@@ -985,6 +999,7 @@ def api_delete_booking(booking_id):
 # CSV export
 # ---------------------------------------------------------------------------
 @app.route("/api/export")
+@admin_required
 def api_export():
     import csv
     import io
@@ -1049,6 +1064,7 @@ def prompt_lab_page():
 
 
 @app.route("/api/prompt-lab/run", methods=["POST"])
+@admin_required
 def prompt_lab_run():
     """Run AI interpretation using current prompt + report_data.json."""
     import urllib.request as _ureq
@@ -1110,6 +1126,7 @@ def prompt_lab_run():
 
 
 @app.route("/api/prompt-lab/iterate", methods=["POST"])
+@admin_required
 def prompt_lab_iterate():
     """Auto-modify prompt based on user feedback, then return new prompt."""
     import urllib.request as _ureq
@@ -1218,6 +1235,7 @@ def prompt_lab_iterate():
 
 
 @app.route("/api/prompt-lab/save", methods=["POST"])
+@admin_required
 def prompt_lab_save():
     """Manually save edited prompt."""
     data = request.get_json(force=True)
@@ -1237,6 +1255,7 @@ def prompt_lab_save():
 
 
 @app.route("/api/prompt-lab/prompt", methods=["GET"])
+@admin_required
 def prompt_lab_get_prompt():
     """Get current prompt text."""
     prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
