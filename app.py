@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from flask import (Flask, jsonify, render_template, request,
-                   send_from_directory, abort, session, redirect)
+                   send_from_directory, send_file, abort, session, redirect)
 
 import extract
 import validate
@@ -960,6 +960,27 @@ def api_set_availability():
         return jsonify({"ok": False, "error": "日期格式错误"}), 400
     _db.batch_set_availability(date_val, slots)
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# 报告原始数据取回（生成时已保存完整 report_data.json 到 reports.data_json）
+# ---------------------------------------------------------------------------
+@app.route("/api/reports/<int:report_id>/raw")
+@admin_required
+def api_report_raw(report_id):
+    """Get the raw data of a report. Add ?download=1 to download as JSON file."""
+    record = _db.get_report_raw(report_id)
+    if not record:
+        return jsonify({"ok": False, "error": "报告不存在"}), 404
+
+    if request.args.get("download"):
+        import io as _io
+        filename = f"raw_data_{record['student_name'] or record['report_id']}_{record['report_date'] or ''}.json"
+        buf = _io.BytesIO(json.dumps(record["raw"], ensure_ascii=False, indent=2).encode("utf-8"))
+        return send_file(buf, mimetype="application/json", as_attachment=True,
+                         download_name=filename)
+
+    return jsonify({"ok": True, **record})
 
 
 # ---------------------------------------------------------------------------

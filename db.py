@@ -249,6 +249,25 @@ def get_student_reports(student_id: int) -> List[Dict[str, Any]]:
         } for row in rows]
 
 
+def get_report_raw(report_id: int) -> Optional[Dict[str, Any]]:
+    """Get the full raw data_json of a report (for later reuse, e.g. AI re-interpretation)."""
+    with Session(engine) as sess:
+        stmt = select(Report, Student).join(Student).where(Report.id == report_id)
+        row = sess.execute(stmt).first()
+        if not row:
+            return None
+        report, student = row
+        raw = json.loads(report.data_json) if report.data_json else {}
+        return {
+            "report_id": report.id,
+            "student_id": student.id,
+            "student_name": student.name,
+            "grade": student.grade,
+            "report_date": report.report_date.isoformat() if report.report_date else None,
+            "raw": raw,
+        }
+
+
 def get_all_reports() -> List[Dict[str, Any]]:
     """Get all reports joined with student info (for export)."""
     with Session(engine) as sess:

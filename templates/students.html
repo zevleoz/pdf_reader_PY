@@ -112,12 +112,35 @@
           <td>${r.report_date || '-'}</td>
           <td><a href="/output/${r.pdf_path.split('/').pop()}" target="_blank">查看 PDF</a></td>
           <td>${r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-'}</td>
-          <td><button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">删除</button></td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="showRawData(${r.id})">原始数据</button>
+            <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/raw?download=1" download>下载 JSON</a>
+            <button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">删除</button>
+          </td>
         </tr>`;
       }
       html += '</tbody></table>';
       el.innerHTML = html;
       el.style.display = 'block';
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function showRawData(reportId) {
+      const resp = await fetch(`/api/reports/${reportId}/raw`);
+      const data = await resp.json();
+      const el = document.getElementById('reportList');
+      if (!data.ok) { alert(data.error || '加载失败'); return; }
+      const schemaItems = (data.raw.schema_124 || []);
+      const student = data.raw.student || {};
+      let html = `<h3>原始数据 — ${data.student_name || ''}（报告 #${data.report_id}）</h3>`;
+      html += `<p class="page-subtitle">学生：${student.name || '-'} ｜ 年级：${student.grade || '-'} ｜ 学校：${student.school || '-'} ｜ 测评日期：${student.test_date || '-'} ｜ 共 ${schemaItems.length} 个数据点</p>`;
+      html += '<div style="max-height:480px;overflow-y:auto;border:1px solid var(--line-soft);border-radius:10px;"><table><thead><tr><th>编号</th><th>指标</th><th>数值</th><th>来源</th></tr></thead><tbody>';
+      for (const it of schemaItems) {
+        html += `<tr><td>${it.code || '-'}</td><td>${it.label || '-'}</td><td><b>${it.value ?? '—'}</b></td><td>${it.source_pdf || '-'}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+      html += `<div style="margin-top:12px;"><button class="btn btn-sm btn-secondary" onclick="showReports(${data.student_id})">← 返回报告列表</button></div>`;
+      el.innerHTML = html;
       el.scrollIntoView({ behavior: 'smooth' });
     }
 
