@@ -28,26 +28,46 @@
     .file-input-row {
       display: flex; align-items: center; gap: 12px; margin-top: 12px;
     }
-    .btn-row { display: flex; gap: 12px; margin-top: 16px; }
+    .btn-row { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; align-items: center; }
     .result {
-      background: var(--paper);
+      background: var(--white);
       border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 28px;
+      padding: 32px 36px;
       margin-top: 20px;
-      white-space: pre-wrap;
       font-size: 14px;
       line-height: 1.8;
       color: var(--ink);
     }
-    .result h3 {
+    /* ATX headings */
+    .result h1.mm-h1 {
       font-family: "Noto Serif SC", serif;
-      font-size: 16px;
-      margin: 18px 0 8px;
+      font-size: 22px;
+      font-weight: 700;
       color: var(--red);
-      font-weight: 600;
+      margin: 20px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px dashed var(--line-soft);
     }
-    .result h3:first-child { margin-top: 0; }
+    .result h2.mm-h2 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--red);
+      margin: 18px 0 8px;
+    }
+    .result h3.mm-h3 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 14.5px;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 14px 0 6px;
+    }
+    .result h1.mm-h1:first-child { margin-top: 0; }
+    .result p.mm-p {
+      margin: 6px 0;
+      line-height: 1.8;
+    }
     .section-label {
       font-size: 12px;
       font-weight: 600;
@@ -57,6 +77,104 @@
       letter-spacing: 0.06em;
     }
     .file-name { font-size: 12px; color: var(--muted); }
+
+    /* Linked-student banner */
+    .link-banner {
+      background: linear-gradient(135deg, #FFF5F5 0%, #FFFFFF 60%);
+      border: 1px solid #FBCFCF;
+      border-left: 4px solid var(--red);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+    }
+    .link-banner .lb-title { font-family: "Noto Serif SC", serif; font-size: 14px; font-weight: 600; color: var(--red); }
+    .link-banner .lb-meta  { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+    .link-banner .lb-actions { display: flex; gap: 8px; }
+
+    /* Custom prompt panel */
+    .prompt-panel {
+      border: 1px dashed var(--line-soft);
+      border-radius: 8px;
+      margin-top: 14px;
+      overflow: hidden;
+    }
+    .prompt-panel summary {
+      padding: 10px 14px;
+      background: var(--paper-2);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink-2);
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+    }
+    .prompt-panel summary::-webkit-details-marker { display: none; }
+    .prompt-panel summary::before { content: "▸ "; color: var(--red); transition: transform .2s; display: inline-block; }
+    .prompt-panel[open] summary::before { transform: rotate(90deg); }
+    .prompt-panel textarea {
+      min-height: 140px;
+      border-radius: 0;
+      border: none;
+      border-top: 1px dashed var(--line-soft);
+      font-size: 12px;
+      background: #FAFAF7;
+    }
+
+    /* Save notice */
+    .save-notice {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12.5px;
+      color: #1B7A3E;
+      background: #E8F5E9;
+      border: 1px solid #C8E6C9;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-weight: 500;
+      margin-left: 4px;
+    }
+
+    /* History sidebar / section */
+    .history-wrap {
+      margin-top: 22px;
+    }
+    .history-title {
+      font-family: "Noto Serif SC", serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 10px;
+    }
+    .history-empty {
+      font-size: 12.5px; color: var(--muted);
+      background: var(--paper-2);
+      border: 1px dashed var(--line-soft);
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .history-item {
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .history-item .hi-head {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;
+      font-size: 12px; color: var(--muted);
+    }
+    .history-item .hi-date { font-weight: 600; color: var(--ink); font-size: 13px; }
+    .history-item .hi-preview {
+      margin-top: 7px; font-size: 13px; color: var(--ink-2);
+      line-height: 1.6;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .history-item .hi-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+    @media (max-width: 720px) {
+      .result { padding: 20px 18px; }
+    }
   </style>
 </head>
 <body>
@@ -75,11 +193,22 @@
 
   <div class="container">
     <h1 class="page-title">解读会会议纪要生成</h1>
-    <p class="page-subtitle">上传解读会逐字稿，AI 将根据 Y4 报告结构自动生成个性化会议纪要。</p>
+    <p class="page-subtitle">上传解读会逐字稿，AI 将根据会议内容自动生成结构化的专业会议记录。</p>
 
     <div class="hint">
       <strong>使用说明：</strong>
-      在学生完成 Y4 测评后，进行 1 对 1 解读会时录音并转写为文字。将转写文本粘贴到下方，系统会结合测评数据生成结构化的会议纪要。
+      在学生完成 Y4 测评后，进行 1 对 1 解读会时录音并转写为文字。将转写文本粘贴到下方，系统会结合测评数据生成结构化的专业会议记录。<b>建议从学生档案点击进入本页，系统自动关联学生和对应报告。</b>
+    </div>
+
+    <!-- Linked-student banner (hidden by default, shown via JS when student_id present) -->
+    <div id="linkBanner" class="link-banner" style="display:none">
+      <div>
+        <div class="lb-title" id="lbTitle">已关联学生</div>
+        <div class="lb-meta" id="lbMeta">—</div>
+      </div>
+      <div class="lb-actions">
+        <a class="btn btn-sm btn-secondary" href="/students" target="_blank">打开学生档案</a>
+      </div>
     </div>
 
     <div class="card">
@@ -114,6 +243,12 @@
         <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">选择文本文件</button>
         <span id="fileName" class="file-name"></span>
       </div>
+
+      <details class="prompt-panel">
+        <summary>高级：自定义 Prompt 模板（留空则使用系统默认）</summary>
+        <textarea id="customPrompt" placeholder="粘贴自定义 Prompt 全文，用于覆盖系统默认的会议纪要模板..."></textarea>
+      </details>
+
       <div class="btn-row">
         <button class="btn btn-primary" id="generateBtn" onclick="generateSummary()" disabled>
           生成会议纪要
@@ -121,20 +256,30 @@
         <button class="btn btn-secondary" id="copyBtn" onclick="copyResult()" style="display:none">
           复制结果
         </button>
-        <button class="btn btn-secondary" id="downloadTxtBtn" onclick="downloadTxt()" style="display:none">
-          下载 TXT
-        </button>
         <button class="btn btn-primary" id="downloadDocxBtn" onclick="downloadDocx()" style="display:none">
           下载 DOCX
         </button>
+        <button class="btn btn-secondary" id="downloadTxtBtn" onclick="downloadTxt()" style="display:none;font-size:12px;opacity:0.85">
+          下载 TXT
+        </button>
+        <button class="btn btn-secondary" id="gotoArchiveBtn" onclick="gotoArchive()" style="display:none">
+          在档案中查看
+        </button>
+        <span id="saveNotice" class="save-notice" style="display:none">✓ 已保存到学生档案</span>
       </div>
       <div id="status" class="status" style="display:none"></div>
     </div>
 
     <div id="result" class="result" style="display:none"></div>
+
+    <div id="historyWrap" class="history-wrap" style="display:none">
+      <div class="history-title">该学生历史解读会纪要</div>
+      <div id="historyList"></div>
+    </div>
   </div>
 
   <script>
+    // ---------- State ----------
     const transcriptEl = document.getElementById('transcript');
     const generateBtn = document.getElementById('generateBtn');
     const statusEl = document.getElementById('status');
@@ -144,11 +289,22 @@
     const copyBtn = document.getElementById('copyBtn');
     const downloadTxtBtn = document.getElementById('downloadTxtBtn');
     const downloadDocxBtn = document.getElementById('downloadDocxBtn');
+    const gotoArchiveBtn = document.getElementById('gotoArchiveBtn');
+    const saveNotice = document.getElementById('saveNotice');
+    const customPromptEl = document.getElementById('customPrompt');
+
     let lastResult = '';
+    let lastMinutesId = null;
 
-    // ===== Session persistence =====
-    const SESSION_KEY = 'y4_transcript_state';
+    // ---------- URL params + linked student/report ----------
+    const urlParams = new URLSearchParams(window.location.search);
+    const LINKED_STUDENT_ID = urlParams.get('student_id') ? parseInt(urlParams.get('student_id')) : null;
+    const LINKED_REPORT_ID  = urlParams.get('report_id')  ? parseInt(urlParams.get('report_id'))  : null;
 
+    // Session key with suffix
+    const SESSION_KEY = 'y4_transcript_state' + (LINKED_STUDENT_ID ? ('_s' + LINKED_STUDENT_ID) : '');
+
+    // ---------- Persistence ----------
     function saveToSession() {
       try {
         sessionStorage.setItem(SESSION_KEY, JSON.stringify({
@@ -156,7 +312,9 @@
           studentName: document.getElementById('studentName').value,
           studentGrade: document.getElementById('studentGrade').value,
           studentGender: document.getElementById('studentGender').value,
+          customPrompt: customPromptEl.value,
           summary: lastResult,
+          minutesId: lastMinutesId,
         }));
       } catch (e) { /* ignore quota */ }
     }
@@ -166,37 +324,52 @@
         const raw = sessionStorage.getItem(SESSION_KEY);
         if (!raw) return;
         const data = JSON.parse(raw);
-        if (data.transcript) transcriptEl.value = data.transcript;
-        if (data.studentName) document.getElementById('studentName').value = data.studentName;
-        if (data.studentGrade) document.getElementById('studentGrade').value = data.studentGrade;
-        if (data.studentGender) document.getElementById('studentGender').value = data.studentGender;
+        if (data.transcript && !LINKED_STUDENT_ID) transcriptEl.value = data.transcript;
+        // Don't overwrite student info if already auto-filled from linked id
+        const nameEl = document.getElementById('studentName');
+        const gradeEl = document.getElementById('studentGrade');
+        const genderEl = document.getElementById('studentGender');
+        if (!nameEl.value && data.studentName) nameEl.value = data.studentName;
+        if (!gradeEl.value && data.studentGrade) gradeEl.value = data.studentGrade;
+        if (!genderEl.value && data.studentGender) genderEl.value = data.studentGender;
+        if (data.customPrompt) customPromptEl.value = data.customPrompt;
         if (data.summary) {
           lastResult = data.summary;
-          resultEl.innerHTML = renderMinutesMarkdown(data.summary);
-          resultEl.style.display = 'block';
-          copyBtn.style.display = 'inline-block';
-          downloadTxtBtn.style.display = 'inline-block';
-          downloadDocxBtn.style.display = 'inline-block';
+          if (data.minutesId) lastMinutesId = data.minutesId;
+          renderResult(data.summary);
+          showResultButtons();
+          if (data.minutesId) { saveNotice.style.display = 'inline-flex'; }
         }
-        if (transcriptEl.value.trim().length >= 50) {
-          generateBtn.disabled = false;
-        }
+        if (transcriptEl.value.trim().length >= 50) generateBtn.disabled = false;
       } catch (e) { /* ignore */ }
     }
 
-    // ===== Minimal markdown renderer for minutes (bullet-point focused) =====
+    // ---------- Markdown renderer for minutes ----------
     function renderMinutesMarkdown(text) {
-      // Escape first, then selectively re-add formatting
       let html = escapeHtml(text);
+      const R_STUDENT_NAME = document.getElementById('studentName').value.trim();
+      if (R_STUDENT_NAME) {
+        html = html.replace(/【学生姓名】/g, R_STUDENT_NAME);
+      }
 
-      // Block separators ---  → thin red divider
+      // Block separators
       html = html.replace(/^(\s*[\-\=━]{3,}\s*\n?)/gm,
         '<hr style="border:none;border-top:1px dashed var(--line);margin:16px 0;">');
 
-      // Headings: **一、xxx**（yyy）
+      // ATX H1 (# xxx)
+      html = html.replace(/^\s*#\s+(.+?)\s*$/gm,
+        '<h1 class="mm-h1">$1</h1>');
+      // ATX H2 (## xxx)
+      html = html.replace(/^\s*##\s+(.+?)\s*$/gm,
+        '<h2 class="mm-h2">$1</h2>');
+      // ATX H3 (### xxx)
+      html = html.replace(/^\s*###\s+(.+?)\s*$/gm,
+        '<h3 class="mm-h3">$1</h3>');
+
+      // Legacy heading: **一、xxx**（yyy）
       html = html.replace(/^\*\*(.+?)\*\*(?:（(.+?)）)?\s*$/gm, (m, title, sub) => {
         const subPart = sub ? `<span style="color:var(--muted);font-size:0.85em;font-weight:500;">（${sub}）</span>` : '';
-        return `<h3>${title}${subPart}</h3>`;
+        return `<h2 class="mm-h2">${title}${subPart}</h2>`;
       });
 
       // Inline bold **text**
@@ -206,7 +379,7 @@
       html = html.replace(/^&gt;\s*(.+?)$/gm,
         '<div style="border-left:3px solid var(--red);padding:4px 12px;color:var(--ink-2);font-style:italic;margin:6px 0;font-size:0.95em;">$1</div>');
 
-      // Checkbox bullets: • [ ] item or - [x] item
+      // Checkbox bullets
       html = html.replace(/^\s*(?:[-•·\*])\s*\[\s*([xX\s]?)\s*\]\s*(.+?)$/gm,
         (m, check, content) => {
           const box = (check === 'x' || check === 'X') ? '☑' : '☐';
@@ -214,19 +387,31 @@
             <span style="color:var(--red);font-weight:700;">${box} • </span>${content.trim()}</div>`;
         });
 
-      // Standard bullet lines: •, -, *, ·
+      // Standard bullet lines
       html = html.replace(/^\s*(?:[-•·\*])\s*(.+?)$/gm, (m, content) => {
         return `<div style="padding:3px 0 3px 1em;text-indent:-1em;line-height:1.75;">
           <span style="color:var(--red);font-weight:700;">• </span>${content.trim()}</div>`;
       });
 
-      // Non-heading lines that start with **xxx** (subheading, no bullet)
-      html = html.replace(/^<strong[^>]*>(.+?)<\/strong>\s*$/gm,
+      // Non-heading lines that are standalone bold **xxx**
+      html = html.replace(/^(<strong[^>]*>.+?<\/strong>)\s*$/gm,
         '<div style="font-weight:700;margin-top:10px;color:var(--ink);">$1</div>');
 
-      // Line breaks for remaining newlines
+      // Wrap remaining non-tagged lines into paragraphs for clean document feel
+      // (only lines not starting with an opening HTML tag)
+      const lines = html.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        const trimmed = l.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith('<')) continue; // already an HTML tag
+        if (trimmed.startsWith('&nbsp;')) continue;
+        lines[i] = `<p class="mm-p">${trimmed}</p>`;
+      }
+      html = lines.join('\n');
+
+      // Line breaks: collapse multiple <br> only
       html = html.replace(/\n{2,}/g, '<br><br>');
-      html = html.replace(/\n/g, '<br>');
 
       return html;
     }
@@ -237,16 +422,159 @@
       }[c]));
     }
 
-    // ===== URL params =====
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('name')) {
-      document.getElementById('studentName').value = urlParams.get('name');
-    }
-    if (urlParams.get('grade')) {
-      document.getElementById('studentGrade').value = urlParams.get('grade');
+    function renderResult(text) {
+      resultEl.innerHTML = renderMinutesMarkdown(text);
+      resultEl.style.display = 'block';
     }
 
-    // ===== Input listeners =====
+    function showResultButtons() {
+      copyBtn.style.display = 'inline-block';
+      downloadDocxBtn.style.display = 'inline-block';
+      downloadTxtBtn.style.display = 'inline-block';
+    }
+
+    // ---------- Init linked student/report ----------
+    async function initLinked() {
+      const banner = document.getElementById('linkBanner');
+      const bannerTitle = document.getElementById('lbTitle');
+      const bannerMeta = document.getElementById('lbMeta');
+
+      const nameEl = document.getElementById('studentName');
+      const gradeEl = document.getElementById('studentGrade');
+      const genderEl = document.getElementById('studentGender');
+
+      if (LINKED_REPORT_ID) {
+        try {
+          const resp = await fetch(`/api/reports/${LINKED_REPORT_ID}/raw`);
+          const data = await resp.json();
+          if (data.ok) {
+            banner.style.display = 'flex';
+            const raw = data.raw || {};
+            const stu = (raw.student && typeof raw.student === 'object') ? raw.student : {};
+            const sname = data.student_name || stu.name || '';
+            const sgrade = data.grade || stu.grade || '';
+            const sgender = stu.gender || '';
+            bannerTitle.textContent = `已关联学生：${sname || '—'}`;
+            bannerMeta.textContent = `关联报告：${data.report_date || '—'} ｜ 年级：${sgrade || '—'}`;
+            if (!nameEl.value && sname) nameEl.value = sname;
+            if (!gradeEl.value && sgrade) gradeEl.value = sgrade;
+            if (!genderEl.value && sgender) genderEl.value = sgender;
+          }
+        } catch (e) { console.warn(e); }
+      } else if (LINKED_STUDENT_ID) {
+        try {
+          const resp = await fetch(`/api/students/${LINKED_STUDENT_ID}/reports`);
+          const data = await resp.json();
+          // Get student info from main list
+          let found = null;
+          try {
+            const all = await fetch('/api/students').then(r => r.json());
+            found = (all.students || []).find(s => s.id === LINKED_STUDENT_ID);
+          } catch (e) {}
+          banner.style.display = 'flex';
+          const sname = (found && found.name) || `学生 #${LINKED_STUDENT_ID}`;
+          const grade = (found && found.grade) || '';
+          bannerTitle.textContent = `已关联学生：${sname}`;
+          const count = (data.reports || []).length;
+          bannerMeta.textContent = count ? `该学生共 ${count} 份历史报告（将使用最新一份作为测评数据上下文）` : '该学生目前没有测评报告；AI 将仅基于逐字稿生成纪要。';
+          if (found) {
+            if (!nameEl.value && found.name) nameEl.value = found.name;
+            if (!gradeEl.value && found.grade) gradeEl.value = found.grade;
+          }
+        } catch (e) { console.warn(e); }
+      }
+
+      // Restore session after auto-fill to let manual overrides (if any) apply
+      restoreFromSession();
+
+      // Load history for linked student
+      if (LINKED_STUDENT_ID) {
+        loadHistory();
+      }
+    }
+
+    async function loadHistory() {
+      const wrap = document.getElementById('historyWrap');
+      const list = document.getElementById('historyList');
+      try {
+        const resp = await fetch(`/api/students/${LINKED_STUDENT_ID}/minutes`);
+        const data = await resp.json();
+        if (!data.ok || !data.minutes || data.minutes.length === 0) {
+          wrap.style.display = 'block';
+          list.innerHTML = '<div class="history-empty">该学生暂无历史纪要。完成第一次纪要生成后，纪要将自动保存在这里。</div>';
+          return;
+        }
+        wrap.style.display = 'block';
+        let html = '';
+        for (const m of data.minutes) {
+          const created = m.created_at ? new Date(m.created_at).toLocaleString('zh-CN') : '—';
+          const reportTag = m.report_date ? `关联报告：${m.report_date}` : '未绑定报告';
+          html += `<div class="history-item" data-id="${m.id}">
+            <div class="hi-head">
+              <span class="hi-date">${created}</span>
+              <span>${reportTag}</span>
+            </div>
+            <div class="hi-preview">${escapeHtml(m.preview || '（无预览）')}</div>
+            <div class="hi-actions">
+              <button class="btn btn-sm btn-secondary" onclick="loadMinutes(${m.id})">加载详情</button>
+              <button class="btn btn-sm btn-primary" onclick="downloadDocxById(${m.id})">下载 DOCX</button>
+              <button class="btn btn-sm btn-danger" style="background:var(--white);color:var(--red);border:1.5px solid var(--line);"
+                onclick="deleteMinutes(${m.id})">删除</button>
+            </div>
+          </div>`;
+        }
+        list.innerHTML = html;
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    async function loadMinutes(id) {
+      try {
+        const resp = await fetch(`/api/minutes/${id}`);
+        const data = await resp.json();
+        if (!data.ok) { alert(data.error || '加载失败'); return; }
+        // Fill the form with stored transcript and minutes
+        if (data.transcript_text) transcriptEl.value = data.transcript_text;
+        const nameEl = document.getElementById('studentName');
+        const gradeEl = document.getElementById('studentGrade');
+        const genderEl = document.getElementById('studentGender');
+        if (data.student_name)  nameEl.value   = data.student_name;
+        if (data.student_grade) gradeEl.value  = data.student_grade;
+        if (data.student_gender) genderEl.value = data.student_gender;
+        lastResult = data.minutes_text || '';
+        lastMinutesId = data.id;
+        if (lastResult) {
+          renderResult(lastResult);
+          showResultButtons();
+          saveNotice.style.display = 'inline-flex';
+          gotoArchiveBtn.style.display = 'inline-block';
+        }
+        generateBtn.disabled = (transcriptEl.value.trim().length < 50);
+        saveToSession();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (e) { alert('加载失败：' + e.message); }
+    }
+
+    async function deleteMinutes(id) {
+      if (!confirm('确认删除这条纪要？此操作不可撤销。')) return;
+      try {
+        const resp = await fetch(`/api/minutes/${id}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (data.ok) loadHistory();
+        else alert(data.error || '删除失败');
+      } catch (e) { alert('删除失败：' + e.message); }
+    }
+
+    function gotoArchive() {
+      if (LINKED_STUDENT_ID) {
+        window.open('/students', '_blank');
+      } else {
+        window.location.href = '/students';
+      }
+    }
+
+    // ---------- Input listeners ----------
     transcriptEl.addEventListener('input', () => {
       generateBtn.disabled = transcriptEl.value.trim().length < 50;
       saveToSession();
@@ -254,6 +582,7 @@
     ['studentName', 'studentGrade', 'studentGender'].forEach(id => {
       document.getElementById(id).addEventListener('input', saveToSession);
     });
+    customPromptEl.addEventListener('input', saveToSession);
 
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
@@ -265,37 +594,47 @@
       saveToSession();
     });
 
+    // ---------- Status ----------
     function setStatus(msg, type) {
       statusEl.style.display = 'block';
       statusEl.className = 'status' + (type ? ' ' + type : '');
       statusEl.innerHTML = msg;
     }
 
+    // ---------- Generate ----------
     async function generateSummary() {
       const text = transcriptEl.value.trim();
       const name = document.getElementById('studentName').value.trim();
       const grade = document.getElementById('studentGrade').value.trim();
       const gender = document.getElementById('studentGender').value.trim();
+      const cprompt = customPromptEl.value.trim();
 
       if (!text || text.length < 50) return;
 
       generateBtn.disabled = true;
-      setStatus('<span class="spinner"></span>正在生成精简、可执行的会议纪要，请稍候...', 'loading');
+      setStatus('<span class="spinner"></span>正在撰写会议纪要，请稍候（约 15–30 秒）...', 'loading');
       resultEl.style.display = 'none';
       copyBtn.style.display = 'none';
       downloadTxtBtn.style.display = 'none';
       downloadDocxBtn.style.display = 'none';
+      gotoArchiveBtn.style.display = 'none';
+      saveNotice.style.display = 'none';
+
+      const body = {
+        transcript: text,
+        student_name: name,
+        student_grade: grade,
+        student_gender: gender,
+      };
+      if (LINKED_STUDENT_ID) body.student_id = LINKED_STUDENT_ID;
+      if (LINKED_REPORT_ID)  body.report_id  = LINKED_REPORT_ID;
+      if (cprompt) body.custom_prompt = cprompt;
 
       try {
         const resp = await fetch('/api/transcript', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            transcript: text,
-            student_name: name,
-            student_grade: grade,
-            student_gender: gender,
-          }),
+          body: JSON.stringify(body),
         });
 
         if (!resp.ok) {
@@ -307,13 +646,20 @@
         if (!data.ok) throw new Error(data.error || '生成失败');
 
         lastResult = data.summary;
-        resultEl.innerHTML = renderMinutesMarkdown(data.summary);
-        resultEl.style.display = 'block';
-        copyBtn.style.display = 'inline-block';
-        downloadTxtBtn.style.display = 'inline-block';
-        downloadDocxBtn.style.display = 'inline-block';
-        setStatus('会议纪要已生成！要点清晰、行动可执行。', 'ok');
+        lastMinutesId = data.minutes_id || null;
+
+        // If server autofilled student info back, reflect it in UI
+        if (data.student_name)  document.getElementById('studentName').value   = data.student_name;
+        if (data.student_grade) document.getElementById('studentGrade').value  = data.student_grade;
+        if (data.student_gender) document.getElementById('studentGender').value = data.student_gender;
+
+        renderResult(data.summary);
+        showResultButtons();
+        gotoArchiveBtn.style.display = 'inline-block';
+        if (data.minutes_id) saveNotice.style.display = 'inline-flex';
+        setStatus('会议纪要已生成。结构清晰、可下载 DOCX。', 'ok');
         saveToSession();
+        if (LINKED_STUDENT_ID) loadHistory(); // refresh history list
       } catch (e) {
         setStatus('生成失败：' + e.message, 'error');
       } finally {
@@ -321,6 +667,7 @@
       }
     }
 
+    // ---------- Copy / Download ----------
     function copyResult() {
       if (!lastResult) return;
       navigator.clipboard.writeText(lastResult).then(() => {
@@ -343,49 +690,71 @@
       URL.revokeObjectURL(url);
     }
 
-    async function downloadDocx() {
-      if (!lastResult) return;
-      const name = document.getElementById('studentName').value.trim();
-      const grade = document.getElementById('studentGrade').value.trim();
-      const gender = document.getElementById('studentGender').value.trim();
-
-      // Use temporary loading state on the button
-      const oldText = downloadDocxBtn.textContent;
-      downloadDocxBtn.disabled = true;
-      downloadDocxBtn.textContent = '生成中…';
-
+    async function downloadDocxById(minutesId) {
       try {
         const resp = await fetch('/api/transcript/docx', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            summary: lastResult,
-            student_name: name,
-            student_grade: grade,
-            student_gender: gender,
-          }),
+          body: JSON.stringify({ minutes_id: minutesId }),
         });
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
           throw new Error(err.error || 'DOCX 生成失败');
         }
         const blob = await resp.blob();
-        // Extract filename from Content-Disposition if possible
         const disp = resp.headers.get('Content-Disposition') || '';
-        let filename = `凭远Y4解读会纪要_${name || '学生'}.docx`;
+        let filename = `凭远Y4解读会纪要_纪要.docx`;
         const match = disp.match(/filename\*=UTF-8''([^;]+)/);
-        if (match) {
-          try { filename = decodeURIComponent(match[1]); } catch { /* use default */ }
-        }
-
+        if (match) { try { filename = decodeURIComponent(match[1]); } catch { /* ignore */ } }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('下载 DOCX 失败：' + e.message);
+      }
+    }
+
+    async function downloadDocx() {
+      const oldText = downloadDocxBtn.textContent;
+      downloadDocxBtn.disabled = true;
+      downloadDocxBtn.textContent = '生成中…';
+      try {
+        // If we have a minutes_id, prefer the DB route (server already has all info)
+        if (lastMinutesId) {
+          await downloadDocxById(lastMinutesId);
+        } else {
+          const name = document.getElementById('studentName').value.trim();
+          const grade = document.getElementById('studentGrade').value.trim();
+          const gender = document.getElementById('studentGender').value.trim();
+          const resp = await fetch('/api/transcript/docx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              summary: lastResult,
+              student_name: name,
+              student_grade: grade,
+              student_gender: gender,
+            }),
+          });
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || 'DOCX 生成失败');
+          }
+          const blob = await resp.blob();
+          const disp = resp.headers.get('Content-Disposition') || '';
+          let filename = `凭远Y4解读会纪要_${name || '学生'}.docx`;
+          const match = disp.match(/filename\*=UTF-8''([^;]+)/);
+          if (match) { try { filename = decodeURIComponent(match[1]); } catch { /* use default */ } }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = filename;
+          document.body.appendChild(a); a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
       } catch (e) {
         alert('下载 DOCX 失败：' + e.message);
       } finally {
@@ -394,8 +763,10 @@
       }
     }
 
-    // Restore session state on load
-    restoreFromSession();
+    // ---------- Boot ----------
+    initLinked();
+    // Final fallback for generateBtn state (in case init didn't restore session)
+    if (transcriptEl.value.trim().length >= 50) generateBtn.disabled = false;
   </script>
 </body>
 </html>

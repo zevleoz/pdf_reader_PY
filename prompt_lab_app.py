@@ -95,7 +95,10 @@ def _get_next_version(versions_dir: Path, prefix: str = "ai_interpreter_v") -> i
 
 
 def _call_dashscope(messages, temperature=None, max_tokens=8192, timeout=120, model=None):
-    """Call DashScope chat completion. Returns (reply, tokens, elapsed_ms)."""
+    """Call DashScope chat completion. Returns (reply, tokens, elapsed_ms).
+
+    Raises TruncatedResponseError if the reply was cut off by max_tokens.
+    """
     if not DASHSCOPE_KEY:
         raise RuntimeError("未配置 DASHSCOPE_API_KEY（环境变量或 extract.DEFAULT_DASHSCOPE_KEY）")
 
@@ -119,10 +122,25 @@ def _call_dashscope(messages, temperature=None, max_tokens=8192, timeout=120, mo
     t0 = time.time()
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         result = json.loads(resp.read().decode("utf-8"))
-    reply = result["choices"][0]["message"]["content"]
+    choice = result["choices"][0]
+    reply = choice["message"]["content"]
     tokens = result.get("usage", {}).get("total_tokens", 0)
     elapsed_ms = int((time.time() - t0) * 1000)
+
+    # 检测是否因 max_tokens 截断
+    finish_reason = choice.get("finish_reason", "")
+    if finish_reason == "length":
+        raise TruncatedResponseError(
+            f"AI 输出被截断（finish_reason=length, max_tokens={max_tokens}），"
+            f"已生成 {len(reply)} 字符。请增大 max_tokens 或精简输入。"
+        )
+
     return reply, tokens, elapsed_ms
+
+
+class TruncatedResponseError(RuntimeError):
+    """Raised when DashScope response was truncated due to max_tokens limit."""
+    pass
 
 
 def _build_context_from_report(report_data: dict) -> str:
@@ -334,7 +352,7 @@ def iterate_prompt():
 
     try:
         new_prompt, _, _ = _call_dashscope(
-            messages, temperature=0.3, max_tokens=4096, timeout=180,
+            messages, temperature=0.3, max_tokens=8192, timeout=180,
             model=ITERATION_MODEL,
         )
         new_prompt = new_prompt.strip()

@@ -456,48 +456,153 @@ def api_transcript():
     student_name = (data.get("student_name") or "").strip()
     student_grade = (data.get("student_grade") or "").strip()
     student_gender = (data.get("student_gender") or "").strip()
+    student_id = data.get("student_id")
+    report_id = data.get("report_id")
+    custom_prompt = (data.get("custom_prompt") or "").strip()
 
     if len(transcript_text) < 50:
         return jsonify({"ok": False, "error": "逐字稿太短，至少 50 字"}), 400
 
-    # 1) 读取 transcript prompt
-    prompt_path = BASE_DIR / "prompts" / "transcript_summary.md"
-    system_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "你是解读会纪要撰写人。"
-
-    # 2) 读取 report_data.json 作为上下文（如果存在）
-    report_summary = "（暂无测评数据）"
-    report_path = DATA_DIR / "report_data.json"
-    if report_path.exists():
+    # ------------------------------------------------------------------
+    # 1) Resolve student + report info (if student_id/report_id given)
+    # ------------------------------------------------------------------
+    resolved_sid = None
+    resolved_rid = None
+    if student_id:
         try:
-            rd = json.loads(report_path.read_text(encoding="utf-8"))
-            student_info = rd.get("student", {})
-            s124 = rd.get("schema_124", [])
+            resolved_sid = int(student_id)
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "student_id 格式错误"}), 400
+    if report_id:
+        try:
+            resolved_rid = int(report_id)
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "report_id 格式错误"}), 400
+
+    report_summary = "（暂无测评数据）"
+
+    if resolved_rid:
+        # Specific report given → use its raw data
+        rec = _db.get_report_raw(resolved_rid)
+        if rec:
+            raw = rec.get("raw") or {}
+            schema_items = raw.get("schema_124", [])
             lines = []
-            for item in s124:
+            for item in schema_items:
                 val = item.get("value", "")
-                if val and val not in ("", "—", None):
+                if val and str(val).strip() not in ("", "—", None):
                     lines.append(f"  {item.get('label', item.get('code', '?'))}: {val}")
             if lines:
                 report_summary = "\n".join(lines[:60])
-        except Exception:
-            pass
+            # Fill empty student info from report record
+            if not student_name:
+                student_name = rec.get("student_name", "")
+            stu_info = (raw.get("student") or {}) if isinstance(raw, dict) else {}
+            if not student_grade:
+                student_grade = rec.get("grade") or stu_info.get("grade", "") or ""
+            if not student_gender:
+                student_gender = stu_info.get("gender", "") or ""
+    elif resolved_sid:
+        # Student only, no specific report → take the latest report for that student
+        reports = _db.get_student_reports(resolved_sid)
+        if reports:
+            latest = reports[0]
+            resolved_rid = latest.get("id")
+            rec = _db.get_report_raw(resolved_rid)
+            if rec:
+                raw = rec.get("raw") or {}
+                schema_items = raw.get("schema_124", [])
+                lines = []
+                for item in schema_items:
+                    val = item.get("value", "")
+                    if val and str(val).strip() not in ("", "—", None):
+                        lines.append(f"  {item.get('label', item.get('code', '?'))}: {val}")
+                if lines:
+                    report_summary = "\n".join(lines[:60])
+                if not student_name:
+                    student_name = rec.get("student_name", "")
+                stu_info = (raw.get("student") or {}) if isinstance(raw, dict) else {}
+                if not student_grade:
+                    student_grade = rec.get("grade") or stu_info.get("grade", "") or ""
+                if not student_gender:
+                    student_gender = stu_info.get("gender", "") or ""
+        # If student has no reports, fallback to name from students table
+        if not student_name:
+            for s in _db.get_students():
+                if s["id"] == resolved_sid:
+                    student_name = s.get("name", "")
+                    student_grade = student_grade or s.get("grade", "") or ""
+                    break
+    else:
+        # Backward-compat: read current-session report_data.json
+        report_path = DATA_DIR / "report_data.json"
+        if report_path.exists():
+            try:
+                rd = json.loads(report_path.read_text(encoding="utf-8"))
+                s124 = rd.get("schema_124", [])
+                lines = []
+                for item in s124:
+                    val = item.get("value", "")
+                    if val and str(val).strip() not in ("", "—", None):
+                        lines.append(f"  {item.get('label', item.get('code', '?'))}: {val}")
+                if lines:
+                    report_summary = "\n".join(lines[:60])
+                # Also autofill student info
+                stu_info = rd.get("student", {}) or {}
+                if not student_name:
+                    student_name = stu_info.get("name", "")
+                if not student_grade:
+                    student_grade = stu_info.get("grade", "") or ""
+                if not student_gender:
+                    student_gender = stu_info.get("gender", "") or ""
+            except Exception:
+                pass
 
-    # 3) 组装 prompt 变量
-    system_prompt = system_prompt.replace("{student_name}", student_name or "未填写")
-    system_prompt = system_prompt.replace("{report_summary}", report_summary)
-    system_prompt = system_prompt.replace("{transcript}", transcript_text[:12000])
+    # ------------------------------------------------------------------
+    # 2) Build system prompt (custom_prompt overrides file)
+    # ------------------------------------------------------------------
+    if custom_prompt:
+        system_prompt = custom_prompt
+    else:
+        prompt_path = BASE_DIR / "prompts" / "transcript_summary.md"
+        system_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "你是解读会纪要撰写人。"
 
-    # 4) 组装 messages
+    # No string-replace on system_prompt. All dynamic context goes in user
+    # message to match the user prompt's framing ("基于接下来提供的...").
+
+    # ------------------------------------------------------------------
+    # 3) Assemble messages
+    # ------------------------------------------------------------------
+    effective_name = student_name or "未填写"
+    user_content = (
+        "## 学生基本信息\n"
+        f"姓名：{effective_name}\n"
+        f"年级：{student_grade or '—'}\n"
+        f"性别：{student_gender or '—'}\n\n"
+        "## Y4 测评数据摘要（供交叉验证参考，如果和会议内容无关可以忽略）\n"
+        f"{report_summary}\n\n"
+        "## 解读会录音转写/会议纪要\n"
+        f"{transcript_text[:12000]}\n\n"
+        "请基于以上提供的录音转写/会议纪要，直接生成最终会议记录。"
+    )
+
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": "请根据以上逐字稿和测评数据，撰写完整的解读会会议纪要。"},
+        {"role": "user", "content": user_content},
     ]
 
-    # 5) 调用 DashScope API
+    # ------------------------------------------------------------------
+    # 4) Call DashScope API — prefer ITERATION_MODEL (qwen-turbo by default)
+    # ------------------------------------------------------------------
     dashscope_key = os.environ.get("DASHSCOPE_API_KEY", extract.DEFAULT_DASHSCOPE_KEY).strip()
+    model_name = (
+        os.environ.get("ITERATION_MODEL")
+        or os.environ.get("AI_TEXT_MODEL")
+        or "qwen-turbo"
+    )
     url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
     payload = json.dumps({
-        "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
+        "model": model_name,
         "messages": messages,
         "temperature": 0.7,
         "max_tokens": 8192,
@@ -512,14 +617,47 @@ def api_transcript():
         with _ureq.urlopen(req, timeout=180) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         summary = result["choices"][0]["message"]["content"]
-        return jsonify({"ok": True, "summary": summary})
     except Exception as exc:
         return jsonify({"ok": False, "error": f"AI 调用失败: {exc}"}), 500
+
+    # ------------------------------------------------------------------
+    # 5) Fix title placeholder: 【学生姓名】 → actual name
+    # ------------------------------------------------------------------
+    if effective_name and effective_name != "未填写":
+        summary = summary.replace("【学生姓名】", effective_name)
+
+    # ------------------------------------------------------------------
+    # 6) Persist to DB if student_id is linked
+    # ------------------------------------------------------------------
+    minutes_id = None
+    if resolved_sid:
+        try:
+            minutes_id = _db.add_minutes(
+                student_id=resolved_sid,
+                report_id=resolved_rid,
+                transcript_text=transcript_text[:50000],
+                minutes_text=summary,
+            )
+        except Exception as e:
+            print(f"[DB] 会议纪要保存失败 (非致命): {e}")
+
+    return jsonify({
+        "ok": True,
+        "summary": summary,
+        "minutes_id": minutes_id,
+        "student_id": resolved_sid,
+        "report_id": resolved_rid,
+        "student_name": student_name,
+        "student_grade": student_grade,
+        "student_gender": student_gender,
+    })
 
 
 def _build_docx(summary_text: str, student_name: str = "", student_grade: str = "",
                student_gender: str = "") -> bytes:
     """Convert markdown-style meeting minutes text into a styled Word .docx file.
+    Supports #/##/### ATX headings, **bold**, bullet lines (- / •), [ ]/[x] checkboxes,
+    and quote lines. Preserves the old **一、xxx** bold-heading format for backward compat.
     Returns the raw bytes of the docx file.
     """
     import re
@@ -580,14 +718,15 @@ def _build_docx(summary_text: str, student_name: str = "", student_grade: str = 
     div_p.paragraph_format.space_after = Pt(12)
 
     # ---- Parse lines and build document structure ----
-    # Heading patterns: **一、** **二、** etc
-    heading_re = re.compile(r"^\s*\*\*(.+?)\*\*\s*(?:（(.+?)）)?\s*$")
-    # Bullet: starts with • or - * or • [ ]
+    # Heading patterns: **一、** legacy bold-heading; ATX # / ## / ###
+    heading_legacy_re = re.compile(r"^\s*\*\*(.+?)\*\*\s*(?:（(.+?)）)?\s*$")
+    atx_h1_re = re.compile(r"^\s*#\s+(.+?)\s*$")
+    atx_h2_re = re.compile(r"^\s*##\s+(.+?)\s*$")
+    atx_h3_re = re.compile(r"^\s*###\s+(.+?)\s*$")
+    # Bullet markers
     bullet_chars = ("•", "·", "-", "*", "【")
 
     lines = summary_text.split("\n")
-    section_title = None
-    section_subtitle = None
 
     for raw in lines:
         line = raw.rstrip()
@@ -609,11 +748,46 @@ def _build_docx(summary_text: str, student_name: str = "", student_grade: str = 
                 run.font.color.rgb = RGBColor(0x4A, 0x4A, 0x4A)
             continue
 
-        # Heading check: **一、核心发现 · 3 条**（...）
-        m = heading_re.match(stripped)
-        if m:
-            section_title = m.group(1).strip()
-            section_subtitle = m.group(2).strip() if m.group(2) else None
+        # === ATX headings (new prompt format, check first so # wins over other patterns) ===
+        m_h1 = atx_h1_re.match(stripped)
+        if m_h1:
+            hp = doc.add_paragraph()
+            r = hp.add_run(m_h1.group(1).strip())
+            r.bold = True
+            r.font.size = Pt(16)
+            r.font.color.rgb = RGBColor(0xB3, 0x3A, 0x3A)  # red (H1)
+            r.font.name = "微软雅黑"
+            hp.paragraph_format.space_before = Pt(14)
+            hp.paragraph_format.space_after = Pt(6)
+            continue
+        m_h2 = atx_h2_re.match(stripped)
+        if m_h2:
+            hp = doc.add_paragraph()
+            r = hp.add_run(m_h2.group(1).strip())
+            r.bold = True
+            r.font.size = Pt(14)
+            r.font.color.rgb = RGBColor(0xB3, 0x3A, 0x3A)  # deep red (H2)
+            r.font.name = "微软雅黑"
+            hp.paragraph_format.space_before = Pt(12)
+            hp.paragraph_format.space_after = Pt(4)
+            continue
+        m_h3 = atx_h3_re.match(stripped)
+        if m_h3:
+            hp = doc.add_paragraph()
+            r = hp.add_run(m_h3.group(1).strip())
+            r.bold = True
+            r.font.size = Pt(12)
+            r.font.color.rgb = RGBColor(0x14, 0x14, 0x14)  # ink (H3)
+            r.font.name = "微软雅黑"
+            hp.paragraph_format.space_before = Pt(10)
+            hp.paragraph_format.space_after = Pt(3)
+            continue
+
+        # Legacy heading: **一、核心发现 · 3 条**（...）
+        m_leg = heading_legacy_re.match(stripped)
+        if m_leg:
+            section_title = m_leg.group(1).strip()
+            section_subtitle = m_leg.group(2).strip() if m_leg.group(2) else None
             hp = doc.add_paragraph()
             hrun = hp.add_run(section_title)
             hrun.bold = True
@@ -670,14 +844,7 @@ def _build_docx(summary_text: str, student_name: str = "", student_grade: str = 
         tokens = re.split(r"(\*\*[^*]+\*\*)", content)
         if is_bullet:
             bullet_prefix = f"{checkbox} • " if checkbox else "• "
-            p = doc.add_paragraph(style="List Bullet")
-            # docx default bullet style might look odd; just prepend char
-            # Override: re-add as normal paragraph with bullet marker
-            try:
-                p.clear()
-            except Exception:
-                pass
-            # Build content without list style to avoid indent inconsistencies
+            # Build paragraph with bullet marker (no List Bullet style for consistency)
             p2 = doc.add_paragraph()
             b_run = p2.add_run(bullet_prefix)
             b_run.font.color.rgb = RGBColor(0xB3, 0x3A, 0x3A)
@@ -685,13 +852,6 @@ def _build_docx(summary_text: str, student_name: str = "", student_grade: str = 
             p2.paragraph_format.space_before = Pt(2)
             p2.paragraph_format.space_after = Pt(2)
             p2.paragraph_format.left_indent = Cm(0.6)
-            # Remove the duplicate bullet paragraph 'p'
-            try:
-                p_elm = p._element
-                p_elm.getparent().remove(p_elm)
-            except Exception:
-                pass
-
             # Append content tokens
             for tok in tokens:
                 if tok.startswith("**") and tok.endswith("**"):
@@ -705,6 +865,9 @@ def _build_docx(summary_text: str, student_name: str = "", student_grade: str = 
 
         # Plain paragraph (non-heading, non-bullet)
         pp = doc.add_paragraph()
+        pp.paragraph_format.space_before = Pt(2)
+        pp.paragraph_format.space_after = Pt(2)
+        pp.paragraph_format.line_spacing = Pt(20)
         for tok in tokens:
             if tok.startswith("**") and tok.endswith("**"):
                 r = pp.add_run(tok[2:-2])
@@ -730,14 +893,34 @@ def _build_docx(summary_text: str, student_name: str = "", student_grade: str = 
 @app.route("/api/transcript/docx", methods=["POST"])
 @admin_required
 def api_transcript_docx():
-    """Generate minutes as DOCX file. Accepts JSON with summary + student info,
-    returns the .docx binary as attachment download.
+    """Generate minutes as DOCX file.
+
+    Two input modes:
+      A) {minutes_id: N} → load from DB, auto-fills student info + minutes_text
+      B) {summary, student_name, student_grade, student_gender} → legacy mode
+
+    Returns the .docx binary as attachment download.
     """
     data = request.get_json(force=True)
-    summary_text = (data.get("summary") or "").strip()
-    student_name = (data.get("student_name") or "").strip()
-    student_grade = (data.get("student_grade") or "").strip()
-    student_gender = (data.get("student_gender") or "").strip()
+    minutes_id = data.get("minutes_id")
+    summary_text = ""
+    student_name = ""
+    student_grade = ""
+    student_gender = ""
+
+    if minutes_id:
+        mrec = _db.get_minutes(int(minutes_id))
+        if not mrec:
+            return jsonify({"ok": False, "error": "纪要不存在"}), 404
+        summary_text = mrec.get("minutes_text", "") or ""
+        student_name = mrec.get("student_name", "") or ""
+        student_grade = mrec.get("student_grade", "") or ""
+        student_gender = mrec.get("student_gender", "") or ""
+    else:
+        summary_text = (data.get("summary") or "").strip()
+        student_name = (data.get("student_name") or "").strip()
+        student_grade = (data.get("student_grade") or "").strip()
+        student_gender = (data.get("student_gender") or "").strip()
 
     if not summary_text:
         return jsonify({"ok": False, "error": "纪要内容为空"}), 400
@@ -761,6 +944,56 @@ def api_transcript_docx():
         }
     )
     return resp
+
+
+# ---------------------------------------------------------------------------
+# Meeting minutes management APIs
+# ---------------------------------------------------------------------------
+
+@app.route("/api/students/<int:student_id>/minutes")
+@admin_required
+def api_student_minutes(student_id):
+    """List all historical meeting minutes for a student (desc by created_at)."""
+    items = _db.get_minutes_by_student(student_id)
+    return jsonify({"ok": True, "minutes": items})
+
+
+@app.route("/api/minutes/<int:minutes_id>")
+@admin_required
+def api_minutes_detail(minutes_id):
+    """Get single meeting minutes: transcript + minutes_text + student info."""
+    item = _db.get_minutes(minutes_id)
+    if not item:
+        return jsonify({"ok": False, "error": "纪要不存在"}), 404
+    return jsonify({"ok": True, **item})
+
+
+@app.route("/api/minutes/<int:minutes_id>", methods=["PUT"])
+@admin_required
+def api_minutes_update(minutes_id):
+    """Update minutes (e.g. re-generate with new transcript / manual edits)."""
+    data = request.get_json(force=True) or {}
+    fields = {}
+    for k in ("transcript_text", "minutes_text", "report_id"):
+        if k in data and data[k] is not None:
+            fields[k] = data[k]
+    if not fields:
+        return jsonify({"ok": True})
+    try:
+        _db.update_minutes(minutes_id, **fields)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/api/minutes/<int:minutes_id>", methods=["DELETE"])
+@admin_required
+def api_minutes_delete(minutes_id):
+    try:
+        _db.delete_minutes(minutes_id)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------------------

@@ -61,6 +61,17 @@ class Report(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class MeetingMinutes(Base):
+    __tablename__ = "meeting_minutes"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    report_id = Column(Integer, ForeignKey("reports.id"), nullable=True)
+    transcript_text = Column(Text)  # 原始逐字稿
+    minutes_text = Column(Text)     # AI 生成的会议纪要
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Booking(Base):
     __tablename__ = "bookings"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -151,6 +162,27 @@ def _migrate_schema() -> None:
             except Exception:
                 pass
 
+    # Check if meeting_minutes table exists; if not create
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='meeting_minutes'")
+    if not cursor.fetchone():
+        try:
+            cursor.execute("""
+                CREATE TABLE meeting_minutes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER NOT NULL,
+                    report_id INTEGER,
+                    transcript_text TEXT,
+                    minutes_text TEXT,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    FOREIGN KEY (student_id) REFERENCES students(id),
+                    FOREIGN KEY (report_id) REFERENCES reports(id)
+                )
+            """)
+            conn.commit()
+        except Exception:
+            pass
+
     conn.close()
 
 
@@ -205,7 +237,7 @@ def find_or_create_student(name: str, gender: str = "", birthday: str = "",
 
 
 def get_students() -> List[Dict[str, Any]]:
-    """List all students with their report counts and latest report date."""
+    """List all students with their report counts, minutes count, and latest report date."""
     with Session(engine) as sess:
         stmt = select(Student).order_by(Student.created_at.desc())
         rows = sess.execute(stmt).all()
@@ -214,6 +246,8 @@ def get_students() -> List[Dict[str, Any]]:
             student = row[0]
             count_stmt = select(func.count(Report.id)).where(Report.student_id == student.id)
             report_count = sess.execute(count_stmt).scalar() or 0
+            minutes_count_stmt = select(func.count(MeetingMinutes.id)).where(MeetingMinutes.student_id == student.id)
+            minutes_count = sess.execute(minutes_count_stmt).scalar() or 0
             latest_stmt = select(Report).where(Report.student_id == student.id).order_by(Report.created_at.desc()).limit(1)
             latest_row = sess.execute(latest_stmt).first()
             latest_report_date = latest_row[0].report_date.isoformat() if latest_row and latest_row[0].report_date else None
@@ -229,6 +263,7 @@ def get_students() -> List[Dict[str, Any]]:
                 "single_parent": student.single_parent or "false",
                 "created_at": student.created_at.isoformat() if student.created_at else None,
                 "report_count": report_count,
+                "minutes_count": minutes_count,
                 "latest_report_date": latest_report_date,
             })
         return results
@@ -629,3 +664,114 @@ def get_availability_range(start_date: date, end_date: date) -> Dict[str, List[D
                 "is_available": bool(av.is_available),
             })
         return result
+
+
+# ─── MeetingMinutes CRUD ────────────────────────────────────────
+
+def add_minutes(student_id: int, report_id: Optional[int],
+                transcript_text: str, minutes_text: str) -> int:
+    """Create a meeting minutes record. Returns minutes id."""
+    now = datetime.utcnow()
+    with Session(engine) as sess:
+        stmt = insert(MeetingMinutes).values(
+            student_id=student_id,
+            report_id=report_id,
+            transcript_text=transcript_text,
+            minutes_text=minutes_text,
+            created_at=now,
+            updated_at=now,
+        )
+        result = sess.execute(stmt)
+        sess.commit()
+        return result.lastrowid
+
+
+def get_minutes(minutes_id: int) -> Optional[Dict[str, Any]]:
+    """Get a single meeting minutes record with student and report info."""
+    with Session(engine) as sess:
+        stmt = (select(MeetingMinutes, Student, Report)
+                .join(Student, MeetingMinutes.student_id == Student.id)
+                .join(Report, MeetingMinutes.report_id == Report.id, isouter=True)
+                .where(MeetingMinutes.id == minutes_id))
+        row = sess.execute(stmt).first()
+        if not row:
+            return None
+        mm, student, report = row
+        return {
+            "id": mm.id,
+            "student_id": mm.student_id,
+            "student_name": student.name,
+            "student_grade": student.grade or "",
+            "student_gender": student.gender or "",
+            "report_id": mm.report_id,
+            "report_date": report.report_date.isoformat() if report and report.report_date else None,
+            "transcript_text": mm.transcript_text or "",
+            "minutes_text": mm.minutes_text or "",
+            "created_at": mm.created_at.isoformat() if mm.created_at else None,
+            "updated_at": mm.updated_at.isoformat() if mm.updated_at else None,
+        }
+
+
+def get_minutes_by_student(student_id: int) -> List[Dict[str, Any]]:
+    """List all meeting minutes for a student, ordered by created_at desc.
+    Includes related report date if available, and a preview of minutes_text.
+    """
+    with Session(engine) as sess:
+        stmt = (select(MeetingMinutes, Report)
+                .join(Report, MeetingMinutes.report_id == Report.id, isouter=True)
+                .where(MeetingMinutes.student_id == student_id)
+                .order_by(MeetingMinutes.created_at.desc()))
+        rows = sess.execute(stmt).all()
+        results = []
+        for mm, report in rows:
+            mt = mm.minutes_text or ""
+            preview = mt[:120] + ("…" if len(mt) > 120 else "")
+            results.append({
+                "id": mm.id,
+                "student_id": mm.student_id,
+                "report_id": mm.report_id,
+                "report_date": report.report_date.isoformat() if report and report.report_date else None,
+                "preview": preview,
+                "created_at": mm.created_at.isoformat() if mm.created_at else None,
+                "updated_at": mm.updated_at.isoformat() if mm.updated_at else None,
+            })
+        return results
+
+
+def get_minutes_by_report(report_id: int) -> List[Dict[str, Any]]:
+    """List meeting minutes linked to a specific report, ordered by created_at desc."""
+    with Session(engine) as sess:
+        stmt = select(MeetingMinutes).where(MeetingMinutes.report_id == report_id).order_by(
+            MeetingMinutes.created_at.desc())
+        rows = sess.execute(stmt).all()
+        results = []
+        for row in rows:
+            mm = row[0]
+            mt = mm.minutes_text or ""
+            preview = mt[:120] + ("…" if len(mt) > 120 else "")
+            results.append({
+                "id": mm.id,
+                "student_id": mm.student_id,
+                "report_id": mm.report_id,
+                "preview": preview,
+                "created_at": mm.created_at.isoformat() if mm.created_at else None,
+                "updated_at": mm.updated_at.isoformat() if mm.updated_at else None,
+            })
+        return results
+
+
+def update_minutes(minutes_id: int, **fields) -> None:
+    """Update meeting minutes fields. Sets updated_at automatically."""
+    if not fields:
+        return
+    fields["updated_at"] = datetime.utcnow()
+    with Session(engine) as sess:
+        sess.execute(update(MeetingMinutes).where(MeetingMinutes.id == minutes_id).values(**fields))
+        sess.commit()
+
+
+def delete_minutes(minutes_id: int) -> None:
+    """Delete a meeting minutes record."""
+    with Session(engine) as sess:
+        sess.execute(delete(MeetingMinutes).where(MeetingMinutes.id == minutes_id))
+        sess.commit()

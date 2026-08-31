@@ -18,7 +18,7 @@
       border-color: var(--red);
       background: #FEF2F2;
     }
-    .action-cell { display: flex; gap: 8px; align-items: center; }
+    .action-cell { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .action-link {
       color: var(--red);
       font-weight: 600;
@@ -28,7 +28,20 @@
       transition: color .2s var(--ease);
     }
     .action-link:hover { color: var(--red-deep); }
-    .toolbar { display: flex; gap: 12px; margin-bottom: 20px; }
+    .btn-minutes {
+      background: var(--white);
+      color: var(--red);
+      border: 1px solid var(--red);
+      font-weight: 500;
+    }
+    .btn-minutes:hover:not(:disabled) {
+      background: #FEF2F2;
+    }
+    .btn-minutes:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .toolbar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
     .report-list { margin-top: 24px; }
     .report-list h3 {
       font-family: "Noto Serif SC", serif;
@@ -39,6 +52,13 @@
     }
     .y4-done { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; }
     .y4-pending { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--paper-2); color: var(--muted); }
+    .minutes-count {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+      background: #FFF4E5; color: #B45309;
+      border: 1px solid #FBD38D;
+      margin-left: 6px;
+    }
     .interp-card {
       background: var(--white);
       border: 1px solid var(--line-soft);
@@ -54,6 +74,57 @@
     }
     .interp-content ul { margin: 6px 0; padding-left: 20px; }
     .interp-loading { text-align: center; color: var(--muted); padding: 40px 0; font-size: 13px; }
+
+    /* Minutes history block */
+    .minutes-history {
+      margin-top: 24px;
+    }
+    .minutes-history h3 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--ink);
+    }
+    .minutes-item {
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 10px;
+      transition: border-color .2s;
+    }
+    .minutes-item:hover { border-color: var(--red); }
+    .minutes-item .mi-head {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    }
+    .minutes-item .mi-date {
+      font-family: "Noto Serif SC", serif;
+      font-size: 14px; font-weight: 600; color: var(--ink);
+    }
+    .minutes-item .mi-report {
+      font-size: 12px; color: var(--muted);
+    }
+    .minutes-item .mi-preview {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--ink-2);
+      line-height: 1.6;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .minutes-item .mi-actions {
+      margin-top: 10px;
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .minutes-empty {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      background: var(--paper-2);
+      border: 1px dashed var(--line-soft);
+      border-radius: 10px;
+      padding: 20px;
+    }
   </style>
 </head>
 <body>
@@ -68,20 +139,24 @@
       <a href="/admin/bookings">预约管理</a>
       <a href="/booking">预约</a>
       <a href="/generate">报告生成</a>
+      <a href="/transcript">解读会纪要</a>
     </nav>
   </header>
   <div class="container">
     <h1 class="page-title">学生档案</h1>
-    <p class="page-subtitle">所有已生成报告的学生记录。点击学生查看历史报告。</p>
+    <p class="page-subtitle">所有已生成报告的学生记录。点击学生查看历史报告，或直接「新建议程」开始撰写解读会会议记录。</p>
     <div class="toolbar">
       <button class="btn btn-secondary" onclick="window.location.href='/api/export'">导出 CSV</button>
       <button class="btn btn-secondary" onclick="loadStudents()">刷新</button>
     </div>
     <div id="studentList"></div>
     <div id="reportList" class="report-list" style="display:none"></div>
+    <div id="minutesHistory" class="minutes-history" style="display:none"></div>
   </div>
   <script>
     let currentReports = [];
+    let currentStudentId = null;
+    let currentStudentName = '';
 
     async function loadStudents() {
       const resp = await fetch('/api/students');
@@ -96,16 +171,21 @@
         const y4Status = s.report_count > 0
           ? '<span class="y4-done">✓ 已完成' + (s.latest_report_date ? ' (' + s.latest_report_date + ')' : '') + '</span>'
           : '<span class="y4-pending">未测评</span>';
+        const minutesBadge = s.minutes_count > 0 ? `<span class="minutes-count" title="该学生已有解读会纪要条数">纪要 ${s.minutes_count}</span>` : '';
+        const canMinutes = s.report_count > 0;
         html += `<tr>
           <td>${s.id}</td>
-          <td><strong>${s.name}</strong></td>
+          <td><strong>${s.name}</strong>${minutesBadge}</td>
           <td>${s.advisor_name || '-'}</td>
           <td>${s.school || '-'}</td>
           <td>${s.grade || '-'}</td>
           <td>${y4Status}</td>
           <td>${s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : '-'}</td>
           <td><div class="action-cell">
-            <a class="action-link" href="#" onclick="showReports(${s.id});return false;">查看报告</a>
+            <a class="action-link" href="#" onclick="showReports(${s.id}, ${JSON.stringify(s.name).replace(/"/g,'&quot;')});return false;">查看报告</a>
+            <button class="btn btn-sm btn-minutes" onclick="newMinutesForStudent(${s.id})" ${canMinutes ? '' : 'disabled title="先生成测评报告后再做解读会纪要"'}>
+              ${canMinutes ? '✎ 新建议程' : '无报告'}
+            </button>
             <button class="btn btn-sm btn-danger" onclick="deleteStudent(${s.id}, '${s.name}')">删除</button>
           </div></td>
         </tr>`;
@@ -114,25 +194,40 @@
       el.innerHTML = html;
     }
 
-    async function showReports(studentId) {
+    function newMinutesForStudent(studentId) {
+      window.open(`/transcript?student_id=${studentId}`, '_blank');
+    }
+
+    function newMinutesForReport(studentId, reportId) {
+      window.open(`/transcript?student_id=${studentId}&report_id=${reportId}`, '_blank');
+    }
+
+    async function showReports(studentId, studentName) {
+      currentStudentId = studentId;
+      currentStudentName = studentName || '';
       const resp = await fetch(`/api/students/${studentId}/reports`);
       const data = await resp.json();
       const el = document.getElementById('reportList');
       currentReports = data.reports || [];
+      document.getElementById('minutesHistory').style.display = 'none';
       if (currentReports.length === 0) {
         el.innerHTML = '<h3>该学生暂无报告</h3>';
         el.style.display = 'block';
+        loadMinutesHistory(studentId, studentName);  // still show minutes even if no reports
+        el.scrollIntoView({ behavior: 'smooth' });
         return;
       }
       let html = '<h3>历史报告</h3><table><thead><tr><th>日期</th><th>PDF 文件</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
       for (const r of currentReports) {
         const interpLabel = r.interpretation ? 'AI 解读 ✓' : 'AI 解读';
+        const minutesUrl = `/transcript?student_id=${studentId}&report_id=${r.id}`;
         html += `<tr>
           <td>${r.report_date || '-'}</td>
           <td><a href="/output/${r.pdf_path.split('/').pop()}" target="_blank">查看 PDF</a></td>
           <td>${r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-'}</td>
           <td>
             <button class="btn btn-sm btn-secondary" onclick="showInterpretation(${r.id})">${interpLabel}</button>
+            <button class="btn btn-sm btn-minutes" onclick="window.open('${minutesUrl}', '_blank')">✎ 解读会纪要</button>
             <button class="btn btn-sm btn-secondary" onclick="showRawData(${r.id})">原始数据</button>
             <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/raw?download=1" download>下载 JSON</a>
             <button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">删除</button>
@@ -142,6 +237,8 @@
       html += '</tbody></table>';
       el.innerHTML = html;
       el.style.display = 'block';
+      // Load student minutes history
+      loadMinutesHistory(studentId, studentName);
       el.scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -159,7 +256,7 @@
         html += `<tr><td>${it.code || '-'}</td><td>${it.label || '-'}</td><td><b>${it.value ?? '—'}</b></td><td>${it.source_pdf || '-'}</td></tr>`;
       }
       html += '</tbody></table></div>';
-      html += `<div style="margin-top:12px;"><button class="btn btn-sm btn-secondary" onclick="showReports(${data.student_id})">← 返回报告列表</button></div>`;
+      html += `<div style="margin-top:12px;"><button class="btn btn-sm btn-secondary" onclick="showReportsFromCache()">← 返回报告列表</button></div>`;
       el.innerHTML = html;
       el.scrollIntoView({ behavior: 'smooth' });
     }
@@ -186,16 +283,16 @@
 
     function renderInterpCard(r) {
       const el = document.getElementById('reportList');
-      const studentId = r.pdf_path ? undefined : undefined;
       let html = `<h3>AI 解读 — 报告 #${r.id}（${r.report_date || '-'}）</h3>`;
       if (r.interpretation) {
         html += `<div class="interp-card"><div class="interp-content">${renderMd(r.interpretation)}</div></div>`;
       } else {
         html += `<div class="interp-card"><div class="interp-loading" id="interpLoading">AI 解读生成中，约需 10–30 秒，请勿关闭页面…</div></div>`;
       }
-      html += `<div style="margin-top:12px;display:flex;gap:8px;">
+      html += `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-sm btn-primary" id="reInterpBtn" onclick="runInterpret(${r.id})">重新解读</button>
-        <button class="btn btn-sm btn-secondary" onclick="backToReports()">← 返回报告列表</button>
+        <button class="btn btn-sm btn-minutes" onclick="window.open('/transcript?student_id=${currentStudentId}&report_id=${r.id}', '_blank')">✎ 撰写解读会纪要</button>
+        <button class="btn btn-sm btn-secondary" onclick="showReportsFromCache()">← 返回报告列表</button>
       </div>`;
       el.innerHTML = html;
       el.scrollIntoView({ behavior: 'smooth' });
@@ -219,7 +316,6 @@
       const r = findReport(reportId);
       if (!r) return;
       if (!loadingEl && r.interpretation) {
-        // 已有内容时重新解读：在卡片上方提示运行中
         const card = document.querySelector('.interp-card');
         if (card) card.insertAdjacentHTML('afterbegin',
           '<div class="interp-loading" id="interpLoading">AI 正在重新解读，约需 10–30 秒…</div>');
@@ -230,7 +326,7 @@
         if (data.ok) {
           r.interpretation = data.reply;
           renderInterpCard(r);
-          loadStudents();   // 刷新学生列表的解读状态
+          loadStudents();   // 刷新学生列表
         } else {
           alert('解读失败：' + (data.error || '未知错误'));
           renderInterpCard(r);
@@ -256,6 +352,7 @@
           <td>${r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-'}</td>
           <td>
             <button class="btn btn-sm btn-secondary" onclick="showInterpretation(${r.id})">${interpLabel}</button>
+            <button class="btn btn-sm btn-minutes" onclick="window.open('/transcript?student_id=${currentStudentId}&report_id=${r.id}', '_blank')">✎ 解读会纪要</button>
             <button class="btn btn-sm btn-secondary" onclick="showRawData(${r.id})">原始数据</button>
             <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/raw?download=1" download>下载 JSON</a>
             <button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">删除</button>
@@ -265,16 +362,106 @@
       html += '</tbody></table>';
       el.innerHTML = html;
       el.style.display = 'block';
+      // Re-show minutes history after returning from detail
+      if (currentStudentId) loadMinutesHistory(currentStudentId, currentStudentName);
       el.scrollIntoView({ behavior: 'smooth' });
     }
 
+    // -------------------- Minutes history --------------------
+    async function loadMinutesHistory(studentId, studentName) {
+      const wrap = document.getElementById('minutesHistory');
+      try {
+        const resp = await fetch(`/api/students/${studentId}/minutes`);
+        const data = await resp.json();
+        if (!data.ok || !data.minutes || data.minutes.length === 0) {
+          wrap.innerHTML = `
+            <h3>历史解读会纪要</h3>
+            <div class="minutes-empty">
+              该学生暂无历史解读会纪要。&nbsp;&nbsp;
+              <a href="/transcript?student_id=${studentId}" target="_blank"
+                 style="color:var(--red);font-weight:600;">立即新建第一条 →</a>
+            </div>`;
+          wrap.style.display = 'block';
+          return;
+        }
+        let html = `<h3>历史解读会纪要（共 ${data.minutes.length} 条）</h3>`;
+        for (const m of data.minutes) {
+          const created = m.created_at ? new Date(m.created_at).toLocaleString('zh-CN') : '—';
+          const reportTag = m.report_date ? `关联报告：${m.report_date}` : '未绑定报告';
+          html += `<div class="minutes-item" data-id="${m.id}">
+            <div class="mi-head">
+              <span class="mi-date">${created}</span>
+              <span class="mi-report">${reportTag}</span>
+            </div>
+            <div class="mi-preview">${escapeHtml(m.preview || '（无预览）')}</div>
+            <div class="mi-actions">
+              <a class="btn btn-sm btn-secondary" href="/transcript?student_id=${studentId}#m${m.id}" target="_blank">查看完整内容</a>
+              <button class="btn btn-sm btn-primary" onclick="downloadMinutesDocx(${m.id})">下载 DOCX</button>
+              <button class="btn btn-sm btn-danger" style="background:var(--white);color:var(--red);border:1.5px solid var(--line);"
+                onclick="deleteMinutes(${m.id})">删除</button>
+            </div>
+          </div>`;
+        }
+        wrap.innerHTML = html;
+        wrap.style.display = 'block';
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    async function downloadMinutesDocx(minutesId) {
+      try {
+        const resp = await fetch('/api/transcript/docx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ minutes_id: minutesId }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || '生成失败');
+        }
+        const blob = await resp.blob();
+        const disp = resp.headers.get('Content-Disposition') || '';
+        let filename = '凭远Y4解读会纪要.docx';
+        const m = disp.match(/filename\*=UTF-8''([^;]+)/);
+        if (m) { try { filename = decodeURIComponent(m[1]); } catch {} }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('下载失败：' + e.message);
+      }
+    }
+
+    async function deleteMinutes(id) {
+      if (!confirm('确认删除这条纪要？此操作不可撤销。')) return;
+      try {
+        const resp = await fetch(`/api/minutes/${id}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (data.ok) {
+          if (currentStudentId) loadMinutesHistory(currentStudentId, currentStudentName);
+          loadStudents();
+        } else alert(data.error || '删除失败');
+      } catch (e) { alert('删除失败：' + e.message); }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
     async function deleteStudent(id, name) {
-      if (!confirm(`确认删除学生「${name}」及其所有报告？此操作不可撤销。`)) return;
+      if (!confirm(`确认删除学生「${name}」及其所有报告、纪要？此操作不可撤销。`)) return;
       const resp = await fetch(`/api/students/${id}`, { method: 'DELETE' });
       const data = await resp.json();
       if (data.ok) {
         loadStudents();
         document.getElementById('reportList').style.display = 'none';
+        document.getElementById('minutesHistory').style.display = 'none';
       } else {
         alert('删除失败：' + (data.error || '未知错误'));
       }
