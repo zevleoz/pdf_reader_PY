@@ -983,6 +983,63 @@ def api_report_raw(report_id):
     return jsonify({"ok": True, **record})
 
 
+@app.route("/api/reports/<int:report_id>/interpret", methods=["POST"])
+@admin_required
+def api_report_interpret(report_id):
+    """AI 解读：用该报告已保存的 raw data 调 DashScope，结果存回 reports.interpretation。
+    不重跑 OCR，不读 data/report_data.json。
+    """
+    import urllib.request as _ureq
+
+    record = _db.get_report_raw(report_id)
+    if not record:
+        return jsonify({"ok": False, "error": "报告不存在"}), 404
+
+    raw = record.get("raw") or {}
+    schema_items = raw.get("schema_124", [])
+    data_text = "\n".join(
+        f"{it.get('code','?')} {it.get('label','?')}：{it.get('value', '—')}"
+        for it in schema_items if it.get("value")
+    )
+    student = raw.get("student", {})
+    student_text = f"学生：{student.get('name','—')}，{student.get('gender','—')}，{student.get('grade','—')}"
+    context = f"{student_text}\n\n测评数据：\n{data_text}"
+
+    prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
+    system_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "你是测评解读助手。"
+
+    messages = [
+        {"role": "system", "content": system_prompt + "\n\n以下是学生测评数据：\n" + context},
+        {"role": "user", "content": "请给出这份 Y4 报告的完整解读"},
+    ]
+
+    dashscope_key = os.environ.get("DASHSCOPE_API_KEY", extract.DEFAULT_DASHSCOPE_KEY).strip()
+    url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    payload = json.dumps({
+        "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
+        "messages": messages,
+        "temperature": float(os.environ.get("AI_TEMPERATURE", "0.5")),
+        "max_tokens": 8192,
+    }).encode("utf-8")
+    req = _ureq.Request(
+        url, data=payload,
+        headers={"Authorization": f"Bearer {dashscope_key}",
+                 "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with _ureq.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        reply = result["choices"][0]["message"]["content"]
+        try:
+            _db.save_interpretation(report_id, reply)
+        except Exception as e:
+            print(f"[DB] 解读结果保存失败 (非致命): {e}")
+        return jsonify({"ok": True, "reply": reply})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"AI 调用失败: {exc}"}), 500
+
+
 # ---------------------------------------------------------------------------
 # Delete operations
 # ---------------------------------------------------------------------------

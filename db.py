@@ -57,6 +57,7 @@ class Report(Base):
     report_date = Column(Date, nullable=False)
     pdf_path = Column(String(500), nullable=False)
     data_json = Column(Text, nullable=False)
+    interpretation = Column(Text)  # AI 解读结果
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -130,6 +131,20 @@ def _migrate_schema() -> None:
     ]
     for col_name, sql in student_migrations:
         if col_name not in student_cols:
+            try:
+                cursor.execute(sql)
+                conn.commit()
+            except Exception:
+                pass
+
+    # Check existing columns in reports table
+    cursor.execute("PRAGMA table_info(reports)")
+    report_cols = {row[1] for row in cursor.fetchall()}
+    report_migrations = [
+        ("interpretation", "ALTER TABLE reports ADD COLUMN interpretation TEXT"),
+    ]
+    for col_name, sql in report_migrations:
+        if col_name not in report_cols:
             try:
                 cursor.execute(sql)
                 conn.commit()
@@ -246,7 +261,16 @@ def get_student_reports(student_id: int) -> List[Dict[str, Any]]:
             "report_date": row[0].report_date.isoformat() if row[0].report_date else None,
             "pdf_path": row[0].pdf_path,
             "created_at": row[0].created_at.isoformat() if row[0].created_at else None,
+            "interpretation": row[0].interpretation,
         } for row in rows]
+
+
+def save_interpretation(report_id: int, content: str) -> None:
+    """Save (or overwrite) the AI interpretation text for a report."""
+    with Session(engine) as sess:
+        stmt = update(Report).where(Report.id == report_id).values(interpretation=content)
+        sess.execute(stmt)
+        sess.commit()
 
 
 def get_report_raw(report_id: int) -> Optional[Dict[str, Any]]:
