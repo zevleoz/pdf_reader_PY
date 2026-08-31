@@ -13,13 +13,12 @@
     .calendly-panel { background: var(--white); border: 1px solid var(--line-soft); border-radius: 14px; padding: 32px; }
     .calendly-panel h3 { font-family: "Noto Serif SC", serif; font-size: 17px; font-weight: 600; margin-bottom: 20px; color: var(--ink); }
     .date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 16px; }
-    .date-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px solid var(--line-soft); border-radius: 10px; cursor: pointer; transition: all .2s var(--ease); background: var(--paper); }
+    .date-cell { aspect-ratio: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px solid var(--line-soft); border-radius: 10px; cursor: pointer; transition: all .2s var(--ease); background: var(--paper); }
     .date-cell:hover:not(.disabled) { border-color: var(--ink); transform: translateY(-1px); }
     .date-cell.selected { border-color: var(--red); background: var(--red); color: var(--white); }
     .date-cell.disabled { opacity: .3; cursor: not-allowed; }
-    .date-cell .dow { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
-    .date-cell .day { font-size: 20px; font-weight: 600; font-family: "Inter", sans-serif; margin-top: 2px; }
-    .date-cell.selected .dow, .date-cell.selected .day { opacity: 1; }
+    .date-cell .day { font-size: 18px; font-weight: 600; font-family: "Inter", sans-serif; }
+    .date-cell.selected .day { opacity: 1; }
     .dow-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 10px; }
     .dow-header div { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
     .time-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
@@ -64,7 +63,6 @@
       .dow-header { gap: 4px; }
       .date-cell { border-radius: 6px; }
       .date-cell .day { font-size: 16px; }
-      .date-cell .dow { font-size: 9px; }
       .time-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
       .time-slot-btn { padding: 12px 6px; font-size: 14px; }
       .summary-bar { gap: 12px; padding: 12px; }
@@ -247,8 +245,7 @@
         cellDate.setHours(0, 0, 0, 0);
         const cell = document.createElement('div');
         cell.className = 'date-cell';
-        const dowNames = ['日', '一', '二', '三', '四', '五', '六'];
-        cell.innerHTML = '<span class="dow">' + dowNames[cellDate.getDay()] + '</span><span class="day">' + d + '</span>';
+        cell.innerHTML = '<span class="day">' + d + '</span>';
 
         if (cellDate < minDate || cellDate > maxDate) {
           cell.classList.add('disabled');
