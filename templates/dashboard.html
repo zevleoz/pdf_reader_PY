@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>数据总览 — Y4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    /* ===== BASE — page container owns the side padding ===== */
+    .dash-body { background: var(--paper); }
+    .dash-page {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 40px;
+    }
+
+    /* ===== LAYOUT (index + content) ===== */
+    .dash-layout {
+      display: grid;
+      grid-template-columns: 184px minmax(0, 1fr);
+      gap: 64px;
+      align-items: start;
+      padding-top: 16px;
+    }
+    .dash-content { min-width: 0; }
+
+    /* ===== STICKY SECTION INDEX — editorial TOC ===== */
+    .dash-index {
+      position: sticky;
+      top: 32px;
+      padding: 8px 0 40px;
+      min-width: 0;
+    }
+    .dash-index-title {
+      font-family: "Noto Serif SC", serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+      padding-bottom: 12px;
+      margin-bottom: 6px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .dash-index ul { list-style: none; }
+    .dash-index li { margin: 0; }
+    .dash-index a {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 7px 0 7px 12px;
+      margin-left: -12px;
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--muted);
+      border-left: 2px solid transparent;
+      transition: color .2s var(--ease), border-color .2s var(--ease);
+    }
+    .dash-index a .ix-num {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      color: var(--line);
+      flex: 0 0 auto;
+      width: 16px;
+      transition: color .2s var(--ease);
+    }
+    .dash-index a:hover { color: var(--ink); }
+    .dash-index a:hover .ix-num { color: var(--muted); }
+    .dash-index a.active {
+      color: var(--ink);
+      font-weight: 600;
+      border-left-color: var(--red);
+    }
+    .dash-index a.active .ix-num { color: var(--red); }
+
+    /* ===== HERO — editorial, paper, no dark ===== */
+    .hero {
+      padding: 64px 0 56px;
+      border-bottom: 1px solid var(--line);
+    }
+    .hero-meta-top {
+      font-family: "Noto Serif SC", serif;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .hero-num {
+      font-family: "Noto Serif SC", serif;
+      font-size: 144px;
+      font-weight: 900;
+      color: var(--ink);
+      line-height: 0.85;
+      letter-spacing: -0.04em;
+      margin-bottom: 24px;
+    }
+    .hero-num .unit {
+      font-size: 32px;
+      font-weight: 500;
+      color: var(--ink-2);
+      margin-left: 8px;
+      letter-spacing: 0;
+    }
+    .hero-line {
+      font-family: "Noto Serif SC", serif;
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.45;
+      max-width: 680px;
+    }
+    .hero-line .accent { color: var(--red); }
+    .hero-line .num-inline {
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+    }
+
+    /* ===== SECTION ===== */
+    .sec { padding: 88px 0; border-bottom: 1px solid var(--line-soft); }
+    .sec:last-child { border-bottom: none; }
+    .sec-title {
+      font-family: "Noto Serif SC", serif;
+      font-size: 44px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .sec-kicker {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: var(--red);
+      margin-bottom: 12px;
+      letter-spacing: 0.02em;
+    }
+    .sec-lede {
+      font-family: "Noto Serif SC", serif;
+      font-size: 17px;
+      line-height: 1.75;
+      color: var(--ink-2);
+      max-width: 560px;
+      margin-bottom: 40px;
+    }
+
+    /* ===== INLINE CONTEXT ===== */
+    .context-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--line);
+    }
+    .ctx-item {
+      padding: 24px 20px;
+      border-right: 1px solid var(--line-soft);
+    }
+    .ctx-item:last-child { border-right: none; }
+    .ctx-num {
+      font-family: "Noto Serif SC", serif;
+      font-size: 40px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .ctx-label {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ===== DIMENSION OVERVIEW ===== */
+    .dim-overview {
+      display: grid;
+      grid-template-columns: 7fr 5fr;
+      gap: 56px;
+      align-items: start;
+    }
+    .dim-bars { display: flex; flex-direction: column; gap: 18px; }
+    .dim-bar {
+      display: grid;
+      grid-template-columns: 80px 1fr 60px;
+      align-items: center;
+      gap: 16px;
+    }
+    .dim-bar .db-name {
+      font-family: "Noto Serif SC", serif;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .dim-bar .db-track {
+      height: 8px;
+      background: var(--paper-2);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+    .dim-bar .db-fill {
+      height: 100%;
+      background: var(--ink);
+      border-radius: 2px;
+      transition: width 1s var(--ease);
+    }
+    .dim-bar.weak .db-fill { background: var(--red); }
+    .dim-bar.strong .db-name { color: var(--ink); }
+    .dim-bar.weak .db-name { color: var(--red); }
+    .dim-bar .db-val {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      text-align: right;
+    }
+    .dim-bar.weak .db-val { color: var(--red); }
+    .dim-side {
+      font-family: "Noto Serif SC", serif;
+      font-size: 15px;
+      line-height: 1.85;
+      color: var(--ink-2);
+    }
+    .dim-side p { margin-bottom: 14px; }
+    .dim-side .lead {
+      font-size: 18px;
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .dim-side .tag {
+      display: inline-block;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      margin-right: 6px;
+      color: var(--muted);
+    }
+
+    /* ===== INDICATOR TRENDS ===== */
+    .trends-grid {
+      display: grid;
+      grid-template-columns: 8fr 4fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .trend-list { display: flex; flex-direction: column; }
+    .trend-row {
+      display: grid;
+      grid-template-columns: 24px 1fr 80px 100px;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line-soft);
+      position: relative;
+      cursor: default;
+    }
+    .trend-row:hover { background: rgba(179,58,58,0.03); }
+    .trend-row .tr-rank {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .trend-row .tr-name {
+      font-family: "Noto Serif SC", serif;
+      font-size: 16px;
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .trend-row .tr-name .dim-tag {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      color: var(--muted);
+      margin-left: 8px;
+      font-weight: 400;
+    }
+    .trend-row .tr-bar {
+      height: 4px;
+      background: var(--paper-2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .trend-row .tr-bar span {
+      display: block;
+      height: 100%;
+      background: var(--red);
+      border-radius: 2px;
+    }
+    .trend-row .tr-count {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      color: var(--ink);
+      text-align: right;
+    }
+    .trend-row .tr-count .pct {
+      color: var(--muted);
+      font-size: 11px;
+      display: block;
+    }
+    .trend-students {
+      grid-column: 2 / 5;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height .3s var(--ease), margin .3s var(--ease);
+    }
+    .trend-row:hover .trend-students {
+      max-height: 80px;
+      margin-top: 8px;
+    }
+    .trend-students .ts-label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      color: var(--muted);
+      margin-right: 8px;
+    }
+    .trend-students .ts-name {
+      color: var(--ink-2);
+      margin-right: 6px;
+    }
+    .strong-list { padding-top: 8px; }
+    .strong-list .sl-title {
+      font-family: "Noto Serif SC", serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 16px;
+    }
+    .strong-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .strong-item .si-name {
+      font-family: "Noto Serif SC", serif;
+      font-size: 14px;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .strong-item .si-meta {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ===== CLUSTERS ===== */
+    .cluster-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .cluster-card {
+      border: 1px solid var(--line);
+      padding: 24px;
+      transition: border-color .2s var(--ease);
+    }
+    .cluster-card:hover { border-color: var(--ink); }
+    .cluster-card.common { border-left: 3px solid var(--red); }
+    .cluster-sig {
+      font-family: "Noto Serif SC", serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+    .cluster-meta {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .cluster-meta .cm-count { color: var(--ink); font-weight: 600; }
+    .cluster-health {
+      font-family: "Noto Serif SC", serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .cluster-health-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .cluster-members {
+      font-size: 13px;
+      color: var(--ink-2);
+      line-height: 1.7;
+    }
+    .cluster-members .member {
+      display: inline-block;
+      margin-right: 8px;
+      margin-bottom: 4px;
+    }
+    .cluster-balanced {
+      padding: 24px;
+      border: 1px dashed var(--line);
+      text-align: center;
+    }
+    .cluster-balanced .cb-num {
+      font-family: "Noto Serif SC", serif;
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .cluster-balanced .cb-label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ===== BALANCE SCATTER ===== */
+    .balance-wrap {
+      display: grid;
+      grid-template-columns: 8fr 4fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .scatter-wrap {
+      position: relative;
+      min-height: 380px;
+      border: 1px solid var(--line);
+      padding: 24px;
+    }
+    .scatter-svg { width: 100%; height: 360px; }
+    .scatter-axis-label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .scatter-dot {
+      transition: r .2s var(--ease);
+      cursor: pointer;
+    }
+    .scatter-dot:hover { r: 8; }
+    .scatter-tooltip {
+      position: absolute;
+      background: var(--ink);
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 2px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .15s var(--ease);
+      z-index: 10;
+    }
+    .balance-side {
+      font-family: "Noto Serif SC", serif;
+      font-size: 15px;
+      line-height: 1.85;
+      color: var(--ink-2);
+    }
+    .balance-side .bs-stat {
+      font-family: "Noto Serif SC", serif;
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .balance-side .bs-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .balance-side .bs-imbalanced {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line-soft);
+    }
+    .balance-side .bs-imbalanced .bsi-name {
+      color: var(--red);
+      font-weight: 600;
+    }
+
+    /* ===== PROFILE COMPARE ===== */
+    .profile-charts {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 0.7fr;
+      gap: 32px;
+    }
+    .pc-card .pc-title {
+      font-family: "Noto Serif SC", serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 16px;
+    }
+    .pc-canvas { height: 220px; }
+
+    /* ===== STUDENT PROFILES — minimal radar list ===== */
+    .student-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 24px;
+    }
+    .student-card { text-align: center; }
+    .student-card .sc-canvas { height: 160px; }
+    .student-card .sc-name {
+      font-family: "Noto Serif SC", serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-top: 8px;
+    }
+    .student-card .sc-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .student-card .sc-health {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-top: 6px;
+    }
+    .student-card.highlight .sc-health { color: var(--red); }
+    .student-card.attention .sc-health { color: var(--red); }
+
+    /* ===== DISTRIBUTIONS — 4 dim, inline ===== */
+    .dist-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--line);
+    }
+    .dist-col {
+      padding: 24px 20px;
+      border-right: 1px solid var(--line-soft);
+    }
+    .dist-col:last-child { border-right: none; }
+    .dist-col .dc-name {
+      font-family: "Noto Serif SC", serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .dist-col .dc-count {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .dist-col .dc-canvas { height: 140px; margin-bottom: 16px; }
+    .dist-col .dc-weak-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--red);
+      margin-bottom: 6px;
+    }
+    .dist-col .dc-weak-list {
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--ink-2);
+    }
+    .dist-col .dc-empty {
+      font-size: 12px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ===== CORRELATION — paper, no dark ===== */
+    .corr-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+    .corr-heatmap-wrap { display: flex; justify-content: center; }
+    .corr-summary {
+      font-family: "Noto Serif SC", serif;
+      font-size: 16px;
+      line-height: 1.85;
+      color: var(--ink-2);
+    }
+    .corr-summary .ds-loading { color: var(--muted); font-size: 13px; }
+    .corr-pairs {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .corr-pair {
+      display: grid;
+      grid-template-columns: 140px 1fr 40px;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--ink-2);
+    }
+    .corr-pair .cp-dims {
+      font-family: "Noto Serif SC", serif;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .corr-pair .cp-bar {
+      height: 4px;
+      background: var(--paper-2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .corr-pair .cp-bar span {
+      display: block;
+      height: 100%;
+      border-radius: 2px;
+      background: var(--ink);
+    }
+    .corr-pair.strong .cp-bar span { background: var(--red); }
+    .corr-pair .cp-val {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    /* ===== INSIGHTS — narrative paragraphs ===== */
+    .insights-block {
+      font-family: "Noto Serif SC", serif;
+      max-width: 720px;
+    }
+    .insights-summary {
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 1.6;
+      color: var(--ink);
+      margin-bottom: 48px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--line);
+    }
+    .insight-item {
+      margin-bottom: 36px;
+    }
+    .insight-item .ii-head {
+      font-family: "Noto Serif SC", serif;
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+    .insight-item .ii-body {
+      font-size: 15px;
+      line-height: 1.85;
+      color: var(--ink-2);
+    }
+
+    /* ===== ADVISOR — minimal table ===== */
+    .advisor-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .advisor-table th, .advisor-table td {
+      padding: 14px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .advisor-table th {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+      border-bottom: 1px solid var(--ink);
+    }
+    .advisor-table td.advisor-name { font-weight: 500; color: var(--ink); }
+    .advisor-table td.num {
+      font-family: "JetBrains Mono", monospace;
+      color: var(--ink-2);
+    }
+    .name-review {
+      margin-top: 24px;
+      padding: 16px 20px;
+      border-left: 2px solid var(--red);
+      background: var(--paper-2);
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--ink-2);
+    }
+    .name-review .nr-title {
+      font-family: "Noto Serif SC", serif;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+    .name-review ul { list-style: none; padding: 0; }
+    .name-review li { margin-bottom: 6px; }
+    .name-review .variant {
+      display: inline-block;
+      padding: 1px 6px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      margin-right: 4px;
+    }
+
+    /* ===== TIMELINE ===== */
+    .timeline-canvas { height: 220px; }
+
+    /* ===== FEEDBACK ===== */
+    .feedback-box {
+      border: 1px dashed var(--line);
+      padding: 40px 32px;
+      text-align: center;
+    }
+    .feedback-box .fb-title {
+      font-family: "Noto Serif SC", serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ink-2);
+      margin-bottom: 4px;
+    }
+    .feedback-box .fb-note { font-size: 13px; color: var(--muted); }
+
+    /* ===== LOADING ===== */
+    .dash-loading { text-align: center; padding: 120px 0; color: var(--muted); font-size: 14px; }
+    .ai-loading { color: var(--muted); font-size: 14px; padding: 20px 0; }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1024px) {
+      .dash-page { padding: 0 28px; }
+      .dash-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+      /* TOC becomes a sticky horizontal chip rail */
+      .dash-index {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        background: var(--paper);
+        width: 100%;
+        max-width: 100%;
+        padding: 10px 0;
+        margin-bottom: 8px;
+        border-bottom: 1px solid var(--line);
+      }
+      .dash-index-title { display: none; }
+      .dash-index ul {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+        max-width: 100%;
+        padding-bottom: 2px;
+      }
+      .dash-index ul::-webkit-scrollbar { display: none; }
+      .dash-index a {
+        margin: 0;
+        padding: 6px 14px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        font-size: 12px;
+        white-space: nowrap;
+        flex: 0 0 auto;
+      }
+      .dash-index a.active {
+        border-color: var(--red);
+        color: var(--red);
+        border-left: 1px solid var(--red);
+        font-weight: 600;
+      }
+      .dash-index a .ix-num { display: none; }
+      .hero-num { font-size: 96px; }
+      .sec-title { font-size: 32px; }
+      .context-row { grid-template-columns: 1fr 1fr; }
+      .ctx-item { border-bottom: 1px solid var(--line-soft); }
+      .dim-overview { grid-template-columns: 1fr; gap: 32px; }
+      .trends-grid { grid-template-columns: 1fr; gap: 32px; }
+      .balance-wrap { grid-template-columns: 1fr; gap: 32px; }
+      .profile-charts { grid-template-columns: 1fr; }
+      .dist-grid { grid-template-columns: 1fr 1fr; }
+      .dist-col { border-bottom: 1px solid var(--line-soft); }
+      .corr-grid { grid-template-columns: 1fr; }
+      .student-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    }
+    @media (max-width: 768px) {
+      .dash-page { padding: 0 20px; }
+      .hero { padding: 40px 0 32px; }
+      .hero-num { font-size: 64px; }
+      .hero-num .unit { font-size: 20px; }
+      .hero-line { font-size: 18px; }
+      .sec { padding: 56px 0; }
+      .sec-title { font-size: 26px; }
+      .sec-lede { font-size: 15px; }
+      .context-row { grid-template-columns: 1fr; }
+      .dist-grid { grid-template-columns: 1fr; }
+      .ctx-num { font-size: 32px; }
+      .dim-bar { grid-template-columns: 70px 1fr 50px; gap: 10px; }
+      .trend-row { grid-template-columns: 20px 1fr 60px; }
+      .trend-row .tr-bar { display: none; }
+      .cluster-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body class="dash-body">
+  <div class="brand-stripe"></div>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-name">凭远教育</span>
+      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
+    </div>
+    <nav class="topbar-nav">
+      <a href="/">← 主页</a>
+      <a href="/students">学生档案</a>
+      <a href="/admin/bookings">预约管理</a>
+      <a href="/generate">报告生成</a>
+      <a href="/dashboard" class="active">数据总览</a>
+    </nav>
+  </header>
+
+  <div id="dashRoot">
+    <div class="dash-loading">加载中</div>
+  </div>
+
+  <script>
+    const DIM_COLORS = { "心力": "#B33A3A", "精力": "#C79545", "学习力": "#3B6E8F", "生涯力": "#5B7548" };
+    const DIST_COLORS = { "高": "#141414", "较好": "#4A4A4A", "不低": "#8A8A8A", "相对健康": "#8A8A8A", "偏低": "#B33A3A", "需关注": "#8C2828", "需特殊关注": "#8C2828", "明显偏低": "#B33A3A", "严重偏低": "#8C2828" };
+    const FONT = "'Inter', sans-serif";
+    let charts = [];
+
+    function chartDefaults() {
+      Chart.defaults.font.family = FONT;
+      Chart.defaults.font.size = 12;
+      Chart.defaults.color = "#4A4A4A";
+      Chart.defaults.borderColor = "#E8E2D5";
+    }
+
+    async function loadStats() {
+      const resp = await fetch('/api/dashboard/stats');
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error || '加载失败');
+      return data.stats;
+    }
+    async function loadAIAnalysis() {
+      const resp = await fetch('/api/dashboard/ai-analysis');
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error || '分析失败');
+      return data;
+    }
+    function fmtNum(n) { return (n || 0).toLocaleString('en-US'); }
+    function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    // ===== STICKY INDEX ACTIVE STATE =====
+    function initIndexScroll() {
+      const links = document.querySelectorAll('.dash-index a');
+      const sections = document.querySelectorAll('.sec[data-id]');
+      if (!links.length || !sections.length) return;
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            const id = e.target.dataset.id;
+            links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + id));
+          }
+        });
+      }, { rootMargin: '-20% 0px -60% 0px' });
+      sections.forEach(s => obs.observe(s));
+    }
+
+    // ===== COUNT UP =====
+    function countUp(el, target, duration = 1600) {
+      const startTime = performance.now();
+      function tick(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = fmtNum(Math.round(target * eased));
+        if (progress < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // ===== HERO =====
+    function renderHero(s) {
+      const h = s.headline;
+      const mk = s.student_makeup;
+      const schools = mk.by_school.length;
+      const grades = mk.by_grade.filter(g => g.label !== '未填').map(g => g.label);
+      const gradeSpan = grades.length > 0 ? (grades.length === 1 ? grades[0] : `${grades[0]}–${grades[grades.length - 1]}`) : '—';
+      return `
+        <section class="hero" data-id="hero">
+          <div class="hero-meta-top">Y4 综合测评 · 数据总览</div>
+          <div class="hero-num" id="heroNum" data-target="${h.total_reports}">0<span class="unit">份报告</span></div>
+          <div class="hero-line">
+            覆盖 <span class="num-inline">${fmtNum(h.total_students)}</span> 名学生、<span class="num-inline">${schools}</span> 所学校、<span class="num-inline">${gradeSpan}</span> 年级，
+            累计完成 <span class="accent num-inline">${fmtNum(h.total_subtests)}</span> 项子测验。
+          </div>
+        </section>`;
+    }
+
+    // ===== CONTEXT INLINE =====
+    function renderContext(s) {
+      const mk = s.student_makeup;
+      const schools = mk.by_school.length;
+      const grades = mk.by_grade.filter(g => g.label !== '未填').map(g => g.label);
+      const gradeSpan = grades.length > 0 ? (grades.length === 1 ? grades[0] : `${grades.length} 个`) : '—';
+      return `
+        <section class="sec" data-id="context">
+          <div class="context-row">
+            <div class="ctx-item">
+              <div class="ctx-num">${fmtNum(s.headline.total_students)}</div>
+              <div class="ctx-label">参与测评学生</div>
+            </div>
+            <div class="ctx-item">
+              <div class="ctx-num">${schools}</div>
+              <div class="ctx-label">覆盖学校</div>
+            </div>
+            <div class="ctx-item">
+              <div class="ctx-num">${gradeSpan}</div>
+              <div class="ctx-label">年级跨度</div>
+            </div>
+            <div class="ctx-item">
+              <div class="ctx-num">${s.timeline.length}</div>
+              <div class="ctx-label">测评月数</div>
+            </div>
+          </div>
+        </section>`;
+    }
+
+    // ===== DIMENSION OVERVIEW =====
+    function renderDimOverview(s) {
+      const ind = s.indicators || {};
+      const dimSummary = ind.dimension_summary || {};
+      const trends = s.dimension_trends || {};
+      const weakPct = trends.weak_pct || {};
+      let bars = '';
+      const sortedDims = [...["心力","精力","学习力","生涯力"]].sort((a, b) => {
+        return (100 - (dimSummary[a]?.healthy_pct ?? 100)) < (100 - (dimSummary[b]?.healthy_pct ?? 100)) ? -1 : 1;
+      });
+      let weakest = '', strongest = '';
+      let weakestVal = 100, strongestVal = 0;
+      for (const dim of ["心力","精力","学习力","生涯力"]) {
+        const ds = dimSummary[dim] || {};
+        const healthy = ds.healthy_pct ?? 100;
+        if (healthy < weakestVal) { weakestVal = healthy; weakest = dim; }
+        if (healthy > strongestVal) { strongestVal = healthy; strongest = dim; }
+      }
+      for (const dim of ["心力","精力","学习力","生涯力"]) {
+        const ds = dimSummary[dim] || {};
+        const healthy = ds.healthy_pct ?? 100;
+        const weakPctVal = ds.weak_pct ?? 0;
+        const cls = dim === weakest ? 'weak' : (dim === strongest ? 'strong' : '');
+        const weakNames = (ds.weak_names || []).join('、');
+        bars += `
+          <div class="dim-bar ${cls}">
+            <div class="db-name">${dim}</div>
+            <div class="db-track"><div class="db-fill" style="width:${healthy}%"></div></div>
+            <div class="db-val">${healthy.toFixed(1)}%</div>
+          </div>`;
+      }
+      const weakNamesHtml = (dimSummary[weakest]?.weak_names || []).map(n => `<span class="tag">${esc(n)}</span>`).join('');
+      const strongNamesHtml = (dimSummary[strongest]?.weak_names || []).length === 0
+        ? '无显著偏弱项'
+        : (dimSummary[strongest]?.weak_names || []).join('、');
+      return `
+        <section class="sec" data-id="dimensions">
+          <div class="sec-kicker">01 · 四维概览</div>
+          <h2 class="sec-title">四个系统的健康度</h2>
+          <p class="sec-lede">心力、精力、学习力、生涯力——每个系统的健康分布,以及最需关注的领域。</p>
+          <div class="dim-overview">
+            <div class="dim-bars">${bars}</div>
+            <div class="dim-side">
+              <p class="lead">最需关注:<span style="color:var(--red)">${weakest}</span></p>
+              <p>健康度 ${weakestVal.toFixed(1)}%,常见偏弱项:${weakNamesHtml || '无'}</p>
+              <p class="lead" style="margin-top:24px;">相对稳定:${strongest}</p>
+              <p>健康度 ${strongestVal.toFixed(1)}%,${strongNamesHtml}</p>
+            </div>
+          </div>
+        </section>`;
+    }
+
+    // ===== INDICATOR TRENDS =====
+    function renderIndicatorTrends(s) {
+      const t = s.indicator_trends || {};
+      const weak = t.most_frequently_weak || [];
+      const strong = t.most_frequently_strong || [];
+      if (weak.length === 0 && strong.length === 0) return '';
+      let weakHtml = '';
+      weak.forEach((ind, i) => {
+        const students = (ind.weak_students || []).map(n => `<span class="ts-name">${esc(n)}</span>`).join('');
+        weakHtml += `
+          <div class="trend-row">
+            <div class="tr-rank">${String(i + 1).padStart(2, '0')}</div>
+            <div class="tr-name">${esc(ind.label)}<span class="dim-tag">${esc(ind.dim)}</span></div>
+            <div class="tr-bar"><span style="width:${ind.weak_pct}%"></span></div>
+            <div class="tr-count">${ind.weak_count}/${ind.total_count}<span class="pct">${ind.weak_pct}%</span></div>
+            <div class="trend-students">
+              <span class="ts-label">偏弱学生</span>${students}
+            </div>
+          </div>`;
+      });
+      let strongHtml = '';
+      strong.forEach(ind => {
+        strongHtml += `
+          <div class="strong-item">
+            <div class="si-name">${esc(ind.label)}</div>
+            <div class="si-meta">${esc(ind.dim)} · ${ind.strong_count}/${ind.total_count} 人</div>
+          </div>`;
+      });
+      return `
+        <section class="sec" data-id="trends">
+          <div class="sec-kicker">02 · 指标级趋势</div>
+          <h2 class="sec-title">最常偏弱的具体指标</h2>
+          <p class="sec-lede">越过维度汇总,直接看 134 个指标里哪些最频繁偏弱。悬停每行查看是哪些学生。</p>
+          <div class="trends-grid">
+            <div class="trend-list">${weakHtml}</div>
+            <div class="strong-list">
+              <div class="sl-title">普遍强项</div>
+              ${strongHtml || '<div class="dc-empty" style="font-size:13px;color:var(--muted);">暂无</div>'}
+            </div>
+          </div>
+        </section>`;
+    }
+
+    // ===== CLUSTERS =====
+    function renderClusters(s) {
+      const c = s.cluster_patterns || {};
+      const clusters = c.clusters || [];
+      if (clusters.length === 0 && !(c.balanced_count > 0)) return '';
+      let cards = '';
+      for (const cl of clusters) {
+        const members = (cl.students || []).slice(0, 8).map(n => `<span class="member">${esc(n)}</span>`).join('');
+        const extra = cl.students.length > 8 ? `<span class="member" style="color:var(--muted);">+${cl.students.length - 8}</span>` : '';
+        cards += `
+          <div class="cluster-card ${cl.is_common ? 'common' : ''}">
+            <div class="cluster-sig">${esc(cl.signature)}</div>
+            <div class="cluster-meta"><span class="cm-count">${cl.count}</span> 人 · 弱项组合</div>
+            <div class="cluster-health">${cl.overall_health_avg}%</div>
+            <div class="cluster-health-label">平均健康度</div>
+            <div class="cluster-members">${members}${extra}</div>
+          </div>`;
+      }
+      const balancedHtml = c.balanced_count > 0 ? `
+        <div class="cluster-balanced">
+          <div class="cb-num">${c.balanced_count}</div>
+          <div class="cb-label">均衡型学生(无弱项)</div>
+        </div>` : '';
+      return `
+        <section class="sec" data-id="clusters">
+          <div class="sec-kicker">03 · 学生聚类画像</div>
+          <h2 class="sec-title">谁和谁像</h2>
+          <p class="sec-lede">按弱项维度签名把学生分组,看清不同群体的共性与人数。标红为高频组合(≥2人)。</p>
+          <div class="cluster-grid">${cards}${balancedHtml}</div>
+        </section>`;
+    }
+
+    // ===== BALANCE SCATTER =====
+    function renderBalance(s) {
+      const b = s.dimension_balance || {};
+      const students = b.students || [];
+      if (students.length === 0) return '';
+      return `
+        <section class="sec" data-id="balance">
+          <div class="sec-kicker">04 · 维度平衡度</div>
+          <h2 class="sec-title">谁失衡,谁均衡</h2>
+          <p class="sec-lede">横轴为整体健康度,纵轴为平衡度。红点为严重失衡学生,悬停查看详情。</p>
+          <div class="balance-wrap">
+            <div class="scatter-wrap">
+              <svg class="scatter-svg" id="scatterSvg" viewBox="0 0 600 360"></svg>
+              <div class="scatter-tooltip" id="scatterTooltip"></div>
+            </div>
+            <div class="balance-side">
+              <div class="bs-stat">${b.avg_balance_score || 0}</div>
+              <div class="bs-label">平均平衡度</div>
+              <div class="bs-stat" style="color:var(--red)">${b.imbalanced_count || 0}</div>
+              <div class="bs-label">严重失衡学生数</div>
+              <div class="bs-imbalanced">
+                ${students.filter(x => x.is_imbalanced).map(x => `<div><span class="bsi-name">${esc(x.student_name)}</span>:最弱 ${esc(x.weakest_dim)},最强 ${esc(x.strongest_dim)},差距 ${x.gap}</div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </section>`;
+    }
+
+    function drawScatter(s) {
+      const svg = document.getElementById('scatterSvg');
+      if (!svg) return;
+      const b = s.dimension_balance || {};
+      const students = b.students || [];
+      if (students.length === 0) return;
+      const tooltip = document.getElementById('scatterTooltip');
+      const wrap = svg.parentElement;
+      const W = 600, H = 360, padL = 48, padR = 20, padT = 20, padB = 40;
+      const plotW = W - padL - padR, plotH = H - padT - padB;
+      // scales: x 0-100, y 0-100
+      const xScale = v => padL + (v / 100) * plotW;
+      const yScale = v => padT + plotH - (v / 100) * plotH;
+      let g = '';
+      // grid lines
+      for (let i = 0; i <= 4; i++) {
+        const y = padT + (plotH / 4) * i;
+        g += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#E8E2D5" stroke-width="1"/>`;
+        g += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#8A8A8A" font-family="${FONT}">${100 - i * 25}</text>`;
+        const x = padL + (plotW / 4) * i;
+        g += `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H - padB}" stroke="#E8E2D5" stroke-width="1"/>`;
+        g += `<text x="${x}" y="${H - padB + 18}" text-anchor="middle" font-size="10" fill="#8A8A8A" font-family="${FONT}">${i * 25}</text>`;
+      }
+      // axis labels
+      g += `<text x="${W / 2}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#8A8A8A" font-family="${FONT}">整体健康度 →</text>`;
+      g += `<text x="14" y="${H / 2}" text-anchor="middle" font-size="11" fill="#8A8A8A" font-family="${FONT}" transform="rotate(-90 14 ${H / 2})">平衡度 →</text>`;
+      // dots
+      students.forEach(st => {
+        const cx = xScale(Math.min(100, Math.max(0, st.overall_health)));
+        const cy = yScale(Math.min(100, Math.max(0, st.balance_score)));
+        const fill = st.is_imbalanced ? '#B33A3A' : '#141414';
+        g += `<circle class="scatter-dot" data-name="${esc(st.student_name)}" data-health="${st.overall_health}" data-balance="${st.balance_score}" data-weak="${esc(st.weakest_dim)}" data-strong="${esc(st.strongest_dim)}" cx="${cx}" cy="${cy}" r="5" fill="${fill}" stroke="${st.is_imbalanced ? '#8C2828' : '#FAF7F2'}" stroke-width="1.5"/>`;
+      });
+      svg.innerHTML = g;
+      // tooltip
+      svg.querySelectorAll('.scatter-dot').forEach(dot => {
+        dot.addEventListener('mouseenter', e => {
+          const name = dot.getAttribute('data-name');
+          const health = dot.getAttribute('data-health');
+          const balance = dot.getAttribute('data-balance');
+          const weak = dot.getAttribute('data-weak');
+          const strong = dot.getAttribute('data-strong');
+          tooltip.innerHTML = `<strong>${name}</strong><br>健康度 ${health} · 平衡度 ${balance}<br>弱:${weak} 强:${strong}`;
+          tooltip.style.opacity = '1';
+        });
+        dot.addEventListener('mousemove', e => {
+          const rect = wrap.getBoundingClientRect();
+          tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+          tooltip.style.top = (e.clientY - rect.top + 12) + 'px';
+        });
+        dot.addEventListener('mouseleave', () => { tooltip.style.opacity = '0'; });
+      });
+    }
+
+    // ===== DISTRIBUTIONS =====
+    function renderDistributions(s) {
+      const dist = s.indicator_distributions || {};
+      let cols = '';
+      for (const dim of ["心力", "精力", "学习力", "生涯力"]) {
+        const d = dist[dim] || {};
+        const weak = d.weak_indicators || [];
+        const weakHtml = weak.length > 0
+          ? weak.map(w => `<div>${esc(w.label)}</div>`).join('')
+          : '<div class="dc-empty">无显著偏弱项</div>';
+        cols += `
+          <div class="dist-col">
+            <div class="dc-name">${dim}</div>
+            <div class="dc-count">${d.evaluated || 0} / ${d.total || 0} 个指标有评价</div>
+            <div class="dc-canvas"><canvas id="dist_${dim}"></canvas></div>
+            <div class="dc-weak-title">常见偏弱项</div>
+            <div class="dc-weak-list">${weakHtml}</div>
+          </div>`;
+      }
+      return `
+        <section class="sec" data-id="distributions">
+          <div class="sec-kicker">05 · 指标分布</div>
+          <h2 class="sec-title">每个维度的健康构成</h2>
+          <p class="sec-lede">134 个指标按评价等级在各维度内的分布。</p>
+          <div class="dist-grid">${cols}</div>
+        </section>`;
+    }
+
+    // ===== STUDENT PROFILES =====
+    function renderStudentProfiles(s) {
+      const profiles = s.student_profiles || [];
+      if (profiles.length === 0) {
+        return `<section class="sec" data-id="profiles">
+          <div class="sec-kicker">06 · 学生侧写</div>
+          <h2 class="sec-title">每个学生的四维健康度</h2>
+          <div class="dc-empty" style="padding:40px 0;text-align:center;color:var(--muted);">数据积累中</div>
+        </section>`;
+      }
+      let cards = '';
+      for (const p of profiles) {
+        const cls = p.is_healthiest ? 'highlight' : (p.is_needs_attention ? 'attention' : '');
+        cards += `
+          <div class="student-card ${cls}">
+            <div class="sc-canvas"><canvas id="radar_${p.student_name}"></canvas></div>
+            <div class="sc-name">${esc(p.student_name)}</div>
+            <div class="sc-meta">${esc(p.grade)} · ${esc(p.school || '未填')}</div>
+            <div class="sc-health">${p.overall_health}%</div>
+          </div>`;
+      }
+      return `
+        <section class="sec" data-id="profiles">
+          <div class="sec-kicker">06 · 学生侧写</div>
+          <h2 class="sec-title">每个学生的四维健康度</h2>
+          <p class="sec-lede">雷达图展示每位学生在心力、精力、学习力、生涯力上的健康度分布。</p>
+          <div class="student-grid">${cards}</div>
+        </section>`;
+    }
+
+    // ===== PROFILE CHARTS (gender/grade/school) =====
+    function renderProfileCharts(s) {
+      return `
+        <section class="sec" data-id="makeup">
+          <div class="sec-kicker">07 · 学生构成</div>
+          <h2 class="sec-title">谁在参与 Y4</h2>
+          <p class="sec-lede">参与测评的学生群体构成。</p>
+          <div class="profile-charts">
+            <div class="pc-card">
+              <div class="pc-title">年级分布</div>
+              <div class="pc-canvas"><canvas id="chartGrade"></canvas></div>
+            </div>
+            <div class="pc-card">
+              <div class="pc-title">学校分布</div>
+              <div class="pc-canvas"><canvas id="chartSchool"></canvas></div>
+            </div>
+            <div class="pc-card">
+              <div class="pc-title">性别</div>
+              <div class="pc-canvas"><canvas id="chartGender"></canvas></div>
+            </div>
+          </div>
+        </section>`;
+    }
+
+    // ===== CORRELATION =====
+    function renderCorrelation(s) {
+      const corr = s.dimension_correlations || {};
+      const pairs = corr.pairs || [];
+      let pairsHtml = '';
+      for (const p of pairs) {
+        const pct = p.correlation * 100;
+        const cls = p.correlation > 0.6 ? 'strong' : '';
+        pairsHtml += `
+          <div class="corr-pair ${cls}">
+            <span class="cp-dims">${esc(p.dim_a)} ~ ${esc(p.dim_b)}</span>
+            <div class="cp-bar"><span style="width:${pct}%"></span></div>
+            <span class="cp-val">${p.correlation.toFixed(2)}</span>
+          </div>`;
+      }
+      return `
+        <section class="sec" data-id="correlation">
+          <div class="sec-kicker">08 · 维度间关联</div>
+          <h2 class="sec-title">哪些维度经常一起偏弱</h2>
+          <p class="sec-lede">跨维度共现分析,揭示四维之间的关联强度。</p>
+          <div class="corr-grid">
+            <div class="corr-heatmap-wrap"><div id="corrHeatmap"></div></div>
+            <div>
+              <div id="corrSummary" class="corr-summary">
+                <div class="ds-loading">正在生成关联解读</div>
+              </div>
+              <div class="corr-pairs">${pairsHtml}</div>
+            </div>
+          </div>
+        </section>`;
+    }
+
+    // ===== INSIGHTS =====
+    function renderInsights() {
+      return `
+        <section class="sec" data-id="insights">
+          <div class="sec-kicker">09 · 数据洞察</div>
+          <h2 class="sec-title">从数据中读到的故事</h2>
+          <div id="insightsBlock" class="insights-block">
+            <div class="ai-loading">正在分析数据中的关联模式</div>
+          </div>
+        </section>`;
+    }
+
+    // ===== ADVISOR =====
+    function renderAdvisor(s) {
+      const ap = s.advisor_performance;
+      let rows = '';
+      if (ap.length === 0) {
+        rows = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">暂无</td></tr>';
+      } else {
+        for (const a of ap) {
+          rows += `<tr>
+            <td class="advisor-name">${esc(a.advisor_name)}</td>
+            <td class="num">${a.student_count}</td>
+            <td class="num">${a.report_count}</td>
+          </tr>`;
+        }
+      }
+      let review = '';
+      if (s.advisor_name_review.length > 0) {
+        let items = '';
+        for (const r of s.advisor_name_review) {
+          const variants = r.variants.map(v => `<span class="variant">${esc(v)}</span>`).join('');
+          items += `<li>${variants}<br><span style="color:var(--muted);">${esc(r.suggestion)}</span></li>`;
+        }
+        review = `<div class="name-review"><div class="nr-title">疑似重复顾问名</div><ul>${items}</ul></div>`;
+      }
+      return `
+        <section class="sec" data-id="advisor">
+          <div class="sec-kicker">10 · 顾问产出</div>
+          <h2 class="sec-title">谁在做测评</h2>
+          <p class="sec-lede">按顾问统计的学生数与报告数。</p>
+          <table class="advisor-table">
+            <thead><tr><th>顾问</th><th>学生数</th><th>报告数</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          ${review}
+        </section>`;
+    }
+
+    // ===== TIMELINE =====
+    function renderTimeline(s) {
+      return `
+        <section class="sec" data-id="timeline">
+          <div class="sec-kicker">11 · 月度产出</div>
+          <h2 class="sec-title">报告趋势</h2>
+          <p class="sec-lede">每月生成的报告数。</p>
+          <div class="timeline-canvas"><canvas id="chartTimeline"></canvas></div>
+        </section>`;
+    }
+
+    // ===== FEEDBACK =====
+    function renderFeedback(s) {
+      const f = s.feedback_placeholder;
+      if (f.available) return '';
+      return `
+        <section class="sec" data-id="feedback">
+          <div class="feedback-box">
+            <div class="fb-title">学生反馈数据待接入</div>
+            <div class="fb-note">${esc(f.note)}</div>
+          </div>
+        </section>`;
+    }
+
+    // ===== INDEX =====
+    function renderIndex() {
+      const items = [
+        ['context', '', '概览'],
+        ['dimensions', '01', '四维概览'],
+        ['trends', '02', '指标级趋势'],
+        ['clusters', '03', '学生聚类'],
+        ['balance', '04', '维度平衡度'],
+        ['distributions', '05', '指标分布'],
+        ['profiles', '06', '学生侧写'],
+        ['makeup', '07', '学生构成'],
+        ['correlation', '08', '维度关联'],
+        ['insights', '09', '数据洞察'],
+        ['advisor', '10', '顾问产出'],
+        ['timeline', '11', '月度产出'],
+      ];
+      const lis = items.map(([id, num, name]) =>
+        `<li><a href="#${id}">${num ? `<span class="ix-num">${num}</span>` : ''}<span class="ix-name">${name}</span></a></li>`
+      ).join('');
+      return `<aside class="dash-index"><div class="dash-index-title">目录</div><ul>${lis}</ul></aside>`;
+    }
+
+    // ===== CHARTS =====
+    function makeDoughnut(id, labels, data, colors) {
+      const ctx = document.getElementById(id); if (!ctx) return null;
+      return new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#FAF7F2', hoverOffset: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, usePointStyle: true, pointStyle: 'circle' } } } }
+      });
+    }
+    function makeBar(id, labels, data, opts) {
+      const ctx = document.getElementById(id); if (!ctx) return null;
+      const h = opts && opts.horizontal;
+      return new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ data, backgroundColor: (opts && opts.colors) || '#141414', borderRadius: 2, barThickness: (opts && opts.barThickness) || 22 }] },
+        options: { indexAxis: h ? 'y' : 'x', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, grid: { color: '#E8E2D5', drawBorder: false }, ticks: { precision: 0 } },
+                     y: { grid: { display: !h, color: '#E8E2D5', drawBorder: false }, ticks: { precision: 0 } } } }
+      });
+    }
+    function makeRadar(id, labels, data) {
+      const ctx = document.getElementById(id); if (!ctx) return null;
+      return new Chart(ctx, {
+        type: 'radar',
+        data: { labels, datasets: [{ data, backgroundColor: 'rgba(179,58,58,0.08)', borderColor: '#B33A3A', borderWidth: 1.5, pointBackgroundColor: '#B33A3A', pointRadius: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { r: { beginAtZero: true, max: 100,
+            grid: { color: '#E8E2D5' }, angleLines: { color: '#E8E2D5' },
+            pointLabels: { font: { size: 9, weight: '600' }, color: '#141414' },
+            ticks: { stepSize: 25, backdropColor: 'transparent', font: { size: 8 }, color: '#8A8A8A' } } } }
+      });
+    }
+    function makeLine(id, labels, data) {
+      const ctx = document.getElementById(id); if (!ctx) return null;
+      return new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [{ data, borderColor: '#B33A3A', backgroundColor: 'rgba(179,58,58,0.08)', borderWidth: 2, fill: true, tension: 0.35, pointBackgroundColor: '#B33A3A', pointRadius: 3, pointHoverRadius: 5 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { x: { grid: { display: false, drawBorder: false } }, y: { beginAtZero: true, grid: { color: '#E8E2D5', drawBorder: false }, ticks: { precision: 0 } } } }
+      });
+    }
+    function makeDistChart(id, distDict) {
+      const ctx = document.getElementById(id); if (!ctx) return null;
+      const labels = Object.keys(distDict);
+      const values = Object.values(distDict);
+      const colors = labels.map(l => DIST_COLORS[l] || '#8A8A8A');
+      return new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 2, barThickness: 16 }] },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { padding: 8 } },
+          scales: { x: { grid: { display: false, drawBorder: false }, ticks: { font: { size: 9 } } },
+                     y: { beginAtZero: true, grid: { color: '#E8E2D5', drawBorder: false }, ticks: { precision: 0, font: { size: 9 } } } } }
+      });
+    }
+
+    function renderHeatmap(s) {
+      const corr = s.dimension_correlations || {};
+      const labels = corr.labels || ["心力","精力","学习力","生涯力"];
+      const matrix = corr.matrix || [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
+      const wrap = document.getElementById('corrHeatmap');
+      if (!wrap) return;
+      let maxVal = 1;
+      for (const row of matrix) for (const v of row) if (v > maxVal) maxVal = v;
+      const cell = 56, gap = 4, labelOff = 64;
+      const size = labels.length * (cell + gap) - gap + labelOff;
+      let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="font-family:${FONT}">`;
+      for (let j = 0; j < labels.length; j++) {
+        const x = labelOff + j * (cell + gap) + cell / 2;
+        svg += `<text x="${x}" y="${labelOff - 10}" text-anchor="middle" font-size="11" font-weight="600" fill="#141414">${labels[j]}</text>`;
+      }
+      for (let i = 0; i < labels.length; i++) {
+        const y = labelOff + i * (cell + gap);
+        svg += `<text x="${labelOff - 10}" y="${y + cell/2}" text-anchor="end" dominant-baseline="central" font-size="11" font-weight="600" fill="#141414">${labels[i]}</text>`;
+        for (let j = 0; j < labels.length; j++) {
+          const x = labelOff + j * (cell + gap);
+          const v = matrix[i][j];
+          const intensity = v / maxVal;
+          const fill = i === j ? '#F2EDE3' : `rgba(20,20,20,${0.05 + intensity * 0.7})`;
+          const txtColor = i === j ? '#8A8A8A' : (intensity > 0.5 ? '#FAF7F2' : (intensity > 0.2 ? '#FAF7F2' : '#4A4A4A'));
+          svg += `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="3" fill="${fill}" stroke="#E8E2D5" stroke-width="1"/>`;
+          svg += `<text x="${x + cell/2}" y="${y + cell/2}" text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="600" fill="${txtColor}">${v.toFixed(2)}</text>`;
+        }
+      }
+      svg += '</svg>';
+      wrap.innerHTML = svg;
+    }
+
+    function destroyCharts() { charts.forEach(c => { try { c.destroy(); } catch(e) {} }); charts = []; }
+
+    function renderCharts(s) {
+      const mk = s.student_makeup;
+      charts.push(makeDoughnut('chartGender', mk.by_gender.map(g => g.label), mk.by_gender.map(g => g.count), ['#141414','#8A8A8A','#D9D2C5']));
+      charts.push(makeBar('chartGrade', mk.by_grade.map(g => g.label), mk.by_grade.map(g => g.count), { colors: '#141414', barThickness: 26 }));
+      charts.push(makeBar('chartSchool', mk.by_school.map(g => g.label), mk.by_school.map(g => g.count), { horizontal: true, colors: '#4A4A4A', barThickness: 16 }));
+      const dist = s.indicator_distributions || {};
+      for (const dim of ["心力","精力","学习力","生涯力"]) {
+        const d = dist[dim] || {};
+        if (d.distribution && Object.keys(d.distribution).length > 0) {
+          charts.push(makeDistChart(`dist_${dim}`, d.distribution));
+        }
+      }
+      const profiles = s.student_profiles || [];
+      for (const p of profiles) {
+        const labels = ["心力","精力","学习力","生涯力"];
+        const data = labels.map(d => p.dimensions[d]?.healthy || 0);
+        charts.push(makeRadar(`radar_${p.student_name}`, labels, data));
+      }
+      const tl = s.timeline;
+      charts.push(makeLine('chartTimeline', tl.map(t => t.month), tl.map(t => t.report_count)));
+      renderHeatmap(s);
+      drawScatter(s);
+    }
+
+    async function loadAI() {
+      const insightsBlock = document.getElementById('insightsBlock');
+      const corrSummary = document.getElementById('corrSummary');
+      if (!insightsBlock && !corrSummary) return;
+      try {
+        const result = await loadAIAnalysis();
+        const analysis = result.analysis || {};
+        if (corrSummary && analysis.dimension_summary) {
+          corrSummary.innerHTML = analysis.dimension_summary;
+        }
+        if (insightsBlock) {
+          const insights = analysis.insights || [];
+          if (insights.length === 0) {
+            insightsBlock.innerHTML = '<div class="ai-loading">暂无洞察</div>';
+          } else {
+            const summaryHtml = analysis.dimension_summary
+              ? `<div class="insights-summary">${esc(analysis.dimension_summary)}</div>` : '';
+            const itemsHtml = insights.map(ins => `
+              <div class="insight-item">
+                <div class="ii-head">${esc(ins.headline || '')}</div>
+                <div class="ii-body">${esc(ins.detail || '')}</div>
+              </div>`).join('');
+            insightsBlock.innerHTML = summaryHtml + itemsHtml;
+          }
+        }
+      } catch (e) {
+        if (insightsBlock) insightsBlock.innerHTML = `<div class="ai-loading" style="color:var(--red);">分析失败: ${esc(e.message)}</div>`;
+        if (corrSummary) corrSummary.innerHTML = `<div class="ds-loading">解读生成失败</div>`;
+      }
+    }
+
+    async function init() {
+      chartDefaults();
+      try {
+        const s = await loadStats();
+        destroyCharts();
+        const root = document.getElementById('dashRoot');
+        root.innerHTML = `
+          <div class="dash-page">
+            <div class="dash-layout">
+              ${renderIndex()}
+              <div class="dash-content">
+                ${renderHero(s)}
+                ${renderContext(s)}
+                ${renderDimOverview(s)}
+                ${renderIndicatorTrends(s)}
+                ${renderClusters(s)}
+                ${renderBalance(s)}
+                ${renderDistributions(s)}
+                ${renderStudentProfiles(s)}
+                ${renderProfileCharts(s)}
+                ${renderCorrelation(s)}
+                ${renderInsights()}
+                ${renderAdvisor(s)}
+                ${renderTimeline(s)}
+                ${renderFeedback(s)}
+              </div>
+            </div>
+          </div>`;
+        renderCharts(s);
+        initIndexScroll();
+        const heroNum = document.getElementById('heroNum');
+        if (heroNum) {
+          const target = parseInt(heroNum.dataset.target);
+          const numEl = heroNum.firstChild;
+          countUp(numEl, target);
+        }
+        loadAI();
+      } catch (e) {
+        document.getElementById('dashRoot').innerHTML = `<div class="status error" style="display:block;margin:40px auto;max-width:600px;">加载失败: ${esc(e.message)}</div>`;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

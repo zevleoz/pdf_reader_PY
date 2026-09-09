@@ -275,6 +275,326 @@
       color: var(--red);
     }
     .lab-col { position: relative; }
+    .mid-tabs { display: flex; gap: 4px; }
+    .mid-tab {
+      padding: 5px 14px; border-radius: 7px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--line); background: var(--white);
+      color: var(--muted); transition: all 0.2s var(--ease);
+    }
+    .mid-tab.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
+    .mid-tab:hover:not(.active) { border-color: var(--red); color: var(--red); transform: translateY(-1px); }
+    .mid-panel { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* 有效评价视图 */
+    .eval-toolbar {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      background: var(--paper-2); border-bottom: 1px solid var(--line-soft);
+      flex-shrink: 0; flex-wrap: wrap;
+    }
+    .eval-search {
+      flex: 1; min-width: 140px; border: 1px solid var(--line); border-radius: 8px;
+      padding: 6px 12px; font-size: 12px; background: var(--white); color: var(--ink);
+      transition: border 0.2s var(--ease);
+    }
+    .eval-search:focus { outline: none; border-color: var(--ink); }
+    .eval-counts { display: flex; gap: 10px; flex-wrap: wrap; }
+    .eval-pill {
+      font-size: 11px; padding: 4px 10px; border-radius: 20px;
+      background: var(--white); border: 1px solid var(--line-soft);
+      color: var(--muted); white-space: nowrap; transition: all 0.2s var(--ease);
+    }
+    .eval-pill b { color: var(--ink); font-weight: 700; }
+    .eval-pill.adjusted-count { background: #fef2f2; border-color: var(--red); }
+    .eval-pill.adjusted-count b { color: var(--red); }
+
+    .eval-area { flex: 1; overflow-y: auto; padding: 10px 12px; }
+    .eval-dim-group { margin-bottom: 4px; }
+    .eval-dim-head {
+      position: sticky; top: 0; background: var(--paper); padding: 9px 4px;
+      font-size: 11px; font-weight: 700; color: var(--red-deep); letter-spacing: 0.3px;
+      border-bottom: 1px solid var(--line-soft); z-index: 3; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; margin-top: 4px;
+    }
+    .eval-dim-head .arrow { font-size: 8px; transition: transform 0.25s var(--ease); display: inline-block; }
+    .eval-dim-head.collapsed .arrow { transform: rotate(-90deg); }
+    .eval-dim-count { color: var(--muted); font-weight: 500; font-size: 10px; margin-left: auto; }
+    .eval-dim-body { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
+    .eval-dim-group.dim-collapsed .eval-dim-body { display: none; }
+
+    .eval-footer {
+      padding: 12px 14px; border-top: 1px solid var(--line); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      background: var(--white); flex-wrap: wrap;
+    }
+    .eval-checkbox { font-size: 12px; color: var(--ink); display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; }
+    .eval-checkbox input { width: 15px; height: 15px; accent-color: var(--ink); cursor: pointer; }
+    .eval-dl-btn {
+      padding: 8px 18px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      background: var(--ink); color: var(--white); border: none; cursor: pointer;
+      transition: all 0.2s var(--ease); display: inline-flex; align-items: center; gap: 6px;
+    }
+    .eval-dl-btn:hover { background: var(--red); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(179,58,58,0.25); }
+    .eval-dl-btn:disabled { opacity: 0.6; cursor: wait; transform: none; }
+    .eval-filter-toggle {
+      font-size: 11px; padding: 4px 12px; border-radius: 16px; cursor: pointer;
+      border: 1px solid var(--line-soft); background: var(--white); color: var(--muted);
+      transition: all 0.2s var(--ease); user-select: none;
+    }
+    .eval-filter-toggle.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
+    .eval-filter-toggle:hover:not(.active) { border-color: var(--ink); color: var(--ink); }
+
+    /* 视图切换 */
+    .eval-view-toggle { display: flex; gap: 4px; }
+    .eval-view-btn {
+      padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--line-soft); background: var(--white);
+      color: var(--muted); transition: all 0.2s var(--ease);
+    }
+    .eval-view-btn.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
+    .eval-view-btn:hover:not(.active) { border-color: var(--ink); color: var(--ink); }
+
+    /* 卡片式行 */
+    .eval-card {
+      background: var(--white); border: 1px solid var(--line-soft); border-radius: 10px;
+      padding: 12px 14px; margin-bottom: 6px; transition: all 0.2s var(--ease);
+      border-left: 3px solid transparent;
+    }
+    .eval-card:hover { box-shadow: 0 3px 12px rgba(20,20,20,0.06); border-color: var(--line); }
+    .eval-card.adjusted { border-left-color: var(--red); background: #fffbfb; }
+    .eval-card.bias-high { border-left-color: #f59e0b; }
+    .eval-card.bias-low { border-left-color: #6366f1; }
+    .eval-card-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+    .eval-card-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); background: var(--paper-2); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+    .eval-card-label { font-size: 13px; color: var(--ink); font-weight: 500; line-height: 1.3; flex: 1; }
+    .eval-card-e4tag { font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 600; flex-shrink: 0; }
+    .eval-card-e4tag.E1 { background: #fef3c7; color: #92400e; }
+    .eval-card-e4tag.E2 { background: #d1fae5; color: #065f46; }
+    .eval-card-e4tag.E3 { background: #dbeafe; color: #1e40af; }
+    .eval-card-e4tag.E4 { background: #e0e7ff; color: #3730a3; }
+    .eval-card-body { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .eval-card-raw { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--ink); font-weight: 600; }
+    .eval-card-eval { font-size: 13px; padding: 3px 10px; border-radius: 6px; font-weight: 600; }
+    .eval-card-eval.高 { background: #d1fae5; color: #065f46; }
+    .eval-card-eval.较好 { background: #d1fae5; color: #065f46; }
+    .eval-card-eval.不低 { background: #e0e7ff; color: #3730a3; }
+    .eval-card-eval.正常 { background: #e0e7ff; color: #3730a3; }
+    .eval-card-eval.相对健康 { background: #d1fae5; color: #065f46; }
+    .eval-card-eval.偏低 { background: #fef3c7; color: #92400e; }
+    .eval-card-eval.需关注 { background: #fef3c7; color: #92400e; }
+    .eval-card-eval.明显偏低 { background: #fee2e2; color: #991b1b; }
+    .eval-card-eval.需特殊关注 { background: #fee2e2; color: #991b1b; }
+    .eval-card-eval.严重偏低 { background: #fee2e2; color: #991b1b; }
+    .eval-card-eval.待判定 { background: var(--paper-2); color: var(--muted); }
+    /* 卡内评价值 chip 按钮（点击弹居中选择层） */
+    .eval-chip-btn {
+      font-size: 13px; padding: 4px 14px; border-radius: 8px; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--line); background: var(--white); color: var(--ink);
+      transition: all 0.15s var(--ease); white-space: nowrap; font-family: inherit; appearance: none;
+    }
+    .eval-chip-btn:hover { border-color: var(--red); box-shadow: 0 0 0 2px rgba(179,58,58,0.12); transform: translateY(-1px); }
+    .eval-chip-btn.adjusted { border-color: var(--red); }
+    .eval-chip-btn.高, .eval-chip-btn.较好, .eval-chip-btn.相对健康 { background: #d1fae5; color: #065f46; }
+    .eval-chip-btn.不低, .eval-chip-btn.正常 { background: #e0e7ff; color: #3730a3; }
+    .eval-chip-btn.偏低, .eval-chip-btn.需关注 { background: #fef3c7; color: #92400e; }
+    .eval-chip-btn.明显偏低, .eval-chip-btn.需特殊关注, .eval-chip-btn.严重偏低 { background: #fee2e2; color: #991b1b; }
+    .eval-chip-btn.待判定 { background: var(--paper-2); color: var(--muted); border-style: dashed; }
+    .eval-chip-btn { position: relative; }
+    .eval-chip-btn::after {
+      content: attr(data-tip); position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%);
+      background: var(--ink); color: var(--white); padding: 4px 8px; border-radius: 4px; font-size: 10px;
+      white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 10;
+    }
+    .eval-chip-btn:hover::after { opacity: 1; }
+    .src-tag { font-size: 9px; padding: 2px 7px; border-radius: 10px; white-space: nowrap; font-weight: 600; }
+    .src-tag.dangwei { background: var(--paper-2); color: var(--muted); }
+    .src-tag.derived { background: #fef2f2; color: var(--red); }
+    .src-tag.order { background: #e0e7ff; color: #3730a3; }
+    .src-tag.norm { background: var(--paper-2); color: var(--muted); border: 1px dashed var(--line); }
+    .src-tag.pending { background: transparent; color: var(--muted); border: 1px dashed var(--line); }
+    .eval-card-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+    /* 带 tooltip 的操作按钮 */
+    .act-btn {
+      position: relative; font-size: 10px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+      border: 1px solid var(--line-soft); background: var(--white); color: var(--muted);
+      transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .act-btn:hover { border-color: var(--ink); color: var(--ink); }
+    .act-btn::after {
+      content: attr(data-tip); position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%);
+      background: var(--ink); color: var(--white); padding: 4px 8px; border-radius: 4px; font-size: 10px;
+      white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 10;
+    }
+    .act-btn:hover::after { opacity: 1; }
+    .act-btn.bias-high.active { background: #fffbeb; color: #b45309; border-color: #f59e0b; }
+    .act-btn.bias-low.active { background: #eff6ff; color: #1d4ed8; border-color: #6366f1; }
+    .act-btn.bias-normal.active { background: #f0fdf4; color: #15803d; border-color: #22c55e; }
+    .act-btn.observation { background: #fef3c7; color: #92400e; border-color: #f59e0b; }
+    .act-btn.problem-confirmed { background: transparent; color: var(--muted); border-color: var(--border); }
+    .eval-note-row {
+      margin-top: 8px; display: flex; gap: 8px;
+      animation: noteSlide 0.2s var(--ease);
+    }
+    .eval-note-row:not(.expanded) { display: none; }
+    @keyframes noteSlide { from { opacity:0; transform: translateY(-4px) } to { opacity:1; transform: translateY(0) } }
+    .eval-note-input {
+      flex: 1; border: 1px solid var(--line-soft); border-radius: 6px;
+      padding: 6px 10px; font-size: 11px; background: var(--paper); color: var(--ink);
+      font-family: 'Inter', sans-serif; transition: border 0.2s var(--ease);
+    }
+    .eval-note-input:focus { outline: none; border-color: var(--ink); }
+    .eval-note-input::placeholder { color: var(--muted); }
+    .eval-note-toggle {
+      font-size: 10px; color: var(--muted); cursor: pointer; padding: 4px 8px;
+      border-radius: 4px; transition: all 0.15s; user-select: none; align-self: center;
+    }
+    .eval-note-toggle:hover { background: var(--paper-2); color: var(--ink); }
+    .eval-note-toggle.has-note { color: var(--red); font-weight: 600; }
+
+    /* ── 居中弹层系统（视口居中、完整可见） ─────────────────── */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(20,20,20,0.4);
+      display: none; align-items: center; justify-content: center; z-index: 200;
+      padding: 24px; backdrop-filter: blur(2px);
+    }
+    .modal-backdrop.open { display: flex; animation: modalFade 0.15s var(--ease); }
+    @keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
+    .modal {
+      background: var(--white); border-radius: 14px;
+      box-shadow: 0 24px 64px rgba(20,20,20,0.28);
+      width: 100%; max-height: calc(100vh - 48px);
+      display: flex; flex-direction: column; overflow: hidden;
+      animation: modalIn 0.18s var(--ease);
+    }
+    @keyframes modalIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+    .modal-head {
+      padding: 14px 18px; border-bottom: 1px solid var(--line-soft);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-shrink: 0;
+    }
+    .modal-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .modal-sub { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+    .modal-close {
+      width: 28px; height: 28px; border-radius: 8px; border: none; cursor: pointer;
+      background: var(--paper-2); color: var(--muted); font-size: 14px; line-height: 1;
+      transition: all 0.15s var(--ease); flex-shrink: 0;
+    }
+    .modal-close:hover { background: var(--red); color: var(--white); }
+    .modal-body { flex: 1; overflow-y: auto; padding: 16px 18px; min-height: 0; }
+    .modal-foot {
+      padding: 12px 18px; border-top: 1px solid var(--line-soft); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    }
+
+    /* 评价选择弹层 */
+    #evalPickerModal .modal { max-width: 440px; }
+    .picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .picker-chip {
+      padding: 11px 6px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--line); background: var(--white); color: var(--ink);
+      transition: all 0.15s var(--ease); text-align: center; font-family: inherit;
+    }
+    .picker-chip:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(20,20,20,0.08); border-color: var(--red); }
+    .picker-chip.current { outline: 2px solid var(--ink); outline-offset: -2px; }
+    .picker-chip.p高, .picker-chip.p较好, .picker-chip.p相对健康 { background: #d1fae5; color: #065f46; border-color: transparent; }
+    .picker-chip.p不低, .picker-chip.p正常 { background: #e0e7ff; color: #3730a3; border-color: transparent; }
+    .picker-chip.p偏低, .picker-chip.p需关注 { background: #fef3c7; color: #92400e; border-color: transparent; }
+    .picker-chip.p明显偏低, .picker-chip.p需特殊关注, .picker-chip.p严重偏低 { background: #fee2e2; color: #991b1b; border-color: transparent; }
+    .picker-chip.p待判定 { background: var(--paper-2); color: var(--muted); border-style: dashed; }
+    .picker-reset {
+      margin-top: 10px; width: 100%; padding: 9px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      border: 1px dashed var(--line); background: transparent; color: var(--muted);
+      cursor: pointer; transition: all 0.15s var(--ease); font-family: inherit;
+    }
+    .picker-reset:hover { border-color: var(--ink); color: var(--ink); }
+
+    /* E4 映射指认编辑器 */
+    #mappingModal .modal { max-width: 880px; }
+    .map-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .map-search {
+      flex: 1; min-width: 160px; border: 1px solid var(--line); border-radius: 8px;
+      padding: 7px 12px; font-size: 12px; background: var(--paper); color: var(--ink);
+    }
+    .map-search:focus { outline: none; border-color: var(--ink); }
+    .map-filter {
+      font-size: 11px; padding: 5px 12px; border-radius: 16px; cursor: pointer;
+      border: 1px solid var(--line-soft); background: var(--white); color: var(--muted);
+      transition: all 0.15s var(--ease); user-select: none; font-weight: 600;
+    }
+    .map-filter.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
+    .map-list { display: flex; flex-direction: column; gap: 6px; }
+    .map-row {
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+      border: 1px solid var(--line-soft); border-radius: 10px; background: var(--white);
+      transition: border 0.15s var(--ease); flex-wrap: wrap;
+    }
+    .map-row.unmapped { border-style: dashed; background: #fffdf6; }
+    .map-row:hover { border-color: var(--line); }
+    .map-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); background: var(--paper-2); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+    .map-label { flex: 1; min-width: 140px; font-size: 12.5px; color: var(--ink); font-weight: 500; }
+    .map-dim-chips { display: flex; gap: 4px; flex-shrink: 0; }
+    .map-dim-chip {
+      font-size: 10px; padding: 4px 9px; border-radius: 7px; cursor: pointer;
+      border: 1px solid var(--line); background: var(--white); color: var(--muted);
+      font-weight: 700; transition: all 0.15s var(--ease); font-family: inherit;
+    }
+    .map-dim-chip:hover { border-color: var(--ink); color: var(--ink); }
+    .map-dim-chip.on-E1 { background: #fef3c7; color: #92400e; border-color: #f59e0b; }
+    .map-dim-chip.on-E2 { background: #d1fae5; color: #065f46; border-color: #10b981; }
+    .map-dim-chip.on-E3 { background: #dbeafe; color: #1e40af; border-color: #3b82f6; }
+    .map-dim-chip.on-E4 { background: #e0e7ff; color: #3730a3; border-color: #6366f1; }
+    .map-sub-select {
+      font-size: 11px; padding: 4px 8px; border-radius: 7px; border: 1px solid var(--line);
+      background: var(--white); color: var(--ink); font-family: inherit; cursor: pointer; flex-shrink: 0;
+    }
+    .map-sub-select:focus { outline: none; border-color: var(--ink); }
+    .map-sub-select:disabled { opacity: 0.4; cursor: not-allowed; }
+    .map-clear {
+      width: 22px; height: 22px; border-radius: 6px; border: none; cursor: pointer;
+      background: transparent; color: var(--muted); font-size: 12px; flex-shrink: 0;
+      transition: all 0.15s; line-height: 1;
+    }
+    .map-clear:hover { background: #fee2e2; color: var(--red); }
+    .map-empty-group { font-size: 11px; color: var(--muted); padding: 10px 4px; text-align: center; }
+
+    /* E4 三步工作流 */
+    #e4WorkflowModal .modal { max-width: 720px; }
+    .e4-steps { display: flex; align-items: center; margin-bottom: 16px; }
+    .e4-step { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .e4-step-num {
+      width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line);
+      background: var(--white); color: var(--muted); font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; transition: all 0.2s var(--ease);
+    }
+    .e4-step-label { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; transition: color 0.2s; }
+    .e4-step.running .e4-step-num { border-color: var(--red); color: var(--red); animation: pulse 1.1s ease-in-out infinite; }
+    .e4-step.running .e4-step-label { color: var(--red); }
+    .e4-step.done .e4-step-num { border-color: #16A34A; background: #16A34A; color: var(--white); }
+    .e4-step.done .e4-step-label { color: var(--ink); }
+    .e4-step.error .e4-step-num { border-color: var(--red); background: var(--red); color: var(--white); }
+    .e4-step.error .e4-step-label { color: var(--red); }
+    .e4-connector { flex: 1; height: 2px; background: var(--line-soft); margin: 0 10px; min-width: 16px; transition: background 0.3s; }
+    .e4-connector.done { background: #16A34A; }
+    .e4-detail {
+      background: var(--paper); border: 1px solid var(--line-soft); border-radius: 10px;
+      padding: 12px 14px; font-size: 12px; color: var(--ink-2); line-height: 1.7; min-height: 56px;
+    }
+    .e4-detail b { color: var(--ink); }
+    .e4-detail .err { color: var(--red); }
+    .e4-dim-status { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .e4-dim-chip {
+      font-size: 11px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--line);
+      background: var(--white); color: var(--muted); font-weight: 600; transition: all 0.2s;
+    }
+    .e4-dim-chip.running { border-color: var(--red); color: var(--red); animation: pulse 1.1s ease-in-out infinite; }
+    .e4-dim-chip.done { border-color: #16A34A; color: #15803d; background: #f0fdf4; }
+    .e4-dim-chip.failed { border-color: var(--red); color: var(--red); background: #fef2f2; }
+    .e4-overview {
+      border: 1px solid var(--line-soft); border-radius: 10px; padding: 14px 16px;
+      background: var(--paper); font-size: 13px; line-height: 1.7; max-height: 46vh;
+    }
+    .e4-overview h1, .e4-overview h2, .e4-overview h3 { color: var(--red-deep); margin: 10px 0 6px; font-size: 14px; }
+    .e4-overview h1 { font-size: 16px; }
+    .e4-overview strong { color: var(--ink); }
+
     @media (max-width: 1000px) {
       .lab-layout {
         grid-template-columns: 1fr;
@@ -314,19 +634,49 @@
     </div>
   </div>
 
-  <!-- 中栏：AI 输出 -->
+  <!-- 中栏：AI 输出 / 有效评价 -->
   <div class="lab-col">
     <div class="lab-col-header">
-      <h3>AI 输出</h3>
+      <div class="mid-tabs">
+        <button class="mid-tab active" data-tab="ai" onclick="switchTab('ai')">AI 解读</button>
+        <button class="mid-tab" data-tab="eval" onclick="switchTab('eval')">有效评价</button>
+      </div>
       <span style="font-size: 11px; color: var(--muted);" id="outputMeta"></span>
     </div>
-    <div class="history-tabs" id="historyTabs" style="padding: 6px 12px 0;"></div>
-    <div class="lab-col-body" id="outputArea">
-      <div class="empty-state">点击「运行解读」开始</div>
+    <!-- AI 解读面板 -->
+    <div id="tabAi" class="mid-panel">
+      <div class="history-tabs" id="historyTabs" style="padding: 6px 12px 0;"></div>
+      <div class="lab-col-body" id="outputArea">
+        <div class="empty-state">点击「运行解读」开始</div>
+      </div>
+      <div class="output-meta" id="outputMetaBar" style="display: none;">
+        <span id="metaTokens"></span>
+        <span id="metaTime"></span>
+      </div>
     </div>
-    <div class="output-meta" id="outputMetaBar" style="display: none;">
-      <span id="metaTokens"></span>
-      <span id="metaTime"></span>
+    <!-- 有效评价面板 -->
+    <div id="tabEval" class="mid-panel" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+      <div class="eval-toolbar">
+        <input class="eval-search" id="evalSearch" placeholder="搜索编号或指标…" oninput="filterEval(this.value)">
+        <span class="eval-filter-toggle" id="filterAdjustedToggle" onclick="toggleFilterAdjusted()">只看已调整</span>
+        <span class="eval-filter-toggle" id="mappingToggle" onclick="openMappingModal()" data-tip="指认每个 Y4 指标属于哪个 E4 维度">E4 映射 <b id="mappingCount" style="color:var(--red);">…</b></span>
+        <div class="eval-view-toggle">
+          <span class="eval-view-btn active" data-view="y4" onclick="switchEvalView('y4')">Y4 四维</span>
+          <span class="eval-view-btn" data-view="e4" onclick="switchEvalView('e4')">E4 框架</span>
+        </div>
+        <div class="eval-counts" id="evalCounts"></div>
+      </div>
+      <div class="eval-area" id="evalArea">
+        <div class="empty-state">加载中…</div>
+      </div>
+      <div class="eval-footer">
+        <label class="eval-checkbox"><input type="checkbox" id="includeRaw"> 包含原始数据</label>
+        <div style="display:flex;gap:8px;">
+          <button class="eval-dl-btn" id="evalDownloadBtn" onclick="downloadEvalMd()" style="background:var(--ink)">下载默认协议</button>
+          <button class="eval-dl-btn" id="evalDownloadJsonBtn" onclick="downloadY4Json()" style="background:var(--ink)">下载 Y4 JSON</button>
+          <button class="eval-dl-btn" id="evalDownloadE4Btn" onclick="runE4Workflow()" style="background:var(--red)">下载 E4 协议</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -362,25 +712,724 @@
 
 </div>
 
+<!-- 评价选择弹层 -->
+<div class="modal-backdrop" id="evalPickerModal" onclick="if(event.target===this)closeModal('evalPickerModal')">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="pickerTitle">选择评价</div>
+        <div class="modal-sub" id="pickerSub"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('evalPickerModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="picker-grid" id="pickerGrid"></div>
+      <button class="picker-reset" id="pickerResetBtn" onclick="resetEvalFromPicker()">恢复默认档位</button>
+    </div>
+  </div>
+</div>
+
+<!-- E4 映射指认编辑器 -->
+<div class="modal-backdrop" id="mappingModal" onclick="if(event.target===this)closeModal('mappingModal')">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">Y4 → E4 映射指认</div>
+        <div class="modal-sub">Y4 报告的编号+名称是唯一权威命名；这里只是把每个指标<b>人工指认</b>到 E4 维度/子类别，未指认的会进入 OTHER_VARIABLES。</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('mappingModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="map-toolbar">
+        <input class="map-search" id="mapSearch" placeholder="搜索编号或指标…" oninput="renderMappingList()">
+        <span class="map-filter" id="mapUnmappedFilter" onclick="toggleMapUnmappedFilter()">只看未指认</span>
+        <span class="map-filter" style="cursor:default; border-style:dashed;" id="mapProgress">已指认 0 / 0</span>
+      </div>
+      <div class="map-list" id="mapList"></div>
+    </div>
+    <div class="modal-foot">
+      <span style="font-size:11px; color:var(--muted);">保存后立即生效，用于 E4 视图分组与 E4 协议生成</span>
+      <button class="eval-dl-btn" id="mapSaveBtn" onclick="saveMapping()">保存映射</button>
+    </div>
+  </div>
+</div>
+
+<!-- E4 三步工作流 -->
+<div class="modal-backdrop" id="e4WorkflowModal" onclick="if(event.target===this&&e4State.phase!=='running')closeModal('e4WorkflowModal')">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">E4 协议生成</div>
+        <div class="modal-sub">每次现生成，不做储存。数据行全程保留 Y4 原始编号+名称。</div>
+      </div>
+      <button class="modal-close" id="e4CloseBtn" onclick="closeModal('e4WorkflowModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="e4-steps">
+        <div class="e4-step" id="e4Step1">
+          <span class="e4-step-num">1</span><span class="e4-step-label">数据整编</span>
+        </div>
+        <div class="e4-connector" id="e4Conn1"></div>
+        <div class="e4-step" id="e4Step2">
+          <span class="e4-step-num">2</span><span class="e4-step-label">E1-E4 分维度分析</span>
+        </div>
+        <div class="e4-connector" id="e4Conn2"></div>
+        <div class="e4-step" id="e4Step3">
+          <span class="e4-step-num">3</span><span class="e4-step-label">综合成文</span>
+        </div>
+      </div>
+      <div class="e4-detail" id="e4Detail">等待开始…</div>
+      <div class="e4-dim-status" id="e4DimStatus" style="display:none;"></div>
+      <div id="e4OverviewWrap" style="display:none; margin-top:14px;">
+        <span class="label-sm">协议总览（可直接下载）</span>
+        <div class="e4-overview output-content" id="e4Overview"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span style="font-size:11px; color:var(--muted);" id="e4FootNote"></span>
+      <button class="eval-dl-btn" id="e4DownloadFinalBtn" style="display:none;" onclick="downloadE4Content()">下载 .md 文件</button>
+    </div>
+  </div>
+</div>
+
 <script>
   let currentRating = 0;
   let lastOutput = '';
-  let outputs = []; // {version, text, tokens, time_ms}
+  let outputs = [];
   let outputVersion = 0;
   let isRunning = false;
+  let evalItems = [];
+  let perCodeEvalOptions = {};
+  const FALLBACK_EVAL_OPTIONS = ["高","较好","不低","偏低","明显偏低","严重偏低","需关注","需特殊关注","相对健康","正常"];
+  let evalLoaded = false;
+  let evalFilter = '';
+  let evalFilterAdjusted = false;
+  let evalView = 'y4';
+  let mappingDone = 0, mappingTotal = 0;
+  let mapUnmappedOnly = false;
+  // E4 框架常量（由 /api/prompt-lab/e4-mapping 返回）
+  let e4Meta = {
+    dims: ["E1","E2","E3","E4"],
+    labels: {"E1":"E1 · Emotion（情绪）","E2":"E2 · Energy（精力管理）","E3":"E3 · Engine（引擎）","E4":"E4 · Engagement（参与投入）"},
+    subcats: {"E1":["学习信心","学校融入度","亲子依恋","焦虑状态","自我概念"],"E2":["睡眠","饮食","运动"],"E3":["大脑引擎","动力引擎"],"E4":["学习策略","多元智能与自我认知","职业兴趣与价值观"]},
+  };
+  let e4State = { phase: 'idle', content_md: '', fname: 'E4评估_protocol.md' };
 
-  // Load prompt on page load
+  // Esc 关闭最上层弹层
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    for (const id of ['evalPickerModal', 'mappingModal', 'e4WorkflowModal']) {
+      const el = document.getElementById(id);
+      if (el && el.classList.contains('open')) {
+        if (id === 'e4WorkflowModal' && e4State.phase === 'running') return; // 运行中不误关
+        closeModal(id);
+        return;
+      }
+    }
+  });
+
   (async () => {
     try {
       const resp = await fetch('/api/prompt-lab/prompt');
       const data = await resp.json();
+      if (data.ok) document.getElementById('promptEditor').value = data.prompt;
+    } catch (e) { console.error(e); }
+    loadE4Meta();
+    loadEvaluation();
+  })();
+
+  async function loadE4Meta() {
+    try {
+      const resp = await fetch('/api/prompt-lab/e4-mapping');
+      const data = await resp.json();
+      if (data.ok && data.dims) {
+        e4Meta = { dims: Object.keys(data.dims), labels: data.dims, subcats: data.subcats };
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  function openModal(id) { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  // ── 有效评价视图 ──────────────────────────────────────────────
+  async function loadEvaluation() {
+    try {
+      const resp = await fetch('/api/prompt-lab/evaluation');
+      const data = await resp.json();
       if (data.ok) {
-        document.getElementById('promptEditor').value = data.prompt;
+        evalItems = data.items.map(it => ({
+          ...it,
+          e4_dims: it.e4_dims || (it.e4_dim ? [{e4_dim: it.e4_dim, e4_sub: it.e4_sub || ''}] : []),
+          original_eval: it.eval_value,
+          adjusted: false,
+          note: '',
+          noteExpanded: false,
+          data_bias: '正常',
+          problem_status: 'CONFIRMED',
+        }));
+        if (data.per_code_eval_options) perCodeEvalOptions = data.per_code_eval_options;
+        mappingDone = data.mapping_done || 0;
+        mappingTotal = data.mapping_total || evalItems.length;
+        updateMappingCount();
+        evalLoaded = true;
+        renderEvalCounts();
+        renderEvalList();
+      } else {
+        document.getElementById('evalCounts').textContent = '';
+        document.getElementById('evalArea').innerHTML = '<div class="empty-state" style="color:var(--red);">' + (data.error||'加载失败') + '</div>';
       }
     } catch (e) {
-      console.error('Failed to load prompt:', e);
+      document.getElementById('evalArea').innerHTML = '<div class="empty-state" style="color:var(--red);">网络错误: ' + e.message + '</div>';
     }
-  })();
+  }
+
+  function renderEvalCounts() {
+    const total = evalItems.length;
+    const adjusted = evalItems.filter(i => i.adjusted).length;
+    const withEval = evalItems.filter(i => i.eval_value).length;
+    const withNotes = evalItems.filter(i => i.note).length;
+    const biased = evalItems.filter(i => i.data_bias !== '正常').length;
+    const observations = evalItems.filter(i => i.problem_status === 'OBSERVATION').length;
+    document.getElementById('evalCounts').innerHTML =
+      `<span class="eval-pill">共 <b>${total}</b></span>` +
+      `<span class="eval-pill">已评价 <b>${withEval}</b></span>` +
+      `<span class="eval-pill ${adjusted?'adjusted-count':''}">已调整 <b>${adjusted}</b></span>` +
+      (biased ? `<span class="eval-pill">数据偏差 <b>${biased}</b></span>` : '') +
+      (observations ? `<span class="eval-pill">观望 <b>${observations}</b></span>` : '') +
+      (withNotes ? `<span class="eval-pill">备注 <b>${withNotes}</b></span>` : '');
+  }
+
+  function getGrouping() {
+    if (evalView === 'e4') {
+      return {
+        dims: ["E1","E2","E3","E4","__unmapped__"],
+        labels: {...e4Meta.labels, "__unmapped__": "未指认 · 待人工映射"},
+        // 多维度映射：一个 item 可归入多个 E4 组
+        getKey: it => {
+          const dims = (it.e4_dims || []).map(m => m.e4_dim).filter(d => e4Meta.dims.includes(d));
+          return dims.length ? dims : ['__unmapped__'];
+        },
+        multi: true,
+      };
+    }
+    return {
+      dims: ["心力","精力","学习力","生涯力"],
+      labels: {"心力":"心力 · 情绪与动力","精力":"精力 · 精力与身体健康","学习力":"学习力 · 学习系统","生涯力":"生涯力 · 专业与职业"},
+      getKey: it => [it.dimension || '学习力'],
+      multi: false,
+    };
+  }
+
+  function renderEvalList() {
+    const area = document.getElementById('evalArea');
+    const g = getGrouping();
+    let html = '';
+    let shown = 0;
+    for (const dim of g.dims) {
+      // 多维度模式下，一个 item 可在多个组出现
+      let items;
+      if (g.multi) {
+        items = evalItems.filter(it => g.getKey(it).includes(dim));
+      } else {
+        items = evalItems.filter(it => g.getKey(it)[0] === dim);
+      }
+      if (evalFilter) {
+        const f = evalFilter.toLowerCase();
+        items = items.filter(it => (it.code + ' ' + it.label).toLowerCase().includes(f));
+      }
+      if (evalFilterAdjusted) {
+        items = items.filter(it => it.adjusted || it.note || it.data_bias !== '正常' || it.problem_status === 'OBSERVATION');
+      }
+      if (!items.length) continue;
+      shown += items.length;
+      html += `<div class="eval-dim-group" id="dim-${dim}">`;
+      html += `<div class="eval-dim-head" onclick="toggleDim('${dim}')"><span class="arrow">▼</span>${g.labels[dim]}<span class="eval-dim-count">${items.length}</span></div>`;
+      html += `<div class="eval-dim-body">`;
+      for (const it of items) {
+        html += renderEvalCard(it);
+      }
+      html += `</div></div>`;
+    }
+    area.innerHTML = shown ? html : '<div class="empty-state">无匹配项</div>';
+  }
+
+  function renderEvalCard(it) {
+    const srcMap = {'档位字段':'dangwei','规则推导':'derived','原始排序':'order','参照值':'norm','待判定':'pending'};
+    const srcClass = srcMap[it.eval_source] || 'pending';
+    const srcLabel = {'档位字段':'档位','规则推导':'推导','原始排序':'排序','参照值':'参照','待判定':'待判定'}[it.eval_source] || '待判定';
+    const isReadOnly = it.eval_source === '原始排序' || it.eval_source === '参照值';
+    const evalDisplay = it.eval_value || '待判定';
+    const cardClass = [
+      'eval-card',
+      it.adjusted ? 'adjusted' : '',
+      it.data_bias === '偏高' ? 'bias-high' : (it.data_bias === '偏低' ? 'bias-low' : ''),
+    ].filter(Boolean).join(' ');
+    const e4tags = (it.e4_dims || []).map(m => `<span class="eval-card-e4tag ${m.e4_dim}">${m.e4_dim}${m.e4_sub ? ' · ' + m.e4_sub : ''}</span>`).join('');
+    const noteToggleClass = it.note ? 'eval-note-toggle has-note' : 'eval-note-toggle';
+    const isObservation = it.problem_status === 'OBSERVATION';
+
+    let html = `<div class="${cardClass}" data-code="${it.code}">`;
+    html += `<div class="eval-card-head">`;
+    html += `<span class="eval-card-code">${it.code}</span>`;
+    html += `<span class="eval-card-label">${it.label}</span>`;
+    html += e4tags;
+    html += `</div>`;
+    html += `<div class="eval-card-body">`;
+    html += `<span class="src-tag ${srcClass}">${srcLabel}</span>`;
+    html += `<span class="eval-card-raw">${it.raw_value}${it.unit||''}</span>`;
+    if (isReadOnly) {
+      html += `<span class="eval-card-eval ${evalDisplay}">${evalDisplay}</span>`;
+    } else {
+      // 当前值 chip，点击弹出居中选择层
+      html += `<button class="eval-chip-btn ${evalDisplay} ${it.adjusted?'adjusted':''}" data-tip="点击选择档位" onclick="openEvalPicker('${it.code}')">${evalDisplay}</button>`;
+    }
+    html += `<div class="eval-card-actions">`;
+    if (!isReadOnly) {
+      html += `<button class="act-btn bias-normal ${it.data_bias==='正常'?'active':''}" data-tip="数据可信" onclick="setBias('${it.code}','正常',this)">正常</button>`;
+      html += `<button class="act-btn bias-high ${it.data_bias==='偏高'?'active':''}" data-tip="访谈发现分数偏高（可能非真实水平）" onclick="setBias('${it.code}','偏高',this)">偏高</button>`;
+      html += `<button class="act-btn bias-low ${it.data_bias==='偏低'?'active':''}" data-tip="访谈发现分数偏低（可能非真实水平）" onclick="setBias('${it.code}','偏低',this)">偏低</button>`;
+      html += `<button class="act-btn ${isObservation?'observation':'problem-confirmed'}" data-tip="${isObservation?'假问题，待一表人才验证':'真问题，已确认'}" onclick="toggleProblem('${it.code}',this)">${isObservation?'观望':'已确认'}</button>`;
+    }
+    html += `<span class="${noteToggleClass}" onclick="expandNote('${it.code}', !getNoteExpanded('${it.code}'))">${it.note ? '有备注' : '备注'}</span>`;
+    html += `</div>`;
+    html += `</div>`;
+    // Note row
+    html += `<div class="eval-note-row ${it.noteExpanded?'expanded':''}" data-note-code="${it.code}">`;
+    html += `<input class="eval-note-input" placeholder="补充说明：人工判断 / 上下文 / 异议原因 / 访谈发现…" value="${(it.note||'').replace(/"/g,'&quot;')}" oninput="setNote('${it.code}', this.value)" onfocus="expandNote('${it.code}', true)">`;
+    html += `</div>`;
+    html += `</div>`;
+    return html;
+  }
+
+  function getNoteExpanded(code) {
+    const it = evalItems.find(x => x.code === code);
+    return it ? it.noteExpanded : false;
+  }
+
+  function expandNote(code, on) {
+    const it = evalItems.find(x => x.code === code);
+    if (!it) return;
+    it.noteExpanded = on;
+    const row = document.querySelector(`.eval-note-row[data-note-code="${code}"]`);
+    if (row) row.classList.toggle('expanded', on);
+  }
+
+  function setNote(code, val) {
+    const it = evalItems.find(x => x.code === code);
+    if (!it) return;
+    it.note = val;
+    const card = document.querySelector(`.eval-card[data-code="${code}"]`);
+    if (card) {
+      const t = card.querySelector('.eval-note-toggle');
+      t.textContent = val ? '有备注' : '备注';
+      t.classList.toggle('has-note', !!val);
+    }
+    renderEvalCounts();
+  }
+
+  function setBias(code, bias, btn) {
+    const it = evalItems.find(x => x.code === code);
+    if (!it) return;
+    it.data_bias = bias;
+    const card = btn.closest('.eval-card');
+    card.querySelectorAll('.act-btn.bias-normal, .act-btn.bias-high, .act-btn.bias-low').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    card.classList.remove('bias-high','bias-low');
+    if (bias === '偏高') card.classList.add('bias-high');
+    if (bias === '偏低') card.classList.add('bias-low');
+    renderEvalCounts();
+  }
+
+  function toggleProblem(code, btn) {
+    const it = evalItems.find(x => x.code === code);
+    if (!it) return;
+    it.problem_status = it.problem_status === 'OBSERVATION' ? 'CONFIRMED' : 'OBSERVATION';
+    btn.textContent = it.problem_status === 'OBSERVATION' ? '观望' : '已确认';
+    btn.classList.toggle('observation', it.problem_status === 'OBSERVATION');
+    btn.classList.toggle('problem-confirmed', it.problem_status === 'CONFIRMED');
+    btn.dataset.tip = it.problem_status === 'OBSERVATION' ? '假问题，待一表人才验证' : '真问题，已确认';
+    renderEvalCounts();
+  }
+
+  function filterEval(v) { evalFilter = v.trim(); renderEvalList(); }
+
+  function toggleFilterAdjusted() {
+    evalFilterAdjusted = !evalFilterAdjusted;
+    document.getElementById('filterAdjustedToggle').classList.toggle('active', evalFilterAdjusted);
+    renderEvalList();
+  }
+
+  function switchEvalView(v) {
+    evalView = v;
+    document.querySelectorAll('.eval-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+    renderEvalList();
+  }
+
+  function toggleDim(dim) {
+    const g = document.getElementById('dim-' + dim);
+    if (!g) return;
+    g.classList.toggle('dim-collapsed');
+    g.querySelector('.eval-dim-head').classList.toggle('collapsed');
+  }
+
+  // ── 评价选择弹层（视口居中） ──────────────────────────────────
+  let pickerCode = null;
+
+  function openEvalPicker(code) {
+    const it = evalItems.find(x => x.code === code);
+    if (!it) return;
+    pickerCode = code;
+    const opts = perCodeEvalOptions[code] || FALLBACK_EVAL_OPTIONS;
+    document.getElementById('pickerTitle').textContent = `选择评价 · ${it.code}`;
+    document.getElementById('pickerSub').textContent =
+      `${it.label}｜原始值 ${it.raw_value}${it.unit || ''}｜默认档位 ${it.original_eval || '待判定'}`;
+    document.getElementById('pickerGrid').innerHTML = opts.map(o =>
+      `<button class="picker-chip p${o} ${o === it.eval_value ? 'current' : ''}" onclick="applyEvalFromPicker('${o}')">${o}</button>`
+    ).join('');
+    document.getElementById('pickerResetBtn').style.display = it.adjusted ? '' : 'none';
+    openModal('evalPickerModal');
+  }
+
+  function applyEvalFromPicker(value) {
+    const it = evalItems.find(x => x.code === pickerCode);
+    if (!it) return;
+    it.eval_value = value;
+    it.adjusted = value !== it.original_eval;
+    updateEvalChip(it);
+    closeModal('evalPickerModal');
+    renderEvalCounts();
+  }
+
+  function resetEvalFromPicker() {
+    const it = evalItems.find(x => x.code === pickerCode);
+    if (!it) return;
+    it.eval_value = it.original_eval;
+    it.adjusted = false;
+    updateEvalChip(it);
+    closeModal('evalPickerModal');
+    renderEvalCounts();
+  }
+
+  function updateEvalChip(it) {
+    const btn = document.querySelector(`.eval-card[data-code="${it.code}"] .eval-chip-btn`);
+    if (!btn) return;
+    const display = it.eval_value || '待判定';
+    btn.textContent = display;
+    btn.className = `eval-chip-btn ${display} ${it.adjusted ? 'adjusted' : ''}`;
+  }
+
+  // ── E4 映射指认编辑器（多维度 toggle） ───────────────────────
+  function updateMappingCount() {
+    document.getElementById('mappingCount').textContent = `${mappingDone}/${mappingTotal}`;
+    document.getElementById('mapProgress').textContent = `已指认 ${mappingDone} / ${mappingTotal}`;
+  }
+
+  function openMappingModal() {
+    mapUnmappedOnly = false;
+    document.getElementById('mapUnmappedFilter').classList.remove('active');
+    document.getElementById('mapSearch').value = '';
+    renderMappingList();
+    openModal('mappingModal');
+  }
+
+  function toggleMapUnmappedFilter() {
+    mapUnmappedOnly = !mapUnmappedOnly;
+    document.getElementById('mapUnmappedFilter').classList.toggle('active', mapUnmappedOnly);
+    renderMappingList();
+  }
+
+  // it.e4_dims = [{e4_dim, e4_sub}, ...]（多维度）
+  function getMapDims(it) {
+    if (!it.e4_dims || !it.e4_dims.length) return [];
+    return it.e4_dims;
+  }
+  function hasMapDim(it, d) {
+    return getMapDims(it).some(m => m.e4_dim === d);
+  }
+  function getMapSub(it, d) {
+    const m = getMapDims(it).find(x => x.e4_dim === d);
+    return m ? (m.e4_sub || '') : '';
+  }
+
+  function renderMappingList() {
+    const kw = (document.getElementById('mapSearch').value || '').trim().toLowerCase();
+    let items = evalItems.filter(it => !kw || (it.code + ' ' + it.label).toLowerCase().includes(kw));
+    if (mapUnmappedOnly) items = items.filter(it => !getMapDims(it).length);
+    const list = document.getElementById('mapList');
+    if (!items.length) {
+      list.innerHTML = '<div class="map-empty-group">无匹配项</div>';
+      return;
+    }
+    list.innerHTML = items.map(it => {
+      const dims = getMapDims(it);
+      const hasAny = dims.length > 0;
+      // E1-E4 toggle chips（可多选）
+      const dimChips = e4Meta.dims.map(d => {
+        const on = hasMapDim(it, d);
+        const sub = getMapSub(it, d);
+        return `<button class="map-dim-chip ${on ? 'on-' + d : ''}" onclick="toggleMapDim('${it.code}','${d}')">${d}${sub ? ':' + sub.substring(0,4) : ''}</button>`;
+      }).join('');
+      // 子类别下拉（为每个已选维度各一个 select）
+      let subSelects = '';
+      for (const d of e4Meta.dims) {
+        if (!hasMapDim(it, d)) continue;
+        const currentSub = getMapSub(it, d);
+        const opts = ['<option value="">（可选）子类别…</option>']
+          .concat((e4Meta.subcats[d] || []).map(s => `<option value="${s}" ${s === currentSub ? 'selected' : ''}>${s}</option>`))
+          .join('');
+        subSelects += `<select class="map-sub-select" onchange="setMapSubFor('${it.code}','${d}', this.value)" title="${d} 子类别">${opts}</select>`;
+      }
+      return `<div class="map-row ${hasAny ? '' : 'unmapped'}" data-map-code="${it.code}">
+        <span class="map-code">${it.code}</span>
+        <span class="map-label">${it.label}</span>
+        <span class="map-dim-chips">${dimChips}</span>
+        ${subSelects || '<span style="font-size:10px;color:var(--muted);">点击维度按钮选择</span>'}
+        <button class="map-clear" title="清除全部" onclick="clearMap('${it.code}')">✕</button>
+      </div>`;
+    }).join('');
+  }
+
+  function toggleMapDim(code, dim) {
+    const it = evalItems.find(x => x.code === code);
+    if (!it) return;
+    if (!it.e4_dims) it.e4_dims = [];
+    const idx = it.e4_dims.findIndex(m => m.e4_dim === dim);
+    if (idx >= 0) {
+      it.e4_dims.splice(idx, 1);
+    } else {
+      it.e4_dims.push({ e4_dim: dim, e4_sub: '' });
+    }
+    renderMappingList();
+  }
+
+  function setMapSubFor(code, dim, sub) {
+    const it = evalItems.find(x => x.code === code);
+    if (!it || !it.e4_dims) return;
+    const m = it.e4_dims.find(x => x.e4_dim === dim);
+    if (m) m.e4_sub = sub;
+  }
+
+  function clearMap(code) {
+    const it = evalItems.find(x => x.code === code);
+    if (!it) return;
+    it.e4_dims = [];
+    renderMappingList();
+  }
+
+  async function saveMapping() {
+    const btn = document.getElementById('mapSaveBtn');
+    const entries = evalItems
+      .filter(it => getMapDims(it).length > 0)
+      .map(it => ({ code: it.code, e4_dims: getMapDims(it) }));
+    btn.disabled = true; btn.textContent = '保存中…';
+    try {
+      const resp = await fetch('/api/prompt-lab/e4-mapping', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        const saved = data.mapping || {};
+        for (const it of evalItems) {
+          it.e4_dims = saved[it.code] || [];
+          it.e4_dim = it.e4_dims.length ? it.e4_dims[0].e4_dim : null;
+          it.e4_sub = it.e4_dims.length ? (it.e4_dims[0].e4_sub || '') : '';
+        }
+        mappingDone = evalItems.filter(it => getMapDims(it).length > 0).length;
+        mappingTotal = evalItems.length;
+        updateMappingCount();
+        btn.textContent = '已保存 ✓';
+        renderEvalList();
+        setTimeout(() => {
+          btn.textContent = '保存映射'; btn.disabled = false;
+          closeModal('mappingModal');
+        }, 600);
+      } else {
+        alert(data.error || '保存失败');
+        btn.disabled = false; btn.textContent = '保存映射';
+      }
+    } catch (e) {
+      alert('网络错误: ' + e.message);
+      btn.disabled = false; btn.textContent = '保存映射';
+    }
+  }
+
+  function collectEvalPayload() {
+    return evalItems.map(it => ({
+      code:it.code, label:it.label, raw_value:it.raw_value, eval_value:it.eval_value,
+      dimension:it.dimension, unit:it.unit, eval_source:it.eval_source,
+      e4_dims:it.e4_dims || [],
+      e4_dim:it.e4_dim, e4_sub:it.e4_sub,
+      rule_note:it.rule_note, adjusted:it.adjusted, original_eval:it.original_eval,
+      note:it.note, data_bias:it.data_bias, problem_status:it.problem_status,
+    }));
+  }
+
+  function downloadBlob(content, fname) {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = u; a.download = fname;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(u);
+  }
+
+  // 默认协议：服务端直接生成下载
+  async function downloadEvalMd() {
+    const btn = document.getElementById('evalDownloadBtn');
+    const includeRaw = document.getElementById('includeRaw').checked;
+    btn.disabled = true; btn.textContent = '生成中…';
+    try {
+      const resp = await fetch('/api/prompt-lab/evaluation/download', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          items: collectEvalPayload(),
+          include_raw: includeRaw, interpretation: lastOutput || '',
+        }),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert(e.error||'下载失败'); return; }
+      const blob = await resp.blob();
+      const cd = resp.headers.get('Content-Disposition') || '';
+      let fname = '有效评价_protocol.md';
+      const m = decodeURIComponent(cd).match(/filename\*?=(?:UTF-8'')?(?:")?([^";]+)/);
+      if (m) fname = m[1];
+      downloadBlob(await blob.text(), fname);
+    } catch (e) { alert('网络错误: ' + e.message); }
+    btn.disabled = false; btn.textContent = '下载默认协议';
+  }
+
+  // Generalized Y4 JSON 导出（所有数据点 + AI 解读，非 E4）
+  async function downloadY4Json() {
+    const btn = document.getElementById('evalDownloadJsonBtn');
+    btn.disabled = true; btn.textContent = '生成中…';
+    try {
+      const resp = await fetch('/api/prompt-lab/y4-export/json', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          items: collectEvalPayload(),
+          interpretation: lastOutput || '',
+        }),
+      });
+      const data = await resp.json();
+      if (!data.ok) { alert(data.error || '导出失败'); return; }
+      const blob = new Blob([JSON.stringify(data.json, null, 2)], { type: 'application/json;charset=utf-8' });
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = u; a.download = data.filename || 'Y4数据.json';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(u);
+    } catch (e) { alert('网络错误: ' + e.message); }
+    btn.disabled = false; btn.textContent = '下载 Y4 JSON';
+  }
+
+  // ── E4 三步工作流（每次现生成，不落库） ──────────────────────
+  function e4SetStep(n, state) {
+    for (let i = 1; i <= 3; i++) {
+      const el = document.getElementById('e4Step' + i);
+      el.classList.remove('running', 'done', 'error');
+      if (i === n) el.classList.add(state);
+      else if (i < n) el.classList.add('done');
+    }
+    document.getElementById('e4Conn1').classList.toggle('done', n > 1);
+    document.getElementById('e4Conn2').classList.toggle('done', n > 2);
+  }
+
+  function e4Detail(html) { document.getElementById('e4Detail').innerHTML = html; }
+
+  function e4DimChips(stateMap) {
+    const wrap = document.getElementById('e4DimStatus');
+    wrap.style.display = 'flex';
+    wrap.innerHTML = e4Meta.dims.map(d =>
+      `<span class="e4-dim-chip ${stateMap[d] || ''}">${e4Meta.labels[d]}</span>`
+    ).join('');
+  }
+
+  async function runE4Workflow() {
+    if (e4State.phase === 'running') { openModal('e4WorkflowModal'); return; }
+    e4State = { phase: 'running', content_md: '', fname: 'E4评估_protocol.md' };
+    const includeRaw = document.getElementById('includeRaw').checked;
+    const btn = document.getElementById('evalDownloadE4Btn');
+    btn.disabled = true; btn.textContent = '生成中…';
+    document.getElementById('e4OverviewWrap').style.display = 'none';
+    document.getElementById('e4DownloadFinalBtn').style.display = 'none';
+    document.getElementById('e4FootNote').textContent = '';
+    document.getElementById('e4DimStatus').style.display = 'none';
+    openModal('e4WorkflowModal');
+
+    const payloadItems = collectEvalPayload();
+    try {
+      // Step 1 数据整编（纯 Python，无 AI）
+      e4SetStep(1, 'running');
+      e4Detail('按 E4 框架（维度→评估问题→指标）整编数据行…');
+      const r1 = await fetch('/api/prompt-lab/e4/step1', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ items: payloadItems, include_raw: includeRaw }),
+      }).then(r => r.json());
+      if (!r1.ok) throw new Error(r1.error || 'Step1 失败');
+      const gc = r1.group_counts || {};
+      const parts = e4Meta.dims.map(d => `${d}: <b>${gc[d] || 0}</b>`).join(' · ');
+      e4Detail(`数据整编完成 — ${parts}｜框架外 OTHER: <b>${r1.unmapped_count || 0}</b>`);
+
+      // Step 2 跨维度 contextual 分析（AI 看全部数据，不再孤立分维度）
+      e4SetStep(2, 'running');
+      document.getElementById('e4DimStatus').style.display = 'none';
+      e4Detail('AI 跨维度分析中 — 看到全部维度数据，做连结/拆分/分析/剖析/识别…');
+      const r2 = await fetch('/api/prompt-lab/e4/step2', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ groups: r1.groups, other_lines: r1.other_lines || [] }),
+      }).then(r => r.json());
+      if (r2.ok === false && r2.error) throw new Error(r2.error);
+      if (!r2.analyses && !r2.full_analysis) throw new Error('Step2 失败');
+      const statList = r2.stats || [];
+      const tok2 = statList.reduce((a, s) => a + (s.tokens || 0), 0);
+      const t2 = statList.reduce((a, s) => a + (s.time_ms || 0), 0);
+      e4Detail(`跨维度分析完成 — Tokens: <b>${tok2}</b>｜耗时: <b>${(t2/1000).toFixed(1)}s</b>｜模型: ${r2.model || '-'}`
+        + ((r2.failed || []).length ? ` <span class="err">失败: ${r2.failed.join('、')}</span>` : ''));
+
+      // Step 3 综合成文（AI 只写总览，数据行由 Python 确定性拼装）
+      e4SetStep(3, 'running');
+      e4Detail('AI 撰写总览（核心矛盾 / 真实优势 / 下一步），数据行由 Python 确定性拼装，不经过 AI…');
+      const r3 = await fetch('/api/prompt-lab/e4/step3', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          items: payloadItems, include_raw: includeRaw,
+          analyses: r2.analyses || {}, full_analysis: r2.full_analysis || '',
+          interpretation: lastOutput || '',
+        }),
+      }).then(r => r.json());
+      if (!r3.ok) throw new Error(r3.error || 'Step3 失败');
+      const s3 = r3.stats || {};
+      e4Detail(`完成 — 总览 Tokens: <b>${s3.tokens || 0}</b>｜耗时: <b>${((s3.time_ms || 0)/1000).toFixed(1)}s</b>｜模型: ${s3.model || '-'}`);
+      e4State.phase = 'done';
+      e4State.content_md = r3.content_md;
+      const sname = (r3.student_name || '学生').replace(/\s+/g, '');
+      e4State.fname = `${sname}_E4协议.md`;
+      document.getElementById('e4Overview').innerHTML = renderMarkdown(r3.content_md);
+      document.getElementById('e4OverviewWrap').style.display = 'block';
+      document.getElementById('e4DownloadFinalBtn').style.display = '';
+      document.getElementById('e4FootNote').textContent = '本文件为工作草稿，每次点击重新生成，不做储存';
+      downloadE4Content();
+    } catch (e) {
+      e4State.phase = 'error';
+      const runningIdx = [1,2,3].findIndex(i => document.getElementById('e4Step'+i).classList.contains('running'));
+      if (runningIdx >= 0) e4SetStep(runningIdx + 1, 'error');
+      e4Detail(`<span class="err">失败：${e.message}</span>`);
+      document.getElementById('e4FootNote').textContent = '可关闭弹层检查网络/映射后重试';
+    }
+    btn.disabled = false; btn.textContent = '下载 E4 协议';
+  }
+
+  function downloadE4Content() {
+    if (!e4State.content_md) return;
+    downloadBlob(e4State.content_md, e4State.fname);
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('.mid-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('tabAi').style.display = tab === 'ai' ? 'flex' : 'none';
+    document.getElementById('tabEval').style.display = tab === 'eval' ? 'flex' : 'none';
+    document.getElementById('outputMeta').textContent = tab === 'ai' ? (outputVersion ? `v${outputVersion}` : '') : '';
+  }
 
   // Star rating
   document.querySelectorAll('.star').forEach(star => {
