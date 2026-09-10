@@ -1074,6 +1074,16 @@ def api_dashboard_ai_analysis():
         if weak_names:
             line += f", 常见偏弱项: {', '.join(weak_names)}"
         lines.append(line)
+        # 补充该维度有评价的具体指标及其档位
+        strong_inds = dist.get("strong_indicators", [])
+        weak_inds = dist.get("weak_indicators", [])
+        if strong_inds or weak_inds:
+            ind_list = []
+            for si in strong_inds[:5]:
+                ind_list.append(f"{si['label']}(强项)")
+            for wi in weak_inds[:5]:
+                ind_list.append(f"{wi['label']}(偏弱 {wi.get('weak_pct', 0)}%)")
+            lines.append(f"  - {dim} 具体指标: {', '.join(ind_list)}")
 
     # 2. 学生对比数据
     if profiles:
@@ -1149,6 +1159,8 @@ def api_dashboard_ai_analysis():
 6. 禁止心理学/治疗术语,禁止连字符组合造词。
 7. 正确示例:"精力维度表现较弱的学生,在学习动机上也普遍偏低,说明身体状态直接影响学习投入"
 8. 错误示例:"009 情绪稳定性总分偏低与 063 执行功能偏低同时出现"
+9. 每条 insight 的 detail 必须至少引用一个数据中出现过的具体指标中文名称(如"睡眠习惯""焦虑安详""执行功能-工作记忆"),禁止只用维度名概括。
+10. 禁止将多个指标打包成数据中不存在的组合名(如"情绪耗竭""认知负荷"),只能用"XX 维度的 XX 指标"这种指代方式。
 
 【输出格式】
 只输出一个 JSON 对象,不要输出其他文字。格式如下:

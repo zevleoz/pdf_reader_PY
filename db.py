@@ -939,6 +939,55 @@ def _is_weak_item(item: Dict[str, Any]) -> bool:
     return False
 
 
+_SCHOOL_SUFFIXES = ("国际学校", "国际", "实验学校", "实验", "中学", "学校", "分校", "校区", "外国语学校", "外国语")
+
+
+def _normalize_school(name: str) -> str:
+    """学校名归一化：小写 + 去空格 + 去常见后缀。"""
+    s = (name or "").strip().lower().replace(" ", "")
+    for suf in _SCHOOL_SUFFIXES:
+        if s.endswith(suf) and len(s) > len(suf):
+            s = s[: -len(suf)]
+    return s
+
+
+def _cluster_by_substring(raw_names: list) -> dict:
+    """按子串关系聚类：短名是长名的子串 → 合并到短名。
+
+    返回 {raw_name: cluster_key} 映射，cluster_key 为归一化后的代表名。
+    """
+    from collections import Counter
+
+    norm_map: Dict[str, list] = {}
+    for name in raw_names:
+        if not name:
+            continue
+        key = _normalize_school(name)
+        norm_map.setdefault(key, []).append(name)
+
+    keys = sorted(norm_map.keys(), key=len)
+    key_to_canon: Dict[str, str] = {}
+    used: set = set()
+    for k in keys:
+        if k in used:
+            continue
+        key_to_canon[k] = k
+        for other in keys:
+            if other == k or other in used:
+                continue
+            if k in other:
+                key_to_canon[other] = k
+                used.add(other)
+        used.add(k)
+
+    result = {}
+    for key, names in norm_map.items():
+        canon = key_to_canon.get(key, key)
+        for name in names:
+            result[name] = canon
+    return result
+
+
 def get_dashboard_stats() -> Dict[str, Any]:
     """聚合全部仪表盘统计数据。空数据时返回零值,不报错。"""
     # 延迟导入避免循环依赖
@@ -965,12 +1014,32 @@ def get_dashboard_stats() -> Dict[str, Any]:
         ).all()
         by_grade = [{"label": (g or "未填"), "count": c} for g, c in grade_rows]
 
-        school_rows = sess.execute(
-            select(Student.school, func.count(Student.id))
-            .where(Student.school != None, Student.school != "")
-            .group_by(Student.school)
+        # ── 学校:从 report.data_json 提取(OCR 数据) + 归一化聚类 ──
+        from collections import Counter
+        report_school_rows = sess.execute(
+            select(Report.data_json, Student.school)
+            .select_from(Student)
+            .join(Report, Report.student_id == Student.id, isouter=True)
         ).all()
-        by_school = [{"label": (s or "未填"), "count": c} for s, c in school_rows]
+        raw_schools = []
+        for dj, stu_school in report_school_rows:
+            try:
+                data = json.loads(dj) if dj else {}
+            except Exception:
+                data = {}
+            sch = (data.get("student") or {}).get("school") or stu_school or ""
+            if sch:
+                raw_schools.append(sch)
+        cluster_map = _cluster_by_substring(raw_schools)
+        school_counts: Counter = Counter()
+        canon_to_display: Dict[str, str] = {}
+        for raw in raw_schools:
+            canon = cluster_map.get(raw, _normalize_school(raw))
+            school_counts[canon] += 1
+            if canon not in canon_to_display:
+                canon_to_display[canon] = raw
+        by_school = [{"label": canon_to_display.get(c, c), "count": n}
+                     for c, n in school_counts.most_common()]
 
         # ── 顾问产出(同时取 students + bookings) ──
         # 按 students.advisor_name 聚合 report_count
@@ -999,17 +1068,32 @@ def get_dashboard_stats() -> Dict[str, Any]:
         ).all()
         booking_advisor_map = {a: c for a, c in booking_advisor}
 
-        # 合并顾问列表
-        all_advisor_names = set(advisor_report_map.keys()) | set(advisor_student_map.keys()) | set(booking_advisor_map.keys())
+        # 合并顾问列表（按 _normalize_name 归一化合并大小写/标点差异）
+        all_raw_names = set(advisor_report_map.keys()) | set(advisor_student_map.keys()) | set(booking_advisor_map.keys())
+        # raw_name → normalized key
+        name_norm_map = {name: _normalize_name(name) for name in all_raw_names if name}
+        # normalized key → 展示名（取最长原始名）
+        norm_to_display: Dict[str, str] = {}
+        # 按 normalized key 聚合各计数
+        norm_report: Dict[str, int] = {}
+        norm_student: Dict[str, int] = {}
+        norm_booking: Dict[str, int] = {}
+        for name in all_raw_names:
+            if not name:
+                continue
+            nk = name_norm_map[name]
+            if nk not in norm_to_display or len(name) > len(norm_to_display[nk]):
+                norm_to_display[nk] = name
+            norm_report[nk] = norm_report.get(nk, 0) + advisor_report_map.get(name, 0)
+            norm_student[nk] = norm_student.get(nk, 0) + advisor_student_map.get(name, 0)
+            norm_booking[nk] = norm_booking.get(nk, 0) + booking_advisor_map.get(name, 0)
         advisor_performance = []
-        for name in all_advisor_names:
-            rc = advisor_report_map.get(name, 0)
-            sc = advisor_student_map.get(name, 0)
+        for nk, display_name in norm_to_display.items():
             advisor_performance.append({
-                "advisor_name": name,
-                "report_count": rc,
-                "student_count": sc,
-                "booking_count": booking_advisor_map.get(name, 0),
+                "advisor_name": display_name,
+                "report_count": norm_report.get(nk, 0),
+                "student_count": norm_student.get(nk, 0),
+                "booking_count": norm_booking.get(nk, 0),
             })
         # 按报告数降序
         advisor_performance.sort(key=lambda x: (x["report_count"], x["student_count"]), reverse=True)
@@ -1017,7 +1101,7 @@ def get_dashboard_stats() -> Dict[str, Any]:
         # ── 相似名检测 ──
         # 规范化分组
         norm_groups: Dict[str, list] = {}
-        for name in all_advisor_names:
+        for name in all_raw_names:
             nk = _normalize_name(name)
             norm_groups.setdefault(nk, []).append(name)
         advisor_name_review = []
@@ -1191,7 +1275,7 @@ def get_indicator_aggregates() -> Dict[str, Any]:
     try:
         from evaluation_rules import (
             dimension_of, derive_evaluation, _find_norm,
-            _to_number, _code_int,
+            _to_number, _code_int, build_evaluation_view,
         )
     except Exception:
         return {"all_indicators": [], "by_dimension": {}, "most_frequently_weak": []}
@@ -1213,6 +1297,14 @@ def get_indicator_aggregates() -> Dict[str, Any]:
                 data = {}
             items = data.get("schema_124") or []
 
+            # 用 build_evaluation_view 拿到含规则推导 + 档位 fallback 的 eval_value
+            eval_items, _ = build_evaluation_view(items)
+            eval_map: Dict[str, str] = {}
+            for ei in eval_items:
+                c = str(ei.get("code", ""))
+                if c and ei.get("eval_value"):
+                    eval_map[c] = ei["eval_value"]
+
             for item in items:
                 code = str(item.get("code", ""))
                 if not code:
@@ -1221,8 +1313,12 @@ def get_indicator_aggregates() -> Dict[str, Any]:
                 value = item.get("value")
                 dim = dimension_of(item)
 
-                norm = _find_norm(items, _code_int(code))
-                eval_val, rule_note = derive_evaluation(code, label, value, norm)
+                # 优先用 build_evaluation_view 的结果（含档位 fallback）
+                eval_val = eval_map.get(code)
+                rule_note = None
+                if not eval_val:
+                    norm = _find_norm(items, _code_int(code))
+                    eval_val, rule_note = derive_evaluation(code, label, value, norm)
 
                 if code not in indicators:
                     indicators[code] = {
@@ -1341,7 +1437,7 @@ def get_student_profiles() -> List[Dict[str, Any]]:
     try:
         from evaluation_rules import (
             dimension_of, derive_evaluation, _find_norm,
-            _to_number, _code_int,
+            _to_number, _code_int, build_evaluation_view,
         )
     except Exception:
         return []
@@ -1362,6 +1458,14 @@ def get_student_profiles() -> List[Dict[str, Any]]:
             items = data.get("schema_124") or []
             student_obj = data.get("student") or {}
 
+            # 用 build_evaluation_view 拿到含规则推导 + 档位 fallback 的 eval_value
+            eval_items, _ = build_evaluation_view(items)
+            eval_map: Dict[str, str] = {}
+            for ei in eval_items:
+                c = str(ei.get("code", ""))
+                if c and ei.get("eval_value"):
+                    eval_map[c] = ei["eval_value"]
+
             dim_stats = {d: {"weak": 0, "total": 0} for d in _DIMS}
             for item in items:
                 code = str(item.get("code", ""))
@@ -1370,8 +1474,11 @@ def get_student_profiles() -> List[Dict[str, Any]]:
                 dim = dimension_of(item)
                 if dim not in _DIMS:
                     continue
-                norm = _find_norm(items, _code_int(code))
-                ev, _ = derive_evaluation(code, item.get("label", ""), item.get("value"), norm)
+                # 优先用 build_evaluation_view 的结果（含档位 fallback）
+                ev = eval_map.get(code)
+                if not ev:
+                    norm = _find_norm(items, _code_int(code))
+                    ev, _ = derive_evaluation(code, item.get("label", ""), item.get("value"), norm)
                 dim_stats[dim]["total"] += 1
                 if ev and ev in weak_evals:
                     dim_stats[dim]["weak"] += 1
@@ -1486,7 +1593,7 @@ def get_indicator_trends() -> Dict[str, Any]:
     try:
         from evaluation_rules import (
             dimension_of, derive_evaluation, _find_norm,
-            _to_number, _code_int,
+            _to_number, _code_int, build_evaluation_view,
         )
     except Exception:
         return {"most_frequently_weak": [], "most_frequently_strong": [],
@@ -1511,6 +1618,14 @@ def get_indicator_trends() -> Dict[str, Any]:
             student_obj = data.get("student") or {}
             student_name = student_obj.get("name") or student.name or "未命名"
 
+            # 用 build_evaluation_view 拿到含规则推导 + 档位 fallback 的 eval_value
+            eval_items, _ = build_evaluation_view(items)
+            eval_map: Dict[str, str] = {}
+            for ei in eval_items:
+                c = str(ei.get("code", ""))
+                if c and ei.get("eval_value"):
+                    eval_map[c] = ei["eval_value"]
+
             for item in items:
                 code = str(item.get("code", ""))
                 if not code:
@@ -1519,8 +1634,11 @@ def get_indicator_trends() -> Dict[str, Any]:
                 dim = dimension_of(item)
                 if dim not in _DIMS:
                     continue
-                norm = _find_norm(items, _code_int(code))
-                ev, _ = derive_evaluation(code, label, item.get("value"), norm)
+                # 优先用 build_evaluation_view 的结果（含档位 fallback）
+                ev = eval_map.get(code)
+                if not ev:
+                    norm = _find_norm(items, _code_int(code))
+                    ev, _ = derive_evaluation(code, label, item.get("value"), norm)
 
                 if code not in indicators:
                     indicators[code] = {

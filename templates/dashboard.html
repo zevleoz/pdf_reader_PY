@@ -27,6 +27,7 @@
       padding-top: 16px;
     }
     .dash-content { min-width: 0; }
+    canvas { max-width: 100%; width: 100% !important; }
 
     /* ===== STICKY SECTION INDEX — editorial TOC ===== */
     .dash-index {
@@ -535,6 +536,8 @@
     .dist-col {
       padding: 24px 20px;
       border-right: 1px solid var(--line-soft);
+      min-width: 0;
+      overflow: hidden;
     }
     .dist-col:last-child { border-right: none; }
     .dist-col .dc-name {
@@ -561,6 +564,8 @@
       font-size: 12px;
       line-height: 1.7;
       color: var(--ink-2);
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
     .dist-col .dc-empty {
       font-size: 12px;
