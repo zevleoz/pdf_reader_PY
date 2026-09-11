@@ -603,6 +603,13 @@
       .lab-col { min-height: 300px; }
     }
     .lab-topbar { flex-wrap: wrap; gap: 8px; }
+    .lab-topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .lab-select {
+      font-family: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--border, #e2e2e2);
+      border-radius: 6px; background: var(--paper, #fff); color: var(--ink, #141414); cursor: pointer; min-width: 140px;
+    }
+    .lab-select:disabled { opacity: 0.5; cursor: not-allowed; }
+    .lab-select:focus { outline: none; border-color: var(--red, #B33A3A); }
     @media (max-width: 480px) {
       .lab-topbar { padding: 0 12px; height: auto; min-height: 52px; }
       .lab-topbar-left { gap: 8px; flex-wrap: wrap; }
@@ -632,11 +639,17 @@
 <div class="lab-topbar">
   <div class="lab-topbar-left">
     <span class="lab-title">内部下载</span>
-    <span style="font-size: 12px; color: var(--muted);">确认有效评价后下载 Y4 / E4 协议</span>
+    <span style="font-size: 12px; color: var(--muted);">选学生 → 选报告 → 确认有效评价后下载 Y4 / E4 协议</span>
   </div>
-  <div style="display: flex; align-items: center; gap: 12px;">
+  <div class="lab-topbar-right">
+    <select id="studentSelect" class="lab-select" onchange="onStudentChange(this.value)">
+      <option value="">选择学生…</option>
+    </select>
+    <select id="reportSelect" class="lab-select" onchange="onReportChange(this.value)" disabled>
+      <option value="">选择报告…</option>
+    </select>
     <span class="lab-status idle" id="statusBar"><span class="dot"></span><span id="statusText">就绪</span></span>
-    <button class="btn-sm primary" id="runBtn" onclick="runInterpretation()">运行解读</button>
+    <button class="btn-sm primary" id="runBtn" onclick="runInterpretation()" disabled>运行解读</button>
   </div>
 </div>
 
@@ -772,6 +785,9 @@
 <script>
   let lastOutput = '';
   let isRunning = false;
+  let currentStudentId = '';
+  let currentReportId = '';
+  let currentReport = null;
   let evalItems = [];
   let perCodeEvalOptions = {};
   const FALLBACK_EVAL_OPTIONS = ["高","较好","不低","偏低","明显偏低","严重偏低","需关注","需特殊关注","相对健康","正常"];
@@ -803,7 +819,56 @@
   });
 
   loadE4Meta();
-  loadEvaluation();
+  loadStudents();
+
+  async function loadStudents() {
+    try {
+      const resp = await fetch('/api/students');
+      const data = await resp.json();
+      if (data.ok && data.students) {
+        const sel = document.getElementById('studentSelect');
+        data.students.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = s.name + (s.grade ? ` (${s.grade})` : '');
+          sel.appendChild(opt);
+        });
+      }
+    } catch (e) { console.error('加载学生列表失败', e); }
+  }
+
+  async function onStudentChange(sid) {
+    currentStudentId = sid;
+    currentReportId = '';
+    currentReport = null;
+    const rs = document.getElementById('reportSelect');
+    rs.innerHTML = '<option value="">选择报告…</option>';
+    rs.disabled = !sid;
+    document.getElementById('runBtn').disabled = true;
+    evalItems = [];
+    renderEvalCounts();
+    renderEvalList();
+    if (!sid) return;
+    try {
+      const resp = await fetch(`/api/students/${sid}/reports`);
+      const data = await resp.json();
+      if (data.ok && data.reports) {
+        data.reports.forEach(r => {
+          const opt = document.createElement('option');
+          opt.value = r.id;
+          opt.textContent = (r.report_date || r.created_at || `#${r.id}`) + (r.student_name ? ` · ${r.student_name}` : '');
+          rs.appendChild(opt);
+        });
+      }
+    } catch (e) { console.error('加载报告列表失败', e); }
+  }
+
+  async function onReportChange(rid) {
+    currentReportId = rid;
+    document.getElementById('runBtn').disabled = !rid;
+    if (!rid) { evalItems = []; renderEvalCounts(); renderEvalList(); return; }
+    await loadEvaluation();
+  }
 
   async function loadE4Meta() {
     try {
@@ -818,10 +883,12 @@
   function openModal(id) { document.getElementById(id).classList.add('open'); }
   function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-  // ── 有效评价视图 ──────────────────────────────────────────────
+  // ── 有效评价视图（按报告加载） ───────────────────────────────
   async function loadEvaluation() {
+    if (!currentReportId) return;
+    setStatus('running', '加载有效评价…');
     try {
-      const resp = await fetch('/api/prompt-lab/evaluation');
+      const resp = await fetch(`/api/reports/${currentReportId}/qualification`);
       const data = await resp.json();
       if (data.ok) {
         evalItems = data.items.map(it => ({
@@ -839,14 +906,27 @@
         mappingTotal = data.mapping_total || evalItems.length;
         updateMappingCount();
         evalLoaded = true;
+        currentReport = data.report || null;
+        // 已有解读则回填，避免重复跑 AI
+        if (currentReport && currentReport.interpretation) {
+          lastOutput = currentReport.interpretation;
+          document.getElementById('outputArea').innerHTML =
+            `<div class="output-content">${renderMarkdown(currentReport.interpretation)}</div>`;
+        } else {
+          lastOutput = '';
+          document.getElementById('outputArea').innerHTML = '<div class="empty-state">点击「运行解读」生成 AI 解读</div>';
+        }
         renderEvalCounts();
         renderEvalList();
+        setStatus('done', '就绪');
       } else {
         document.getElementById('evalCounts').textContent = '';
         document.getElementById('evalArea').innerHTML = '<div class="empty-state" style="color:var(--red);">' + (data.error||'加载失败') + '</div>';
+        setStatus('idle', '错误');
       }
     } catch (e) {
       document.getElementById('evalArea').innerHTML = '<div class="empty-state" style="color:var(--red);">网络错误: ' + e.message + '</div>';
+      setStatus('idle', '错误');
     }
   }
 
@@ -1247,7 +1327,7 @@
     const includeRaw = document.getElementById('includeRaw').checked;
     btn.disabled = true; btn.textContent = '生成中…';
     try {
-      const resp = await fetch('/api/prompt-lab/evaluation/download', {
+      const resp = await fetch(`/api/reports/${currentReportId}/protocol-md`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           items: collectEvalPayload(),
@@ -1270,7 +1350,7 @@
     const btn = document.getElementById('evalDownloadJsonBtn');
     btn.disabled = true; btn.textContent = '生成中…';
     try {
-      const resp = await fetch('/api/prompt-lab/y4-export/json', {
+      const resp = await fetch(`/api/reports/${currentReportId}/y4-json`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           items: collectEvalPayload(),
@@ -1313,6 +1393,7 @@
 
   async function runE4Workflow() {
     if (e4State.phase === 'running') { openModal('e4WorkflowModal'); return; }
+    if (!currentReportId) { alert('请先选择学生和报告'); return; }
     e4State = { phase: 'running', content_md: '', fname: 'E4评估_protocol.md' };
     const includeRaw = document.getElementById('includeRaw').checked;
     const btn = document.getElementById('evalDownloadE4Btn');
@@ -1325,18 +1406,21 @@
 
     const payloadItems = collectEvalPayload();
     try {
-      // Step 1 数据整编（纯 Python，无 AI）
+      // 一站式：后端串行跑 step1（数据整编）→ step2（跨维度分析）→ step3（总览成文）
       e4SetStep(1, 'running');
-      e4Detail('按 E4 框架（维度→评估问题→指标）整编数据行…');
-      const r1 = await fetch('/api/prompt-lab/e4/step1', {
+      e4Detail('按 E4 框架（维度→评估问题→指标）整编数据行 → 跨维度分析 → 总览成文（一站式，预计 30-60s）');
+      const r = await fetch(`/api/reports/${currentReportId}/e4-protocol`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ items: payloadItems, include_raw: includeRaw }),
+        body: JSON.stringify({ items: payloadItems, include_raw: includeRaw, interpretation: lastOutput || '' }),
       }).then(r => r.json());
-      if (!r1.ok) throw new Error(r1.error || 'Step1 失败');
-      const gc = r1.group_counts || {};
+      if (!r.ok) throw new Error(r.error || 'E4 协议生成失败');
+
+      // Step1 结果
+      const s1 = r.step1 || {};
+      const gc = s1.group_counts || {};
       const parts = e4Meta.dims.map(d => `${d}: <b>${gc[d] || 0}</b>`).join(' · ');
-      e4Detail(`数据整编完成 — ${parts}｜框架外 OTHER: <b>${r1.unmapped_count || 0}</b>`);
-      const lp = r1.list_placement || {};
+      e4Detail(`数据整编完成 — ${parts}｜框架外 OTHER: <b>${s1.unmapped_count || 0}</b>`);
+      const lp = r.list_placement || {};
       if (lp.category) {
         let extra = '';
         if (lp.placement === '干预名单') {
@@ -1352,41 +1436,22 @@
         e4Detail(`问题判定完成 — 名单预览: <b>${lp.category}</b>${extra}`);
       }
 
-      // Step 2 跨维度 contextual 分析（AI 看全部数据，不再孤立分维度）
-      e4SetStep(2, 'running');
-      document.getElementById('e4DimStatus').style.display = 'none';
-      e4Detail('AI 跨维度分析中 — 看到全部维度数据，做连结/拆分/分析/剖析/识别…');
-      const r2 = await fetch('/api/prompt-lab/e4/step2', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ groups: r1.groups, other_lines: r1.other_lines || [] }),
-      }).then(r => r.json());
-      if (r2.ok === false && r2.error) throw new Error(r2.error);
-      if (!r2.analyses && !r2.full_analysis) throw new Error('Step2 失败');
-      const statList = r2.stats || [];
-      const tok2 = statList.reduce((a, s) => a + (s.tokens || 0), 0);
-      const t2 = statList.reduce((a, s) => a + (s.time_ms || 0), 0);
-      e4Detail(`跨维度分析完成 — Tokens: <b>${tok2}</b>｜耗时: <b>${(t2/1000).toFixed(1)}s</b>｜模型: ${r2.model || '-'}`
-        + ((r2.failed || []).length ? ` <span class="err">失败: ${r2.failed.join('、')}</span>` : ''));
+      // Step2 结果
+      e4SetStep(2, 'done');
+      const st2 = (r.stats && r.stats.step2) || [];
+      const tok2 = st2.reduce((a, s) => a + (s.tokens || 0), 0);
+      const t2 = st2.reduce((a, s) => a + (s.time_ms || 0), 0);
+      e4Detail(`跨维度分析完成 — Tokens: <b>${tok2}</b>｜耗时: <b>${(t2/1000).toFixed(1)}s</b>｜模型: ${st2[0]?.model || '-'}`);
 
-      // Step 3 综合成文（AI 只写总览，数据行由 Python 确定性拼装）
-      e4SetStep(3, 'running');
-      e4Detail('AI 撰写总览（核心矛盾 / 真实优势 / 下一步），数据行由 Python 确定性拼装，不经过 AI…');
-      const r3 = await fetch('/api/prompt-lab/e4/step3', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          items: payloadItems, include_raw: includeRaw,
-          analyses: r2.analyses || {}, full_analysis: r2.full_analysis || '',
-          interpretation: lastOutput || '',
-        }),
-      }).then(r => r.json());
-      if (!r3.ok) throw new Error(r3.error || 'Step3 失败');
-      const s3 = r3.stats || {};
+      // Step3 结果
+      e4SetStep(3, 'done');
+      const s3 = (r.stats && r.stats.step3) || {};
       e4Detail(`完成 — 总览 Tokens: <b>${s3.tokens || 0}</b>｜耗时: <b>${((s3.time_ms || 0)/1000).toFixed(1)}s</b>｜模型: ${s3.model || '-'}`);
       e4State.phase = 'done';
-      e4State.content_md = r3.content_md;
-      const sname = (r3.student_name || '学生').replace(/\s+/g, '');
+      e4State.content_md = r.content_md;
+      const sname = (r.student_name || '学生').replace(/\s+/g, '');
       e4State.fname = `${sname}_E4协议.md`;
-      document.getElementById('e4Overview').innerHTML = renderMarkdown(r3.content_md);
+      document.getElementById('e4Overview').innerHTML = renderMarkdown(r.content_md);
       document.getElementById('e4OverviewWrap').style.display = 'block';
       document.getElementById('e4DownloadFinalBtn').style.display = '';
       document.getElementById('e4FootNote').textContent = '本文件为工作草稿，每次点击重新生成，不做储存';
@@ -1442,17 +1507,18 @@
 
   async function runInterpretation() {
     if (isRunning) return;
+    if (!currentReportId) { alert('请先选择学生和报告'); return; }
     isRunning = true;
     document.getElementById('runBtn').disabled = true;
-    setStatus('running', 'AI 解读中...');
+    setStatus('running', 'AI 解读中（按报告）...');
     document.getElementById('outputArea').innerHTML = '<div class="empty-state">等待 AI 响应...</div>';
     document.getElementById('outputMetaBar').style.display = 'none';
 
     try {
-      const resp = await fetch('/api/prompt-lab/run', {
+      const resp = await fetch(`/api/reports/${currentReportId}/interpret`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: '请给出这份 Y4 报告的完整解读' }),
+        body: JSON.stringify({}),
       });
       const data = await resp.json();
 
@@ -1462,8 +1528,8 @@
         document.getElementById('outputArea').innerHTML =
           `<div class="output-content">${renderMarkdown(data.reply)}</div>`;
         document.getElementById('outputMetaBar').style.display = 'flex';
-        document.getElementById('metaTokens').textContent = `Tokens: ${data.tokens}`;
-        document.getElementById('metaTime').textContent = `耗时: ${(data.time_ms / 1000).toFixed(1)}s`;
+        document.getElementById('metaTokens').textContent = `已保存至报告`;
+        document.getElementById('metaTime').textContent = '';
 
         setStatus('done', '完成');
       } else {

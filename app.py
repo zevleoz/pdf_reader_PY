@@ -1478,6 +1478,255 @@ def api_report_interpret(report_id):
 
 
 # ---------------------------------------------------------------------------
+# 按报告的有效评价 qualification + 协议下载（生产版内部下载页用）
+# ---------------------------------------------------------------------------
+def _report_qualification_payload(report_id: int):
+    """从 DB 取某报告的 raw schema_124 → 构建 qualification 视图 + report meta。
+
+    Returns (payload_dict, error_or_None)。payload 含 items/student/summary/mapping_done/
+    mapping_total/per_code_eval_options/data_bias_options/report。
+    """
+    record = _db.get_report_raw(report_id)
+    if not record:
+        return None, "报告不存在"
+    raw = record.get("raw") or {}
+    schema_items = [it for it in (raw.get("schema_124") or []) if not _eval_rules.is_hidden_raw(it)]
+    student = raw.get("student", {}) or {}
+    items, summary, mapping_done, per_code_opts = _build_qualification_view(schema_items)
+    payload = {
+        "items": items,
+        "student": student,
+        "summary": summary,
+        "mapping_done": mapping_done,
+        "mapping_total": len(items),
+        "data_bias_options": _eval_rules.DATA_BIAS_OPTIONS,
+        "per_code_eval_options": per_code_opts,
+        "report": {
+            "id": report_id,
+            "report_date": record.get("report_date"),
+            "student_name": record.get("student_name"),
+            "interpretation": record.get("interpretation") or "",
+        },
+    }
+    return payload, None
+
+
+@app.route("/api/reports/<int:report_id>/qualification")
+@admin_required
+def api_report_qualification(report_id):
+    """按报告取有效评价 qualification 视图（含 items/student/summary/E4 映射/per-code 选项）。"""
+    payload, err = _report_qualification_payload(report_id)
+    if err:
+        return jsonify({"ok": False, "error": err}), 404
+    return jsonify({"ok": True, **payload})
+
+
+@app.route("/api/reports/<int:report_id>/protocol-md", methods=["POST"])
+@admin_required
+def api_report_protocol_md(report_id):
+    """按报告下载 Y4 有效评价传递协议 Markdown（Phase 1）。
+
+    body: {items: 调整后的 items, include_raw: bool, interpretation?: str(覆盖 DB)}
+    student 从 DB report 取；interpretation 不传则用 DB 中已保存的解读。
+    """
+    import io as _io
+    record = _db.get_report_raw(report_id)
+    if not record:
+        return jsonify({"ok": False, "error": "报告不存在"}), 404
+    raw = record.get("raw") or {}
+    student = raw.get("student", {}) or {}
+    student_name = record.get("student_name") or student.get("name") or "测试"
+
+    data = request.get_json(force=True) or {}
+    items = data.get("items", [])
+    include_raw = bool(data.get("include_raw", False))
+    if "interpretation" in data and data.get("interpretation") is not None:
+        interpretation = (data.get("interpretation") or "").strip()
+    else:
+        interpretation = (record.get("interpretation") or "").strip()
+
+    md_text = _build_phase1_md_text(items, include_raw, interpretation, student, student_name)
+    buf = _io.BytesIO(md_text.encode("utf-8"))
+    return send_file(buf, mimetype="text/markdown", as_attachment=True,
+                     download_name=f"有效评价_{student_name}_protocol.md")
+
+
+@app.route("/api/reports/<int:report_id>/y4-json", methods=["POST"])
+@admin_required
+def api_report_y4_json(report_id):
+    """按报告导出通用 Y4 JSON（按 Y4 四维组织全部数据点 + AI 解读 + 名单 + 问题级判定）。
+
+    body: {items: 调整后的 items, interpretation?: str(覆盖 DB)}
+    """
+    record = _db.get_report_raw(report_id)
+    if not record:
+        return jsonify({"ok": False, "error": "报告不存在"}), 404
+    raw = record.get("raw") or {}
+    student = raw.get("student", {}) or {}
+    student_name = record.get("student_name") or student.get("name") or "测试"
+
+    data = request.get_json(force=True) or {}
+    items = data.get("items", [])
+    if "interpretation" in data and data.get("interpretation") is not None:
+        interpretation = (data.get("interpretation") or "").strip()
+    else:
+        interpretation = (record.get("interpretation") or "").strip()
+
+    payload = _build_y4_payload(items, interpretation, student, student_name)
+    return jsonify({"ok": True, "json": payload,
+                    "filename": f"{student_name.replace(' ', '')}_Y4数据.json"})
+
+
+@app.route("/api/reports/<int:report_id>/e4-protocol", methods=["POST"])
+@admin_required
+def api_report_e4_protocol(report_id):
+    """按报告一站式生成 E4 协议（step1 数据整编 + step2 跨维度分析 + step3 总览成文）。
+
+    body: {items: 调整后的 items, include_raw: bool, interpretation?: str(覆盖 DB)}
+    后端内部串行跑 step1→step2→step3，返回 content_md + stats + list_placement + student_name。
+    interpretation 不传则用 DB 中已保存的解读。
+    """
+    record = _db.get_report_raw(report_id)
+    if not record:
+        return jsonify({"ok": False, "error": "报告不存在"}), 404
+    raw = record.get("raw") or {}
+    student = raw.get("student", {}) or {}
+    student_name = record.get("student_name") or student.get("name") or "测试"
+
+    data = request.get_json(force=True) or {}
+    items = data.get("items", [])
+    include_raw = bool(data.get("include_raw", False))
+    if "interpretation" in data and data.get("interpretation") is not None:
+        interpretation = (data.get("interpretation") or "").strip()
+    else:
+        interpretation = (record.get("interpretation") or "").strip()
+
+    # Step1：数据整编（纯 Python）
+    vgroups, other_items, _dims_by_code = _eval_rules.evaluate_question_verdicts(items)
+    groups_payload: List[Dict[str, Any]] = []
+    group_counts: Dict[str, int] = {d: 0 for d in _eval_rules.E4_DIMS}
+    for g in vgroups:
+        lines = [_format_e4_line(it, include_raw) for it in g["items"]]
+        groups_payload.append({"dim": g["dim"], "q": g["q"], "lines": lines, "verdict": g.get("verdict")})
+        group_counts[g["dim"]] += len(g["items"])
+    other_lines = [_format_e4_line(it, include_raw) for it in other_items]
+    list_placement = _determine_list_placement(items)
+
+    # Step2：跨维度分析（AI）
+    model2 = os.environ.get("E4_STEP2_MODEL", "qwen-turbo")
+    timeout = int(os.environ.get("E4_STEP_TIMEOUT", "180"))
+    all_lines: List[str] = []
+    current_dim = None
+    for g in groups_payload:
+        dim = g.get("dim", "")
+        if dim != current_dim:
+            all_lines.append("")
+            all_lines.append(f"## {_eval_rules.E4_LABELS.get(dim, dim)}")
+            current_dim = dim
+        q = g.get("q")
+        if q:
+            all_lines.append(f"问题：{q}")
+        v = g.get("verdict")
+        if v:
+            cn = _eval_rules.VERDICT_LABELS_CN.get(v.get("state"), v.get("state", ""))
+            all_lines.append(f"问题判定（Python 规则，须以此为准绳）：{cn} | {v.get('summary', '')}")
+        all_lines.extend(g.get("lines") or [])
+        all_lines.append("")
+    if other_lines:
+        all_lines.append("## OTHER_VARIABLES（框架未引用）")
+        all_lines.extend(other_lines)
+        all_lines.append("")
+
+    analyses: Dict[str, str] = {d: "" for d in _eval_rules.E4_DIMS}
+    full_analysis = ""
+    stats2: List[Dict[str, Any]] = []
+    if any(g.get("lines") for g in groups_payload):
+        system2 = _e4_step2_system()
+        user2 = ("【E4 框架数据（按维度和评估问题组织；问题下列出该问题涉及的指标数据）】\n"
+                 + "\n".join(all_lines))
+        try:
+            r2 = _dashscope_chat(
+                [{"role": "system", "content": system2},
+                 {"role": "user", "content": user2}],
+                model=model2, timeout=timeout, max_tokens=4000)
+            full_analysis = r2["content"]
+            cross_match = ""
+            if "跨维度连结" in full_analysis:
+                idx = full_analysis.index("跨维度连结")
+                cross_match = full_analysis[idx:].strip()
+            analyses["_cross"] = cross_match
+            stats2 = [{"dim": "ALL", "tokens": r2["tokens"], "time_ms": r2["time_ms"], "model": model2}]
+        except Exception as exc:
+            stats2 = [{"dim": "ALL", "tokens": 0, "time_ms": 0, "model": model2, "error": str(exc)}]
+            full_analysis = f"（Step2 跨维度分析失败：{exc}）"
+
+    # Step3：总览成文（AI）
+    model3 = os.environ.get("E4_STEP3_MODEL", "qwen-plus")
+    system3 = f"""你是 Y4 测评 E4 评估框架的主笔。基于跨维度分析草稿，撰写「总览」段和「名单归属」判断。
+
+【硬规则】
+1. {_E4_NAMING_RULE}
+2. 禁止创造新术语，只使用 Y4/E4 已有词汇。
+3. 总览锚定 E4 框架：核心矛盾（标注涉及维度）/ 真实优势（标注维度）/ 下一步（针对具体维度问题）。
+4. 只依据分析草稿内容，不编造数据。
+5. 跨维度连结是核心——不同维度的指标组合在一起才产生结论。
+
+【禁止的术语类型（硬约束，违反即重写）】
+- 心理学/治疗术语：如"情绪耗竭"、"神经可塑性"、"负向耦合"、"恶性循环"等
+- 连字符组合造词、自创概念标签、学术化包装
+
+【正确表达方式】
+- 用指标名称直接描述状态，如"情绪稳定性总分偏低"
+- 用 E4 维度名+涉及的指标描述关联
+- 用平实语言描述指标之间的关系
+
+【名单归属判断规则】
+基于 Y4 测评结论与各问题的「问题判定」，判断学生归属（四类之一）：
+- 干预名单·强特质：E1 情绪 或 E2 精力 存在「有问题」判定，且问题严重（需特殊关注/明显偏低/严重偏低，或多个问题同时成立）→ 重点干预
+- 干预名单·弱特质：E1/E2 有「有问题」判定但程度较轻（单一问题、多为关注级）→ 轻量干预/观望
+- 潜能名单·强特质：E1/E2 均无问题（心力无问题），且认知能力百分位总≥95、执行功能平均≥90 → 聚焦天赋发展
+- 潜能名单·弱特质：E1/E2 均无问题，但学习力潜力或动力不充分 → 聚焦潜能补强
+判断须基于数据，写出具体理由。
+
+【输出格式】markdown，四个小节：
+### 核心矛盾
+### 真实优势
+### 下一步
+### 名单归属
+最后一节从四类（干预名单·强特质 / 干预名单·弱特质 / 潜能名单·强特质 / 潜能名单·弱特质）中明确写出学生归属，并给出判断理由。
+每条结论末尾用（）标注依据指标名称。"""
+    user3 = (f"【跨维度分析草稿】\n{full_analysis or analyses}\n\n"
+             f"【Y4 原始 AI 解读（可选参考，非客观事实）】\n{interpretation or '（无）'}")
+    try:
+        r3 = _dashscope_chat(
+            [{"role": "system", "content": system3},
+             {"role": "user", "content": user3}],
+            model=model3, timeout=timeout, max_tokens=2500)
+        overview_md = r3["content"]
+        stats3 = {"tokens": r3["tokens"], "time_ms": r3["time_ms"], "model": model3}
+    except Exception as exc:
+        overview_md = f"（总览生成失败：{exc}）"
+        stats3 = {"tokens": 0, "time_ms": 0, "model": model3, "error": str(exc)}
+
+    content_md = _assemble_e4_protocol(items, include_raw, analyses, overview_md,
+                                      full_analysis, interpretation,
+                                      student=student, student_name=student_name)
+    return jsonify({
+        "ok": True,
+        "content_md": content_md,
+        "stats": {"step2": stats2, "step3": stats3},
+        "student_name": student_name,
+        "list_placement": list_placement,
+        "step1": {
+            "groups": groups_payload,
+            "other_lines": other_lines,
+            "group_counts": group_counts,
+            "unmapped_count": len(other_lines),
+        },
+    })
+
+
+# ---------------------------------------------------------------------------
 # 有效评价 (Y4 Evaluation) Markdown 下载
 # ---------------------------------------------------------------------------
 def _generate_interpretation_for_report(report_id: int):
@@ -1996,16 +2245,13 @@ def prompt_lab_get_prompt():
 # ---------------------------------------------------------------------------
 # Prompt Lab 有效评价视图（Phase 1：交互 + 下载 mock）
 # ---------------------------------------------------------------------------
-@app.route("/api/prompt-lab/evaluation")
-@admin_required
-def prompt_lab_evaluation():
-    """返回 report_data.json 的有效评价视图数据点。"""
-    report_path = DATA_DIR / "report_data.json"
-    if not report_path.exists():
-        return jsonify({"ok": False, "error": "没有测试数据 (report_data.json 不存在)"}), 400
-    report_data = json.loads(report_path.read_text(encoding="utf-8"))
-    schema_items = report_data.get("schema_124", [])
-    student = report_data.get("student", {}) or {}
+def _build_qualification_view(schema_items: List[Dict[str, Any]]):
+    """从 schema_124 构建 qualification 视图。
+
+    返回 (items, summary, mapping_done, per_code_opts)。items 已附 e4_dims/e4_dim/e4_sub
+    并按 Y4 维度排序。与数据来源解耦，供 prompt-lab（report_data.json）和按 report_id
+    的生产接口（DB raw）共用。
+    """
     items, summary = _eval_rules.build_evaluation_view(schema_items)
     # 附加用户指认的 E4 分类（无推断，未指认为空列表）
     mapping = _db.get_e4_mapping()
@@ -2026,36 +2272,40 @@ def prompt_lab_evaluation():
     for it in items:
         opts = _eval_rules.eval_options_for(it.get("code", ""), it.get("label", ""))
         per_code_opts[it.get("code", "")] = opts
+    return items, summary, mapping_done, per_code_opts
+
+
+@app.route("/api/prompt-lab/evaluation")
+@admin_required
+def prompt_lab_evaluation():
+    """返回 report_data.json 的有效评价视图数据点。"""
+    report_path = DATA_DIR / "report_data.json"
+    if not report_path.exists():
+        return jsonify({"ok": False, "error": "没有测试数据 (report_data.json 不存在)"}), 400
+    report_data = json.loads(report_path.read_text(encoding="utf-8"))
+    schema_items = report_data.get("schema_124", [])
+    student = report_data.get("student", {}) or {}
+    items, summary, mapping_done, per_code_opts = _build_qualification_view(schema_items)
     return jsonify({"ok": True, "items": items, "student": student, "summary": summary,
                     "mapping_done": mapping_done, "mapping_total": len(items),
                     "data_bias_options": _eval_rules.DATA_BIAS_OPTIONS,
                     "per_code_eval_options": per_code_opts})
 
 
-@app.route("/api/prompt-lab/evaluation/download", methods=["POST"])
-@admin_required
-def prompt_lab_evaluation_download():
-    """下载 AI→AI 传递协议 Markdown（Phase 1）。
+def _build_phase1_md_text(items: List[Dict[str, Any]], include_raw: bool,
+                          interpretation: str, student: Dict[str, Any],
+                          student_name: str = "", now: str = "") -> str:
+    """拼装 Y4 有效评价传递协议 v1.0 Markdown 文本。
 
-    入参: {items: [{code,label,raw_value,eval_value,dimension,unit,eval_source,note}],
-           include_raw: bool, interpretation: str(可选)}
+    与具体数据来源（report_data.json 或 DB report）解耦：调用方传入 items、
+    interpretation、student。expert_judgments 从 items 内的 adjusted/note 字段提取。
     """
-    import io as _io
     from datetime import datetime as _dt
-    data = request.get_json(force=True)
-    items = data.get("items", [])
-    include_raw = bool(data.get("include_raw", False))
-    interpretation = (data.get("interpretation") or "").strip()
+    if not student_name:
+        student_name = student.get("name") or "测试"
+    if not now:
+        now = _dt.now().strftime("%Y-%m-%d %H:%M")
 
-    # 取 student 信息
-    report_path = DATA_DIR / "report_data.json"
-    student = {}
-    if report_path.exists():
-        student = json.loads(report_path.read_text(encoding="utf-8")).get("student", {}) or {}
-    student_name = student.get("name") or "测试"
-    now = _dt.now().strftime("%Y-%m-%d %H:%M")
-
-    # 收集人工调整记录
     expert_judgments = []
     for it in items:
         note = (it.get("note") or "").strip()
@@ -2069,15 +2319,14 @@ def prompt_lab_evaluation_download():
                 "note": note or None,
             })
 
-    md = []
-    md.append(f"# Y4 有效评价传递协议 v1.0")
+    md: List[str] = []
+    md.append("# Y4 有效评价传递协议 v1.0")
     md.append("")
     md.append("## META")
     md.append(f"student: {student_name} | date: {student.get('test_date','')} | protocol: v1.0 | generated: {now}")
     md.append(f"gender: {student.get('gender','')} | grade: {student.get('grade','')} | school: {student.get('school','')}")
     md.append(f"archive_id: {student.get('archive_id','')} | report_code: {student.get('report_code','')}")
     md.append("")
-
     md.append("## HIERARCHY_RULES")
     md.append("```")
     md.append("RAW_DATA → EFFECTIVE_EVALUATION → INTERPRETATION")
@@ -2102,8 +2351,6 @@ def prompt_lab_evaluation_download():
     md.append("  - 下游 AI 须基于 trace 中的证据推理，不可超出边界（Error 6）")
     md.append("```")
     md.append("")
-
-    # 学生信息
     md.append("## STUDENT_INFO")
     md.append(f"name: {student_name}")
     md.append(f"gender: {student.get('gender','')}")
@@ -2112,8 +2359,6 @@ def prompt_lab_evaluation_download():
     md.append(f"school: {student.get('school','')}")
     md.append(f"test_date: {student.get('test_date','')}")
     md.append("")
-
-    # 有效评价
     md.append("## EFFECTIVE_EVALUATIONS")
     md.append("")
     buckets: Dict[str, list] = {d: [] for d in _eval_rules._DIM_ORDER}
@@ -2122,7 +2367,6 @@ def prompt_lab_evaluation_download():
         if dim not in buckets:
             dim = "学习力"
         buckets[dim].append(it)
-
     for dim in _eval_rules._DIM_ORDER:
         dim_items = sorted(buckets[dim], key=lambda it: _eval_rules.sort_key_code(it.get("code", "")))
         if not dim_items:
@@ -2139,41 +2383,32 @@ def prompt_lab_evaluation_download():
             adjusted = it.get("adjusted", False)
             original = it.get("original_eval", "")
             note = (it.get("note") or "").strip()
-
             if src == "参照值":
                 md.append(f"[NORM] code:{code} | label:{label} | value:{raw_v}{unit} | source:参照值 | status:REFERENCE_ONLY")
                 continue
-
             if src == "原始排序":
                 md.append(f"[ORDER] code:{code} | label:{label} | value:{eval_v} | source:原始排序 | status:CONFIRMED | adjusted:NO")
                 continue
-
-            # 常规 [EVAL]
             parts = [f"[EVAL] code:{code}", f"label:{label}"]
             if include_raw:
                 parts.append(f"raw:{raw_v}{unit}")
             parts.append(f"eval:{eval_v}")
             parts.append(f"source:{src}")
-            # 规则推导附 rule_note
             rn = it.get("rule_note")
             if rn:
                 parts.append(f"rule:{rn}")
-            parts.append(f"status:CONFIRMED")
+            parts.append("status:CONFIRMED")
             parts.append(f"adjusted:{'YES' if adjusted else 'NO'}")
             if adjusted and original:
                 parts.append(f"original:{original}")
             md.append(" | ".join(parts))
         md.append("")
-
-    # AI 解读
     md.append("## INTERPRETATION")
     md.append("")
     md.append("<!-- 以下为 AI 基于 EFFECTIVE_EVALUATIONS 的推理，非客观事实。下游 AI 引用时须标注 INTERPRETATION 来源 -->")
     md.append("")
     md.append(interpretation or "（未提供）")
     md.append("")
-
-    # 人工判断
     md.append("## EXPERT_JUDGMENTS")
     md.append("")
     if expert_judgments:
@@ -2188,11 +2423,33 @@ def prompt_lab_evaluation_download():
     else:
         md.append("（无人工调整）")
     md.append("")
-
     md.append("---")
     md.append("凭远教育 · Y4 综合测评系统 | 本文件为 AI→AI 传递协议，非人类报告")
+    return "\n".join(md)
 
-    md_text = "\n".join(md)
+
+@app.route("/api/prompt-lab/evaluation/download", methods=["POST"])
+@admin_required
+def prompt_lab_evaluation_download():
+    """下载 AI→AI 传递协议 Markdown（Phase 1）。
+
+    入参: {items: [{code,label,raw_value,eval_value,dimension,unit,eval_source,note}],
+           include_raw: bool, interpretation: str(可选)}
+    """
+    import io as _io
+    data = request.get_json(force=True)
+    items = data.get("items", [])
+    include_raw = bool(data.get("include_raw", False))
+    interpretation = (data.get("interpretation") or "").strip()
+
+    # 取 student 信息
+    report_path = DATA_DIR / "report_data.json"
+    student = {}
+    if report_path.exists():
+        student = json.loads(report_path.read_text(encoding="utf-8")).get("student", {}) or {}
+    student_name = student.get("name") or "测试"
+
+    md_text = _build_phase1_md_text(items, include_raw, interpretation, student, student_name)
     buf = _io.BytesIO(md_text.encode("utf-8"))
     return send_file(buf, mimetype="text/markdown", as_attachment=True,
                      download_name=f"有效评价_{student_name}_protocol.md")
@@ -2592,7 +2849,6 @@ def prompt_lab_y4_export_json():
 
     不含 code、不含 E4 框架分组；按 Y4 四维组织。
     """
-    from datetime import datetime as _dt
     data = request.get_json(force=True)
     items = data.get("items", [])
     interpretation = (data.get("interpretation") or "").strip()
@@ -2602,6 +2858,21 @@ def prompt_lab_y4_export_json():
     if report_path.exists():
         student = json.loads(report_path.read_text(encoding="utf-8")).get("student", {}) or {}
     student_name = student.get("name") or "测试"
+
+    payload = _build_y4_payload(items, interpretation, student, student_name)
+    return jsonify({"ok": True, "json": payload,
+                    "filename": f"{student_name.replace(' ', '')}_Y4数据.json"})
+
+
+def _build_y4_payload(items: List[Dict[str, Any]], interpretation: str,
+                      student: Dict[str, Any], student_name: str = "") -> Dict[str, Any]:
+    """构建通用 Y4 JSON payload（按 Y4 四维组织全部数据点 + AI 解读 + 名单 + 问题级判定）。
+
+    与数据来源解耦：调用方传入 items、interpretation、student。
+    """
+    from datetime import datetime as _dt
+    if not student_name:
+        student_name = student.get("name") or "测试"
 
     list_placement = _determine_list_placement(items, mapping=None)
 
@@ -2666,7 +2937,7 @@ def prompt_lab_y4_export_json():
             "summary": v["summary"],
         })
 
-    payload = {
+    return {
         "meta": {
             "protocol": "Y4-v1.0",
             "student": student_name,
@@ -2686,8 +2957,6 @@ def prompt_lab_y4_export_json():
         "data_points": data_points,
         "ai_interpretation": interpretation,
     }
-    return jsonify({"ok": True, "json": payload,
-                    "filename": f"{student_name.replace(' ', '')}_Y4数据.json"})
 
 
 def _get_student_name_from_items(items: List[Dict[str, Any]]) -> str:
@@ -2806,16 +3075,25 @@ def _determine_list_placement(items: List[Dict[str, Any]],
 
 def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
                           analyses: Dict[str, str], overview_md: str,
-                          full_analysis: str = "", interpretation: str = "") -> str:
-    """确定性拼装 E4 工作草稿协议。数据行不经过 AI，Y4 原名逐字保留。"""
+                          full_analysis: str = "", interpretation: str = "",
+                          student: Optional[Dict[str, Any]] = None,
+                          student_name: str = "") -> str:
+    """确定性拼装 E4 工作草稿协议。数据行不经过 AI，Y4 原名逐字保留。
+
+    可选 student/student_name：调用方（如按 report_id 的一站式接口）传入从 DB 取的
+    学生信息；不传则 fallback 读 data/report_data.json（兼容 prompt-lab）。
+    """
     from datetime import datetime as _dt
 
     mapping = _db.get_e4_mapping()
-    report_path = DATA_DIR / "report_data.json"
-    student = {}
-    if report_path.exists():
-        student = json.loads(report_path.read_text(encoding="utf-8")).get("student", {}) or {}
-    student_name = student.get("name") or "测试"
+    if student is None:
+        report_path = DATA_DIR / "report_data.json"
+        if report_path.exists():
+            student = json.loads(report_path.read_text(encoding="utf-8")).get("student", {}) or {}
+        else:
+            student = {}
+    if not student_name:
+        student_name = student.get("name") or "测试"
     now = _dt.now().strftime("%Y-%m-%d %H:%M")
 
     md: List[str] = []
