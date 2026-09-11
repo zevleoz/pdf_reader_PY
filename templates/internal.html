@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Y4 Prompt Lab — AI 解读迭代测试台</title>
+  <title>内部下载 — Y4 综合测评系统</title>
   <link rel="stylesheet" href="/style.css">
   <style>
     .lab-layout {
       display: grid;
-      grid-template-columns: 1fr 1.2fr 1fr;
+      grid-template-columns: 1fr 1.4fr;
       gap: 16px;
-      height: calc(100vh - 60px);
+      height: calc(100vh - 115px);
       padding: 16px;
       max-width: 1600px;
       margin: 0 auto;
@@ -602,15 +602,37 @@
       }
       .lab-col { min-height: 300px; }
     }
+    .lab-topbar { flex-wrap: wrap; gap: 8px; }
+    @media (max-width: 480px) {
+      .lab-topbar { padding: 0 12px; height: auto; min-height: 52px; }
+      .lab-topbar-left { gap: 8px; flex-wrap: wrap; }
+    }
   </style>
 </head>
 <body>
 
+<div class="brand-stripe"></div>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-name">凭远教育</span>
+    <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
+  </div>
+  <nav class="topbar-nav">
+    <a href="/">← 主页</a>
+    <a href="/booking">预约</a>
+    <a href="/admin/bookings">预约管理</a>
+    <a href="/generate">报告生成</a>
+    <a href="/students">学生档案</a>
+    <a href="/transcript">解读会纪要</a>
+    <a href="/dashboard">数据总览</a>
+    <a href="/internal" class="active">内部下载</a>
+  </nav>
+</header>
+
 <div class="lab-topbar">
   <div class="lab-topbar-left">
-    <a href="/" style="font-size: 13px; color: var(--muted); text-decoration: none;">← 返回</a>
-    <span class="lab-title">Y4 Prompt Lab</span>
-    <span class="lab-version" id="versionLabel">v1</span>
+    <span class="lab-title">内部下载</span>
+    <span style="font-size: 12px; color: var(--muted);">确认有效评价后下载 Y4 / E4 协议</span>
   </div>
   <div style="display: flex; align-items: center; gap: 12px;">
     <span class="lab-status idle" id="statusBar"><span class="dot"></span><span id="statusText">就绪</span></span>
@@ -620,21 +642,7 @@
 
 <div class="lab-layout">
 
-  <!-- 左栏：Prompt -->
-  <div class="lab-col">
-    <div class="lab-col-header">
-      <h3>Prompt（可编辑）</h3>
-      <button class="btn-sm" onclick="savePrompt()">保存</button>
-    </div>
-    <div class="lab-col-body" style="padding: 0; flex: 1; display: flex;">
-      <textarea class="prompt-textarea" id="promptEditor" spellcheck="false" placeholder="加载中..."></textarea>
-    </div>
-    <div class="lab-col-footer">
-      <span class="label-sm">测试数据：data/report_data.json</span>
-    </div>
-  </div>
-
-  <!-- 中栏：AI 输出 / 有效评价 -->
+  <!-- AI 解读 / 有效评价 -->
   <div class="lab-col">
     <div class="lab-col-header">
       <div class="mid-tabs">
@@ -645,7 +653,6 @@
     </div>
     <!-- AI 解读面板 -->
     <div id="tabAi" class="mid-panel">
-      <div class="history-tabs" id="historyTabs" style="padding: 6px 12px 0;"></div>
       <div class="lab-col-body" id="outputArea">
         <div class="empty-state">点击「运行解读」开始</div>
       </div>
@@ -676,36 +683,6 @@
           <button class="eval-dl-btn" id="evalDownloadJsonBtn" onclick="downloadY4Json()" style="background:var(--ink)">下载 Y4 JSON</button>
           <button class="eval-dl-btn" id="evalDownloadE4Btn" onclick="runE4Workflow()" style="background:var(--red)">下载 E4 协议</button>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 右栏：反馈 + 迭代 -->
-  <div class="lab-col">
-    <div class="lab-col-header">
-      <h3>反馈 & 迭代</h3>
-    </div>
-    <div class="lab-col-body">
-      <div style="margin-bottom: 16px;">
-        <span class="label-sm">评分</span>
-        <div class="star-rating" id="starRating">
-          <span class="star" data-val="1">★</span>
-          <span class="star" data-val="2">★</span>
-          <span class="star" data-val="3">★</span>
-          <span class="star" data-val="4">★</span>
-          <span class="star" data-val="5">★</span>
-        </div>
-      </div>
-      <div style="margin-bottom: 12px;">
-        <span class="label-sm">反馈意见（越具体越好）</span>
-        <textarea class="feedback-textarea" id="feedbackInput" placeholder="例：输出太长，没有锚定四维框架，自创了'内耗型'这个术语..." spellcheck="false"></textarea>
-      </div>
-      <button class="btn-sm primary" id="iterateBtn" onclick="submitFeedback()" style="width: 100%;" disabled>
-        提交反馈并自动迭代
-      </button>
-      <div id="diffArea" style="margin-top: 16px; display: none;">
-        <span class="label-sm">Prompt 改动</span>
-        <div class="diff-box" id="diffContent"></div>
       </div>
     </div>
   </div>
@@ -793,10 +770,7 @@
 </div>
 
 <script>
-  let currentRating = 0;
   let lastOutput = '';
-  let outputs = [];
-  let outputVersion = 0;
   let isRunning = false;
   let evalItems = [];
   let perCodeEvalOptions = {};
@@ -828,15 +802,8 @@
     }
   });
 
-  (async () => {
-    try {
-      const resp = await fetch('/api/prompt-lab/prompt');
-      const data = await resp.json();
-      if (data.ok) document.getElementById('promptEditor').value = data.prompt;
-    } catch (e) { console.error(e); }
-    loadE4Meta();
-    loadEvaluation();
-  })();
+  loadE4Meta();
+  loadEvaluation();
 
   async function loadE4Meta() {
     try {
@@ -1443,20 +1410,7 @@
     document.querySelectorAll('.mid-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.getElementById('tabAi').style.display = tab === 'ai' ? 'flex' : 'none';
     document.getElementById('tabEval').style.display = tab === 'eval' ? 'flex' : 'none';
-    document.getElementById('outputMeta').textContent = tab === 'ai' ? (outputVersion ? `v${outputVersion}` : '') : '';
   }
-
-  // Star rating
-  document.querySelectorAll('.star').forEach(star => {
-    star.addEventListener('click', () => {
-      const val = parseInt(star.dataset.val);
-      currentRating = val;
-      document.querySelectorAll('.star').forEach((s, i) => {
-        s.classList.toggle('active', i < val);
-      });
-      document.getElementById('iterateBtn').disabled = (val === 0 || !lastOutput);
-    });
-  });
 
   function setStatus(state, text) {
     const bar = document.getElementById('statusBar');
@@ -1503,25 +1457,15 @@
       const data = await resp.json();
 
       if (data.ok) {
-        outputVersion++;
         lastOutput = data.reply;
-        outputs.push({
-          version: outputVersion,
-          text: data.reply,
-          tokens: data.tokens,
-          time_ms: data.time_ms,
-        });
 
         document.getElementById('outputArea').innerHTML =
           `<div class="output-content">${renderMarkdown(data.reply)}</div>`;
         document.getElementById('outputMetaBar').style.display = 'flex';
         document.getElementById('metaTokens').textContent = `Tokens: ${data.tokens}`;
         document.getElementById('metaTime').textContent = `耗时: ${(data.time_ms / 1000).toFixed(1)}s`;
-        document.getElementById('outputMeta').textContent = `v${outputVersion}`;
 
-        updateHistoryTabs();
         setStatus('done', '完成');
-        document.getElementById('iterateBtn').disabled = (currentRating === 0);
       } else {
         document.getElementById('outputArea').innerHTML =
           `<div class="empty-state" style="color: var(--red);">${data.error || '解读失败'}</div>`;
@@ -1535,98 +1479,6 @@
 
     isRunning = false;
     document.getElementById('runBtn').disabled = false;
-  }
-
-  async function submitFeedback() {
-    const feedback = document.getElementById('feedbackInput').value.trim();
-    if (!feedback || currentRating === 0 || !lastOutput) return;
-
-    const btn = document.getElementById('iterateBtn');
-    btn.disabled = true;
-    btn.textContent = 'AI 迭代 prompt 中...';
-    setStatus('running', '迭代 prompt...');
-    document.getElementById('diffArea').style.display = 'none';
-
-    try {
-      const resp = await fetch('/api/prompt-lab/iterate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          feedback: feedback,
-          rating: currentRating,
-          last_output: lastOutput,
-        }),
-      });
-      const data = await resp.json();
-
-      if (data.ok) {
-        // Update prompt editor
-        document.getElementById('promptEditor').value = data.new_prompt;
-
-        // Show diff
-        document.getElementById('diffArea').style.display = 'block';
-        document.getElementById('diffContent').textContent = data.diff || '无明显差异';
-
-        // Update version label
-        document.getElementById('versionLabel').textContent = `v${data.version + 1}`;
-
-        setStatus('done', 'Prompt 已更新，重新运行中...');
-
-        // Auto re-run
-        setTimeout(() => runInterpretation(), 500);
-      } else {
-        setStatus('idle', '迭代失败');
-        alert(data.error || '迭代失败');
-      }
-    } catch (e) {
-      setStatus('idle', '网络错误');
-      alert('网络错误: ' + e.message);
-    }
-
-    btn.disabled = false;
-    btn.textContent = '提交反馈并自动迭代';
-  }
-
-  async function savePrompt() {
-    const promptText = document.getElementById('promptEditor').value.trim();
-    if (!promptText) return;
-
-    try {
-      const resp = await fetch('/api/prompt-lab/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: promptText }),
-      });
-      const data = await resp.json();
-      if (data.ok) {
-        setStatus('done', 'Prompt 已保存');
-        setTimeout(() => setStatus('idle', '就绪'), 2000);
-      } else {
-        alert(data.error || '保存失败');
-      }
-    } catch (e) {
-      alert('网络错误: ' + e.message);
-    }
-  }
-
-  function updateHistoryTabs() {
-    const container = document.getElementById('historyTabs');
-    container.innerHTML = '';
-    outputs.forEach(o => {
-      const tab = document.createElement('span');
-      tab.className = 'history-tab' + (o.version === outputVersion ? ' active' : '');
-      tab.textContent = `v${o.version}`;
-      tab.onclick = () => {
-        outputVersion = o.version;
-        document.getElementById('outputArea').innerHTML =
-          `<div class="output-content">${renderMarkdown(o.text)}</div>`;
-        document.getElementById('metaTokens').textContent = `Tokens: ${o.tokens}`;
-        document.getElementById('metaTime').textContent = `耗时: ${(o.time_ms / 1000).toFixed(1)}s`;
-        document.getElementById('outputMeta').textContent = `v${o.version}`;
-        updateHistoryTabs();
-      };
-      container.appendChild(tab);
-    });
   }
 </script>
 
