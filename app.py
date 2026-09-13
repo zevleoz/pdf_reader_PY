@@ -2442,6 +2442,19 @@ def _format_e4_line(it: Dict[str, Any], include_raw: bool, is_ref: bool = False)
     bias = it.get("data_bias", "正常") or "正常"
     problem = it.get("problem_status", "CONFIRMED") or "CONFIRMED"
 
+    # 体质健康类：从 note 提取单位（如 note="睡眠时长（小时/天）" → unit="小时/天"）
+    note_used_for_unit = False
+    if not unit and note:
+        m_unit = re.search(r"[（(]([^)）]+)[)）]", note)
+        if m_unit:
+            unit = m_unit.group(1).strip()
+            note_used_for_unit = True
+
+    # 饮食无数值时不展示 0（真实数据是描述段落，见 OTHER_VARIABLES）
+    is_diet_score = "饮食" in label and "得分" in label
+    if is_diet_score and (not raw_v or str(raw_v).strip() in ("0", "")):
+        raw_v = ""
+
     if src == "参照值":
         return f"[NORM] {label} | {raw_v}{unit}"
 
@@ -2464,19 +2477,17 @@ def _format_e4_line(it: Dict[str, Any], include_raw: bool, is_ref: bool = False)
     if trait:
         tn = (it.get("trait_note") or "").strip()
         parts.append(f"{trait}（{tn}）" if tn else trait)
-    # 体质习惯得分行：得分无档位时显示 PDF 评级，避免「饮食0」被误读
+    # 体质习惯行：显示 PDF 评级
     pdf_grade = (it.get("pdf_grade") or "").strip()
     if pdf_grade:
         parts.append(f"评级:{pdf_grade}")
-    if src not in ("规则推导", "待判定"):
-        parts.append(f"source:{src}")
     if bias != "正常":
         parts.append(f"bias:{bias}")
     if problem == "OBSERVATION":
         parts.append("problem:OBSERVATION")
     if adjusted and original:
         parts.append(f"adjusted:{original}→{eval_v}")
-    if note:
+    if note and not note_used_for_unit:
         parts.append(f"note:{note}")
     return " | ".join(parts)
 
@@ -2557,10 +2568,36 @@ def _dashscope_chat(messages: List[Dict[str, str]], model: str,
     }
 
 
+def _e4_judgment_guides_block() -> str:
+    """把 E4_JUDGMENT_GUIDES 按框架维度顺序渲染成 prompt 块。
+
+    #### 标题同时是输出契约：AI 必须逐字使用这些标题，后端靠它把判断归位到数据行下。
+    """
+    guides = _eval_rules.E4_JUDGMENT_GUIDES
+    lines: List[str] = []
+    for dim_def in _eval_rules.E4_FRAMEWORK:
+        dim = dim_def["dim"]
+        lines.append(f"## {_eval_rules.E4_LABELS.get(dim, dim)}")
+        for g in dim_def["groups"]:
+            q = g.get("q")
+            if q is None:
+                key, title = "E2_ENERGY", "E2 · Energy（精力管理）"
+            else:
+                key, title = q, q
+            guide = guides.get(key, "")
+            if guide:
+                lines.append(f"#### {title}")
+                lines.append(guide)
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
 def _e4_step2_system() -> str:
     """Step2 system prompt：基于 E4 框架问题的 contextual 分析。
 
-    数据按「维度→评估问题→指标」组织。AI 逐一回答框架问题，再做三段式综合（显著问题/可能失真·先观察/跟进线索与切入点）。
+    数据按「维度→评估问题→指标」组织。AI 按【逐问题写作模板】逐一回答框架问题（输出的 #### 标题
+    必须与模板锚点逐字一致，后端据此把判断拼到对应数据行下方），再做三段式综合
+    （显著问题/可能失真·先观察/跟进线索与切入点）。
     """
     return f"""你是 Y4 测评 E4 评估框架的分析员。E4 框架是工作草稿工具，用于识别学生薄弱点与低垂果实（low-hanging fruits），非最终评估结论。
 
@@ -2608,9 +2645,21 @@ def _e4_step2_system() -> str:
 - 分心组合（高感知觉+相对弱注意力）→ 关注电子产品使用与做作业时的环境管理。
 - 高确定性需求（职业兴趣-常规型不低/高，或职业价值观·安全稳定排前五）+ 计划性不足 + 学习策略使用少 → 用「一表人才」（结构化计划表/学习机制工具）帮学生搭建结构化学习过程，并在过程中逐步养成习惯。
 - 执行功能弱项（如工作记忆、认知灵活性）若为施测末段题目、可能受疲劳影响 → 先观察，通过与学生/家长交流确认（如老师是否反馈过缺少举一反三的能力）。
+- 原始分优先原则：档位是分类标签，原始分才是实情。判断时先看原始分在量表里的实际位置，不要机械地按档位下结论。典型情况：原始分接近满分（如 9.5/10）虽落在「需关注」档，从人的视角看实际接近天花板，不应当严重关注；反之原始分在档位边界附近时要谨慎，不要因刚好踩线就当问题展开。
+- 访谈/确认建议：只在有问题或不确定时才建议访谈确认；健康或明确的判断不写访谈建议，跟进动作放末尾跟进线索段。
+- 写作模板是判断原则（看什么、怎么推理、什么情况不构成问题），不是措辞模板。用你自己的语言写判断，不要照抄模板里的原句；每条判断要针对该生的具体数据，不要写成通用结论。
+- 语言风格：用自然、简洁的专业判断语气写，像导师写评估备注。避免「说明」「表明」「这暗示」「这可能意味着」等因果连接词堆砌；不要每句都解释推理过程——直接给判断，数据已在该题上方展示，判断里不复述数据。健康题一句就够，有问题题写实质不过 2-3 句。
+
+【逐问题写作模板（每个问题必须遵守对应模板）】
+下面给出每个评估问题的写作锚点（#### 标题）与判断原则：看哪些指标、怎么推理、什么情况不构成问题、禁写什么。
+你的输出中每个 #### 标题必须与这里逐字一致（后端按标题把判断归位到该题数据行下方，标题不一致会归位失败）。
+没有数据的问题不要输出。
+
+{_e4_judgment_guides_block()}
 
 【输出格式】markdown，按 E1→E2→E3→E4 顺序。
-每个维度用 ### 标题，每个评估问题用 #### 开头（保留问题原文作为锚点），下面以「判断：」起头写回答。
+每个维度用 ### 标题；每个评估问题用 #### 开头，标题逐字照抄上方模板锚点（E2 没有「问题：」输入行，固定输出 #### E2 · Energy（精力管理））。
+#### 标题下直接写判断正文：以「判断：」起头或直接写均可（后端会统一加前缀），2-4 句为限，不得重复标题问题本身。
 有问题/关注可写 2-4 句并在首次展开处给关键数值；健康/中性严格一句、不写数值。
 全部问题判断完成后，必须依次输出以下三个段落（标题逐字使用，不得改名）：
 
@@ -2632,7 +2681,7 @@ def _sanitize_e4_step2(content: str) -> str:
     """
     if not content:
         return content
-    echo = re.compile(r"^\s*(?:\*{0,2}\s*)?"
+    echo = re.compile(r"^\s*#{0,6}\s*(?:\*{0,2}\s*)?"
                       r"(问题判定|\[EVAL\]|\[ORDER\]|\[NORM\]|\[REF\]|\[JUDGE\])")
     kept = [ln for ln in content.splitlines() if not echo.match(ln)]
     out = "\n".join(kept)
@@ -2648,6 +2697,107 @@ def _e4_step2_tail(full_analysis: str) -> str:
     idx = full_analysis.index(marker)
     line_start = full_analysis.rfind("\n", 0, idx)
     return full_analysis[line_start + 1:].strip()
+
+
+# E2 无问题文本，AI 输出的固定锚点（归一化前后的多种写法都映射到 E2_ENERGY）
+_E2_JUDGMENT_KEY = "E2_ENERGY"
+_E2_HEADING_VARIANTS = ("E2·Energy（精力管理）", "E2·Energy(精力管理)",
+                        "E2精力管理", "E2·精力管理", "精力管理")
+
+
+def _norm_judgment_heading(text: str) -> str:
+    """归一化判断标题：去 markdown 符号/空白、去「问题：」前缀、去首尾标点。"""
+    s = re.sub(r"[\s*_`>#]+", "", (text or "").strip())
+    s = re.sub(r"^问题[：:]", "", s)
+    return s.strip("：:。.，,；;!?？()（）[]【】")
+
+
+def _build_judgment_key_map() -> Dict[str, str]:
+    """框架问题标题归一化 → 框架 q（E2 → E2_ENERGY）。"""
+    kmap: Dict[str, str] = {}
+    for v in _E2_HEADING_VARIANTS:
+        kmap[_norm_judgment_heading(v)] = _E2_JUDGMENT_KEY
+    for dim_def in _eval_rules.E4_FRAMEWORK:
+        for g in dim_def["groups"]:
+            q = g.get("q")
+            if q:
+                kmap[_norm_judgment_heading(q)] = q
+    return kmap
+
+
+def _match_judgment_key(title_norm: str, key_map: Dict[str, str]) -> Optional[str]:
+    """标题归一化精确匹配 → 双向 contains 模糊匹配（短于 6 字不做模糊，防误配）。"""
+    if not title_norm:
+        return None
+    if title_norm in key_map:
+        return key_map[title_norm]
+    if len(title_norm) < 6:
+        return None
+    for hk, q in key_map.items():
+        if len(hk) >= 6 and (hk in title_norm or title_norm in hk):
+            return q
+    return None
+
+
+def _parse_e4_judgments(full_analysis: str) -> Dict[str, Any]:
+    """把 Step2 AI 输出切成 {问题: 判断正文} + 三段式综合 + 未归位片段。
+
+    - #### 标题按 E4_JUDGMENT_GUIDES 锚点归位（E2 固定标题 → E2_ENERGY）；
+    - 遇到「### 显著问题」起，剩余原文整体作为三段式综合（含三个小节）；
+    - 归位失败的 #### 块进 orphans（标题, 正文），不丢内容；
+    - 判断正文开头的「判断：」前缀在此剥除，由拼装端统一添加。
+    """
+    result: Dict[str, Any] = {"judgments": {}, "synthesis": "", "orphans": []}
+    content = (full_analysis or "").strip()
+    if not content:
+        return result
+    key_map = _build_judgment_key_map()
+
+    judgments: Dict[str, str] = {}
+    orphans: List[tuple] = []
+    cur_title: Optional[str] = None
+    cur_body: List[str] = []
+
+    def _flush() -> None:
+        if cur_title is None:
+            return
+        body = "\n".join(cur_body).strip()
+        body = re.sub(r"^\s*(?:\*{0,2}\s*)?判断\s*[：:]\s*\*{0,2}\s*", "",
+                      body, count=1)
+        body = body.strip()
+        if not body:
+            return
+        key = _match_judgment_key(_norm_judgment_heading(cur_title), key_map)
+        if key:
+            judgments[key] = (judgments[key] + "\n" + body) if key in judgments else body
+        else:
+            orphans.append((cur_title.strip(), body))
+
+    lines = content.splitlines()
+    synthesis_idx: Optional[int] = None
+    for i, ln in enumerate(lines):
+        m3 = re.match(r"^#{1,3}\s+(.+?)\s*#*$", ln)
+        m4 = re.match(r"^####\s+(.+?)\s*#*$", ln)
+        if m3 and not m4:
+            _flush()
+            cur_title, cur_body = None, []
+            if "显著问题" in m3.group(1):
+                synthesis_idx = i
+                break
+            continue
+        if m4:
+            _flush()
+            cur_title, cur_body = m4.group(1), []
+            continue
+        if cur_title is not None:
+            cur_body.append(ln)
+    _flush()
+
+    result["judgments"] = judgments
+    result["orphans"] = orphans
+    if synthesis_idx is not None:
+        result["synthesis"] = "\n".join(lines[synthesis_idx:]).strip()
+    return result
 
 
 def _strip_y4_data_section(interpretation: str) -> str:
@@ -3162,40 +3312,27 @@ def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
     now = _dt.now().strftime("%Y-%m-%d %H:%M")
 
     md: List[str] = []
-    md.append("# E4 评估框架传递协议 v1.1")
+    md.append("# E4 评估框架传递协议 v1.2")
     md.append("")
-    md.append("> 本文件为 E4 **工作草稿**，基于 Y4 测评输出构建，用于与学生沟通迭代，")
+    md.append("> 工作草稿，基于 Y4 测评输出构建，用于与学生沟通迭代，")
     md.append("> 识别薄弱点和低垂果实（low-hanging fruits），非最终评估结论。")
     md.append("")
     md.append("## META")
-    # 规则兜底名单判定 — 在 META 中显示归属，让人一眼看到
+    # 规则兜底名单判定
     list_placement = _determine_list_placement(items, mapping)
     placement_str = list_placement["placement"]
-    md.append(f"student: {student_name} | date: {student.get('test_date','')} | protocol: E4-v1.1 | generated: {now}")
-    md.append(f"gender: {student.get('gender','')} | grade: {student.get('grade','')} | school: {student.get('school','')}")
-    md.append(f"status: WORKING_DRAFT | purpose: 沟通迭代基础，找薄弱点与低垂果实")
+    md.append(f"student: {student_name} | gender: {student.get('gender','')} | grade: {student.get('grade','')} | school: {student.get('school','')}")
+    md.append(f"date: {student.get('test_date','')} | generated: {now} | status: WORKING_DRAFT")
     md.append(f"**名单归属: {list_placement.get('category', placement_str)}**")
-    md.append("")
-
-    md.append("## E4_FRAMEWORK")
-    md.append("```")
-    fw_groups, _fw_other, _ = _eval_rules.evaluate_question_verdicts(items)
-    for dim in _eval_rules.E4_DIMS:
-        md.append(_eval_rules.E4_LABELS[dim])
-        for g in fw_groups:
-            if g["dim"] == dim and g.get("q"):
-                md.append(f"  - {g['q']}")
-    md.append("RULES: 一个指标可出现在多个问题/维度 | bias=偏高/偏低须询证 | OBSERVATION=假问题观望")
-    md.append("排序位置: 位置数字越小排序越靠前（越重要）")
-    md.append("```")
-    md.append("")
-
-    md.append("## STUDENT_INFO")
-    md.append(f"name: {student_name} | gender: {student.get('gender','')} | grade: {student.get('grade','')} | school: {student.get('school','')} | test_date: {student.get('test_date','')}")
     md.append("")
 
     # 按 E4 框架 source of truth（维度→评估问题→指标）分组
     # 同一指标多次出现时，首次完整显示，后续用 [REF] 引用
+    # AI 的逐问题判断解析后紧跟在该题数据行下方（数据与判断合并为一个 section）
+    fw_groups, _fw_other, _ = _eval_rules.evaluate_question_verdicts(items)
+    parsed_analysis = _parse_e4_judgments(_sanitize_e4_step2(full_analysis)) if full_analysis else None
+    judgments = (parsed_analysis or {}).get("judgments", {})
+    used_judgment_keys: set = set()
     md.append("## E4_EVALUATIONS")
     md.append("")
     seen_codes: set = set()
@@ -3218,6 +3355,12 @@ def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
                 is_ref = code in seen_codes
                 md.append(_format_e4_line(it, include_raw, is_ref=is_ref))
                 seen_codes.add(code)
+            jkey = g.get("q") or _E2_JUDGMENT_KEY
+            body = (judgments.get(jkey) or "").strip()
+            if body:
+                md.append("")
+                md.append(f"判断：{body}")
+                used_judgment_keys.add(jkey)
             md.append("")
 
     if _fw_other:
@@ -3227,17 +3370,40 @@ def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
             md.append(_format_e4_line(it, include_raw))
         md.append("")
 
-    # 综合分析（step2 产物）：逐问题判断 + 显著问题/可能失真·先观察/跟进线索与切入点
-    md.append("## E4_ANALYSIS")
-    md.append("")
-    if full_analysis:
-        md.append(full_analysis)
+    # 三段式综合（显著问题/可能失真·先观察/跟进线索与切入点）— 接在逐问题数据+判断之后
+    if parsed_analysis is not None:
+        synthesis = (parsed_analysis.get("synthesis") or "").strip()
+        if synthesis:
+            md.append(synthesis)
+            md.append("")
+        # 未归位判断兜底：AI 标题与框架锚点对不上、或判断对应问题本次无数据时，不丢内容
+        orphan_blocks: List[tuple] = []
+        for k, body_text in judgments.items():
+            if k not in used_judgment_keys:
+                title = "E2 · Energy（精力管理）" if k == _E2_JUDGMENT_KEY else k
+                orphan_blocks.append((title, body_text.strip()))
+        orphan_blocks.extend(parsed_analysis.get("orphans") or [])
+        if orphan_blocks:
+            md.append("### 未归位判断（AI 标题未匹配框架，请人工并入）")
+            md.append("")
+            for title, body_text in orphan_blocks:
+                md.append(f"#### {title}")
+                md.append(body_text.strip())
+                md.append("")
+        if not synthesis and not orphan_blocks and full_analysis:
+            # AI 调用有输出但解析为空（如失败提示串）：原样保留，避免静默丢失
+            md.append("> 注：AI 分析输出无法按问题归位，原文如下：")
+            md.append("")
+            md.append(full_analysis.strip())
+            md.append("")
     else:
+        # 兼容旧的逐维度 analyses 调用（无 full_analysis）
         for d in _eval_rules.E4_DIMS:
-            md.append(f"### {_eval_rules.E4_LABELS[d]}")
-            md.append("")
-            md.append(analyses.get(d) or "（未生成）")
-            md.append("")
+            if analyses.get(d):
+                md.append(f"### {_eval_rules.E4_LABELS[d]}（AI 分析）")
+                md.append("")
+                md.append(analyses[d])
+                md.append("")
         cross = analyses.get("_cross", "")
         if cross:
             md.append("### 综合判断（显著问题 / 可能失真·先观察 / 跟进线索与切入点）")
@@ -3282,47 +3448,24 @@ def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
             md.append(" | ".join(parts))
         md.append("")
 
-    # AI 使用指南 — 精简版
-    md.append("## AI_USAGE_GUIDE")
-    md.append("```")
-    md.append("NAMING: 指标名称（label）是唯一权威命名，禁止改写或创造新术语")
-    md.append("AUTHORITY: EXPERT_JUDGMENT > EVALUATION(规则推导) > AI_ANALYSIS(可参考非客观事实)")
-    md.append("BIAS: 偏高/偏低 → 须询证 | OBSERVATION → 假问题，须后续验证")
-    md.append("MULTI_DIM: 一个指标可出现在多个 E4 维度；[REF] 行指向首次出现的完整数据")
-    md.append("名单归属: E1/E2 问题级判定「有问题」→ 干预名单(强/弱按问题严重度)；否则 → 潜能名单(强/弱按 认知能力百分位总≥95 且 执行功能平均≥90)")
-    md.append("```")
-    md.append("")
-
-    # 名单归属章节 — 协议末尾，醒目（四类：干预/潜能 × 强特质/弱特质）
+    # 名单归属
     md.append("---")
     md.append("")
     md.append("## 名单归属")
     md.append("")
     md.append(f"> **{list_placement.get('category', placement_str)}**")
     md.append("")
-    # 规则兜底详情
     if list_placement["problem_items"]:
-        md.append("**规则判定依据（E1/E2 问题级结论）：**")
         for p in list_placement["problem_items"]:
             md.append(f"- {p['dim']} {p['label']}: {p['eval']}")
         md.append("")
-        e1 = "有问题" if list_placement["e1_has_problem"] else "无问题"
-        e2 = "有问题" if list_placement["e2_has_problem"] else "无问题"
-        md.append(f"E1 情绪: {e1} | E2 精力: {e2} → 归入{placement_str}")
-    else:
-        md.append("E1 情绪和 E2 精力问题级判定均无「有问题」→ 归入潜能名单")
-    md.append("")
     traits = list_placement.get("traits") or []
     if traits:
-        md.append(f"**{list_placement.get('category', placement_str)}依据：**")
         for t in traits:
             md.append(f"- {t}")
         md.append("")
-    md.append("*AI 总览中的名单归属判断见上方 OVERVIEW 章节。如与规则兜底矛盾，以规则为准。*")
-    md.append("")
-
     md.append("---")
-    md.append("凭远教育 · Y4 综合测评系统 | 本文件为 E4 工作草稿 AI→AI 传递协议")
+    md.append("凭远教育 · Y4 综合测评系统 | E4 工作草稿")
     return "\n".join(md)
 
 
