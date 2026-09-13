@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import traceback
 from datetime import date, timedelta
@@ -1649,53 +1650,18 @@ def api_report_e4_protocol(report_id):
                 [{"role": "system", "content": system2},
                  {"role": "user", "content": user2}],
                 model=model2, timeout=timeout, max_tokens=4000)
-            full_analysis = r2["content"]
-            cross_match = ""
-            if "跨维度连结" in full_analysis:
-                idx = full_analysis.index("跨维度连结")
-                cross_match = full_analysis[idx:].strip()
-            analyses["_cross"] = cross_match
+            full_analysis = _sanitize_e4_step2(r2["content"])
+            analyses["_cross"] = _e4_step2_tail(full_analysis)
             stats2 = [{"dim": "ALL", "tokens": r2["tokens"], "time_ms": r2["time_ms"], "model": model2}]
         except Exception as exc:
             stats2 = [{"dim": "ALL", "tokens": 0, "time_ms": 0, "model": model2, "error": str(exc)}]
             full_analysis = f"（Step2 跨维度分析失败：{exc}）"
 
-    # Step3：总览成文（AI）
+    # Step3：总览成文（AI；名单归属以 Python 规则为准，AI 不得改判）
     model3 = os.environ.get("E4_STEP3_MODEL", "qwen-plus")
-    system3 = f"""你是 Y4 测评 E4 评估框架的主笔。基于跨维度分析草稿，撰写「总览」段和「名单归属」判断。
-
-【硬规则】
-1. {_E4_NAMING_RULE}
-2. 禁止创造新术语，只使用 Y4/E4 已有词汇。
-3. 总览锚定 E4 框架：核心矛盾（标注涉及维度）/ 真实优势（标注维度）/ 下一步（针对具体维度问题）。
-4. 只依据分析草稿内容，不编造数据。
-5. 跨维度连结是核心——不同维度的指标组合在一起才产生结论。
-
-【禁止的术语类型（硬约束，违反即重写）】
-- 心理学/治疗术语：如"情绪耗竭"、"神经可塑性"、"负向耦合"、"恶性循环"等
-- 连字符组合造词、自创概念标签、学术化包装
-
-【正确表达方式】
-- 用指标名称直接描述状态，如"情绪稳定性总分偏低"
-- 用 E4 维度名+涉及的指标描述关联
-- 用平实语言描述指标之间的关系
-
-【名单归属判断规则】
-基于 Y4 测评结论与各问题的「问题判定」，判断学生归属（四类之一）：
-- 干预名单·强特质：E1 情绪 或 E2 精力 存在「有问题」判定，且问题严重（需特殊关注/明显偏低/严重偏低，或多个问题同时成立）→ 重点干预
-- 干预名单·弱特质：E1/E2 有「有问题」判定但程度较轻（单一问题、多为关注级）→ 轻量干预/观望
-- 潜能名单·强特质：E1/E2 均无问题（心力无问题），且认知能力百分位总≥95、执行功能平均≥90 → 聚焦天赋发展
-- 潜能名单·弱特质：E1/E2 均无问题，但学习力潜力或动力不充分 → 聚焦潜能补强
-判断须基于数据，写出具体理由。
-
-【输出格式】markdown，四个小节：
-### 核心矛盾
-### 真实优势
-### 下一步
-### 名单归属
-最后一节从四类（干预名单·强特质 / 干预名单·弱特质 / 潜能名单·强特质 / 潜能名单·弱特质）中明确写出学生归属，并给出判断理由。
-每条结论末尾用（）标注依据指标名称。"""
-    user3 = (f"【跨维度分析草稿】\n{full_analysis or analyses}\n\n"
+    system3 = _e4_step3_system(list_placement.get("category")
+                               or list_placement.get("placement") or "（未判定）")
+    user3 = (f"【综合分析草稿】\n{full_analysis or analyses}\n\n"
              f"【Y4 原始 AI 解读（可选参考，非客观事实）】\n{interpretation or '（无）'}")
     try:
         r3 = _dashscope_chat(
@@ -2490,8 +2456,18 @@ def _format_e4_line(it: Dict[str, Any], include_raw: bool, is_ref: bool = False)
     parts = [f"[EVAL] {label}"]
     if include_raw and raw_v:
         parts.append(f"{raw_v}{unit}")
-    if eval_v:
+    # raw 与档位同值时（如思维模式结果 78.4|78.4）不重复显示
+    if eval_v and str(eval_v).strip() != str(raw_v).strip():
         parts.append(eval_v)
+    # 认知分项个体内强/弱特质标注（相对认知总百分位）
+    trait = (it.get("trait_label") or "").strip()
+    if trait:
+        tn = (it.get("trait_note") or "").strip()
+        parts.append(f"{trait}（{tn}）" if tn else trait)
+    # 体质习惯得分行：得分无档位时显示 PDF 评级，避免「饮食0」被误读
+    pdf_grade = (it.get("pdf_grade") or "").strip()
+    if pdf_grade:
+        parts.append(f"评级:{pdf_grade}")
     if src not in ("规则推导", "待判定"):
         parts.append(f"source:{src}")
     if bias != "正常":
@@ -2584,7 +2560,7 @@ def _dashscope_chat(messages: List[Dict[str, str]], model: str,
 def _e4_step2_system() -> str:
     """Step2 system prompt：基于 E4 框架问题的 contextual 分析。
 
-    数据按「维度→评估问题→指标」组织。AI 逐一回答框架问题，再做跨问题/跨维度连结。
+    数据按「维度→评估问题→指标」组织。AI 逐一回答框架问题，再做三段式综合（显著问题/可能失真·先观察/跟进线索与切入点）。
     """
     return f"""你是 Y4 测评 E4 评估框架的分析员。E4 框架是工作草稿工具，用于识别学生薄弱点与低垂果实（low-hanging fruits），非最终评估结论。
 
@@ -2592,20 +2568,25 @@ def _e4_step2_system() -> str:
 数据按 E1（情绪）、E2（精力）、E3（引擎）、E4（参与投入）四个维度组织。
 每个维度下有若干「评估问题」（以"问题："开头），问题下列出回答该问题所需的指标数据。
 每个问题下还有一行「问题判定（Python 规则）」——规则引擎基于已确认阈值算出的问题级结论
-（有问题/关注/观察/健康/中性）。你的回答须与该判定方向一致：可补充细节、证据和跨问题连结，
-但不得推翻判定；判定为「中性/健康」的问题一句话带过即可。
+（有问题/关注/观察/健康/中性）。这些判定行和数据行是给你看的输入，**严禁抄写进你的输出**
+（后端会自动清洗回显行）。你的回答须与判定方向一致：可补充细节、证据和跨问题连结，
+但不得推翻判定。
 
 【你的任务】
 1. 逐一回答评估问题：基于该问题下的指标数据，给出有信息量的判断。回答要直接回应问题本身。
-2. 数据不足或无异常的问题，一句话带过，不要凑字数。
-3. 核心问题深入展开，给出具体依据。
-4. 跨问题/跨维度连结：把不同问题下的指标放在一起看，指出关联模式（不同元素组合才产生结论）。
-5. 识别低垂果实：小改变大效果的干预点。
+2. 核心问题（有问题/关注）深入展开；健康/中性问题只写一句平实结论。
+3. 逐问题判断完成后，按下方三段式做综合：先找最显著问题，再甄别可能失真、只需观察的数据，最后给跟进线索与切入点。
+
+【去重硬规则（与术语规则同级，违反即重写）】
+1. 禁止回显输入：输出中不得出现「问题判定」字样的行、不得出现任何 [EVAL]/[ORDER]/[NORM]/[REF] 开头的数据行、不得照抄数据清单。读者已在数据区看到全部数值，你的任务是给判断，不是搬运数据。
+2. 健康/中性问题：保留 #### 问题标题，判断**限一句**平实结论，**不写任何数值**（例：「判断：该方面无异常」）。
+3. 同一指标全文只展开一次：在它首次出现的问题下给出数值与完整解释；之后的问题只写与本问题相关的新角度，用指标名称引用、禁止重复数值和已说过的解释。
+4. 末尾三个综合段是「索引与行动」，不是逐问题段落的缩写：显著问题每条一行（问题+处置类型+指标名称，不写数值、不复述原话）；跟进线索只写要做什么。
 
 【思考方式】
 你不是在填表，你是在做判断。对每个学生，分析的详略应该不同。
 不要对每个数据点都写"可能影响XXX"——只写有信息量的关联。
-看完后读者应该清楚：这个学生的问题在哪、优势在哪、先做什么。
+看完后读者应该清楚：这个学生的问题在哪、哪些先观察、先做什么。
 
 【硬规则】
 1. {_E4_NAMING_RULE}
@@ -2615,11 +2596,128 @@ def _e4_step2_system() -> str:
 5. 所有结论须标注依据指标名称；数据行中不存在的结论不得编造。
 6. 同一指标可能出现在多个问题/维度中，不要重复相同描述，后续出现时简述关联即可。
 7. 排序位置类数据（如"安全稳定排序位置 第10位/共15"）：位置数字越小排序越靠前（越重要）。
+8. 体质健康习惯行的「得分」与「评级」并存时以评级为准：如「饮食习惯得分 0 | 评级:优」表示营养认知题答错但饮食行为健康，不是饮食问题，禁止据此建议干预饮食。
+9. 认知百分位行上的「强特质/相对弱特质」标注是该生与自身认知能力总百分位的个体内比较，不是常模判定，只作识别参考；两者错位才产生判断（如感知觉强特质+注意力相对弱特质=潜在分心/粗心组合）。
+
+【跟进线索映射】
+数据命中对应特征时采用以下线索，没有命中不得生搬；允许点名凭远内部工具：
+- 学习方法与策略-学习自我调节偏低 → 了解学生对各科老师的看法（尤其自己不喜欢的老师及沟通方式），可与三级象限图中学科投入的位置交叉验证。
+- 依恋关系-亲近偏低（尤其母亲）→ 与测评解读师确认做测评解读时是否提及过该点。
+- E2 睡眠/饮食/运动 → 向 Gary/Jeff 核实并更新数据（得分与评级冲突时以评级为准）；运动关注具体项目类型，可对照三级象限图中的运动类投入记录。
+- 渴望成功动机成立（职业价值观·成就感排序前五）→ 访谈「过去一年学习中有成就感的时刻」，学习动机从成就感来源切入，鼓励家庭一起在学习过程中积累成就感，数据化记录是重要方式。
+- 分心组合（高感知觉+相对弱注意力）→ 关注电子产品使用与做作业时的环境管理。
+- 高确定性需求（职业兴趣-常规型不低/高，或职业价值观·安全稳定排前五）+ 计划性不足 + 学习策略使用少 → 用「一表人才」（结构化计划表/学习机制工具）帮学生搭建结构化学习过程，并在过程中逐步养成习惯。
+- 执行功能弱项（如工作记忆、认知灵活性）若为施测末段题目、可能受疲劳影响 → 先观察，通过与学生/家长交流确认（如老师是否反馈过缺少举一反三的能力）。
 
 【输出格式】markdown，按 E1→E2→E3→E4 顺序。
-每个维度用 ### 标题，每个评估问题用 #### 开头（保留问题原文），下面写你的回答。
-无数据或无异常的问题可省略或一句话带过。
-最后输出【跨维度连结】段落。"""
+每个维度用 ### 标题，每个评估问题用 #### 开头（保留问题原文作为锚点），下面以「判断：」起头写回答。
+有问题/关注可写 2-4 句并在首次展开处给关键数值；健康/中性严格一句、不写数值。
+全部问题判断完成后，必须依次输出以下三个段落（标题逐字使用，不得改名）：
+
+### 显著问题
+按干预优先级逐行列出：一行一个，格式「问题名 — 直接干预/需询证 — 依据指标名称」。
+不写数值、不复述前面段落原话；判定为中性/健康的问题不得列入。
+
+### 可能失真·先观察
+列出表面数据是问题、但存在失真可能的点；只要存在失真可能就先观察、不进直接干预，并说明需要向谁/用什么方式核实。没有则写「无」。
+
+### 跟进线索与切入点
+按优先级逐行写数据支持的具体操作方向（动作优先，不重复数值），可点名凭远内部工具（如「一表人才」）并说明用法。"""
+
+
+def _sanitize_e4_step2(content: str) -> str:
+    """清洗 Step2 AI 输出中的输入回显（数据行/问题判定行在数据区已存在）。
+
+    只删确定性前缀的整行，不做语义删改；压缩多余空行。
+    """
+    if not content:
+        return content
+    echo = re.compile(r"^\s*(?:\*{0,2}\s*)?"
+                      r"(问题判定|\[EVAL\]|\[ORDER\]|\[NORM\]|\[REF\]|\[JUDGE\])")
+    kept = [ln for ln in content.splitlines() if not echo.match(ln)]
+    out = "\n".join(kept)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out.strip() + "\n"
+
+
+def _e4_step2_tail(full_analysis: str) -> str:
+    """从 Step2 输出截取三段式综合段（从「显著问题」所在标题行开始）。"""
+    marker = "显著问题"
+    if marker not in (full_analysis or ""):
+        return ""
+    idx = full_analysis.index(marker)
+    line_start = full_analysis.rfind("\n", 0, idx)
+    return full_analysis[line_start + 1:].strip()
+
+
+def _strip_y4_data_section(interpretation: str) -> str:
+    """裁掉 Y4 解读中的「数据呈现」段（原始数据 E4_EVALUATIONS 已有，避免重复）。
+
+    匹配 markdown 标题（#{1,6}）含「数据呈现」的行，删除该标题至下一个同级或更高级标题之前；
+    兼容 **一、数据呈现** 粗体行形态。找不到匹配则原样返回（安全兜底）。
+    只作用于下载拼装，不修改 DB 原文。
+    """
+    if not interpretation or "数据呈现" not in interpretation:
+        return interpretation
+    lines = interpretation.splitlines()
+    start = -1
+    start_level = None
+    for i, ln in enumerate(lines):
+        m = re.match(r"^(#{1,6})\s*.*数据呈现.*$", ln)
+        if m:
+            start, start_level = i, len(m.group(1))
+            break
+        if re.match(r"^\s*(?:\*\*)?#?\s*[一二三四五六七八九十0-9]+[、.．]\s*\**\s*.*数据呈现", ln):
+            start, start_level = i, 99  # 粗体序号行：下一个同级粗体序号或任意标题都终止
+            break
+    if start < 0:
+        return interpretation
+    end = len(lines)
+    heading_re = re.compile(r"^(#{1,%d})\s+" % start_level)
+    bold_sec_re = re.compile(r"^\s*\*{0,2}\s*[一二三四五六七八九十0-9]+[、.．]")
+    for j in range(start + 1, len(lines)):
+        ln = lines[j]
+        if (heading_re.match(ln) or (start_level == 99 and bold_sec_re.match(ln))):
+            end = j
+            break
+    return "\n".join(lines[:start] + lines[end:]).strip()
+
+
+def _e4_step3_system(rule_category: str) -> str:
+    """Step3 system prompt：AI 只写「真实优势」与「名单归属」；结论/行动已由 Step2 三段承载。"""
+    return f"""你是 Y4 测评 E4 评估框架的主笔。基于综合分析草稿，撰写「总览」段。
+
+综合分析草稿已包含逐问题判断、显著问题、可能失真·先观察、跟进线索与切入点。
+你的任务**不是再总结一遍**：问题清单和行动计划已经存在，禁止复述、禁止再写问题与建议。
+你只补两块草稿中没有成段承载的内容：真实优势、名单归属理由。
+
+【硬规则】
+1. {_E4_NAMING_RULE}
+2. 禁止创造新术语，只使用 Y4/E4 已有词汇。
+3. 只依据分析草稿内容，不编造数据；不得为指标组合取新名字。
+4. 禁止输出「核心矛盾」「下一步」「问题」「建议」类小节——它们在综合分析中已存在，重复即重写。
+5. 行文简洁：真实优势 3-5 条，每条一句；名单理由 2-3 句。允许引用关键数值，但禁止在句尾用
+   （）堆叠一长串指标名称清单；指标名自然写进句子里。
+
+【禁止的术语类型（硬约束，违反即重写）】
+- 心理学/治疗术语：如"情绪耗竭"、"神经可塑性"、"负向耦合"、"恶性循环"等
+- 连字符组合造词、自创概念标签、学术化包装
+
+【名单归属（硬约束，不得改判）】
+Python 规则引擎已判定本学生的名单归属为：**{rule_category}**。
+这是最终归属：禁止改判、禁止写成其他三类、禁止输出与该归属矛盾的表述。
+「### 名单归属」一节只准写：该归属名称逐字出现一次 + 2-3 句支持该归属的数据理由。
+四类含义仅供你理解，不得据此自行改判：
+- 干预名单·强特质：E1/E2 存在严重「有问题」判定（重度档位或多个问题同时成立）
+- 干预名单·弱特质：E1/E2 有「有问题」判定但程度较轻（单一问题、程度有限）
+- 潜能名单·强特质：E1/E2 均无问题，且认知能力百分位总≥95、执行功能平均≥90
+- 潜能名单·弱特质：E1/E2 均无问题，但学习力潜力或动力不充分
+
+【输出格式】markdown，且只有两个小节（标题逐字使用）：
+### 真实优势
+跨维度归纳学生的真实优势（认知/情绪/关系等，标注维度），3-5 条，每条一句。
+### 名单归属
+第一句逐字写「{rule_category}」，随后 2-3 句数据理由。不得出现其他三类名称。"""
 
 
 @app.route("/api/prompt-lab/e4-mapping", methods=["GET"])
@@ -2709,7 +2807,7 @@ def prompt_lab_e4_step2():
     """E4 工作流 Step2：基于框架问题的 contextual 分析。
 
     数据按 E4 框架 source of truth 的「维度→评估问题→指标」组织。
-    AI 的任务是逐一回答框架问题，并做跨问题/跨维度连结。
+    AI 的任务是逐一回答框架问题，并输出三段式综合（显著问题/可能失真·先观察/跟进线索与切入点）。
     """
     data = request.get_json(force=True)
     groups = data.get("groups") or []
@@ -2753,13 +2851,9 @@ def prompt_lab_e4_step2():
             [{"role": "system", "content": system},
              {"role": "user", "content": user}],
             model=model, timeout=timeout, max_tokens=4000)
-        full_analysis = r["content"]
+        full_analysis = _sanitize_e4_step2(r["content"])
         analyses: Dict[str, str] = {d: "" for d in _eval_rules.E4_DIMS}
-        cross_match = ""
-        if "跨维度连结" in full_analysis:
-            idx = full_analysis.index("跨维度连结")
-            cross_match = full_analysis[idx:].strip()
-        analyses["_cross"] = cross_match
+        analyses["_cross"] = _e4_step2_tail(full_analysis)
 
         stats = [{"dim": "ALL", "tokens": r["tokens"], "time_ms": r["time_ms"], "model": model}]
         return jsonify({"ok": True, "analyses": analyses,
@@ -2787,41 +2881,13 @@ def prompt_lab_e4_step3():
     model = os.environ.get("E4_STEP3_MODEL", "qwen-plus")
     timeout = int(os.environ.get("E4_STEP_TIMEOUT", "180"))
 
-    # 1) AI 写总览 + 名单归属判断
-    system = f"""你是 Y4 测评 E4 评估框架的主笔。基于跨维度分析草稿，撰写「总览」段和「名单归属」判断。
+    # 规则兜底名单判定（AI 只写理由，不得改判）
+    list_placement = _determine_list_placement(items, mapping=None)
 
-【硬规则】
-1. {_E4_NAMING_RULE}
-2. 禁止创造新术语，只使用 Y4/E4 已有词汇。
-3. 总览锚定 E4 框架：核心矛盾（标注涉及维度）/ 真实优势（标注维度）/ 下一步（针对具体维度问题）。
-4. 只依据分析草稿内容，不编造数据。
-5. 跨维度连结是核心——不同维度的指标组合在一起才产生结论。
-
-【禁止的术语类型（硬约束，违反即重写）】
-- 心理学/治疗术语：如"情绪耗竭"、"神经可塑性"、"负向耦合"、"恶性循环"等
-- 连字符组合造词、自创概念标签、学术化包装
-
-【正确表达方式】
-- 用指标名称直接描述状态，如"情绪稳定性总分偏低"
-- 用 E4 维度名+涉及的指标描述关联
-- 用平实语言描述指标之间的关系
-
-【名单归属判断规则】
-基于 Y4 测评结论与各问题的「问题判定」，判断学生归属（四类之一）：
-- 干预名单·强特质：E1 情绪 或 E2 精力 存在「有问题」判定，且问题严重（需特殊关注/明显偏低/严重偏低，或多个问题同时成立）→ 重点干预
-- 干预名单·弱特质：E1/E2 有「有问题」判定但程度较轻（单一问题、多为关注级）→ 轻量干预/观望
-- 潜能名单·强特质：E1/E2 均无问题（心力无问题），且认知能力百分位总≥95、执行功能平均≥90 → 聚焦天赋发展
-- 潜能名单·弱特质：E1/E2 均无问题，但学习力潜力或动力不充分 → 聚焦潜能补强
-判断须基于数据，写出具体理由。
-
-【输出格式】markdown，四个小节：
-### 核心矛盾
-### 真实优势
-### 下一步
-### 名单归属
-最后一节从四类（干预名单·强特质 / 干预名单·弱特质 / 潜能名单·强特质 / 潜能名单·弱特质）中明确写出学生归属，并给出判断理由。
-每条结论末尾用（）标注依据指标名称。"""
-    user = (f"【跨维度分析草稿】\n{full_analysis or analyses}\n\n"
+    # 1) AI 写总览（名单归属以 Python 规则为准）
+    system = _e4_step3_system(list_placement.get("category")
+                              or list_placement.get("placement") or "（未判定）")
+    user = (f"【综合分析草稿】\n{full_analysis or analyses}\n\n"
             f"【Y4 原始 AI 解读（可选参考，非客观事实）】\n{interpretation or '（无）'}")
     try:
         r = _dashscope_chat(
@@ -2836,7 +2902,6 @@ def prompt_lab_e4_step3():
 
     # 2) Python 确定性拼装最终协议
     student_name = _get_student_name_from_items(items)
-    list_placement = _determine_list_placement(items, mapping=None)
     content_md = _assemble_e4_protocol(items, include_raw, analyses, overview_md, full_analysis, interpretation)
     return jsonify({"ok": True, "content_md": content_md, "stats": stats,
                     "student_name": student_name, "list_placement": list_placement})
@@ -3162,8 +3227,8 @@ def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
             md.append(_format_e4_line(it, include_raw))
         md.append("")
 
-    # 跨维度 contextual 分析（step2 产物）
-    md.append("## E4_CROSS_DIMENSIONAL_ANALYSIS")
+    # 综合分析（step2 产物）：逐问题判断 + 显著问题/可能失真·先观察/跟进线索与切入点
+    md.append("## E4_ANALYSIS")
     md.append("")
     if full_analysis:
         md.append(full_analysis)
@@ -3175,7 +3240,7 @@ def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
             md.append("")
         cross = analyses.get("_cross", "")
         if cross:
-            md.append("### 跨维度连结")
+            md.append("### 综合判断（显著问题 / 可能失真·先观察 / 跟进线索与切入点）")
             md.append("")
             md.append(cross)
             md.append("")
@@ -3190,7 +3255,8 @@ def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
     md.append("## Y4_INTERPRETATION")
     md.append("")
     if interpretation:
-        md.append(interpretation.strip())
+        # 裁掉 Y4 解读中的「数据呈现」段：原始数据在 E4_EVALUATIONS 已完整存在
+        md.append(_strip_y4_data_section(interpretation))
     else:
         md.append("（未提供 Y4 解读，请先在 Prompt Lab 运行 Y4 解读师生成解读后再下载 E4 协议）")
     md.append("")

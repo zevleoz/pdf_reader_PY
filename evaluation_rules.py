@@ -594,8 +594,7 @@ E4_FRAMEWORK: List[Dict[str, Any]] = [
             {"q": "学生是否处在不开心的状态？",
              "indicators": [{"label": "情绪稳定性-抑郁愉快"}, {"label": "自我概念-幸福与满足"}]},
             {"q": "学生是否处在安全感中？",
-             "indicators": [{"label": "职业兴趣-常规型"}, {"order_value": "安全稳定"},
-                            {"label": "依恋关系-信任-母亲"}, {"label": "依恋关系-信任-父亲"},
+             "indicators": [{"label": "依恋关系-信任-母亲"}, {"label": "依恋关系-信任-父亲"},
                             {"label": "依恋关系-信任-同伴"}]},
         ],
     },
@@ -612,7 +611,8 @@ E4_FRAMEWORK: List[Dict[str, Any]] = [
         "dim": "E3",
         "groups": [
             {"q": "信息输入基本功能",
-             "indicators": [{"label": "认知能力-感知觉"}, {"label": "认知能力-注意力"}]},
+             "indicators": [{"label": "认知能力总得分"}, {"label": "认知能力百分位"},
+                            {"label": "认知能力-感知觉"}, {"label": "认知能力-注意力"}]},
             {"q": "信息存储基本功能",
              "indicators": [{"label": "认知能力-记忆力"}]},
             {"q": "信息分析基本功能",
@@ -653,7 +653,8 @@ E4_FRAMEWORK: List[Dict[str, Any]] = [
              "indicators": [{"label": "学习方法与策略-学习深层方法与策略"},
                             {"label": "学习方法与策略-学习表面方法与策略"}]},
             {"q": "计划性",
-             "indicators": [{"label": "人格-责任心"}, {"label": "自驱力-自主性"}]},
+             "indicators": [{"label": "人格-责任心"}, {"label": "自驱力-自主性"},
+                            {"label": "职业兴趣-常规型"}, {"order_value": "安全稳定"}]},
             {"q": "元认知潜力",
              "indicators": [{"label": "认知能力-推理能力"}, {"label": "能力优势-内省能力"},
                             {"label": "学习方法与策略-学习深层方法与策略"},
@@ -789,6 +790,9 @@ _VERDICT_RANK = {
     VERDICT_PROBLEM: 4, VERDICT_WATCH: 3, VERDICT_OBSERVED: 2,
     VERDICT_NEUTRAL: 1, VERDICT_HEALTHY: 0,
 }
+
+# 认知分项相对认知总百分位（code 002）的个体内强弱特质阈值（用户拍板值，后续可调）
+TRAIT_GAP = 10
 
 # PDF 体质评级词表（未知词默认=关注，保守不妄判）
 _GRADE_WEAK = ("差", "低")
@@ -1068,64 +1072,32 @@ def _v_e1_unhappy(items: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _v_e1_safety(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """安全感（Emotion 表达）：只看三个依恋信任。
+
+    信任均为 高/不低 → 在安全感中（健康）；任一偏低 → 关注（严重依恋问题由亲子问题承担）。
+    职业兴趣常规型/安全稳定排序表达的是「确定性需求」，不属于 Emotion，已移至 E4 计划性。
+    """
     im = _label_index(items)
     rows = []
-    demand_notes: List[str] = []
-    # 常规型三档分级
-    cg = im.get("职业兴趣-常规型")
-    if cg is not None:
-        ev = _it_eval(cg)
-        if ev == "高":
-            demand_notes.append("常规型高：安全感需求显著特质")
-            rows.append(_row(cg, VERDICT_HEALTHY, "安全感需求显著"))
-        elif ev == "不低":
-            demand_notes.append("常规型中：有一定安全感需求")
-            rows.append(_row(cg, VERDICT_NEUTRAL, "有一定安全感需求"))
-        elif ev == "偏低":
-            demand_notes.append("常规型低：安全感需求弱")
-            rows.append(_row(cg, VERDICT_NEUTRAL, "安全感需求弱"))
-        else:
-            rows.append(_row(cg, VERDICT_NEUTRAL))
-    # 安全稳定排序前五
-    aq = im.get("ORDER:安全稳定")
-    if aq is not None:
-        pos = _order_pos(aq)
-        if pos is not None and pos <= 5:
-            demand_notes.append(f"安全稳定排序第{pos}位（前五）")
-            rows.append(_row(aq, VERDICT_HEALTHY, f"第{pos}位，安全感需求证据（前五）"))
-        else:
-            rows.append(_row(aq, VERDICT_NEUTRAL, f"第{pos}位/未进前五" if pos else ""))
-    # 信任侧负向证据
-    trust_neg: List[str] = []
-    for key in ("依恋关系-信任-母亲", "依恋关系-信任-父亲"):
+    low_trust: List[str] = []
+    for key in ("依恋关系-信任-母亲", "依恋关系-信任-父亲", "依恋关系-信任-同伴"):
         it = im.get(key)
-        if it is not None:
-            ev = _it_eval(it)
-            if ev and ev != "高":
-                trust_neg.append(f"{it.get('label')}非高({ev})")
-                rows.append(_row(it, VERDICT_WATCH, "信任缺失证据"))
-            else:
-                rows.append(_row(it, VERDICT_HEALTHY if ev == "高" else VERDICT_NEUTRAL))
-    tp = im.get("依恋关系-信任-同伴")
-    if tp is not None:
-        ev = _it_eval(tp)
+        if it is None:
+            continue
+        ev = _it_eval(it)
         if ev == "偏低":
-            trust_neg.append("信任-同伴偏低")
-            rows.append(_row(tp, VERDICT_PROBLEM, "信任缺失证据"))
+            low_trust.append(f"{it.get('label')}偏低")
+            rows.append(_row(it, VERDICT_WATCH, "信任偏低"))
+        elif ev in ("高", "不低"):
+            rows.append(_row(it, VERDICT_HEALTHY))
         else:
-            rows.append(_row(tp, VERDICT_NEUTRAL))
-    # 真值表合成
-    demand = bool(demand_notes)
-    neg = bool(trust_neg)
-    if demand and neg:
-        state = VERDICT_PROBLEM
-        summary = "不在安全感中：" + "；".join(demand_notes + trust_neg)
-    elif demand or neg:
+            rows.append(_row(it, VERDICT_NEUTRAL))
+    if low_trust:
         state = VERDICT_WATCH
-        summary = "部分成立/需关注：" + "；".join(demand_notes + trust_neg)
+        summary = "依恋信任部分偏低，安全感需关注：" + "、".join(low_trust)
     else:
         state = VERDICT_HEALTHY
-        summary = "在安全感中"
+        summary = "依恋关系显示处于安全感中（父母与同伴信任均不低）"
     return {"state": state, "summary": summary, "items": rows}
 
 
@@ -1146,6 +1118,9 @@ def _v_e2(items: List[Dict[str, Any]], full_idx: Dict[str, Dict[str, Any]]) -> D
                 base = base[:-2]
             lv = full_idx.get(_norm_framework_label(base + "评级"))
             val = ((lv or {}).get("raw_value") or (lv or {}).get("value") or "") if lv else ""
+            if val:
+                # 回写到原始 item，供协议拼装行显示「评级:优」（得分0≠行为差）
+                it["pdf_grade"] = val
         rows.append(_row(it, _st_pdf_grade(val), "" if _it_eval(it) else (f"评级:{val}" if val else "")))
     state = _worst_state([r["state"] for r in rows]) if rows else VERDICT_NEUTRAL
     return {"state": state, "summary": "精力管理", "items": rows}
@@ -1162,6 +1137,71 @@ def _v_default_e3(items: List[Dict[str, Any]]) -> Dict[str, Any]:
         summary = "无弱项，有强项"
     else:
         summary = "中性"
+    return {"state": state, "summary": summary, "items": rows}
+
+
+def _v_e3_input(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """信息输入：认知总得分/总百分位为参照基线行（不参与判定）；感知觉强特质 × 注意力相对弱特质=组内错位。"""
+    im = _label_index(items)
+    rows: List[Dict[str, str]] = []
+    bs = im.get("认知能力总得分")
+    if bs is not None:
+        rows.append(_row(bs, VERDICT_NEUTRAL, "认知总基线（标准分，参照行，不参与判定）"))
+    bp = im.get("认知能力百分位")
+    if bp is not None:
+        rows.append(_row(bp, VERDICT_NEUTRAL, "认知总基线（百分位，参照行，不参与判定）"))
+    perc = im.get("认知能力-感知觉")
+    attn = im.get("认知能力-注意力")
+    sub_states: List[str] = []
+    for it in (perc, attn):
+        if it is None:
+            continue
+        st = _st_percentile(_it_eval(it))
+        rows.append(_row(it, st, (it.get("trait_note") or "") if it.get("trait_label") else ""))
+        sub_states.append(st)
+    a_low = attn is not None and _st_percentile(_it_eval(attn)) == VERDICT_PROBLEM
+    p_strong = perc is not None and perc.get("trait_label") == "强特质"
+    a_weak = attn is not None and attn.get("trait_label") == "相对弱特质"
+    if a_low:
+        state, summary = VERDICT_PROBLEM, "注意力百分位偏低（常模弱项）"
+    elif p_strong and a_weak:
+        pn, an = _to_number(perc.get("raw_value")), _to_number(attn.get("raw_value"))
+        gap = int(round(pn - an)) if pn is not None and an is not None else None
+        state = VERDICT_WATCH
+        summary = (f"组内错位：感知觉强特质 vs 注意力相对弱特质"
+                   + (f"（差{gap}）" if gap is not None else "") + "，注意力值得关切")
+    else:
+        state = _worst_state(sub_states) if sub_states else VERDICT_NEUTRAL
+        summary = ("存在弱项" if state == VERDICT_PROBLEM
+                   else ("无弱项，有强项" if any(s == VERDICT_HEALTHY for s in sub_states) else "中性"))
+    return {"state": state, "summary": summary, "items": rows}
+
+
+def _v_e3_focus(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """专注力：高感知觉 + 相对弱注意力（抑制控制作参照）= 潜在分心/粗心组合。"""
+    im = _label_index(items)
+    inh = im.get("执行功能-抑制控制")
+    perc = im.get("认知能力-感知觉")
+    attn = im.get("认知能力-注意力")
+    rows: List[Dict[str, str]] = []
+    for it in (inh, perc, attn):
+        if it is None:
+            continue
+        st = _st_percentile(_it_eval(it))
+        rows.append(_row(it, st, (it.get("trait_note") or "") if it.get("trait_label") else ""))
+    a_low = attn is not None and _st_percentile(_it_eval(attn)) == VERDICT_PROBLEM
+    p_strong = perc is not None and perc.get("trait_label") == "强特质"
+    a_weak = attn is not None and attn.get("trait_label") == "相对弱特质"
+    if a_low:
+        state, summary = VERDICT_PROBLEM, "注意力百分位偏低（常模弱项）"
+    elif p_strong and a_weak:
+        state = VERDICT_WATCH
+        summary = "潜在分心组合：高感知觉+相对弱注意力，易粗心/分心，关注作业环境与电子产品管理"
+    else:
+        states = [r["state"] for r in rows if r["label"] != (perc or {}).get("label")] or [r["state"] for r in rows]
+        state = _worst_state(states) if states else VERDICT_NEUTRAL
+        summary = ("存在弱项" if state == VERDICT_PROBLEM
+                   else ("无弱项，有强项" if any(s == VERDICT_HEALTHY for s in states) else "中性"))
     return {"state": state, "summary": summary, "items": rows}
 
 
@@ -1311,7 +1351,7 @@ def _v_e4_mismatch_surface(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     elif mb == "low" and sb in ("mid", "high"):
         state, summary = VERDICT_WATCH, "错配（更危险）：记忆偏弱却依赖表面策略"
     elif mb in ("mid", "high") and sb == "low":
-        state, summary = VERDICT_HEALTHY, "不依赖表面方法（记忆不低）"
+        state, summary = VERDICT_WATCH, "错配（低垂果实）：记忆能力支持表面方法但表面策略偏低——有能力却没用表面方法"
     else:
         state, summary = VERDICT_HEALTHY, "基于表面的学习：匹配"
     return {"state": state, "summary": summary, "items": rows}
@@ -1339,15 +1379,38 @@ def _v_e4_strategy_level(items: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _v_e4_planning(items: List[Dict[str, Any]]) -> Dict[str, Any]:
-    rows = []
-    for it in items:
-        ev = _it_eval(it)
-        if "人格" in (it.get("label", "") or ""):
-            rows.append(_row(it, _st_personality(ev)))
-        else:
-            rows.append(_row(it, _st_norm(ev)))
-    state = _worst_state([r["state"] for r in rows]) if rows else VERDICT_NEUTRAL
-    return {"state": state, "summary": "计划性", "items": rows}
+    """计划性：责任心/自主性为判定项；常规型/安全稳定为「确定性需求」上下文行，不进问题级判定。"""
+    im = _label_index(items)
+    rows: List[Dict[str, str]] = []
+    states: List[str] = []
+    for key in ("人格-责任心", "自驱力-自主性"):
+        it = im.get(key)
+        if it is None:
+            continue
+        st = _st_personality(_it_eval(it)) if "人格" in key else _st_norm(_it_eval(it))
+        rows.append(_row(it, st))
+        states.append(st)
+    demand: List[str] = []
+    cg = im.get("职业兴趣-常规型")
+    if cg is not None:
+        ev = _it_eval(cg)
+        if ev in ("高", "不低"):
+            demand.append(f"常规型{ev}")
+        rows.append(_row(cg, VERDICT_NEUTRAL, "确定性需求上下文（不参与计划性判定）"))
+    aq = im.get("ORDER:安全稳定")
+    if aq is not None:
+        pos = _order_pos(aq)
+        if pos is not None and pos <= 5:
+            demand.append(f"安全稳定第{pos}位（前五）")
+        rows.append(_row(aq, VERDICT_NEUTRAL, "确定性需求上下文" + (f"，第{pos}位/共15" if pos else "")))
+    state = _worst_state(states) if states else VERDICT_NEUTRAL
+    if state == VERDICT_PROBLEM and demand:
+        summary = "计划性不足 + 高确定性需求（" + "、".join(demand) + "）→ 结构化机制切入点（如「一表人才」）"
+    elif demand:
+        summary = "计划性" + "（确定性需求：" + "、".join(demand) + "）"
+    else:
+        summary = "计划性"
+    return {"state": state, "summary": summary, "items": rows}
 
 
 def _v_e4_metacognition(items: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -1373,11 +1436,11 @@ _QUESTION_VERDICTS = {
     "学生是否可能高敏感内耗？": _v_e1_sensitive,
     "学生是否处在不开心的状态？": _v_e1_unhappy,
     "学生是否处在安全感中？": _v_e1_safety,
-    "信息输入基本功能": _v_default_e3,
+    "信息输入基本功能": _v_e3_input,
     "信息存储基本功能": _v_default_e3,
     "信息分析基本功能": _v_default_e3,
     "信息加工速度": _v_default_e3,
-    "执行能力-专注力": _v_default_e3,
+    "执行能力-专注力": _v_e3_focus,
     "执行能力-运用记忆": _v_default_e3,
     "执行能力-认知灵活性（是否会举一反三、随机应变）": _v_default_e3,
     "学习动机是否强大（无论深层还是表层，先看动机是否足够强大）": _v_e3_motivation,
@@ -1394,6 +1457,38 @@ _QUESTION_VERDICTS = {
 }
 
 
+def _annotate_cognitive_traits(eval_items: List[Dict[str, Any]]) -> None:
+    """以认知能力百分位总（code 002）为基线，给 003-008 六个认知分项标注个体内强/弱特质。
+
+    强特质：有效评价=高，或百分位 ≥ 基线+TRAIT_GAP；
+    相对弱特质：百分位 ≤ 基线-TRAIT_GAP。
+    标注写入 item 的 trait_label/trait_note，只作识别，不改变问题级 state。
+    """
+    base: Optional[float] = None
+    for it in eval_items:
+        if str(it.get("code", "")).strip() == "002":
+            base = _to_number(it.get("raw_value"))
+            break
+    if base is None:
+        return
+    for it in eval_items:
+        if not (3 <= _code_int(it.get("code")) <= 8):
+            continue
+        if "百分位" not in (it.get("label", "") or ""):
+            continue
+        num = _to_number(it.get("raw_value"))
+        if num is None:
+            continue
+        diff = int(round(num - base))
+        ev = (it.get("eval_value") or "").strip()
+        if ev == "高" or diff >= TRAIT_GAP:
+            it["trait_label"] = "强特质"
+            it["trait_note"] = f"总{base:g},{'+' if diff >= 0 else ''}{diff}"
+        elif diff <= -TRAIT_GAP:
+            it["trait_label"] = "相对弱特质"
+            it["trait_note"] = f"总{base:g},{diff}"
+
+
 def evaluate_question_verdicts(eval_items: List[Dict[str, Any]]
                                ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, set]]:
     """在 build_framework_groups 之上为每个问题产出问题级结论。
@@ -1403,6 +1498,7 @@ def evaluate_question_verdicts(eval_items: List[Dict[str, Any]]
                 "summary": 人读摘要, "items": [{label,state,note,eval,raw}]}
     E2（q=None）按逐项三态判定。
     """
+    _annotate_cognitive_traits(eval_items)
     groups, other_items, dims_by_code = build_framework_groups(eval_items)
     full_idx = {_norm_framework_label(it.get("label", "")): it for it in eval_items}
     for g in groups:

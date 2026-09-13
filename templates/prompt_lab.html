@@ -1403,7 +1403,7 @@
 
       // Step 3 综合成文（AI 只写总览，数据行由 Python 确定性拼装）
       e4SetStep(3, 'running');
-      e4Detail('AI 撰写总览（核心矛盾 / 真实优势 / 下一步），数据行由 Python 确定性拼装，不经过 AI…');
+      e4Detail('AI 撰写总览（真实优势 / 名单归属理由），数据行由 Python 确定性拼装，不经过 AI…');
       const r3 = await fetch('/api/prompt-lab/e4/step3', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
