@@ -379,24 +379,19 @@ def api_chat():
     prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
     system_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "你是测评解读助手。"
 
-    # 2) 读取 report_data.json 作为上下文
+    # 2) 读取 report_data.json，构建 Y4 有效评价上下文（含档位/评级/单位）
     report_path = DATA_DIR / "report_data.json"
     if report_path.exists():
         report_data = json.loads(report_path.read_text(encoding="utf-8"))
         schema_items = report_data.get("schema_124", [])
-        data_text = "\n".join(
-            f"{it.get('code','?')} {it.get('label','?')}：{it.get('value', '—')}"
-            for it in schema_items if it.get("value")
-        )
         student = report_data.get("student", {})
-        student_text = f"学生：{student.get('name','—')}，{student.get('gender','—')}，{student.get('grade','—')}"
-        context = f"{student_text}\n\n测评数据：\n{data_text}"
+        context = _build_y4_interpret_context(schema_items, student)
     else:
         context = "（暂无测评数据）"
 
     # 3) 组装 messages
     messages = [
-        {"role": "system", "content": system_prompt + "\n\n以下是学生测评数据：\n" + context},
+        {"role": "system", "content": system_prompt + "\n\n以下是 Y4 有效评价数据：\n" + context},
     ]
     messages.extend(history[-10:])
     if user_message:
@@ -420,7 +415,7 @@ def api_chat():
     try:
         with _ureq.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
-        reply = result["choices"][0]["message"]["content"]
+        reply = _strip_wrapping_fence(result["choices"][0]["message"]["content"])
         return jsonify({"ok": True, "reply": reply})
     except Exception as exc:
         return jsonify({"ok": False, "error": f"AI 调用失败: {exc}"}), 500
@@ -1435,19 +1430,19 @@ def api_report_interpret(report_id):
 
     raw = record.get("raw") or {}
     schema_items = raw.get("schema_124", [])
-    data_text = "\n".join(
-        f"{it.get('code','?')} {it.get('label','?')}：{it.get('value', '—')}"
-        for it in schema_items if it.get("value")
-    )
     student = raw.get("student", {})
-    student_text = f"学生：{student.get('name','—')}，{student.get('gender','—')}，{student.get('grade','—')}"
-    context = f"{student_text}\n\n测评数据：\n{data_text}"
+
+    body = request.get_json(silent=True) or {}
+    # 前端可传 UI 调整后的 items（含档位覆盖/偏高偏低确认）；否则用规则引擎构建
+    context = _build_y4_interpret_context(
+        schema_items, student,
+        items_override=(body.get("items") if body.get("items") else None))
 
     prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
     system_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "你是测评解读助手。"
 
     messages = [
-        {"role": "system", "content": system_prompt + "\n\n以下是学生测评数据：\n" + context},
+        {"role": "system", "content": system_prompt + "\n\n以下是 Y4 有效评价数据：\n" + context},
         {"role": "user", "content": "请给出这份 Y4 报告的完整解读"},
     ]
 
@@ -1456,7 +1451,7 @@ def api_report_interpret(report_id):
     payload = json.dumps({
         "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
         "messages": messages,
-        "temperature": float(os.environ.get("AI_TEMPERATURE", "0.5")),
+        "temperature": float(os.environ.get("AI_TEMPERATURE", "0.3")),
         "max_tokens": 8192,
     }).encode("utf-8")
     req = _ureq.Request(
@@ -1468,7 +1463,8 @@ def api_report_interpret(report_id):
     try:
         with _ureq.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
-        reply = result["choices"][0]["message"]["content"]
+        reply = _finalize_y4_interpretation(
+            result["choices"][0]["message"]["content"], dashscope_key)
         try:
             _db.save_interpretation(report_id, reply)
         except Exception as e:
@@ -1548,8 +1544,9 @@ def api_report_protocol_md(report_id):
 
     md_text = _build_phase1_md_text(items, include_raw, interpretation, student, student_name)
     buf = _io.BytesIO(md_text.encode("utf-8"))
+    safe_name = student_name.replace(" ", "").replace("/", "_")
     return send_file(buf, mimetype="text/markdown", as_attachment=True,
-                     download_name=f"有效评价_{student_name}_protocol.md")
+                     download_name=f"Y4报告_{safe_name}.md")
 
 
 @app.route("/api/reports/<int:report_id>/y4-json", methods=["POST"])
@@ -1575,7 +1572,7 @@ def api_report_y4_json(report_id):
 
     payload = _build_y4_payload(items, interpretation, student, student_name)
     return jsonify({"ok": True, "json": payload,
-                    "filename": f"{student_name.replace(' ', '')}_Y4数据.json"})
+                    "filename": f"Y4数据_{student_name.replace(' ', '').replace('/', '_')}.json"})
 
 
 @app.route("/api/reports/<int:report_id>/e4-protocol", methods=["POST"])
@@ -1708,19 +1705,14 @@ def _generate_interpretation_for_report(report_id: int):
 
     raw = record.get("raw") or {}
     schema_items = raw.get("schema_124", [])
-    data_text = "\n".join(
-        f"{it.get('code', '?')} {it.get('label', '?')}：{it.get('value', '—')}"
-        for it in schema_items if it.get("value")
-    )
     student = raw.get("student", {})
-    student_text = f"学生：{student.get('name', '—')}，{student.get('gender', '—')}，{student.get('grade', '—')}"
-    context = f"{student_text}\n\n测评数据：\n{data_text}"
+    context = _build_y4_interpret_context(schema_items, student)
 
     prompt_path = BASE_DIR / "prompts" / "ai_interpreter.md"
     system_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "你是测评解读助手。"
 
     messages = [
-        {"role": "system", "content": system_prompt + "\n\n以下是学生测评数据：\n" + context},
+        {"role": "system", "content": system_prompt + "\n\n以下是 Y4 有效评价数据：\n" + context},
         {"role": "user", "content": "请给出这份 Y4 报告的完整解读"},
     ]
 
@@ -1729,7 +1721,7 @@ def _generate_interpretation_for_report(report_id: int):
     payload = json.dumps({
         "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
         "messages": messages,
-        "temperature": float(os.environ.get("AI_TEMPERATURE", "0.5")),
+        "temperature": float(os.environ.get("AI_TEMPERATURE", "0.3")),
         "max_tokens": 8192,
     }).encode("utf-8")
     req = _ureq.Request(
@@ -1741,7 +1733,8 @@ def _generate_interpretation_for_report(report_id: int):
     try:
         with _ureq.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
-        reply = result["choices"][0]["message"]["content"]
+        reply = _finalize_y4_interpretation(
+            result["choices"][0]["message"]["content"], dashscope_key)
         try:
             _db.save_interpretation(report_id, reply)
         except Exception as e:
@@ -2029,17 +2022,12 @@ def prompt_lab_run():
 
     report_data = json.loads(report_path.read_text(encoding="utf-8"))
     schema_items = report_data.get("schema_124", [])
-    data_text = "\n".join(
-        f"{it.get('code','?')} {it.get('label','?')}：{it.get('value', '—')}"
-        for it in schema_items if it.get("value")
-    )
     student = report_data.get("student", {})
-    student_text = f"学生：{student.get('name','—')}，{student.get('gender','—')}，{student.get('grade','—')}"
-    context = f"{student_text}\n\n测评数据：\n{data_text}"
+    context = _build_y4_interpret_context(schema_items, student)
 
     # 3) Build messages
     messages = [
-        {"role": "system", "content": system_prompt + "\n\n以下是学生测评数据：\n" + context},
+        {"role": "system", "content": system_prompt + "\n\n以下是 Y4 有效评价数据：\n" + context},
         {"role": "user", "content": user_message},
     ]
 
@@ -2049,7 +2037,7 @@ def prompt_lab_run():
     payload = json.dumps({
         "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
         "messages": messages,
-        "temperature": float(os.environ.get("AI_TEMPERATURE", "0.5")),
+        "temperature": float(os.environ.get("AI_TEMPERATURE", "0.3")),
         "max_tokens": 8192,
     }).encode("utf-8")
     req = _ureq.Request(
@@ -2062,7 +2050,8 @@ def prompt_lab_run():
     try:
         with _ureq.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
-        reply = result["choices"][0]["message"]["content"]
+        reply = _finalize_y4_interpretation(
+            result["choices"][0]["message"]["content"], dashscope_key)
         tokens_used = result.get("usage", {}).get("total_tokens", 0)
         elapsed_ms = int((_time.time() - t0) * 1000)
         return jsonify({"ok": True, "reply": reply, "tokens": tokens_used, "time_ms": elapsed_ms})
@@ -2258,13 +2247,263 @@ def prompt_lab_evaluation():
                     "per_code_eval_options": per_code_opts})
 
 
+def _y4_item_unit(it: Dict[str, Any]) -> str:
+    """取指标单位；unit 为空时从 note 括号提取（如 note='睡眠时长（小时/天）'）。"""
+    unit = (it.get("unit") or "").strip()
+    if unit:
+        return unit
+    note = (it.get("note") or "").strip()
+    m = re.search(r"[（(]([^)）]+)[)）]", note)
+    return m.group(1).strip() if m else ""
+
+
+def _y4_is_empty(it: Dict[str, Any]) -> bool:
+    """无 raw、无档位、无评级、排序项也无值 → 数据缺失，Y4 输出中剔除。"""
+    src = it.get("eval_source") or ""
+    if src == "原始排序":
+        return not (it.get("eval_value") or it.get("raw_value"))
+    return not str(it.get("raw_value") or "").strip() \
+        and not (it.get("eval_value") or "").strip() \
+        and not (it.get("pdf_grade") or "").strip()
+
+
+def _strip_wrapping_fence(text: str) -> str:
+    """剥离模型偶发包裹全文的 ```markdown ... ``` 代码围栏。"""
+    t = (text or "").strip()
+    m = re.fullmatch(r"```(?:[a-zA-Z]*)?\s*\n(.*?)\n?```", t, re.S)
+    return (m.group(1).strip() if m else t)
+
+
+# 解读稿里反复出现的自造比喻/概括词与越界医学词（硬禁）
+_Y4_BANNED_TOKENS = ("锚点", "燃料", "缓冲带", "闭环", "回路", "引擎", "马达",
+                     "稳压器", "冻结层", "观察者姿态", "高承载", "低滋养", "低负荷",
+                     "支点", "撬动", "淤堵", "血流", "神经可塑性", "临床", "确诊",
+                     "崩塌", "失控", "硬件", "代偿")
+# 建议节里编造的量化安排（含「每天/每周」频率与「1 句话、3 步」类数量）
+_Y4_FAB_NUM_RE = re.compile(r"\d+\s*(分钟|次|道|个|句|步|项|条|页)|每\s*[周天日]")
+_Y4_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+# 自造对仗标签（高 X、低 Y）与装饰箭头
+_Y4_BANNED_PATTERNS = [re.compile(p) for p in
+                       (r"高[\u4e00-\u9fff]{1,6}[、，]\s*[低弱]", r"→|✅|✓|✗")]
+_Y4_LEN_HARD = 1650  # 汉字数硬线（目标 1000–1500，留返修余量）
+# 行首孤立的中文标点（返修偶发把句号挤到下一行）
+_Y4_STRAY_PUNC_RE = re.compile(r"[ \t]*\r?\n[ \t]*(?=[。，、；！？）」])")
+
+
+def _y4_needs_refine(text: str) -> bool:
+    if len(_Y4_CJK_RE.findall(text or "")) > _Y4_LEN_HARD:
+        return True
+    if any(tok in (text or "") for tok in _Y4_BANNED_TOKENS):
+        return True
+    if any(p.search(text or "") for p in _Y4_BANNED_PATTERNS):
+        return True
+    tail = text.split("杠杆点与建议", 1)[1] if "杠杆点与建议" in text else ""
+    return bool(_Y4_FAB_NUM_RE.search(tail))
+
+
+def _y4_refine_once(text: str, dashscope_key: str) -> str:
+    """对不合规解读做一次定稿返修。只允许删减和就地改写，严禁新增任何内容。"""
+    import urllib.request as _ureq
+    sysmsg = (
+        "你在给一份 Y4 测评解读做定稿修改。只能删减和就地改写，严禁新增任何原文没有的东西"
+        "（新事实、新数字、新职业名、新机制解释、新预测都不许加）。按下列要求修改：\n"
+        "1. 汉字数压到 1500 以内：删掉重复修饰、合并近义句、压缩排比；"
+        "具体指标名称、原始数值、每条建议的动作必须保留。\n"
+        "2. 删除对仗式自造标签（形如「高接收、低整合」「高 X、低 Y」的短语）和比喻机制词"
+        "（锚点、支点、燃料、缓冲带、闭环、回路、引擎、硬件、代偿、撬动、淤堵等），"
+        "就地改成用指标名称的直白陈述。\n"
+        "3. 删除医学或临床表述（临床、确诊、神经可塑性、血流、排除某疾病等）"
+        "和「崩塌、失控」类极端预测；要表达相关意思用日常语言，如「持续下去容易更疲惫」。\n"
+        "4. 「杠杆点与建议」一节删掉编造的数量与频率安排（每天、每周、多少分钟、几次、几道、几句、几步等），"
+        "步骤说明不要用箭头符号（→），改用文字连接；只留动作和方向。\n"
+        "5. 保持七个章节标题原样：## 总体印象 / ## 心力（情绪与动力系统） / "
+        "## 精力（精力管理与身体健康系统） / ## 学习力（学习系统） / "
+        "## 生涯力（专业与职业发展系统） / ## 跨维度连结 / ## 杠杆点与建议。\n"
+        "直接返回改后的完整 Markdown，不加代码块、不加解释、不加字数标注。"
+    )
+    url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    payload = json.dumps({
+        "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
+        "messages": [{"role": "system", "content": sysmsg},
+                     {"role": "user", "content": text}],
+        "temperature": 0.2,
+        "max_tokens": 6000,
+    }).encode("utf-8")
+    req = _ureq.Request(url, data=payload,
+                        headers={"Authorization": f"Bearer {dashscope_key}",
+                                 "Content-Type": "application/json"}, method="POST")
+    with _ureq.urlopen(req, timeout=120) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+    return _strip_wrapping_fence(result["choices"][0]["message"]["content"])
+
+
+def _y4_scrub_numbers(text: str) -> str:
+    """建议节仍残留编造数量时的最后兜底：精确数量改成非特指（15 分钟→几分钟），频率词删除。"""
+    if "杠杆点与建议" not in text:
+        return text
+    head, tail = text.split("杠杆点与建议", 1)
+
+    def _vague(m: "re.Match") -> str:
+        unit = m.group(1)
+        return f"几{unit}" if unit else ""
+
+    tail = _Y4_FAB_NUM_RE.sub(_vague, tail)
+    return head + "杠杆点与建议" + tail
+
+
+def _finalize_y4_interpretation(reply: str, dashscope_key: str) -> str:
+    """落库前定稿：去围栏；不合规时返修（最多两轮，禁止越改越长），再兜底清洗数字与标点。"""
+    reply = _strip_wrapping_fence(reply)
+    for _ in range(2):
+        if not _y4_needs_refine(reply):
+            break
+        try:
+            refined = _y4_refine_once(reply, dashscope_key)
+            if refined and len(_Y4_CJK_RE.findall(refined)) <= len(_Y4_CJK_RE.findall(reply)) + 100:
+                reply = refined
+            else:
+                break
+        except Exception:
+            break
+    tail = reply.split("杠杆点与建议", 1)[-1]
+    if _Y4_FAB_NUM_RE.search(tail):
+        reply = _y4_scrub_numbers(reply)
+    reply = _Y4_STRAY_PUNC_RE.sub("", reply)
+    return reply
+
+
+def _build_y4_interpret_context(schema_items: Optional[List[Dict[str, Any]]] = None,
+                                student: Optional[Dict[str, Any]] = None,
+                                items_override: Optional[List[Dict[str, Any]]] = None) -> str:
+    """构建喂给 Y4 解读 AI 的输入文本：学生背景 + 按 Y4 四维分组的已确认有效评价。
+
+    items_override 为前端传回的调整后 items（含 bias/adjusted）；否则从原始 schema
+    经规则引擎构建。evaluate_question_verdicts 的副作用（认知 trait 标注、体质评级
+    回写）幂等执行。输出只用 Y4 四维语言，不含任何 E4 字样。
+    """
+    student = student or {}
+    if items_override:
+        items = items_override
+        try:
+            _eval_rules.evaluate_question_verdicts(items)
+        except Exception:
+            pass
+    else:
+        items, _ = _eval_rules.build_evaluation_view(schema_items or [])
+        _eval_rules.evaluate_question_verdicts(items)
+    items = [it for it in items if not _y4_is_empty(it)]
+
+    bg_parts = [f"学生：{student.get('name', '—')}，{student.get('gender', '—')}，"
+                f"{student.get('grade', '—')}"]
+    if student.get("school"):
+        bg_parts[0] += f"，{student['school']}"
+    if student.get("birthday"):
+        bg_parts[0] += f"（出生 {student['birthday']}）"
+    if student.get("test_date"):
+        bg_parts[0] += f" | 测评日期：{student['test_date']}"
+
+    buckets: Dict[str, list] = {d: [] for d in _eval_rules._DIM_ORDER}
+    norm_lines: List[str] = []
+    for it in items:
+        dim = it.get("dimension") or _eval_rules.dimension_of(it)
+        buckets.setdefault(dim, []).append(it)
+
+    lines = bg_parts + ["", "【已确认的有效评价数据，括号内档位/评级即结论，直接作为事实使用】"]
+    for dim in _eval_rules._DIM_ORDER:
+        dim_items = sorted(buckets.get(dim, []),
+                           key=lambda x: _eval_rules.sort_key_code(x.get("code", "")))
+        if not dim_items:
+            continue
+        lines.append("")
+        lines.append(f"〔{dim}〕")
+        for it in dim_items:
+            label = it.get("label", "?")
+            raw_v = it.get("raw_value", "")
+            eval_v = it.get("eval_value") or ""
+            src = it.get("eval_source", "待判定") or "待判定"
+            unit = _y4_item_unit(it)
+            bias = (it.get("data_bias") or "正常").strip()
+
+            if src == "参照值":
+                norm_lines.append(f"{label}：{raw_v}{unit}".rstrip())
+                continue
+            if src == "原始排序":
+                lines.append(f"{label}：{eval_v}")
+                continue
+
+            # 饮食得分 0 不展示（真实数据是描述段落）
+            if "饮食" in label and "得分" in label and str(raw_v).strip() in ("0", ""):
+                raw_v = ""
+            seg = label + "："
+            if raw_v not in ("", None):
+                seg += f"{raw_v}{(' ' + unit) if unit else ''}"
+            # 评级（体质习惯）优先；否则档位
+            grade = (it.get("pdf_grade") or "").strip()
+            if grade:
+                seg += f"（评级：{grade}）"
+            elif eval_v and str(eval_v).strip() != str(raw_v).strip():
+                seg += f"（{eval_v}）"
+            # 认知个体内 trait 标注
+            trait = (it.get("trait_label") or "").strip()
+            if trait:
+                tn = (it.get("trait_note") or "").strip()
+                seg += f"〔{trait}（{tn}）〕" if tn else f"〔{trait}〕"
+            # 专家确认的偏高/偏低 = 事实
+            if bias and bias != "正常":
+                seg += f"〔专家确认：{bias}〕"
+            # OBSERVATION：测评状态可能失真（用 Y4 语言，不引 E4 术语）
+            if (it.get("problem_status") or "CONFIRMED") == "OBSERVATION":
+                seg += "〔测评状态可能失真，先观望〕"
+            lines.append(seg)
+
+    if norm_lines:
+        lines += ["", "〔常模参照〕（对照标准，不是该生数据）"] + norm_lines
+    return "\n".join(lines)
+
+
+def _y4_report_line(it: Dict[str, Any]) -> str:
+    """人类可读 Y4 报告中的单个指标行（markdown 列表项，不含机器标签）。"""
+    label = it.get("label", "?")
+    raw_v = it.get("raw_value", "")
+    eval_v = it.get("eval_value") or ""
+    src = it.get("eval_source", "待判定") or "待判定"
+    unit = _y4_item_unit(it)
+    bias = (it.get("data_bias") or "正常").strip()
+
+    if src == "原始排序":
+        return f"- **{label}**：{eval_v}"
+
+    # 饮食得分无数值时不展示（真实数据是描述段落）
+    if "饮食" in label and "得分" in label and str(raw_v).strip() in ("0", ""):
+        return ""
+
+    seg = f"- **{label}**："
+    if raw_v not in ("", None):
+        seg += f"{raw_v}{(' ' + unit) if unit else ''}"
+    grade = (it.get("pdf_grade") or "").strip()
+    if grade:
+        seg += f"（评级：{grade}）"
+    elif eval_v and str(eval_v).strip() != str(raw_v).strip():
+        seg += f"（{eval_v}）"
+    trait = (it.get("trait_label") or "").strip()
+    if trait:
+        tn = (it.get("trait_note") or "").strip()
+        seg += f"〔{trait}（{tn}）〕" if tn else f"〔{trait}〕"
+    if bias and bias != "正常":
+        seg += f"〔专家确认：{bias}〕"
+    if (it.get("problem_status") or "CONFIRMED") == "OBSERVATION":
+        seg += "〔测评状态可能失真，先观望〕"
+    if it.get("adjusted") and it.get("original_eval"):
+        seg += f"（专家调整自：{it['original_eval']}）"
+    return seg
+
+
 def _build_phase1_md_text(items: List[Dict[str, Any]], include_raw: bool,
                           interpretation: str, student: Dict[str, Any],
                           student_name: str = "", now: str = "") -> str:
-    """拼装 Y4 有效评价传递协议 v1.0 Markdown 文本。
+    """拼装人类可读 Y4 报告 Markdown（内部数据版，与 Y4 JSON 同一 items 数据源）。
 
-    与具体数据来源（report_data.json 或 DB report）解耦：调用方传入 items、
-    interpretation、student。expert_judgments 从 items 内的 adjusted/note 字段提取。
+    纯 Y4 内容：学生信息 + 四维已确认数据 + AI 解读原文；无机器标签、无 E4 字样。
     """
     from datetime import datetime as _dt
     if not student_name:
@@ -2272,125 +2511,69 @@ def _build_phase1_md_text(items: List[Dict[str, Any]], include_raw: bool,
     if not now:
         now = _dt.now().strftime("%Y-%m-%d %H:%M")
 
-    expert_judgments = []
-    for it in items:
-        note = (it.get("note") or "").strip()
-        adjusted = it.get("adjusted", False)
-        if note or adjusted:
-            expert_judgments.append({
-                "code": it.get("code"),
-                "label": it.get("label"),
-                "original": it.get("original_eval"),
-                "adjusted": it.get("eval_value"),
-                "note": note or None,
-            })
+    # 幂等副作用：认知 trait 标注、体质评级回写
+    try:
+        _eval_rules.evaluate_question_verdicts(items)
+    except Exception:
+        pass
+    items = [it for it in items if not _y4_is_empty(it)]
 
-    md: List[str] = []
-    md.append("# Y4 有效评价传递协议 v1.0")
-    md.append("")
-    md.append("## META")
-    md.append(f"student: {student_name} | date: {student.get('test_date','')} | protocol: v1.0 | generated: {now}")
-    md.append(f"gender: {student.get('gender','')} | grade: {student.get('grade','')} | school: {student.get('school','')}")
-    md.append(f"archive_id: {student.get('archive_id','')} | report_code: {student.get('report_code','')}")
-    md.append("")
-    md.append("## HIERARCHY_RULES")
-    md.append("```")
-    md.append("RAW_DATA → EFFECTIVE_EVALUATION → INTERPRETATION")
-    md.append("")
-    md.append("RAW_DATA: 原始测量值，仅作证据源")
-    md.append("  - 下游 AI 禁止基于 raw 自行重新判断学生（Error 1）")
-    md.append("  - raw 仅在 include_raw=true 时附在 [EVAL] 行")
-    md.append("")
-    md.append("EFFECTIVE_EVALUATION: 已确认评价，LOCKED")
-    md.append("  - source=档位字段/规则推导: 自动生成")
-    md.append("  - source=原始排序: 排序结果本身即结论，无需再评价")
-    md.append("  - source=人工判断: 经人工调整，具最高权威，不可覆盖（Error 5）")
-    md.append("  - 下游 AI 不可重新计算或覆盖任何 EFFECTIVE_EVALUATION")
-    md.append("")
-    md.append("INTERPRETATION: 基于有效评价的 AI 推理")
-    md.append("  - 非客观事实，可参考但不可当事实引用（Error 2/3）")
-    md.append("")
-    md.append("EXPERT_JUDGMENT: 人工补充说明")
-    md.append("  - 明确区分于客观测量，下游 AI 须标注来源")
-    md.append("")
-    md.append("EVIDENCE_TRACE: 结论→证据追溯")
-    md.append("  - 下游 AI 须基于 trace 中的证据推理，不可超出边界（Error 6）")
-    md.append("```")
-    md.append("")
-    md.append("## STUDENT_INFO")
-    md.append(f"name: {student_name}")
-    md.append(f"gender: {student.get('gender','')}")
-    md.append(f"birthday: {student.get('birthday','')}")
-    md.append(f"grade: {student.get('grade','')}")
-    md.append(f"school: {student.get('school','')}")
-    md.append(f"test_date: {student.get('test_date','')}")
-    md.append("")
-    md.append("## EFFECTIVE_EVALUATIONS")
+    md: List[str] = [f"# Y4 综合测评报告 · {student_name}", ""]
+    info_rows = [("性别", student.get("gender")), ("年级", student.get("grade")),
+                 ("学校", student.get("school")), ("出生日期", student.get("birthday")),
+                 ("测评日期", student.get("test_date"))]
+    info_rows = [(k, v) for k, v in info_rows if v]
+    if info_rows:
+        md.append("| 项目 | 信息 |")
+        md.append("| --- | --- |")
+        for k, v in info_rows:
+            md.append(f"| {k} | {v} |")
+        md.append("")
+
+    md.append("## 测评数据")
     md.append("")
     buckets: Dict[str, list] = {d: [] for d in _eval_rules._DIM_ORDER}
+    norm_lines: List[str] = []
     for it in items:
+        if it.get("eval_source") == "参照值":
+            unit = _y4_item_unit(it)
+            norm_lines.append(
+                f"- **{it.get('label','?')}**：{it.get('raw_value','')}{unit}".rstrip())
+            continue
         dim = it.get("dimension") or _eval_rules.dimension_of(it)
         if dim not in buckets:
             dim = "学习力"
         buckets[dim].append(it)
+
     for dim in _eval_rules._DIM_ORDER:
         dim_items = sorted(buckets[dim], key=lambda it: _eval_rules.sort_key_code(it.get("code", "")))
         if not dim_items:
             continue
-        md.append(f"### [{dim}] {_eval_rules._DIM_LABELS[dim]}")
+        md.append(f"### {_eval_rules._DIM_LABELS[dim]}")
         md.append("")
         for it in dim_items:
-            code = it.get("code", "?")
-            label = it.get("label", "?")
-            raw_v = it.get("raw_value", "")
-            eval_v = it.get("eval_value") or ""
-            unit = it.get("unit", "") or ""
-            src = it.get("eval_source", "待判定") or "待判定"
-            adjusted = it.get("adjusted", False)
-            original = it.get("original_eval", "")
-            note = (it.get("note") or "").strip()
-            if src == "参照值":
-                md.append(f"[NORM] code:{code} | label:{label} | value:{raw_v}{unit} | source:参照值 | status:REFERENCE_ONLY")
-                continue
-            if src == "原始排序":
-                md.append(f"[ORDER] code:{code} | label:{label} | value:{eval_v} | source:原始排序 | status:CONFIRMED | adjusted:NO")
-                continue
-            parts = [f"[EVAL] code:{code}", f"label:{label}"]
-            if include_raw:
-                parts.append(f"raw:{raw_v}{unit}")
-            parts.append(f"eval:{eval_v}")
-            parts.append(f"source:{src}")
-            rn = it.get("rule_note")
-            if rn:
-                parts.append(f"rule:{rn}")
-            parts.append("status:CONFIRMED")
-            parts.append(f"adjusted:{'YES' if adjusted else 'NO'}")
-            if adjusted and original:
-                parts.append(f"original:{original}")
-            md.append(" | ".join(parts))
+            line = _y4_report_line(it)
+            if line:
+                md.append(line)
         md.append("")
-    md.append("## INTERPRETATION")
+
+    if norm_lines:
+        md.append("### 常模参照（对照标准，非该生数据）")
+        md.append("")
+        md.extend(norm_lines)
+        md.append("")
+
+    md.append("## AI 解读")
     md.append("")
-    md.append("<!-- 以下为 AI 基于 EFFECTIVE_EVALUATIONS 的推理，非客观事实。下游 AI 引用时须标注 INTERPRETATION 来源 -->")
-    md.append("")
-    md.append(interpretation or "（未提供）")
-    md.append("")
-    md.append("## EXPERT_JUDGMENTS")
-    md.append("")
-    if expert_judgments:
-        for j in expert_judgments:
-            parts = [f"[JUDGE] code:{j['code']}", f"label:{j['label']}"]
-            if j.get("original"):
-                parts.append(f"original:{j['original']}")
-            parts.append(f"adjusted:{j['adjusted']}")
-            if j.get("note"):
-                parts.append(f"note:{j['note']}")
-            md.append(" | ".join(parts))
+    if interpretation and interpretation.strip():
+        # 嵌入时整体降一级（## → ###），使其成为「AI 解读」子节
+        demoted = re.sub(r"(?m)^(#{1,5}) ", r"#\1 ", interpretation.strip())
+        md.append(demoted)
     else:
-        md.append("（无人工调整）")
+        md.append("（未提供）")
     md.append("")
     md.append("---")
-    md.append("凭远教育 · Y4 综合测评系统 | 本文件为 AI→AI 传递协议，非人类报告")
+    md.append(f"凭远教育 · Y4 综合测评系统 | 生成时间：{now}")
     return "\n".join(md)
 
 
@@ -2417,8 +2600,9 @@ def prompt_lab_evaluation_download():
 
     md_text = _build_phase1_md_text(items, include_raw, interpretation, student, student_name)
     buf = _io.BytesIO(md_text.encode("utf-8"))
+    safe_name = student_name.replace(" ", "").replace("/", "_")
     return send_file(buf, mimetype="text/markdown", as_attachment=True,
-                     download_name=f"有效评价_{student_name}_protocol.md")
+                     download_name=f"Y4报告_{safe_name}.md")
 
 
 def _format_e4_line(it: Dict[str, Any], include_raw: bool, is_ref: bool = False) -> str:
@@ -2611,14 +2795,23 @@ def _e4_step2_system() -> str:
 
 【你的任务】
 1. 逐一回答评估问题：基于该问题下的指标数据，给出有信息量的判断。回答要直接回应问题本身。
-2. 核心问题（有问题/关注）深入展开；健康/中性问题写 1-2 句平实结论。
+2. 判断深度按问题判定分级，具体标准见下方【判断深度】。
 3. 逐问题判断完成后，按下方三段式做综合：先找核心问题，再甄别可能失真的数据，最后给跟进线索与切入点。
+
+【判断深度（权威标准，全文以此为准）】
+- 健康/中性：1-3 句。先给结论，再用一句说明哪些指标互相印证（如两层指标方向一致），不展开、不写数值。
+- 关注：3-5 句。包含：判断结论；qualification（在什么条件下成立，或为什么档位标签不代表严重问题）；题内指标之间的关系；这对该生的实际含义。
+- 有问题：4-6 句。按数据情况自然组织（不要机械列点），覆盖以下四要素：
+  ① 判断结论——问题是什么、性质如何；
+  ② 证据链——题内哪些指标共同支持，方向是否一致，有无反向证据；
+  ③ 上下文含义——放在该生其他指标的背景下意味着什么，在学习中实际可能表现为什么；
+  ④ 边界与把握度——什么信息会改变这个判断（仅在确实不确定时写；bias 已标注的视为确认事实，不写待确认）。
 
 【去重硬规则（与术语规则同级，违反即重写）】
 1. 禁止回显输入：输出中不得出现「问题判定」字样的行、不得出现任何 [EVAL]/[ORDER]/[NORM]/[REF] 开头的数据行、不得照抄数据清单。读者已在数据区看到全部数值，你的任务是给判断，不是搬运数据。
-2. 健康/中性问题：判断写 1-2 句平实结论，不写数值。有 nuance 可点明（如两层指标方向一致互验），但不展开。
-3. 有问题/关注问题：判断写 2-4 句，给 qualification 和 nuance——不只说"偏低"，要说偏低在这个学生的上下文里意味着什么、跟哪些其他指标有关联。数据行已展示数值，判断不复述数据。
-4. 同一指标全文只展开一次：在它首次出现的问题下给出完整解释；之后的问题只写与本问题相关的新角度，用指标名称引用、禁止重复已说过的解释。
+2. 每个问题的判断独立成段并独立满足【判断深度】的长度要求，不因指标在其他问题出现过而豁免。
+3. 同一指标全文只完整解释一次：首次出现的问题给完整分析；之后的问题禁止重复已做过的解释，但必须补上该题视角下的新分析层——这个指标在当前问题里扮演什么角色、与本题其他指标构成什么关系，不得只写一句引用。
+4. 防注水：判断中的每一句都必须承载该生特有的信息。禁止教科书式通用解释（如"工作记忆对学习很重要"）、禁止填充句、禁止把一句话能说清的拆成多句。长度服从信息量。
 5. 末尾三个综合段是「索引与行动」，不是逐问题段落的缩写。
 
 【思考方式】
@@ -2632,7 +2825,7 @@ def _e4_step2_system() -> str:
 3. bias=偏高/偏低：用户在 UI 中标注的偏高/偏低是专家判定，应作为事实纳入判断，直接影响你的分析结论。例如标注偏低意味着该值确实偏低、你的判断要据此展开，不是"可能偏低、需询证"。
 4. problem:OBSERVATION：假问题（测评状态失真），观望处理，不可直接当结论。
 5. 所有结论须标注依据指标名称；数据行中不存在的结论不得编造。
-6. 同一指标可能出现在多个问题/维度中，不要重复相同描述，后续出现时简述关联即可。
+6. 同一指标可能出现在多个问题/维度中，不要重复已做过的解释；但每个问题仍须按【判断深度】独立写足，从该题视角补充新分析。
 7. 排序位置类数据（如"安全稳定排序位置 第10位/共15"）：位置数字越小排序越靠前（越重要）。
 8. 体质健康习惯行的「得分」与「评级」并存时以评级为准：如「饮食习惯得分 0 | 评级:优」表示营养认知题答错但饮食行为健康，不是饮食问题，禁止据此建议干预饮食。
 9. 认知百分位行上的「强特质/相对弱特质」标注是该生与自身认知能力总百分位的个体内比较，不是常模判定，只作识别参考；两者错位才产生判断（如感知觉强特质+注意力相对弱特质=潜在分心/粗心组合）。
@@ -2649,7 +2842,7 @@ def _e4_step2_system() -> str:
 - 原始分优先原则：档位是分类标签，原始分才是实情。判断时先看原始分在量表里的实际位置，不要机械地按档位下结论。典型情况：原始分接近满分（如 9.5/10）虽落在「需关注」档，从人的视角看实际接近天花板，不应当严重关注；反之原始分在档位边界附近时要谨慎，不要因刚好踩线就当问题展开。
 - 访谈/确认建议：只在有问题或不确定时才建议访谈确认；健康或明确的判断不写访谈建议，跟进动作放末尾跟进线索段。
 - 写作模板是判断原则（看什么、怎么推理、什么情况不构成问题），不是措辞模板。用你自己的语言写判断，不要照抄模板里的原句；每条判断要针对该生的具体数据，不要写成通用结论。
-- 语言风格：用自然、简洁的专业判断语气写，像导师写评估备注。避免「说明」「表明」「这暗示」「这可能意味着」等因果连接词堆砌；不要每句都解释推理过程——直接给判断，数据已在该题上方展示，判断里不复述数据。健康题 1-2 句，有问题题 2-4 句给足 qualification 和 nuance。
+- 语言风格：用自然、专业的判断语气写，像导师写评估备注。直接给判断，紧跟为什么——判断与依据之间可以有完整的推理链，不要只抛结论。避免「说明」「表明」「这暗示」「这可能意味着」等因果连接词堆砌；数据已在该题上方展示，判断不复述数据。句数按【判断深度】分级执行。
 
 【逐问题写作模板（每个问题必须遵守对应模板）】
 下面给出每个评估问题的写作锚点（#### 标题）与判断原则：看哪些指标、怎么推理、什么情况不构成问题、禁写什么。
@@ -2661,7 +2854,7 @@ def _e4_step2_system() -> str:
 【输出格式】markdown，按 E1→E2→E3→E4 顺序。
 每个维度用 ### 标题；每个评估问题用 #### 开头，标题逐字照抄上方模板锚点（E2 没有「问题：」输入行，固定输出 #### E2 · Energy（精力管理））。
 #### 标题下直接写判断正文：以「判断：」起头或直接写均可（后端会统一加前缀），不得重复标题问题本身。
-健康/中性写 1-2 句、不写数值；有问题/关注写 2-4 句，给 qualification 和 nuance，可在首次展开处引用关键指标名称。
+句数与内容按上方【判断深度】分级执行；可在判断中引用关键指标名称，但不要复述数据行数值。
 全部问题判断完成后，必须依次输出以下三个段落（标题逐字使用，不得改名）：
 
 ### 核心问题
@@ -3079,101 +3272,123 @@ def prompt_lab_y4_export_json():
 
     payload = _build_y4_payload(items, interpretation, student, student_name)
     return jsonify({"ok": True, "json": payload,
-                    "filename": f"{student_name.replace(' ', '')}_Y4数据.json"})
+                    "filename": f"Y4数据_{student_name.replace(' ', '').replace('/', '_')}.json"})
 
 
 def _build_y4_payload(items: List[Dict[str, Any]], interpretation: str,
                       student: Dict[str, Any], student_name: str = "") -> Dict[str, Any]:
-    """构建通用 Y4 JSON payload（按 Y4 四维组织全部数据点 + AI 解读 + 名单 + 问题级判定）。
+    """构建 Y4 JSON payload v2.0（纯 Y4：四维数据点 + 常模参照 + AI 解读）。
 
+    - 数值型 raw 一律转 number，文本值保留 string；单位独立成字段。
+    - 按四维嵌套；排序项带 rank；常模参照单列。
+    - 不含任何 E4 内容（无名单、无问题级判定）。
     与数据来源解耦：调用方传入 items、interpretation、student。
     """
     from datetime import datetime as _dt
     if not student_name:
         student_name = student.get("name") or "测试"
 
-    list_placement = _determine_list_placement(items, mapping=None)
+    # 幂等副作用：认知 trait 标注、体质评级回写
+    try:
+        _eval_rules.evaluate_question_verdicts(items)
+    except Exception:
+        pass
+    items = [it for it in items if not _y4_is_empty(it)]
 
-    def _rank_of(label: str) -> str:
+    def _rank_of(label: str) -> Optional[int]:
         digits = ""
         for ch in reversed(label or ""):
             if ch.isdigit():
                 digits = ch + digits
             else:
                 break
-        return digits
+        return int(digits) if digits else None
 
-    data_points = []
-    for it in sorted(items, key=lambda x: _eval_rules.sort_key_code(x.get("code", ""))):
-        dp: Dict[str, Any] = {
-            "name": it.get("label", ""),
-            "y4_dimension": it.get("dimension", ""),
-        }
-        src = it.get("eval_source", "")
-        if src == "参照值":
-            dp["type"] = "norm_reference"
-            dp["value"] = it.get("raw_value", "")
-            data_points.append(dp)
-            continue
-        if src == "原始排序":
-            dp["type"] = "ranking"
-            rank = _rank_of(it.get("label", ""))
-            dp["rank"] = int(rank) if rank else None
-            dp["value"] = it.get("eval_value") or it.get("raw_value") or ""
-        else:
-            dp["type"] = "evaluation"
-            dp["raw_value"] = it.get("raw_value", "")
-            if it.get("unit"):
-                dp["unit"] = it.get("unit")
-            if it.get("eval_value"):
-                dp["eval"] = it.get("eval_value")
-            if src and src not in ("规则推导", "待判定"):
-                dp["eval_source"] = src
+    def _typed_value(v: Any) -> Any:
+        num = _eval_rules._to_number(v)
+        return num if num is not None else (v or "")
+
+    def _base_point(it: Dict[str, Any]) -> Dict[str, Any]:
+        dp: Dict[str, Any] = {"code": it.get("code", ""), "name": it.get("label", "")}
         if it.get("adjusted") and it.get("original_eval"):
             dp["adjusted_from"] = it.get("original_eval")
-        bias = it.get("data_bias") or "正常"
-        if bias != "正常":
-            dp["data_bias"] = bias
+        bias = (it.get("data_bias") or "正常").strip()
+        if bias and bias != "正常":
+            dp["confirmed_direction"] = bias
         if (it.get("problem_status") or "CONFIRMED") == "OBSERVATION":
-            dp["problem_status"] = "OBSERVATION"
-        if (it.get("note") or "").strip():
-            dp["note"] = it.get("note").strip()
-        data_points.append(dp)
+            dp["needs_verification"] = True
+        note = (it.get("note") or "").strip()
+        # note 仅作纯单位说明时不重复输出（单位已在 unit 字段）
+        unit = _y4_item_unit(it)
+        if note and (not unit or note.strip(f"（）() {unit}")):
+            dp["note"] = note
+        return dp
 
-    # 问题级判定汇总（E4 框架全部问题）
-    vgroups, _v_other, _v_dims = _eval_rules.evaluate_question_verdicts(items)
-    question_verdicts = []
-    for g in vgroups:
-        v = g.get("verdict")
-        if not v:
+    dimensions: Dict[str, Dict[str, Any]] = {}
+    for dim in _eval_rules._DIM_ORDER:
+        dimensions[dim] = {"label": _eval_rules._DIM_LABELS.get(dim, dim),
+                           "data_points": []}
+    norm_references: List[Dict[str, Any]] = []
+
+    def _bucket_of(it: Dict[str, Any]) -> str:
+        dim = it.get("dimension") or _eval_rules.dimension_of(it)
+        return dim if dim in dimensions else "学习力"
+
+    for it in sorted(items, key=lambda x: _eval_rules.sort_key_code(x.get("code", ""))):
+        src = it.get("eval_source", "") or ""
+        unit = _y4_item_unit(it)
+
+        if src == "参照值":
+            np = {"code": it.get("code", ""), "name": it.get("label", ""),
+                  "value": _typed_value(it.get("raw_value", ""))}
+            if unit:
+                np["unit"] = unit
+            norm_references.append(np)
             continue
-        question_verdicts.append({
-            "dim": g["dim"],
-            "question": g.get("q") or "E2 精力管理",
-            "state": v["state"],
-            "verdict": _eval_rules.VERDICT_LABELS_CN.get(v["state"], v["state"]),
-            "summary": v["summary"],
-        })
+
+        dp = _base_point(it)
+        if src == "原始排序":
+            dp["type"] = "ranking"
+            dp["rank"] = _rank_of(it.get("label", ""))
+            dp["value"] = it.get("eval_value") or it.get("raw_value") or ""
+        else:
+            raw_v = it.get("raw_value", "")
+            grade = (it.get("pdf_grade") or "").strip()
+            eval_v = it.get("eval_value") or ""
+            # 有评级/档位或纯文本（类型/代码/描述）归 text，其余归 measurement
+            is_numeric = _eval_rules._to_number(raw_v) is not None
+            dp["type"] = "measurement" if is_numeric else "text"
+            dp["value"] = _typed_value(raw_v)
+            if unit:
+                dp["unit"] = unit
+            if grade:
+                dp["grade"] = grade
+            if eval_v:
+                dp["evaluation"] = eval_v
+            trait = (it.get("trait_label") or "").strip()
+            if trait:
+                dp["trait"] = trait
+                tn = (it.get("trait_note") or "").strip()
+                if tn:
+                    dp["trait_note"] = tn
+            if src and src not in ("规则推导", "待判定"):
+                dp["evaluation_source"] = src
+        dimensions[_bucket_of(it)]["data_points"].append(dp)
 
     return {
         "meta": {
-            "protocol": "Y4-v1.0",
+            "protocol": "Y4-v2.0",
             "student": student_name,
             "gender": student.get("gender", ""),
             "grade": student.get("grade", ""),
             "school": student.get("school", ""),
+            "birthday": student.get("birthday", ""),
             "test_date": student.get("test_date", ""),
             "generated": _dt.now().strftime("%Y-%m-%d %H:%M"),
         },
-        "list_placement": {
-            "list": list_placement.get("placement", ""),
-            "strength": list_placement.get("strength", ""),
-            "category": list_placement.get("category", ""),
-            "traits": list_placement.get("traits", []),
-        },
-        "question_verdicts": question_verdicts,
-        "data_points": data_points,
-        "ai_interpretation": interpretation,
+        "dimensions": dimensions,
+        "norm_references": norm_references,
+        "ai_interpretation": interpretation or "",
     }
 
 

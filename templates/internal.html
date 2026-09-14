@@ -692,8 +692,8 @@
       <div class="eval-footer">
         <label class="eval-checkbox"><input type="checkbox" id="includeRaw"> 包含原始数据</label>
         <div style="display:flex;gap:8px;">
-          <button class="eval-dl-btn" id="evalDownloadBtn" onclick="downloadEvalMd()" style="background:var(--ink)">下载默认协议</button>
-          <button class="eval-dl-btn" id="evalDownloadJsonBtn" onclick="downloadY4Json()" style="background:var(--ink)">下载 Y4 JSON</button>
+          <button class="eval-dl-btn" id="evalDownloadBtn" onclick="downloadEvalMd()" style="background:var(--ink)">下载 Y4 报告 (MD)</button>
+          <button class="eval-dl-btn" id="evalDownloadJsonBtn" onclick="downloadY4Json()" style="background:var(--ink)">下载 Y4 数据 (JSON)</button>
           <button class="eval-dl-btn" id="evalDownloadE4Btn" onclick="runE4Workflow()" style="background:var(--red)">下载 E4 协议</button>
         </div>
       </div>
@@ -1321,7 +1321,7 @@
     document.body.removeChild(a); URL.revokeObjectURL(u);
   }
 
-  // 默认协议：服务端直接生成下载
+  // Y4 报告 MD：服务端直接生成下载
   async function downloadEvalMd() {
     const btn = document.getElementById('evalDownloadBtn');
     const includeRaw = document.getElementById('includeRaw').checked;
@@ -1337,12 +1337,12 @@
       if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert(e.error||'下载失败'); return; }
       const blob = await resp.blob();
       const cd = resp.headers.get('Content-Disposition') || '';
-      let fname = '有效评价_protocol.md';
+      let fname = 'Y4报告.md';
       const m = decodeURIComponent(cd).match(/filename\*?=(?:UTF-8'')?(?:")?([^";]+)/);
       if (m) fname = m[1];
       downloadBlob(await blob.text(), fname);
     } catch (e) { alert('网络错误: ' + e.message); }
-    btn.disabled = false; btn.textContent = '下载默认协议';
+    btn.disabled = false; btn.textContent = '下载 Y4 报告 (MD)';
   }
 
   // Generalized Y4 JSON 导出（所有数据点 + AI 解读，非 E4）
@@ -1366,7 +1366,7 @@
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(u);
     } catch (e) { alert('网络错误: ' + e.message); }
-    btn.disabled = false; btn.textContent = '下载 Y4 JSON';
+    btn.disabled = false; btn.textContent = '下载 Y4 数据 (JSON)';
   }
 
   // ── E4 三步工作流（每次现生成，不落库） ──────────────────────
@@ -1518,7 +1518,7 @@
       const resp = await fetch(`/api/reports/${currentReportId}/interpret`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ items: collectEvalPayload() }),
       });
       const data = await resp.json();
 
