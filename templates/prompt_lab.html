@@ -962,7 +962,7 @@
     const cardClass = [
       'eval-card',
       it.adjusted ? 'adjusted' : '',
-      it.data_bias === '偏高' ? 'bias-high' : (it.data_bias === '偏低' ? 'bias-low' : ''),
+      it.data_bias === '高估' ? 'bias-high' : (it.data_bias === '低估' ? 'bias-low' : ''),
     ].filter(Boolean).join(' ');
     const e4tags = (it.e4_dims || []).map(m => `<span class="eval-card-e4tag ${m.e4_dim}">${m.e4_dim}${m.e4_sub ? ' · ' + m.e4_sub : ''}</span>`).join('');
     const noteToggleClass = it.note ? 'eval-note-toggle has-note' : 'eval-note-toggle';
@@ -986,8 +986,8 @@
     html += `<div class="eval-card-actions">`;
     if (!isReadOnly) {
       html += `<button class="act-btn bias-normal ${it.data_bias==='正常'?'active':''}" data-tip="数据可信" onclick="setBias('${it.code}','正常',this)">正常</button>`;
-      html += `<button class="act-btn bias-high ${it.data_bias==='偏高'?'active':''}" data-tip="访谈发现分数偏高（可能非真实水平）" onclick="setBias('${it.code}','偏高',this)">偏高</button>`;
-      html += `<button class="act-btn bias-low ${it.data_bias==='偏低'?'active':''}" data-tip="访谈发现分数偏低（可能非真实水平）" onclick="setBias('${it.code}','偏低',this)">偏低</button>`;
+      html += `<button class="act-btn bias-high ${it.data_bias==='高估'?'active':''}" data-tip="严重度高估：真实水平更好（档位上移）" onclick="setBias('${it.code}','高估',this)">高估</button>`;
+      html += `<button class="act-btn bias-low ${it.data_bias==='低估'?'active':''}" data-tip="严重度低估：真实水平更差（档位下移）" onclick="setBias('${it.code}','低估',this)">低估</button>`;
       html += `<button class="act-btn ${isObservation?'observation':'problem-confirmed'}" data-tip="${isObservation?'假问题，待一表人才验证':'真问题，已确认'}" onclick="toggleProblem('${it.code}',this)">${isObservation?'观望':'已确认'}</button>`;
     }
     html += `<span class="${noteToggleClass}" onclick="expandNote('${it.code}', !getNoteExpanded('${it.code}'))">${it.note ? '有备注' : '备注'}</span>`;
@@ -1035,8 +1035,8 @@
     card.querySelectorAll('.act-btn.bias-normal, .act-btn.bias-high, .act-btn.bias-low').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     card.classList.remove('bias-high','bias-low');
-    if (bias === '偏高') card.classList.add('bias-high');
-    if (bias === '偏低') card.classList.add('bias-low');
+    if (bias === '高估') card.classList.add('bias-high');
+    if (bias === '低估') card.classList.add('bias-low');
     renderEvalCounts();
   }
 

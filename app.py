@@ -1433,7 +1433,7 @@ def api_report_interpret(report_id):
     student = raw.get("student", {})
 
     body = request.get_json(silent=True) or {}
-    # 前端可传 UI 调整后的 items（含档位覆盖/偏高偏低确认）；否则用规则引擎构建
+    # 前端可传 UI 调整后的 items（含档位覆盖/高估低估确认）；否则用规则引擎构建
     context = _build_y4_interpret_context(
         schema_items, student,
         items_override=(body.get("items") if body.get("items") else None))
@@ -1626,8 +1626,10 @@ def api_report_e4_protocol(report_id):
             all_lines.append(f"问题：{q}")
         v = g.get("verdict")
         if v:
-            cn = _eval_rules.VERDICT_LABELS_CN.get(v.get("state"), v.get("state", ""))
-            all_lines.append(f"问题判定（Python 规则，须以此为准绳）：{cn} | {v.get('summary', '')}")
+            cn = _eval_rules.verdict_label_cn(v.get("state"), v.get("items") or [])
+            la = v.get("list_assignment") or ""
+            la_seg = f" | 名单: {la}" if la else ""
+            all_lines.append(f"问题判定（Python 规则，须以此为准绳）：{cn}{la_seg} | {v.get('summary', '')}")
         all_lines.extend(g.get("lines") or [])
         all_lines.append("")
     if other_lines:
@@ -2448,9 +2450,14 @@ def _build_y4_interpret_context(schema_items: Optional[List[Dict[str, Any]]] = N
             if trait:
                 tn = (it.get("trait_note") or "").strip()
                 seg += f"〔{trait}（{tn}）〕" if tn else f"〔{trait}〕"
-            # 专家确认的偏高/偏低 = 事实
+            # bias 修正档位（severity-based：高估→真实更好→上移；低估→真实更差→下移）
             if bias and bias != "正常":
-                seg += f"〔专家确认：{bias}〕"
+                adj = _eval_rules.adjust_eval_for_bias(eval_v, bias)
+                if adj != eval_v and adj:
+                    seg = seg.replace(f"（{eval_v}）", f"（{adj}）")
+                    seg += f"〔bias修正：{eval_v}→{adj}〕"
+                else:
+                    seg += f"〔专家确认：{bias}〕"
             # OBSERVATION：测评状态可能失真（用 Y4 语言，不引 E4 术语）
             if (it.get("problem_status") or "CONFIRMED") == "OBSERVATION":
                 seg += "〔测评状态可能失真，先观望〕"
@@ -2490,7 +2497,12 @@ def _y4_report_line(it: Dict[str, Any]) -> str:
         tn = (it.get("trait_note") or "").strip()
         seg += f"〔{trait}（{tn}）〕" if tn else f"〔{trait}〕"
     if bias and bias != "正常":
-        seg += f"〔专家确认：{bias}〕"
+        adj = _eval_rules.adjust_eval_for_bias(eval_v, bias)
+        if adj != eval_v and adj:
+            seg = seg.replace(f"（{eval_v}）", f"（{adj}）")
+            seg += f"〔bias修正：{eval_v}→{adj}〕"
+        else:
+            seg += f"〔专家确认：{bias}〕"
     if (it.get("problem_status") or "CONFIRMED") == "OBSERVATION":
         seg += "〔测评状态可能失真，先观望〕"
     if it.get("adjusted") and it.get("original_eval"):
@@ -2645,7 +2657,12 @@ def _format_e4_line(it: Dict[str, Any], include_raw: bool, is_ref: bool = False)
     if src == "原始排序":
         parts = [f"[ORDER] {label}", eval_v]
         if bias != "正常":
-            parts.append(f"bias:{bias}")
+            adj = _eval_rules.adjust_eval_for_bias(eval_v, bias)
+            if adj != eval_v:
+                parts[1] = adj
+                parts.append(f"bias修正:{eval_v}→{adj}")
+            else:
+                parts.append(f"bias:{bias}")
         if problem == "OBSERVATION":
             parts.append("problem:OBSERVATION")
         return " | ".join(parts)
@@ -2666,7 +2683,15 @@ def _format_e4_line(it: Dict[str, Any], include_raw: bool, is_ref: bool = False)
     if pdf_grade:
         parts.append(f"评级:{pdf_grade}")
     if bias != "正常":
-        parts.append(f"bias:{bias}")
+        adj = _eval_rules.adjust_eval_for_bias(eval_v, bias)
+        if adj != eval_v and adj:
+            for i, p in enumerate(parts):
+                if p == eval_v:
+                    parts[i] = adj
+                    break
+            parts.append(f"bias修正:{eval_v}→{adj}")
+        else:
+            parts.append(f"bias:{bias}")
     if problem == "OBSERVATION":
         parts.append("problem:OBSERVATION")
     if adjusted and original:
@@ -2789,7 +2814,7 @@ def _e4_step2_system() -> str:
 数据按 E1（情绪）、E2（精力）、E3（引擎）、E4（参与投入）四个维度组织。
 每个维度下有若干「评估问题」（以"问题："开头），问题下列出回答该问题所需的指标数据。
 每个问题下还有一行「问题判定（Python 规则）」——规则引擎基于已确认阈值算出的问题级结论
-（有问题/关注/观察/健康/中性）。这些判定行和数据行是给你看的输入，**严禁抄写进你的输出**
+（需介入/需支持/关注/观察/健康/中性）。这些判定行和数据行是给你看的输入，**严禁抄写进你的输出**
 （后端会自动清洗回显行）。你的回答须与判定方向一致：可补充细节、证据和跨问题连结，
 但不得推翻判定。
 
@@ -2799,9 +2824,9 @@ def _e4_step2_system() -> str:
 3. 逐问题判断完成后，按下方三段式做综合：先找核心问题，再甄别可能失真的数据，最后给跟进线索与切入点。
 
 【判断深度（权威标准，全文以此为准）】
-- 健康/中性：1-3 句。先给结论，再用一句说明哪些指标互相印证（如两层指标方向一致），不展开、不写数值。
-- 关注：3-5 句。包含：判断结论；qualification（在什么条件下成立，或为什么档位标签不代表严重问题）；题内指标之间的关系；这对该生的实际含义。
-- 有问题：4-6 句。按数据情况自然组织（不要机械列点），覆盖以下四要素：
+- 健康/中性：2-4 句。先给结论，再用一句说明哪些指标互相印证（如两层指标方向一致），不展开、不写数值。
+- 关注：4-6 句。包含：判断结论；qualification（在什么条件下成立，或为什么档位标签不代表严重问题）；题内指标之间的关系；这对该生的实际含义。
+- 需支持/需介入：5-8 句。按数据情况自然组织（不要机械列点），覆盖以下四要素：
   ① 判断结论——问题是什么、性质如何；
   ② 证据链——题内哪些指标共同支持，方向是否一致，有无反向证据；
   ③ 上下文含义——放在该生其他指标的背景下意味着什么，在学习中实际可能表现为什么；
@@ -2822,7 +2847,7 @@ def _e4_step2_system() -> str:
 【硬规则】
 1. {_E4_NAMING_RULE}
 2. 只使用 Y4/E4 已有词汇，禁止创造新术语、新标签、新分类。具体禁止：心理学/治疗术语（如"情绪耗竭"、"负向耦合"、"恶性循环"）、连字符组合造词、为模式取新名字。正确方式：用指标名称直接描述状态和关联，如"情绪稳定性总分低与人格-外倾性得分低同时出现，可能相互影响"。
-3. bias=偏高/偏低：用户在 UI 中标注的偏高/偏低是专家判定，应作为事实纳入判断，直接影响你的分析结论。例如标注偏低意味着该值确实偏低、你的判断要据此展开，不是"可能偏低、需询证"。
+3. bias 修正档位：数据行中已根据 bias 自动修正档位（标注〔bias修正：原→新〕），修正后的档位即真实水平，直接据此展开判断。高估=严重度高估（真实更好、档位上移）；低估=严重度低估（真实更差、档位下移）。不再单独标注 bias 字段。
 4. problem:OBSERVATION：假问题（测评状态失真），观望处理，不可直接当结论。
 5. 所有结论须标注依据指标名称；数据行中不存在的结论不得编造。
 6. 同一指标可能出现在多个问题/维度中，不要重复已做过的解释；但每个问题仍须按【判断深度】独立写足，从该题视角补充新分析。
@@ -2838,9 +2863,9 @@ def _e4_step2_system() -> str:
 - 渴望成功动机成立（职业价值观·成就感排序前五）→ 访谈「过去一年学习中有成就感的时刻」，学习动机从成就感来源切入，鼓励家庭一起在学习过程中积累成就感，数据化记录是重要方式。
 - 分心组合（高感知觉+相对弱注意力）→ 关注电子产品使用与做作业时的环境管理。
 - 高确定性需求（职业兴趣-常规型不低/高，或职业价值观·安全稳定排前五）+ 计划性不足 + 学习策略使用少 → 用「一表人才」（结构化计划表/学习机制工具）帮学生搭建结构化学习过程，并在过程中逐步养成习惯。
-- 执行功能弱项（如工作记忆、认知灵活性）若为施测末段题目 → 点明可能受疲劳影响，但若已标 bias:偏低则视为确认偏低，直接据此展开判断。
+- 执行功能弱项（如工作记忆、认知灵活性）若为施测末段题目 → 点明可能受疲劳影响，bias 修正档位已体现真实水平，直接据此展开判断。
 - 原始分优先原则：档位是分类标签，原始分才是实情。判断时先看原始分在量表里的实际位置，不要机械地按档位下结论。典型情况：原始分接近满分（如 9.5/10）虽落在「需关注」档，从人的视角看实际接近天花板，不应当严重关注；反之原始分在档位边界附近时要谨慎，不要因刚好踩线就当问题展开。
-- 访谈/确认建议：只在有问题或不确定时才建议访谈确认；健康或明确的判断不写访谈建议，跟进动作放末尾跟进线索段。
+- 访谈/确认建议：只在需介入或结论不确定时才建议访谈确认；健康或明确的判断不写访谈建议，跟进动作放末尾跟进线索段。
 - 写作模板是判断原则（看什么、怎么推理、什么情况不构成问题），不是措辞模板。用你自己的语言写判断，不要照抄模板里的原句；每条判断要针对该生的具体数据，不要写成通用结论。
 - 语言风格：用自然、专业的判断语气写，像导师写评估备注。直接给判断，紧跟为什么——判断与依据之间可以有完整的推理链，不要只抛结论。避免「说明」「表明」「这暗示」「这可能意味着」等因果连接词堆砌；数据已在该题上方展示，判断不复述数据。句数按【判断深度】分级执行。
 
@@ -2858,10 +2883,10 @@ def _e4_step2_system() -> str:
 全部问题判断完成后，必须依次输出以下三个段落（标题逐字使用，不得改名）：
 
 ### 核心问题
-列出该生真正需要关注的问题（有问题/关注级），每个问题 1-2 行：问题名、判断依据指标名称、为什么对该生构成问题。不列健康/中性。不写数值。不要用「需询证」标签——bias 标注已是事实、不需要确认；只有 problem:OBSERVATION 标记的才是待确认。
+列出该生真正需要关注的领域（需介入/需支持/关注级），每个领域 1-2 行：领域名、判断依据指标名称、为什么对该生需要关注。不列健康/中性。不写数值。不要用「需询证」标签——bias 修正档位已是事实、不需要确认；只有 problem:OBSERVATION 标记的才是待确认。
 
 ### 可能失真·先观察
-仅列出 problem:OBSERVATION 标记的数据点（测评状态可能失真）。没有则写「无」。bias 标注的偏高/偏低不属于此列——那是已确认的事实。
+仅列出 problem:OBSERVATION 标记的数据点（测评状态可能失真）。没有则写「无」。bias 修正档位已体现在数据行中，不属于此列。
 
 ### 跟进线索与切入点
 按优先级逐条写具体操作方向。每条包含：做什么、为什么（基于哪个数据点）、怎么做（如点名凭远内部工具并说明用法）。不要泛泛写「观察」「关注」，要写可执行的动作。"""
@@ -3054,10 +3079,10 @@ Python 规则引擎已判定本学生的名单归属为：**{rule_category}**。
 这是最终归属：禁止改判、禁止写成其他三类、禁止输出与该归属矛盾的表述。
 「### 名单归属」一节只准写：该归属名称逐字出现一次 + 2-3 句支持该归属的数据理由。
 四类含义仅供你理解，不得据此自行改判：
-- 干预名单·强特质：E1/E2 存在严重「有问题」判定（重度档位或多个问题同时成立）
-- 干预名单·弱特质：E1/E2 有「有问题」判定但程度较轻（单一问题、程度有限）
-- 潜能名单·强特质：E1/E2 均无问题，且认知能力百分位总≥95、执行功能平均≥90
-- 潜能名单·弱特质：E1/E2 均无问题，但学习力潜力或动力不充分
+- 强干预：E1/E2 存在严重判定（重度档位或多个 PROBLEM 同时成立）
+- 弱干预：E1/E2 有需介入/需支持判定但程度较轻（单一判定、程度有限）
+- 强潜能：E1/E2 均无 PROBLEM 级判定，且认知能力百分位总≥95、执行功能平均≥90
+- 弱潜能：E1/E2 均无 PROBLEM 级判定，但学习力潜力或动力不充分
 
 【输出格式】markdown，且只有两个小节（标题逐字使用）：
 ### 真实优势
@@ -3134,7 +3159,7 @@ def prompt_lab_e4_step1():
         group_counts[g["dim"]] += len(g["items"])
     other_lines = [_format_e4_line(it, include_raw) for it in other_items]
 
-    # 四类名单预览（干预/潜能 × 强/弱特质）
+    # 四类名单预览（干预/潜能 × 强/弱）
     list_placement = _determine_list_placement(items)
 
     return jsonify({
@@ -3175,8 +3200,10 @@ def prompt_lab_e4_step2():
             all_lines.append(f"问题：{q}")
         v = g.get("verdict")
         if v:
-            cn = _eval_rules.VERDICT_LABELS_CN.get(v.get("state"), v.get("state", ""))
-            all_lines.append(f"问题判定（Python 规则，须以此为准绳）：{cn} | {v.get('summary', '')}")
+            cn = _eval_rules.verdict_label_cn(v.get("state"), v.get("items") or [])
+            la = v.get("list_assignment") or ""
+            la_seg = f" | 名单: {la}" if la else ""
+            all_lines.append(f"问题判定（Python 规则，须以此为准绳）：{cn}{la_seg} | {v.get('summary', '')}")
         all_lines.extend(g.get("lines") or [])
         all_lines.append("")
     if other_lines:
@@ -3406,13 +3433,13 @@ _SEVERE_EVALS = {"需特殊关注", "明显偏低", "严重偏低"}
 
 def _determine_list_placement(items: List[Dict[str, Any]],
                               mapping: Optional[Dict] = None) -> Dict[str, Any]:
-    """四类名单判定（基于问题级 verdict 引擎，已确认规则）。
+    """四类归属判定（基于 verdict 引擎，已确认规则）。
 
-    名单分配：E1 情绪 或 E2 精力 任一问题 verdict=PROBLEM → 干预名单；否则 → 潜能名单。
-    干预名单强/弱 = 按问题严重度：有重度问题（需特殊关注/明显偏低/严重偏低）
-                    或 ≥2 个问题级 PROBLEM → 强特质（重点干预）；否则弱特质（轻量干预/观望）。
-    潜能名单强/弱 = 强特质线：认知能力百分位总（code 002）≥95 且 执行功能三项平均≥90
-                    （心力/精力无问题已由名单分配保证）；霍兰德有维度≥7 作加分标注。
+    归属分配：E1 情绪 或 E2 精力 任一 verdict=PROBLEM → 干预；否则 → 潜能。
+    干预强/弱 = 按严重度：有重度判定（需特殊关注/明显偏低/严重偏低）
+                    或 ≥2 个 PROBLEM → 强干预（重点支持）；否则弱干预（轻量支持/观望）。
+    潜能强/弱 = 强线：认知能力百分位总（code 002）≥95 且 执行功能三项平均≥90
+                    （心力/精力无 PROBLEM 已由归属分配保证）；霍兰德有维度≥7 作加分标注。
     """
     vgroups, _other, _dims = _eval_rules.evaluate_question_verdicts(items)
     P = _eval_rules.VERDICT_PROBLEM
@@ -3438,7 +3465,7 @@ def _determine_list_placement(items: List[Dict[str, Any]],
                     severe_hit = True
 
     is_interference = bool(e1_problems or e2_problems)
-    placement = "干预名单" if is_interference else "潜能名单"
+    placement = "干预" if is_interference else "潜能"
 
     result: Dict[str, Any] = {
         "placement": placement,
@@ -3455,8 +3482,8 @@ def _determine_list_placement(items: List[Dict[str, Any]],
         result["detail"] = {"severe_hit": severe_hit,
                             "problem_groups": len(e1_problems) + len(e2_problems)}
     else:
-        # 潜能名单强特质线（用户定义阈值）：认知能力百分位总（code 002）≥95
-        # 且执行功能三项（063-065）平均 ≥90；心力/精力无问题由名单分配保证
+        # 潜能强线（用户定义阈值）：认知能力百分位总（code 002）≥95
+        # 且执行功能三项（063-065）平均 ≥90；心力/精力无 PROBLEM 由归属分配保证
         cog_total: Optional[float] = None
         exec_vals: List[float] = []
         holland_hits: List[str] = []
@@ -3475,7 +3502,7 @@ def _determine_list_placement(items: List[Dict[str, Any]],
         exec_avg = sum(exec_vals) / len(exec_vals) if exec_vals else None
         cog_ok = cog_total is not None and cog_total >= 95
         exec_ok = exec_avg is not None and exec_avg >= 90
-        strong = cog_ok and exec_ok  # 心力/精力无问题由名单分配保证
+        strong = cog_ok and exec_ok  # 心力/精力无 PROBLEM 由归属分配保证
 
         strong_traits: List[str] = []
         weak_traits: List[str] = []
@@ -3485,7 +3512,7 @@ def _determine_list_placement(items: List[Dict[str, Any]],
             strong_traits.append(f"执行功能平均 {exec_avg:.1f}（{'≥90 达标' if exec_ok else '<90 未达标'}，{len(exec_vals)}项）")
         if holland_hits:
             strong_traits.append("霍兰德兴趣优势：" + "、".join(holland_hits))
-        # 潜能名单弱特质证据：E3/E4 的问题级结论（学习力潜力/动力不充分）
+        # 潜能弱证据：E3/E4 的 PROBLEM/WATCH 级结论（学习力潜力/动力不充分）
         for g in vgroups:
             if g["dim"] not in ("E3", "E4"):
                 continue
@@ -3502,7 +3529,7 @@ def _determine_list_placement(items: List[Dict[str, Any]],
                             "cog_ok": cog_ok, "exec_ok": exec_ok,
                             "holland_hits": holland_hits}
 
-    result["category"] = f"{placement}·{'强特质' if result['strength'] == '强' else '弱特质'}"
+    result["category"] = f"{'强' if result['strength'] == '强' else '弱'}{placement}"
     return result
 
 
@@ -3567,7 +3594,12 @@ def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
                 md.append(f"#### {g['q']}")
             v = g.get("verdict")
             if v:
-                md.append(f"[VERDICT] {_eval_rules.VERDICT_LABELS_CN.get(v['state'], v['state'])} | {v['summary']}")
+                v_parts = [f"[VERDICT] {_eval_rules.verdict_label_cn(v['state'], v.get('items') or [])}"]
+                la = v.get("list_assignment")
+                if la:
+                    v_parts.append(f"[LIST] {la}")
+                v_parts.append(v['summary'])
+                md.append(" | ".join(v_parts))
             for it in g["items"]:
                 code = it.get("code", "")
                 is_ref = code in seen_codes
@@ -3674,26 +3706,26 @@ def _assemble_e4_protocol(items: List[Dict[str, Any]], include_raw: bool,
     placement = list_placement.get("category", placement_str)
     md.append(f"**{placement}**")
     md.append("")
-    if placement.startswith("干预"):
-        md.append("归入干预名单：E1 情绪或 E2 精力存在「有问题」级判定。")
+    if placement_str == "干预":
+        md.append("归入干预：E1 情绪或 E2 精力存在需介入/需支持级判定。")
         md.append("")
         if list_placement.get("strength") == "强":
-            md.append("强度判定：强特质（多个问题或严重偏低）")
+            md.append("强度判定：强（多个判定或严重偏低）")
         else:
-            md.append("强度判定：弱特质（单一问题、程度有限）")
+            md.append("强度判定：弱（单一判定、程度有限）")
         md.append("")
         if list_placement["problem_items"]:
-            md.append("问题指标：")
+            md.append("判定指标：")
             for p in list_placement["problem_items"]:
                 md.append(f"- {p['dim']} · {p['label']}（{p['eval']}）")
             md.append("")
     else:
-        md.append("归入潜能名单：E1 情绪和 E2 精力均无「有问题」级判定。")
+        md.append("归入潜能：E1 情绪和 E2 精力均无 PROBLEM 级判定。")
         md.append("")
         strength = list_placement.get("strength", "弱")
         traits = list_placement.get("traits") or []
         if traits:
-            md.append(f"{'强特质' if strength == '强' else '弱特质'}依据：")
+            md.append(f"{'强潜能' if strength == '强' else '弱潜能'}依据：")
             for t in traits:
                 md.append(f"- {t}")
             md.append("")

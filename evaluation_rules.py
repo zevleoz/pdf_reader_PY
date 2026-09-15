@@ -752,7 +752,7 @@ def build_framework_groups(eval_items: List[Dict[str, Any]]
                         "unit": "",
                         "eval_source": "待判定",
                         "dimension": src.get("dimension", ""),
-                        "data_bias": src.get("data_bias", "正常"),
+                        "data_bias": normalize_bias(src.get("data_bias", "正常")),
                         "problem_status": src.get("problem_status", "CONFIRMED"),
                     }
                     entries.append(synth)
@@ -772,7 +772,7 @@ def build_framework_groups(eval_items: List[Dict[str, Any]]
 
 
 # ── 问题级 verdict 引擎（E4 guideline 已确认规则，纯 Python 数据加工）────
-# 状态：PROBLEM=有问题 / WATCH=关注 / OBSERVED=观察(假问题观望) /
+# 状态：PROBLEM=需介入/需支持 / WATCH=关注 / OBSERVED=观察(假问题观望) /
 #       HEALTHY=健康 / NEUTRAL=证据不足(数据缺失或中性)
 VERDICT_PROBLEM = "PROBLEM"
 VERDICT_WATCH = "WATCH"
@@ -781,7 +781,7 @@ VERDICT_HEALTHY = "HEALTHY"
 VERDICT_NEUTRAL = "NEUTRAL"
 
 VERDICT_LABELS_CN = {
-    VERDICT_PROBLEM: "有问题",
+    VERDICT_PROBLEM: "需支持",
     VERDICT_WATCH: "关注",
     VERDICT_OBSERVED: "观察",
     VERDICT_HEALTHY: "健康",
@@ -791,6 +791,55 @@ _VERDICT_RANK = {
     VERDICT_PROBLEM: 4, VERDICT_WATCH: 3, VERDICT_OBSERVED: 2,
     VERDICT_NEUTRAL: 1, VERDICT_HEALTHY: 0,
 }
+
+
+def verdict_label_cn(state: str, items: Optional[List[Dict[str, Any]]] = None) -> str:
+    """动态 verdict 中文标签。
+
+    PROBLEM + severe items（含需特殊关注/明显偏低/严重偏低）→ 需介入；
+    PROBLEM + 非 severe → 需支持；其他态 → VERDICT_LABELS_CN 静态映射。
+    """
+    if state == VERDICT_PROBLEM:
+        if items and any((r.get("eval") or "") in _QUESTION_SEVERE_EVALS
+                         for r in items):
+            return "需介入"
+        return "需支持"
+    return VERDICT_LABELS_CN.get(state, state)
+
+# ── 逐问题名单归属（强干预/弱干预/强潜能/弱潜能）─────────────────────
+_QUESTION_SEVERE_EVALS = {"需特殊关注", "明显偏低", "严重偏低"}
+_STRONG_POTENTIAL_EVALS = {"高", "较好"}
+LIST_STRONG_INTERVENTION = "强干预"
+LIST_WEAK_INTERVENTION = "弱干预"
+LIST_STRONG_POTENTIAL = "强潜能"
+LIST_WEAK_POTENTIAL = "弱潜能"
+
+
+def _question_list_assignment(verdict: Optional[Dict[str, Any]]) -> Optional[str]:
+    """从问题级 verdict 推导逐问题名单归属。
+
+    PROBLEM+severe → 强干预；PROBLEM → 弱干预；WATCH → 弱干预；
+    HEALTHY+强证据 → 强潜能；HEALTHY/NEUTRAL → 弱潜能；OBSERVED → 弱潜能。
+    """
+    if not verdict:
+        return None
+    state = verdict.get("state")
+    items = verdict.get("items") or []
+    severe = any((r.get("eval") or "") in _QUESTION_SEVERE_EVALS for r in items)
+    if state == VERDICT_PROBLEM:
+        return LIST_STRONG_INTERVENTION if severe else LIST_WEAK_INTERVENTION
+    if state == VERDICT_WATCH:
+        return LIST_WEAK_INTERVENTION
+    if state == VERDICT_OBSERVED:
+        return LIST_WEAK_POTENTIAL
+    if state == VERDICT_HEALTHY:
+        strong = [r for r in items
+                  if r.get("state") == VERDICT_HEALTHY
+                  and (r.get("eval") or "") in _STRONG_POTENTIAL_EVALS]
+        if len(strong) >= 2 or (len(items) == 1 and (items[0].get("eval") or "") == "高"):
+            return LIST_STRONG_POTENTIAL
+        return LIST_WEAK_POTENTIAL
+    return LIST_WEAK_POTENTIAL  # NEUTRAL
 
 # 认知分项相对认知总百分位（code 002）的个体内强弱特质阈值（用户拍板值，后续可调）
 TRAIT_GAP = 10
@@ -1493,7 +1542,7 @@ E4_JUDGMENT_GUIDES: Dict[str, str] = {
         "优先写「可能是没时间发展兴趣爱好，并非抑郁障碍」这一解释方向。严禁写抑郁、抑郁症等任何病理化表述。",
     "学生是否处在安全感中？":
         "只看依恋关系-信任（母亲/父亲/同伴）三项：均不低写处于安全感中；任一偏低写关注并点名是谁。"
-        "严重依恋问题由亲子关系问题承担，本题不写「有问题」。不要引入确定性需求等无关指标。",
+        "严重依恋问题由亲子关系问题承担，本题不写「需介入/需支持」。不要引入确定性需求等无关指标。",
     "E2_ENERGY":
         "逐项看睡眠/饮食/运动与自我概念-躯体外貌。"
         "睡眠/饮食/运动的原始数字保留各自单位直接呈现即可，不叫「得分」、不当分数判高低、不称「满分」；"
@@ -1522,7 +1571,7 @@ E4_JUDGMENT_GUIDES: Dict[str, str] = {
     "执行能力-运用记忆":
         "工作记忆百分位偏低时写弱项，但该题常处于施测末段、可能受疲劳影响——判断要体现这一不确定性："
         "写明偏低的事实，同时指出可能受疲劳影响、建议与学生/家长或老师确认（如是否反馈过听过就忘），不直接下缺陷结论。"
-        "这是「有问题但需确认」的判断姿态，不是确定性问题。",
+        "这是「需支持但需确认」的判断姿态，不是确定性问题。",
     "执行能力-认知灵活性（是否会举一反三、随机应变）":
         "认知灵活性百分位偏低时写弱项，同样适用末段疲劳的不确定性原则。"
         "不要与上一题用同样的措辞——如果上一题已写了疲劳先观察，本题要换一个角度（如结合迁移能力的具体表现来写）。"
@@ -1555,7 +1604,7 @@ E4_JUDGMENT_GUIDES: Dict[str, str] = {
         "记忆不低但表面策略低=不构成错配，反而说明不依赖机械记忆——这是正向判断。"
         "不要重复信息存储题对记忆力的判断，本题只看策略与记忆的匹配关系。",
     "学习策略与方法的程度（两个都低意味着没有使用方法和策略）":
-        "深层与表面策略都低才写整体方法系统薄弱（有问题）；单侧低只写哪类方法用得少，不上升为问题。"
+        "深层与表面策略都低才写整体方法系统薄弱（需支持）；单侧低只写哪类方法用得少，不上升为问题。"
         "都低时判断的核心是「整体薄弱」而非「某一类缺」——区别于第三/四组题关注的是错配，本题关注的是绝对水平。",
     "计划性":
         "判定依据：人格-责任心与自驱力-自主性。责任心不低但自主性偏低=有责任感但缺乏主动规划——这是计划性问题的典型模式。"
@@ -1622,10 +1671,51 @@ def evaluate_question_verdicts(eval_items: List[Dict[str, Any]]
             g["verdict"] = fn(g["items"])
         else:
             g["verdict"] = None
+        if g.get("verdict"):
+            g["verdict"]["list_assignment"] = _question_list_assignment(g["verdict"])
     return groups, other_items, dims_by_code
 
 
-DATA_BIAS_OPTIONS = ["正常", "偏高", "偏低"]
+DATA_BIAS_OPTIONS = ["正常", "高估", "低估"]
+
+# 旧偏高/偏低是 score-based（偏高=分数高估→真实更差），新高估/低估是 severity-based
+# （高估=严重度高估→真实更好）。两者方向相反：
+# 偏高（真实更差）→ 低估（真实更差）；偏低（真实更好）→ 高估（真实更好）
+_BIAS_CANONICAL = {"正常": "正常",
+                   "偏高": "低估",
+                   "低估": "低估",
+                   "偏低": "高估",
+                   "高估": "高估"}
+
+
+def normalize_bias(bias: Optional[str]) -> str:
+    """归一化旧版 bias 值（偏高/偏低）为新高估/低估（severity-based 语义）。"""
+    return _BIAS_CANONICAL.get((bias or "").strip(), "正常")
+
+
+# Bias 修正档位槽（worst → best），仅这些档位参与 bias 修正
+_BIAS_SLOT_ORDER = ["严重偏低", "明显偏低", "偏低", "不低", "较好", "高"]
+
+
+def adjust_eval_for_bias(eval_value: str, bias: Optional[str]) -> str:
+    """根据 bias 修正档位。
+
+    高估 = 严重度高估 → 真实更好 → 档位上移（index +1）
+    低估 = 严重度低估 → 真实更差 → 档位下移（index -1）
+    旧版偏高/偏低会先经 normalize_bias 归一化为新高估/低估语义再修正。
+    档位不在 _BIAS_SLOT_ORDER 中（如 需关注/需特殊关注/相对健康/正常）→ 不修正。
+    边界 clamp：已在端点则不动。
+    """
+    ev = (eval_value or "").strip()
+    b = normalize_bias(bias)
+    if b == "正常" or ev not in _BIAS_SLOT_ORDER:
+        return ev
+    idx = _BIAS_SLOT_ORDER.index(ev)
+    if b == "高估":
+        return _BIAS_SLOT_ORDER[min(idx + 1, len(_BIAS_SLOT_ORDER) - 1)]
+    if b == "低估":
+        return _BIAS_SLOT_ORDER[max(idx - 1, 0)]
+    return ev
 
 
 def eval_options_for(code: str, label: str = "") -> List[str]:
