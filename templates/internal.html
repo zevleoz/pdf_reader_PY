@@ -690,7 +690,7 @@
         <div class="empty-state">加载中…</div>
       </div>
       <div class="eval-footer">
-        <label class="eval-checkbox"><input type="checkbox" id="includeRaw"> 包含原始数据</label>
+        <label class="eval-checkbox"><input type="checkbox" id="includeRaw" checked> 包含原始数据</label>
         <div style="display:flex;gap:8px;">
           <button class="eval-dl-btn" id="evalDownloadBtn" onclick="downloadEvalMd()" style="background:var(--ink)">下载 Y4 报告 (MD)</button>
           <button class="eval-dl-btn" id="evalDownloadJsonBtn" onclick="downloadY4Json()" style="background:var(--ink)">下载 Y4 数据 (JSON)</button>
@@ -1033,8 +1033,8 @@
     html += `<div class="eval-card-actions">`;
     if (!isReadOnly) {
       html += `<button class="act-btn bias-normal ${it.data_bias==='正常'?'active':''}" data-tip="数据可信" onclick="setBias('${it.code}','正常',this)">正常</button>`;
-      html += `<button class="act-btn bias-high ${it.data_bias==='高估'?'active':''}" data-tip="严重度高估：真实水平更好（档位上移）" onclick="setBias('${it.code}','高估',this)">高估</button>`;
-      html += `<button class="act-btn bias-low ${it.data_bias==='低估'?'active':''}" data-tip="严重度低估：真实水平更差（档位下移）" onclick="setBias('${it.code}','低估',this)">低估</button>`;
+      html += `<button class="act-btn bias-high ${it.data_bias==='高估'?'active':''}" data-tip="实测高估：真实水平更差（档位下移）" onclick="setBias('${it.code}','高估',this)">高估</button>`;
+      html += `<button class="act-btn bias-low ${it.data_bias==='低估'?'active':''}" data-tip="实测低估：真实水平更好（档位上移）" onclick="setBias('${it.code}','低估',this)">低估</button>`;
       html += `<button class="act-btn ${isObservation?'observation':'problem-confirmed'}" data-tip="${isObservation?'假问题，待一表人才验证':'真问题，已确认'}" onclick="toggleProblem('${it.code}',this)">${isObservation?'观望':'已确认'}</button>`;
     }
     html += `<span class="${noteToggleClass}" onclick="expandNote('${it.code}', !getNoteExpanded('${it.code}'))">${it.note ? '有备注' : '备注'}</span>`;

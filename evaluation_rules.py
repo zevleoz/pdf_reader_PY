@@ -1678,44 +1678,22 @@ def evaluate_question_verdicts(eval_items: List[Dict[str, Any]]
 
 DATA_BIAS_OPTIONS = ["正常", "高估", "低估"]
 
-# 旧偏高/偏低是 score-based（偏高=分数高估→真实更差），新高估/低估是 severity-based
-# （高估=严重度高估→真实更好）。两者方向相反：
-# 偏高（真实更差）→ 低估（真实更差）；偏低（真实更好）→ 高估（真实更好）
+# bias 语义：高估 = 实测高估了，真实更差；低估 = 实测低估了，真实更好。
+# 旧偏高/偏低是 score-based，方向一致：偏高=分数高估→真实更差=高估；偏低=分数低估→真实更好=低估。
 _BIAS_CANONICAL = {"正常": "正常",
-                   "偏高": "低估",
+                   "偏高": "高估",
                    "低估": "低估",
-                   "偏低": "高估",
+                   "偏低": "低估",
                    "高估": "高估"}
 
 
 def normalize_bias(bias: Optional[str]) -> str:
-    """归一化旧版 bias 值（偏高/偏低）为新高估/低估（severity-based 语义）。"""
+    """归一化旧版 bias 值（偏高/偏低）为新高估/低估语义。"""
     return _BIAS_CANONICAL.get((bias or "").strip(), "正常")
 
 
-# Bias 修正档位槽（worst → best），仅这些档位参与 bias 修正
-_BIAS_SLOT_ORDER = ["严重偏低", "明显偏低", "偏低", "不低", "较好", "高"]
-
-
-def adjust_eval_for_bias(eval_value: str, bias: Optional[str]) -> str:
-    """根据 bias 修正档位。
-
-    高估 = 严重度高估 → 真实更好 → 档位上移（index +1）
-    低估 = 严重度低估 → 真实更差 → 档位下移（index -1）
-    旧版偏高/偏低会先经 normalize_bias 归一化为新高估/低估语义再修正。
-    档位不在 _BIAS_SLOT_ORDER 中（如 需关注/需特殊关注/相对健康/正常）→ 不修正。
-    边界 clamp：已在端点则不动。
-    """
-    ev = (eval_value or "").strip()
-    b = normalize_bias(bias)
-    if b == "正常" or ev not in _BIAS_SLOT_ORDER:
-        return ev
-    idx = _BIAS_SLOT_ORDER.index(ev)
-    if b == "高估":
-        return _BIAS_SLOT_ORDER[min(idx + 1, len(_BIAS_SLOT_ORDER) - 1)]
-    if b == "低估":
-        return _BIAS_SLOT_ORDER[max(idx - 1, 0)]
-    return ev
+# bias 是独立标注，不参与档位修正。有效评价档位是 ground truth，不可由系统改写。
+# AI 收到 bias 标注后自行调整判断方向（高估=实测高于真实→真实更差；低估=实测低于真实→真实更好）。
 
 
 def eval_options_for(code: str, label: str = "") -> List[str]:

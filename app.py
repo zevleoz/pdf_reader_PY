@@ -2450,14 +2450,9 @@ def _build_y4_interpret_context(schema_items: Optional[List[Dict[str, Any]]] = N
             if trait:
                 tn = (it.get("trait_note") or "").strip()
                 seg += f"〔{trait}（{tn}）〕" if tn else f"〔{trait}〕"
-            # bias 修正档位（severity-based：高估→真实更好→上移；低估→真实更差→下移）
+            # bias 是独立标注，不改有效评价档位；高估=实测高于真实，低估=实测低于真实
             if bias and bias != "正常":
-                adj = _eval_rules.adjust_eval_for_bias(eval_v, bias)
-                if adj != eval_v and adj:
-                    seg = seg.replace(f"（{eval_v}）", f"（{adj}）")
-                    seg += f"〔bias修正：{eval_v}→{adj}〕"
-                else:
-                    seg += f"〔专家确认：{bias}〕"
+                seg += f"〔专家确认：{bias}〕"
             # OBSERVATION：测评状态可能失真（用 Y4 语言，不引 E4 术语）
             if (it.get("problem_status") or "CONFIRMED") == "OBSERVATION":
                 seg += "〔测评状态可能失真，先观望〕"
@@ -2497,12 +2492,7 @@ def _y4_report_line(it: Dict[str, Any]) -> str:
         tn = (it.get("trait_note") or "").strip()
         seg += f"〔{trait}（{tn}）〕" if tn else f"〔{trait}〕"
     if bias and bias != "正常":
-        adj = _eval_rules.adjust_eval_for_bias(eval_v, bias)
-        if adj != eval_v and adj:
-            seg = seg.replace(f"（{eval_v}）", f"（{adj}）")
-            seg += f"〔bias修正：{eval_v}→{adj}〕"
-        else:
-            seg += f"〔专家确认：{bias}〕"
+        seg += f"〔专家确认：{bias}〕"
     if (it.get("problem_status") or "CONFIRMED") == "OBSERVATION":
         seg += "〔测评状态可能失真，先观望〕"
     if it.get("adjusted") and it.get("original_eval"):
@@ -2657,12 +2647,7 @@ def _format_e4_line(it: Dict[str, Any], include_raw: bool, is_ref: bool = False)
     if src == "原始排序":
         parts = [f"[ORDER] {label}", eval_v]
         if bias != "正常":
-            adj = _eval_rules.adjust_eval_for_bias(eval_v, bias)
-            if adj != eval_v:
-                parts[1] = adj
-                parts.append(f"bias修正:{eval_v}→{adj}")
-            else:
-                parts.append(f"bias:{bias}")
+            parts.append(f"bias:{bias}")
         if problem == "OBSERVATION":
             parts.append("problem:OBSERVATION")
         return " | ".join(parts)
@@ -2683,15 +2668,7 @@ def _format_e4_line(it: Dict[str, Any], include_raw: bool, is_ref: bool = False)
     if pdf_grade:
         parts.append(f"评级:{pdf_grade}")
     if bias != "正常":
-        adj = _eval_rules.adjust_eval_for_bias(eval_v, bias)
-        if adj != eval_v and adj:
-            for i, p in enumerate(parts):
-                if p == eval_v:
-                    parts[i] = adj
-                    break
-            parts.append(f"bias修正:{eval_v}→{adj}")
-        else:
-            parts.append(f"bias:{bias}")
+        parts.append(f"bias:{bias}")
     if problem == "OBSERVATION":
         parts.append("problem:OBSERVATION")
     if adjusted and original:
@@ -2847,7 +2824,7 @@ def _e4_step2_system() -> str:
 【硬规则】
 1. {_E4_NAMING_RULE}
 2. 只使用 Y4/E4 已有词汇，禁止创造新术语、新标签、新分类。具体禁止：心理学/治疗术语（如"情绪耗竭"、"负向耦合"、"恶性循环"）、连字符组合造词、为模式取新名字。正确方式：用指标名称直接描述状态和关联，如"情绪稳定性总分低与人格-外倾性得分低同时出现，可能相互影响"。
-3. bias 修正档位：数据行中已根据 bias 自动修正档位（标注〔bias修正：原→新〕），修正后的档位即真实水平，直接据此展开判断。高估=严重度高估（真实更好、档位上移）；低估=严重度低估（真实更差、档位下移）。不再单独标注 bias 字段。
+3. bias 是独立标注，不改有效评价档位。数据行中有效评价是测评结果（ground truth），bias（高估/低估）是专家对该测评值的方向性判断，与档位独立存在。高估=实测高于真实水平（真实更差）；低估=实测低于真实水平（真实更好）。你须同时参考档位和 bias 来调整判断方向，但不改写档位本身。
 4. problem:OBSERVATION：假问题（测评状态失真），观望处理，不可直接当结论。
 5. 所有结论须标注依据指标名称；数据行中不存在的结论不得编造。
 6. 同一指标可能出现在多个问题/维度中，不要重复已做过的解释；但每个问题仍须按【判断深度】独立写足，从该题视角补充新分析。
@@ -2863,7 +2840,7 @@ def _e4_step2_system() -> str:
 - 渴望成功动机成立（职业价值观·成就感排序前五）→ 访谈「过去一年学习中有成就感的时刻」，学习动机从成就感来源切入，鼓励家庭一起在学习过程中积累成就感，数据化记录是重要方式。
 - 分心组合（高感知觉+相对弱注意力）→ 关注电子产品使用与做作业时的环境管理。
 - 高确定性需求（职业兴趣-常规型不低/高，或职业价值观·安全稳定排前五）+ 计划性不足 + 学习策略使用少 → 用「一表人才」（结构化计划表/学习机制工具）帮学生搭建结构化学习过程，并在过程中逐步养成习惯。
-- 执行功能弱项（如工作记忆、认知灵活性）若为施测末段题目 → 点明可能受疲劳影响，bias 修正档位已体现真实水平，直接据此展开判断。
+- 执行功能弱项（如工作记忆、认知灵活性）若为施测末段题目 → 点明可能受疲劳影响；若该数据点带 bias 标注，按 bias 方向调整你的判断。
 - 原始分优先原则：档位是分类标签，原始分才是实情。判断时先看原始分在量表里的实际位置，不要机械地按档位下结论。典型情况：原始分接近满分（如 9.5/10）虽落在「需关注」档，从人的视角看实际接近天花板，不应当严重关注；反之原始分在档位边界附近时要谨慎，不要因刚好踩线就当问题展开。
 - 访谈/确认建议：只在需介入或结论不确定时才建议访谈确认；健康或明确的判断不写访谈建议，跟进动作放末尾跟进线索段。
 - 写作模板是判断原则（看什么、怎么推理、什么情况不构成问题），不是措辞模板。用你自己的语言写判断，不要照抄模板里的原句；每条判断要针对该生的具体数据，不要写成通用结论。
@@ -2883,10 +2860,10 @@ def _e4_step2_system() -> str:
 全部问题判断完成后，必须依次输出以下三个段落（标题逐字使用，不得改名）：
 
 ### 核心问题
-列出该生真正需要关注的领域（需介入/需支持/关注级），每个领域 1-2 行：领域名、判断依据指标名称、为什么对该生需要关注。不列健康/中性。不写数值。不要用「需询证」标签——bias 修正档位已是事实、不需要确认；只有 problem:OBSERVATION 标记的才是待确认。
+列出该生真正需要关注的领域（需介入/需支持/关注级），每个领域 1-2 行：领域名、判断依据指标名称、为什么对该生需要关注。不列健康/中性。不写数值。不要用「需询证」标签——带 bias 标注的数据已是专家确认的事实、不需要确认；只有 problem:OBSERVATION 标记的才是待确认。
 
 ### 可能失真·先观察
-仅列出 problem:OBSERVATION 标记的数据点（测评状态可能失真）。没有则写「无」。bias 修正档位已体现在数据行中，不属于此列。
+仅列出 problem:OBSERVATION 标记的数据点（测评状态可能失真）。没有则写「无」。带 bias 标注的数据点不属于此列（bias 是方向性判断，不是测评失真）。
 
 ### 跟进线索与切入点
 按优先级逐条写具体操作方向。每条包含：做什么、为什么（基于哪个数据点）、怎么做（如点名凭远内部工具并说明用法）。不要泛泛写「观察」「关注」，要写可执行的动作。"""
