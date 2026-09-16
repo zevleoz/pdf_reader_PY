@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Y4 Prompt Lab — AI 解读迭代测试台</title>
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/app_shell.css">
   <style>
     .lab-layout {
       display: grid;
@@ -602,9 +603,15 @@
       }
       .lab-col { min-height: 300px; }
     }
+    /* 侧边栏抽屉模式（<1024px）：左上角悬浮汉堡按钮，工具栏左移让位 */
+    @media (max-width: 1023px) {
+      .lab-topbar { padding-left: 64px; }
+    }
   </style>
 </head>
 <body>
+
+<div data-app-shell></div>
 
 <div class="lab-topbar">
   <div class="lab-topbar-left">
@@ -1629,6 +1636,8 @@
     });
   }
 </script>
+
+<script src="/app_shell.js" defer></script>
 
 </body>
 </html>

@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/app_shell.css" />
   <style>
     .login-panel { max-width: 380px; margin: 60px auto; background: var(--white); border: 1px solid var(--line-soft); border-radius: 12px; padding: 40px 32px; }
     .login-panel h2 { font-family: "Noto Serif SC", serif; font-size: 20px; font-weight: 600; margin-bottom: 8px; text-align: center; }
@@ -48,20 +49,7 @@
   </style>
 </head>
 <body>
-  <div class="brand-stripe"></div>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-name">凭远教育</span>
-      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
-    </div>
-    <nav class="topbar-nav">
-      <a href="/" data-path="/">← 主页</a>
-      <a href="/booking" data-path="/booking">预约</a>
-      <a href="/students" data-path="/students">学生档案</a>
-      <a href="/generate" data-path="/generate">报告生成</a>
-      <a href="/dashboard" data-path="/dashboard">数据总览</a>
-    </nav>
-  </header>
+  <div data-app-shell></div>
 
   <!-- 登录页 -->
   <div class="container container-narrow" id="loginView">
@@ -79,7 +67,7 @@
   <!-- 管理界面 -->
   <div class="container" id="adminView" style="display:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
-      <div>
+      <div class="page-header" style="margin-bottom:0;">
         <h1 class="page-title" style="margin-bottom:4px;">预约管理</h1>
         <p class="page-subtitle" style="margin:0;">管理预约与可用时间。默认全部开放，点击关闭特定时段。</p>
       </div>
@@ -337,14 +325,8 @@
     }
 
     // ─── 初始化 ───
-    (function initNav() {
-      const path = window.location.pathname;
-      document.querySelectorAll('.topbar-nav a').forEach(function(a) {
-        if (a.dataset.path === path) a.classList.add('active');
-      });
-    })();
-
     checkLogin();
   </script>
+  <script src="/app_shell.js" defer></script>
 </body>
 </html>

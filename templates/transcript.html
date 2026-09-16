@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/app_shell.css" />
   <style>
     textarea {
       width: 100%;
@@ -178,24 +179,13 @@
   </style>
 </head>
 <body>
-  <div class="brand-stripe"></div>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-name">凭远教育</span>
-      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
-    </div>
-    <nav class="topbar-nav">
-      <a href="/generate">← 报告生成</a>
-      <a href="/booking">预约</a>
-      <a href="/students">学生档案</a>
-      <a href="/internal">内部下载</a>
-      <a href="/dashboard">数据总览</a>
-    </nav>
-  </header>
+  <div data-app-shell></div>
 
   <div class="container">
-    <h1 class="page-title">解读会会议纪要生成</h1>
-    <p class="page-subtitle">上传解读会逐字稿，AI 将根据会议内容自动生成结构化的专业会议记录。</p>
+    <div class="page-header">
+      <h1 class="page-title">解读会会议纪要生成</h1>
+      <p class="page-subtitle">上传解读会逐字稿，AI 将根据会议内容自动生成结构化的专业会议记录。</p>
+    </div>
 
     <div class="hint">
       <strong>使用说明：</strong>
@@ -770,5 +760,6 @@
     // Final fallback for generateBtn state (in case init didn't restore session)
     if (transcriptEl.value.trim().length >= 50) generateBtn.disabled = false;
   </script>
+  <script src="/app_shell.js" defer></script>
 </body>
 </html>

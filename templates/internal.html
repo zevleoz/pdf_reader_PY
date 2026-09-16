@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>内部下载 — Y4 综合测评系统</title>
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/app_shell.css">
   <style>
     .lab-layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
       gap: 16px;
-      height: calc(100vh - 115px);
+      height: calc(100vh - 57px);
       padding: 16px;
       max-width: 1720px;
       margin: 0 auto;
@@ -615,27 +616,15 @@
       .lab-topbar-left { gap: 8px; flex-wrap: wrap; }
       .eval-dim-body { grid-template-columns: 1fr; }
     }
+    /* 侧边栏抽屉模式（<1024px）：左上角悬浮汉堡按钮，工具栏左移让位 */
+    @media (max-width: 1023px) {
+      .lab-topbar { padding-left: 64px; }
+    }
   </style>
 </head>
 <body>
 
-<div class="brand-stripe"></div>
-<header class="topbar">
-  <div class="brand">
-    <span class="brand-name">凭远教育</span>
-    <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
-  </div>
-  <nav class="topbar-nav">
-    <a href="/">← 主页</a>
-    <a href="/booking">预约</a>
-    <a href="/admin/bookings">预约管理</a>
-    <a href="/generate">报告生成</a>
-    <a href="/students">学生档案</a>
-    <a href="/transcript">解读会纪要</a>
-    <a href="/dashboard">数据总览</a>
-    <a href="/internal" class="active">内部下载</a>
-  </nav>
-</header>
+<div data-app-shell></div>
 
 <div class="lab-topbar">
   <div class="lab-topbar-left">
@@ -1547,6 +1536,8 @@
     document.getElementById('runBtn').disabled = false;
   }
 </script>
+
+<script src="/app_shell.js" defer></script>
 
 </body>
 </html>

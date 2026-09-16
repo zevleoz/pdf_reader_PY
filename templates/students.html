@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/app_shell.css" />
   <style>
     .btn-danger {
       background: var(--white);
@@ -128,25 +129,12 @@
   </style>
 </head>
 <body>
-  <div class="brand-stripe"></div>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-name">凭远教育</span>
-      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
-    </div>
-    <nav class="topbar-nav">
-      <a href="/">← 主页</a>
-      <a href="/admin/bookings">预约管理</a>
-      <a href="/booking">预约</a>
-      <a href="/generate">报告生成</a>
-      <a href="/internal">内部下载</a>
-      <a href="/transcript">解读会纪要</a>
-      <a href="/dashboard">数据总览</a>
-    </nav>
-  </header>
+  <div data-app-shell></div>
   <div class="container">
-    <h1 class="page-title">学生档案</h1>
-    <p class="page-subtitle">所有已生成报告的学生记录。点击学生查看历史报告，或直接「新建议程」开始撰写解读会会议记录。</p>
+    <div class="page-header">
+      <h1 class="page-title">学生档案</h1>
+      <p class="page-subtitle">所有已生成报告的学生记录。点击学生查看历史报告，或直接「新建议程」开始撰写解读会会议记录。</p>
+    </div>
     <div class="toolbar">
       <button class="btn btn-secondary" onclick="window.location.href='/api/export'">导出 CSV</button>
       <button class="btn btn-secondary" onclick="loadStudents()">刷新</button>
@@ -484,5 +472,6 @@
 
     loadStudents();
   </script>
+  <script src="/app_shell.js" defer></script>
 </body>
 </html>

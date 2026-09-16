@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/app_shell.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     /* ===== BASE — page container owns the side padding ===== */
@@ -808,20 +809,14 @@
   </style>
 </head>
 <body class="dash-body">
-  <div class="brand-stripe"></div>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-name">凭远教育</span>
-      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
+  <div data-app-shell></div>
+
+  <div class="dash-page" style="padding-top:32px;">
+    <div class="page-header">
+      <h1 class="page-title">数据总览</h1>
+      <p class="page-subtitle">Y4 综合测评数据与 AI 洞察</p>
     </div>
-    <nav class="topbar-nav">
-      <a href="/">← 主页</a>
-      <a href="/students">学生档案</a>
-      <a href="/admin/bookings">预约管理</a>
-      <a href="/generate">报告生成</a>
-      <a href="/dashboard" class="active">数据总览</a>
-    </nav>
-  </header>
+  </div>
 
   <div id="dashRoot">
     <div class="dash-loading">加载中</div>
@@ -1542,5 +1537,6 @@
 
     init();
   </script>
+  <script src="/app_shell.js" defer></script>
 </body>
 </html>

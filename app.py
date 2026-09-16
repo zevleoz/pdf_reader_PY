@@ -79,6 +79,18 @@ def serve_style():
     return send_from_directory(str(TEMPLATE_DIR), "style.css", mimetype="text/css")
 
 
+@app.route("/app_shell.css")
+def serve_app_shell_css():
+    """Serve shared app-shell CSS (sidebar navigation)."""
+    return send_from_directory(str(TEMPLATE_DIR), "app_shell.css", mimetype="text/css")
+
+
+@app.route("/app_shell.js")
+def serve_app_shell_js():
+    """Serve shared app-shell JS (sidebar navigation, command palette)."""
+    return send_from_directory(str(TEMPLATE_DIR), "app_shell.js", mimetype="application/javascript")
+
+
 @app.route("/branding/<path:filename>")
 def branding(filename):
     """Serve branding assets (logo, watermark) directly from the branding/ folder.

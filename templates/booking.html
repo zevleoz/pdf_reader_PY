@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/app_shell.css" />
   <style>
     .calendly-layout { display: grid; grid-template-columns: 5fr 7fr; gap: 40px; align-items: start; }
     .calendly-panel { background: var(--white); border: 1px solid var(--line-soft); border-radius: 14px; padding: 32px; }
@@ -75,23 +76,14 @@
   </style>
 </head>
 <body>
-  <div class="brand-stripe"></div>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-name">凭远教育</span>
-      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
-    </div>
-    <nav class="topbar-nav">
-      <a href="/" data-path="/">← 主页</a>
-      <a href="/students" data-path="/students">学生档案</a>
-      <a href="/generate" data-path="/generate">报告生成</a>
-    </nav>
-  </header>
+  <div data-app-shell></div>
 
   <main class="container">
     <div id="bookingView">
-      <h1 class="page-title">预约 Y4 测评</h1>
-      <p class="page-subtitle">选择合适的日期与时间，为学生预约一次 Y4 综合测评。</p>
+      <div class="page-header">
+        <h1 class="page-title">预约 Y4 测评</h1>
+        <p class="page-subtitle">选择合适的日期与时间，为学生预约一次 Y4 综合测评。</p>
+      </div>
       <div class="hint" style="margin-bottom:24px;">需提前一天预约。每时段最多 4 人，所有时段默认开放。</div>
 
       <div class="calendly-layout">
@@ -410,14 +402,8 @@
       renderCalendar();
     }
 
-    (function initNav() {
-      const path = window.location.pathname;
-      document.querySelectorAll('.topbar-nav a').forEach(function(a) {
-        if (a.dataset.path === path) a.classList.add('active');
-      });
-    })();
-
     renderCalendar();
   </script>
+  <script src="/app_shell.js" defer></script>
 </body>
 </html>

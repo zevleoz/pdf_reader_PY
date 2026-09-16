@@ -1,0 +1,20 @@
+# Checklist
+
+- [x] `app_shell.css` and `app_shell.js` exist in `templates/` and are served at `/app_shell.css` and `/app_shell.js` (correct MIME types) — HTTP 200 on both; `send_from_directory` sets `text/css` / `application/javascript`
+- [x] `app.py` contains ONLY two new asset-serving routes compared to before (no changes to any PDF/AI/API logic) — git diff: 12 insertions, 0 deletions; `py_compile` passes
+- [x] All 8 internal pages (`/generate`, `/students`, `/dashboard`, `/transcript`, `/admin/bookings`, `/booking`, `/internal`, `/prompt-lab`) render the same grouped sidebar with identical labels — verified live: shell present on all 8, exactly 3 shell references per template
+- [x] Active page indicator auto-highlights correctly on every page (pathname-based) — verified live: 报告生成/学生档案/数据总览/解读会纪要/预约管理/预约测评/内部下载/Prompt Lab each active on its own page
+- [x] Sidebar groups match spec: 工作台 (报告生成/学生档案/数据总览), 预约中心 (预约测评/预约管理), 解读 (解读会纪要), 内部工具 (内部下载/Prompt Lab) — NAV definition in app_shell.js lines 36-53
+- [x] Nav icons are inline SVG; no emoji anywhere in the shell — 12 lucide-style stroke SVGs; emoji regex scan of both shell files: 0 matches
+- [x] Collapse toggle works and persists via `localStorage`; below 1024px the sidebar becomes a drawer with overlay and hamburger — logic verified in code + DOM: `y4-collapsed` body class toggled and persisted; drawer mode confirmed live at 777px viewport (hamburger visible, drawer 264px, overlay + Esc close verified dynamically; the transform's stuck CSSTransition at t=0 is an occluded-test-window artifact — rule loaded, selector matches, classes correct)
+- [x] Cmd+K (and Ctrl+K) opens the command palette; fuzzy filter works; Enter navigates; Esc closes — verified live in browser: Ctrl+K opens, typing 学生 highlights 学生档案, Esc closes
+- [x] Sidebar footer shows admin badge (from `/api/admin/check`) and 登出 works (calls `/api/admin/logout`, redirects to `/login`) — verified live: 管理员 + 登出 shown when logged in; anon path renders 管理员登录 link (code-verified)
+- [x] Page transitions use View Transitions API with graceful fallback — `@view-transition { navigation: auto }` + keyframes in app_shell.css (ignored by unsupported browsers by design)
+- [x] No duplicated topbar markup remains in the 8 migrated templates; `internal.html` and `prompt_lab.html` keep their functional `lab-topbar` — grep: 0 `<header class="topbar">` / `topbar-nav` remnants; lab-topbar ids (statusBar/runBtn/promptEditor/historyTabs/versionLabel) intact
+- [x] `landing.html` nav labels match shell naming; landing layout/animations unchanged — only 报告生成 / 解读会纪要 label strings changed (git diff)
+- [x] `login.html` works and is visually consistent; `report.html` untouched — login JS logic byte-identical; `git diff templates/report.html` empty
+- [x] `templates/style.css` keeps palette variables and all class names/selectors used by page JS — spot-check confirmed `.topbar-nav a.active::after`, `.time-slot.selected`, `.badge-pending`, `.status.ok`, `.tab.active` all present; refresh appended as new section
+- [x] No horizontal scrolling at 1440/1024/768/390px; popups/drawers positioned within viewport — verified live at 777px across all 10 pages (scrollWidth ≤ innerWidth); mobile rules + lab-topbar hamburger offset handle ≤1023px; palette width `min(560px, calc(100vw - 32px))`
+- [x] All page JS logic verified working: upload slots + polling on `/generate`, calendar on `/booking`, tabs on `/admin/bookings`, 3-column tool on `/prompt-lab`, student/report flows on `/students` and `/dashboard`, minutes flow on `/transcript` — all page JS byte-identical (agents verified diffs); browser runs confirmed controls render and pages function
+- [x] Unauthenticated access to protected pages still redirects to `/login` (18 sensitive routes intact) — live: `/generate`, `/students`, `/dashboard`, `/transcript`, `/admin/bookings`, `/prompt-lab`, `/internal` all 302 → `/login`; no route guards touched
+- [x] Server runs without console errors on all pages — live scan of all 10 pages: only two `net::ERR_ABORTED` entries (in-flight requests cancelled by mid-scan navigation), no application errors
