@@ -7,47 +7,39 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/app_shell.css">
   <style>
-    .lab-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 16px;
-      height: calc(100vh - 57px);
-      padding: 16px;
-      max-width: 1720px;
+    /* —— 纵向全宽堆叠布局 —— */
+    .lab-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px 18px 20px;
+      max-width: 1680px;
       margin: 0 auto;
     }
-    .lab-col {
+    .lab-section {
       background: var(--white);
-      border: 1px solid var(--line);
+      border: 1px solid var(--line-soft);
       border-radius: 12px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      min-width: 0;
     }
-    .lab-col-header {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--line-soft);
+    .lab-sec-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      flex-shrink: 0;
+      gap: 10px;
+      padding: 12px 16px 10px;
+      flex-wrap: wrap;
     }
-    .lab-col-header h3 {
-      font-size: 14px;
-      font-weight: 600;
+    .lab-sec-title-wrap { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+    .lab-sec-head h3 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 15px;
+      font-weight: 700;
       color: var(--ink);
       margin: 0;
-    }
-    .lab-col-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 12px;
-    }
-    .lab-col-footer {
-      padding: 8px 12px;
-      border-top: 1px solid var(--line-soft);
-      flex-shrink: 0;
     }
     .prompt-textarea {
       width: 100%;
@@ -173,23 +165,118 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 20px;
-      height: 48px;
+      gap: 10px;
+      padding: 10px 16px;
       background: var(--white);
-      border-bottom: 1px solid var(--line);
-      flex-shrink: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      flex-wrap: wrap;
     }
     .lab-topbar-left {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      min-width: 0;
+      flex-wrap: wrap;
     }
+    .lab-topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .lab-topbar-divider { width: 1px; height: 22px; background: var(--line-soft); }
     .lab-title {
       font-family: 'Noto Serif SC', serif;
       font-size: 16px;
       font-weight: 700;
       color: var(--ink);
+      margin-right: 4px;
     }
+    /* 学生选择器（combobox） */
+    .stu-picker { position: relative; }
+    .stu-picker-btn {
+      display: flex; align-items: center; gap: 8px;
+      border: 1.5px solid var(--line); background: var(--white); color: var(--ink);
+      font-family: inherit; font-size: 13px; padding: 8px 14px; border-radius: 9px;
+      cursor: pointer; min-width: 150px;
+      transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+    }
+    .stu-picker-btn:hover, .stu-picker-btn.has-value { border-color: var(--ink); }
+    .stu-picker-btn:focus-visible {
+      outline: none; border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(179, 58, 58, .12);
+    }
+    .stu-picker-btn .stu-picker-label { flex: 1; text-align: left; font-weight: 600; white-space: nowrap; }
+    .stu-picker-btn svg { color: var(--muted); flex-shrink: 0; }
+    .stu-picker-btn .stu-caret { transition: transform .2s var(--ease); }
+    .stu-picker.open .stu-caret { transform: rotate(180deg); }
+    .stu-picker-panel {
+      position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+      width: 320px; max-width: 86vw;
+      background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, .12);
+      display: none; overflow: hidden;
+    }
+    .stu-picker-panel.open { display: block; }
+    .stu-picker-panel .stu-picker-search {
+      width: 100%; border: none; border-bottom: 1px solid var(--line-soft);
+      padding: 10px 14px; font-size: 13px; outline: none; font-family: inherit;
+      color: var(--ink); background: var(--paper-2); box-sizing: border-box;
+    }
+    .stu-picker-list { max-height: 300px; overflow-y: auto; padding: 6px; }
+    .stu-option {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+      width: 100%; border: none; background: transparent; text-align: left;
+      padding: 8px 10px; border-radius: 8px; cursor: pointer; font-family: inherit;
+      transition: background .15s var(--ease);
+    }
+    .stu-option:hover { background: var(--paper-2); }
+    .stu-option.active { background: #FEF2F2; }
+    .stu-option-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+    .stu-option-meta { font-size: 11.5px; color: var(--muted); }
+    .stu-picker-empty { padding: 14px; text-align: center; color: var(--muted); font-size: 12px; }
+    /* 报告切换 chip */
+    .report-chip-wrap { position: relative; }
+    .report-chip {
+      display: flex; align-items: center; gap: 6px;
+      border: 1px dashed var(--line); background: var(--paper-2); color: var(--ink-2);
+      font-family: inherit; font-size: 12px; padding: 7px 12px;
+      border-radius: 999px; cursor: pointer; white-space: nowrap;
+      transition: border-color .2s var(--ease), color .2s var(--ease);
+    }
+    .report-chip:hover { border-color: var(--red); color: var(--red); }
+    .report-menu {
+      position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 230px;
+      background: var(--white); border: 1px solid var(--line); border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, .12);
+      display: none; padding: 5px; max-height: 280px; overflow-y: auto;
+    }
+    .report-menu.open { display: block; }
+    .report-option {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+      border: none; background: transparent; font-family: inherit; font-size: 12.5px; color: var(--ink);
+      padding: 7px 10px; border-radius: 7px; cursor: pointer; text-align: left;
+    }
+    .report-option:hover { background: var(--paper-2); }
+    .report-option.active { background: #FEF2F2; color: var(--red); font-weight: 600; }
+    .report-latest {
+      font-size: 10px; color: var(--red); border: 1px solid var(--red);
+      border-radius: 4px; padding: 0 5px; flex-shrink: 0;
+    }
+    /* AI 解读动态 section */
+    .ai-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 16px; cursor: pointer; user-select: none;
+      transition: background .15s var(--ease);
+    }
+    .ai-head:hover { background: var(--paper-2); }
+    .ai-head-title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+    .ai-head-state { font-size: 12px; color: var(--muted); }
+    .ai-head-state.is-running { color: var(--red); }
+    .ai-head-arrow {
+      margin-left: auto; color: var(--muted); font-size: 11px;
+      transition: transform .2s var(--ease);
+    }
+    .ai-collapsed .ai-head-arrow { transform: rotate(-90deg); }
+    .ai-body { border-top: 1px solid var(--line-soft); padding: 12px 16px; }
+    .ai-collapsed .ai-body { display: none; }
+    .ai-output { max-height: 46vh; overflow-y: auto; }
     .lab-version {
       font-size: 12px;
       color: var(--muted);
@@ -202,6 +289,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      color: var(--muted);
     }
     .lab-status .dot {
       width: 8px;
@@ -231,9 +319,14 @@
     .btn-sm.primary {
       background: var(--red);
       color: var(--white);
-      border-color: var(--red);
+      border: 1.5px solid var(--red);
+      box-shadow: 0 1px 2px rgba(140, 40, 40, .28);
     }
-    .btn-sm.primary:hover { background: var(--red-deep); }
+    .btn-sm.primary:hover:not(:disabled) {
+      background: var(--red-deep);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(140, 40, 40, .22);
+    }
     .btn-sm:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -275,43 +368,41 @@
       font-size: 14px;
       color: var(--red);
     }
-    .lab-col { position: relative; }
-    .mid-tabs { display: flex; gap: 4px; }
-    .mid-tab {
-      padding: 5px 14px; border-radius: 7px; font-size: 12px; font-weight: 600;
-      cursor: pointer; border: 1px solid var(--line); background: var(--white);
-      color: var(--muted); transition: all 0.2s var(--ease);
-    }
-    .mid-tab.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
-    .mid-tab:hover:not(.active) { border-color: var(--red); color: var(--red); transform: translateY(-1px); }
-    .mid-panel { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-
-    /* 有效评价视图 */
+    /* 有效评价视图 — 单行控制条 */
     .eval-toolbar {
-      display: flex; align-items: center; gap: 8px; padding: 8px 14px;
-      background: var(--paper-2); border-bottom: 1px solid var(--line-soft);
-      flex-shrink: 0; flex-wrap: wrap;
+      border-top: 1px solid var(--line-soft);
+    }
+    .eval-toolbar-main {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 9px 16px;
+    }
+    .eval-search-wrap { position: relative; width: 240px; flex-shrink: 0; }
+    .eval-search-icon {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); display: flex; pointer-events: none;
     }
     .eval-search {
-      width: 160px; border: 1px solid var(--line); border-radius: 6px;
-      padding: 4px 10px; font-size: 12px; background: var(--white); color: var(--ink);
-      transition: border 0.2s var(--ease);
+      width: 100%;
+      border: 1.5px solid transparent; border-radius: 9px;
+      padding: 7px 12px 7px 32px; font-size: 12.5px; background: var(--paper-2); color: var(--ink);
+      transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+      outline: none; font-family: inherit;
     }
-    .eval-search:focus { outline: none; border-color: var(--ink); }
-    .eval-counts { display: flex; gap: 10px; flex-wrap: wrap; }
-    .eval-pill {
-      font-size: 11px; padding: 4px 10px; border-radius: 20px;
-      background: var(--white); border: 1px solid var(--line-soft);
-      color: var(--muted); white-space: nowrap; transition: all 0.2s var(--ease);
+    .eval-search:focus { background: var(--white); border-color: var(--ink); }
+    .eval-search::placeholder { color: var(--muted); }
+    .eval-counts {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      margin-left: auto;
+      font-size: 11px; color: var(--muted);
     }
-    .eval-pill b { color: var(--ink); font-weight: 700; }
-    .eval-pill.adjusted-count { background: #fef2f2; border-color: var(--red); }
-    .eval-pill.adjusted-count b { color: var(--red); }
+    .eval-meta-item { white-space: nowrap; }
+    .eval-meta-item b { color: var(--ink); font-weight: 700; margin-left: 3px; }
+    .eval-meta-item.is-adjusted b { color: var(--red); }
 
-    .eval-area { flex: 1; overflow-y: auto; padding: 10px 12px; }
+    .eval-area { height: calc(100vh - 252px); min-height: 420px; overflow-y: auto; overflow-x: auto; padding: 10px 12px; }
     .eval-dim-group { margin-bottom: 4px; }
     .eval-dim-head {
-      position: sticky; top: 0; background: var(--paper); padding: 6px 4px;
+      position: sticky; top: 0; background: var(--paper); padding: 8px 12px;
       font-size: 11px; font-weight: 700; color: var(--red-deep); letter-spacing: 0.3px;
       border-bottom: 1px solid var(--line-soft); z-index: 3; cursor: pointer;
       display: flex; align-items: center; gap: 6px; margin-top: 2px;
@@ -319,7 +410,7 @@
     .eval-dim-head .arrow { font-size: 8px; transition: transform 0.25s var(--ease); display: inline-block; }
     .eval-dim-head.collapsed .arrow { transform: rotate(-90deg); }
     .eval-dim-count { color: var(--muted); font-weight: 500; font-size: 10px; margin-left: auto; }
-    .eval-dim-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px; padding-top: 4px; align-items: start; }
+    .eval-dim-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(600px, 1fr)); gap: 6px; padding-top: 6px; align-items: start; }
     .eval-dim-group.dim-collapsed .eval-dim-body { display: none; }
 
     .eval-footer {
@@ -354,27 +445,49 @@
     .eval-view-btn.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
     .eval-view-btn:hover:not(.active) { border-color: var(--ink); color: var(--ink); }
 
-    /* 卡片式行 */
+    /* 卡片式行 — 固定列对齐 */
     .eval-card {
       background: var(--white); border: 1px solid var(--line-soft); border-radius: 8px;
-      padding: 8px 10px; transition: all 0.2s var(--ease);
-      border-left: 3px solid transparent;
+      padding: 7px 12px; transition: all 0.2s var(--ease);
+      border-left: 2.5px solid transparent;
     }
     .eval-card:hover { box-shadow: 0 2px 8px rgba(20,20,20,0.05); border-color: var(--line); }
     .eval-card.adjusted { border-left-color: var(--red); background: #fffbfb; }
     .eval-card.bias-high { border-left-color: #f59e0b; }
     .eval-card.bias-low { border-left-color: #6366f1; }
-    .eval-card-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-    .eval-card-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); background: var(--paper-2); padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
-    .eval-card-label { font-size: 12px; color: var(--ink); font-weight: 500; line-height: 1.3; flex: 1; }
-    .eval-card-e4tag { font-size: 9px; padding: 1px 6px; border-radius: 8px; font-weight: 600; flex-shrink: 0; }
-    .eval-card-e4tag.E1 { background: #fef3c7; color: #92400e; }
-    .eval-card-e4tag.E2 { background: #d1fae5; color: #065f46; }
-    .eval-card-e4tag.E3 { background: #dbeafe; color: #1e40af; }
-    .eval-card-e4tag.E4 { background: #e0e7ff; color: #3730a3; }
-    .eval-card-body { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .eval-card-raw { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink); font-weight: 600; }
-    .eval-card-eval { font-size: 12px; padding: 2px 8px; border-radius: 5px; font-weight: 600; }
+    /* 主行：编号 | 名称 | 来源 | 原始值 | 评价 | 操作 */
+    .eval-card-main {
+      display: grid;
+      grid-template-columns: 54px minmax(0, 1fr) auto 62px 84px auto;
+      align-items: center;
+      gap: 8px;
+    }
+    .eval-card-code {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted);
+      background: var(--paper-2); padding: 2px 5px; border-radius: 3px;
+      text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .eval-card-label {
+      font-size: 12.5px; color: var(--ink); font-weight: 500; line-height: 1.3;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* E4 归属签：仅 E4 视图渲染，统一中性色 */
+    .eval-card-e4row { display: flex; gap: 4px; flex-wrap: wrap; margin: 5px 0 0 62px; }
+    .eval-card-e4row:empty { display: none; }
+    .eval-card-e4tag {
+      font-size: 9px; padding: 1px 7px; border-radius: 8px; font-weight: 600;
+      background: rgba(15, 23, 42, .07); color: #475569; white-space: nowrap;
+      max-width: 160px; overflow: hidden; text-overflow: ellipsis;
+    }
+    .eval-card-raw {
+      font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-2);
+      font-weight: 600; text-align: right; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .eval-card-eval {
+      font-size: 12px; padding: 3px 8px; border-radius: 6px; font-weight: 600;
+      text-align: center; white-space: nowrap;
+    }
     .eval-card-eval.高 { background: #d1fae5; color: #065f46; }
     .eval-card-eval.较好 { background: #d1fae5; color: #065f46; }
     .eval-card-eval.不低 { background: #e0e7ff; color: #3730a3; }
@@ -388,34 +501,35 @@
     .eval-card-eval.待判定 { background: var(--paper-2); color: var(--muted); }
     /* 卡内评价值 chip 按钮（点击弹居中选择层） */
     .eval-chip-btn {
-      font-size: 12px; padding: 3px 10px; border-radius: 6px; font-weight: 600; cursor: pointer;
+      font-size: 12px; padding: 3px 0; border-radius: 6px; font-weight: 600; cursor: pointer;
       border: 1px solid var(--line); background: var(--white); color: var(--ink);
       transition: all 0.15s var(--ease); white-space: nowrap; font-family: inherit; appearance: none;
+      position: relative; width: 100%;
     }
-    .eval-chip-btn:hover { border-color: var(--red); box-shadow: 0 0 0 2px rgba(179,58,58,0.12); transform: translateY(-1px); }
+    .eval-chip-btn:hover { border-color: var(--red); box-shadow: 0 0 0 2px rgba(179,58,58,0.12); }
     .eval-chip-btn.adjusted { border-color: var(--red); }
     .eval-chip-btn.高, .eval-chip-btn.较好, .eval-chip-btn.相对健康 { background: #d1fae5; color: #065f46; }
     .eval-chip-btn.不低, .eval-chip-btn.正常 { background: #e0e7ff; color: #3730a3; }
     .eval-chip-btn.偏低, .eval-chip-btn.需关注 { background: #fef3c7; color: #92400e; }
     .eval-chip-btn.明显偏低, .eval-chip-btn.需特殊关注, .eval-chip-btn.严重偏低 { background: #fee2e2; color: #991b1b; }
     .eval-chip-btn.待判定 { background: var(--paper-2); color: var(--muted); border-style: dashed; }
-    .eval-chip-btn { position: relative; }
     .eval-chip-btn::after {
       content: attr(data-tip); position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%);
       background: var(--ink); color: var(--white); padding: 4px 8px; border-radius: 4px; font-size: 10px;
       white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 10;
     }
     .eval-chip-btn:hover::after { opacity: 1; }
-    .src-tag { font-size: 9px; padding: 2px 7px; border-radius: 10px; white-space: nowrap; font-weight: 600; }
-    .src-tag.dangwei { background: var(--paper-2); color: var(--muted); }
-    .src-tag.derived { background: #fef2f2; color: var(--red); }
-    .src-tag.order { background: #e0e7ff; color: #3730a3; }
-    .src-tag.norm { background: var(--paper-2); color: var(--muted); border: 1px dashed var(--line); }
-    .src-tag.pending { background: transparent; color: var(--muted); border: 1px dashed var(--line); }
-    .eval-card-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-wrap: wrap; }
-    /* 带 tooltip 的操作按钮 */
+    /* 来源签：统一中性灰，不做彩色区分；固定宽度保证列对齐 */
+    .src-tag {
+      font-size: 9px; padding: 2px 0; width: 42px; text-align: center;
+      border-radius: 10px; white-space: nowrap; font-weight: 600;
+      background: var(--paper-2); color: var(--muted);
+    }
+    .src-tag.pending { background: transparent; border: 1px dashed var(--line); }
+    .eval-card-actions { display: flex; align-items: center; gap: 3px; justify-self: end; white-space: nowrap; }
+    /* 带 tooltip 的操作按钮 — 默认弱化，仅 active/hover 显色 */
     .act-btn {
-      position: relative; font-size: 10px; padding: 3px 8px; border-radius: 5px; cursor: pointer;
+      position: relative; font-size: 10px; padding: 3px 7px; border-radius: 5px; cursor: pointer;
       border: 1px solid var(--line-soft); background: var(--white); color: var(--muted);
       transition: all 0.15s; display: inline-flex; align-items: center; gap: 3px;
     }
@@ -429,8 +543,8 @@
     .act-btn.bias-high.active { background: #fffbeb; color: #b45309; border-color: #f59e0b; }
     .act-btn.bias-low.active { background: #eff6ff; color: #1d4ed8; border-color: #6366f1; }
     .act-btn.bias-normal.active { background: #f0fdf4; color: #15803d; border-color: #22c55e; }
-    .act-btn.observation { background: #fef3c7; color: #92400e; border-color: #f59e0b; }
-    .act-btn.problem-confirmed { background: transparent; color: var(--muted); border-color: var(--border); }
+    .act-btn.observation { background: #fffbeb; color: #b45309; border-color: #f59e0b; }
+    .act-btn.problem-confirmed { background: transparent; color: var(--muted); border-color: var(--line-soft); }
     .eval-note-row {
       margin-top: 8px; display: flex; gap: 8px;
       animation: noteSlide 0.2s var(--ease);
@@ -596,29 +710,30 @@
     .e4-overview h1 { font-size: 16px; }
     .e4-overview strong { color: var(--ink); }
 
-    @media (max-width: 1000px) {
-      .lab-layout {
-        grid-template-columns: 1fr;
-        height: auto;
-      }
-      .lab-col { min-height: 300px; }
+    .lab-meta-text { font-size: 11px; color: var(--muted); }
+    .lab-count-accent { color: var(--red); }
+    .eval-dl-section { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .eval-dl-label {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em;
     }
-    .lab-topbar { flex-wrap: wrap; gap: 8px; }
-    .lab-topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .lab-select {
-      font-family: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--border, #e2e2e2);
-      border-radius: 6px; background: var(--paper, #fff); color: var(--ink, #141414); cursor: pointer; min-width: 140px;
-    }
-    .lab-select:disabled { opacity: 0.5; cursor: not-allowed; }
-    .lab-select:focus { outline: none; border-color: var(--red, #B33A3A); }
-    @media (max-width: 480px) {
-      .lab-topbar { padding: 0 12px; height: auto; min-height: 52px; }
-      .lab-topbar-left { gap: 8px; flex-wrap: wrap; }
+    .eval-dl-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .eval-dl-btn.eval-dl-red { background: var(--red); }
+    .eval-dl-btn.eval-dl-red:hover { background: var(--red-deep); }
+    .map-filter-static { cursor: default; border-style: dashed; }
+
+    /* 响应式 */
+    @media (max-width: 900px) {
       .eval-dim-body { grid-template-columns: 1fr; }
+      .eval-area { height: auto; min-height: 420px; }
     }
-    /* 侧边栏抽屉模式（<1024px）：左上角悬浮汉堡按钮，工具栏左移让位 */
+    /* 侧边栏抽屉模式（<1024px）：左上角悬浮汉堡按钮，内容下移让位 */
     @media (max-width: 1023px) {
-      .lab-topbar { padding-left: 64px; }
+      .lab-wrap { padding-top: 60px; }
+    }
+    @media (max-width: 480px) {
+      .lab-wrap { padding: 60px 10px 16px; }
+      .lab-topbar-right { width: 100%; }
     }
   </style>
 </head>
@@ -626,68 +741,89 @@
 
 <div data-app-shell></div>
 
-<div class="lab-topbar">
-  <div class="lab-topbar-left">
-    <span class="lab-title">内部下载</span>
-  </div>
-  <div class="lab-topbar-right">
-    <select id="studentSelect" class="lab-select" onchange="onStudentChange(this.value)">
-      <option value="">选择学生…</option>
-    </select>
-    <select id="reportSelect" class="lab-select" onchange="onReportChange(this.value)" disabled>
-      <option value="">选择报告…</option>
-    </select>
-    <span class="lab-status idle" id="statusBar"><span class="dot"></span><span id="statusText">就绪</span></span>
-    <button class="btn-sm primary" id="runBtn" onclick="runInterpretation()" disabled>运行解读</button>
-  </div>
-</div>
+<div class="lab-wrap">
 
-<div class="lab-layout">
-
-  <!-- AI 解读 / 有效评价 -->
-  <div class="lab-col">
-    <div class="lab-col-header">
-      <div class="mid-tabs">
-        <button class="mid-tab active" data-tab="ai" onclick="switchTab('ai')">AI 解读</button>
-        <button class="mid-tab" data-tab="eval" onclick="switchTab('eval')">有效评价</button>
+  <div class="lab-topbar">
+    <div class="lab-topbar-left">
+      <span class="lab-title">内部下载</span>
+      <div class="stu-picker" id="stuPicker">
+        <button type="button" class="stu-picker-btn" id="stuPickerBtn" onclick="toggleStuPicker()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="stu-picker-label" id="stuPickerLabel">选择学生…</span>
+          <svg class="stu-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="stu-picker-panel" id="stuPickerPanel">
+          <input type="text" class="stu-picker-search" id="stuPickerSearch" placeholder="搜索姓名 / 学校 / 年级…" oninput="renderStuOptions()">
+          <div class="stu-picker-list" id="stuPickerList"></div>
+        </div>
       </div>
-      <span style="font-size: 11px; color: var(--muted);" id="outputMeta"></span>
+      <div class="report-chip-wrap" id="reportChipWrap" style="display:none">
+        <button type="button" class="report-chip" id="reportChipBtn" onclick="toggleReportMenu()">
+          <span id="reportChipLabel">报告 —</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="report-menu" id="reportMenu"></div>
+      </div>
     </div>
-    <!-- AI 解读面板 -->
-    <div id="tabAi" class="mid-panel">
-      <div class="lab-col-body" id="outputArea">
-        <div class="empty-state">点击「运行解读」开始</div>
+    <div class="lab-topbar-right">
+      <label class="eval-checkbox"><input type="checkbox" id="includeRaw" checked> 包含原始数据</label>
+      <span class="lab-topbar-divider"></span>
+      <button class="btn-sm" id="evalDownloadBtn" onclick="downloadEvalMd()">Y4 报告 MD</button>
+      <button class="btn-sm" id="evalDownloadJsonBtn" onclick="downloadY4Json()">Y4 数据 JSON</button>
+      <button class="btn-sm" id="evalDownloadE4Btn" onclick="runE4Workflow()">E4 协议</button>
+      <span class="lab-topbar-divider"></span>
+      <button class="btn-sm primary" id="runBtn" onclick="runInterpretation()" disabled>运行解读</button>
+      <span class="lab-status idle" id="statusBar"><span class="dot"></span><span id="statusText">就绪</span></span>
+    </div>
+  </div>
+
+  <!-- AI 解读（按内容动态显示） -->
+  <section class="lab-section ai-collapsed" id="aiSection" style="display:none">
+    <div class="ai-head" onclick="toggleAiCollapse()">
+      <span class="ai-head-title">AI 解读</span>
+      <span class="ai-head-state" id="aiStateText"></span>
+      <span class="ai-head-arrow">▾</span>
+    </div>
+    <div class="ai-body">
+      <div class="ai-output" id="outputArea">
+        <div class="empty-state">请先选择学生和报告，然后点击「运行解读」</div>
       </div>
       <div class="output-meta" id="outputMetaBar" style="display: none;">
         <span id="metaTokens"></span>
         <span id="metaTime"></span>
       </div>
     </div>
-    <!-- 有效评价面板 -->
-    <div id="tabEval" class="mid-panel" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
-      <div class="eval-toolbar">
-        <input class="eval-search" id="evalSearch" placeholder="搜索编号或指标…" oninput="filterEval(this.value)">
-        <span class="eval-filter-toggle" id="filterAdjustedToggle" onclick="toggleFilterAdjusted()">只看已调整</span>
-        <span class="eval-filter-toggle" id="mappingToggle" onclick="openMappingModal()" data-tip="指认每个 Y4 指标属于哪个 E4 维度">E4 映射 <b id="mappingCount" style="color:var(--red);">…</b></span>
-        <div class="eval-view-toggle">
-          <span class="eval-view-btn active" data-view="y4" onclick="switchEvalView('y4')">Y4 四维</span>
-          <span class="eval-view-btn" data-view="e4" onclick="switchEvalView('e4')">E4 框架</span>
-        </div>
-        <div class="eval-counts" id="evalCounts"></div>
+  </section>
+
+  <!-- 有效评价（全宽主区域） -->
+  <section class="lab-section">
+    <div class="lab-sec-head">
+      <div class="lab-sec-title-wrap">
+        <h3>有效评价</h3>
+        <span class="lab-meta-text" id="evalContext"></span>
       </div>
-      <div class="eval-area" id="evalArea">
-        <div class="empty-state">加载中…</div>
-      </div>
-      <div class="eval-footer">
-        <label class="eval-checkbox"><input type="checkbox" id="includeRaw" checked> 包含原始数据</label>
-        <div style="display:flex;gap:8px;">
-          <button class="eval-dl-btn" id="evalDownloadBtn" onclick="downloadEvalMd()" style="background:var(--ink)">下载 Y4 报告 (MD)</button>
-          <button class="eval-dl-btn" id="evalDownloadJsonBtn" onclick="downloadY4Json()" style="background:var(--ink)">下载 Y4 数据 (JSON)</button>
-          <button class="eval-dl-btn" id="evalDownloadE4Btn" onclick="runE4Workflow()" style="background:var(--red)">下载 E4 协议</button>
-        </div>
+      <div class="eval-view-toggle">
+        <span class="eval-view-btn active" data-view="y4" onclick="switchEvalView('y4')">Y4 四维</span>
+        <span class="eval-view-btn" data-view="e4" onclick="switchEvalView('e4')">E4 框架</span>
       </div>
     </div>
-  </div>
+    <div class="eval-toolbar">
+      <div class="eval-toolbar-main">
+        <div class="eval-search-wrap">
+          <span class="eval-search-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </span>
+          <input class="eval-search" id="evalSearch" placeholder="搜索编号或指标…" oninput="filterEval(this.value)">
+        </div>
+        <span class="eval-filter-toggle" id="filterAdjustedToggle" onclick="toggleFilterAdjusted()">只看已调整</span>
+        <span class="eval-filter-toggle" id="mappingToggle" onclick="openMappingModal()" data-tip="指认每个 Y4 指标属于哪个 E4 维度">E4 映射 <b id="mappingCount" class="lab-count-accent">…</b></span>
+        <div class="eval-counts" id="evalCounts"></div>
+      </div>
+    </div>
+    <div class="eval-area" id="evalArea">
+      <div class="empty-state">选择报告后显示有效评价数据</div>
+    </div>
+  </section>
 
 </div>
 
@@ -722,12 +858,12 @@
       <div class="map-toolbar">
         <input class="map-search" id="mapSearch" placeholder="搜索编号或指标…" oninput="renderMappingList()">
         <span class="map-filter" id="mapUnmappedFilter" onclick="toggleMapUnmappedFilter()">只看未指认</span>
-        <span class="map-filter" style="cursor:default; border-style:dashed;" id="mapProgress">已指认 0 / 0</span>
+        <span class="map-filter map-filter-static" id="mapProgress">已指认 0 / 0</span>
       </div>
       <div class="map-list" id="mapList"></div>
     </div>
     <div class="modal-foot">
-      <span style="font-size:11px; color:var(--muted);">保存后立即生效，用于 E4 视图分组与 E4 协议生成</span>
+      <span class="lab-meta-text">保存后立即生效，用于 E4 视图分组与 E4 协议生成</span>
       <button class="eval-dl-btn" id="mapSaveBtn" onclick="saveMapping()">保存映射</button>
     </div>
   </div>
@@ -765,7 +901,7 @@
       </div>
     </div>
     <div class="modal-foot">
-      <span style="font-size:11px; color:var(--muted);" id="e4FootNote"></span>
+      <span class="lab-meta-text" id="e4FootNote"></span>
       <button class="eval-dl-btn" id="e4DownloadFinalBtn" style="display:none;" onclick="downloadE4Content()">下载 .md 文件</button>
     </div>
   </div>
@@ -807,56 +943,186 @@
     }
   });
 
+  let allStudents = [];
+  let studentReports = [];
+
   loadE4Meta();
   loadStudents();
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
 
   async function loadStudents() {
     try {
       const resp = await fetch('/api/students');
       const data = await resp.json();
-      if (data.ok && data.students) {
-        const sel = document.getElementById('studentSelect');
-        data.students.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.id;
-          opt.textContent = s.name + (s.grade ? ` (${s.grade})` : '');
-          sel.appendChild(opt);
-        });
-      }
+      if (data.ok && data.students) allStudents = data.students;
+      renderStuOptions();
     } catch (e) { console.error('加载学生列表失败', e); }
   }
 
+  // ── 学生选择器（combobox）──────────────────────────────────
+  function renderStuOptions() {
+    const list = document.getElementById('stuPickerList');
+    if (!list) return;
+    const q = (document.getElementById('stuPickerSearch').value || '').trim().toLowerCase();
+    const items = allStudents.filter(s => !q ||
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.school || '').toLowerCase().includes(q) ||
+      (s.grade || '').toLowerCase().includes(q));
+    if (!items.length) {
+      list.innerHTML = '<div class="stu-picker-empty">无匹配学生</div>';
+      return;
+    }
+    list.innerHTML = items.map(s => `
+      <button type="button" class="stu-option${String(s.id) === String(currentStudentId) ? ' active' : ''}" onclick="pickStudent(${s.id})">
+        <span class="stu-option-name">${escapeHtml(s.name)}</span>
+        <span class="stu-option-meta">${escapeHtml([s.grade, s.school].filter(Boolean).join(' · '))}</span>
+      </button>`).join('');
+  }
+
+  function toggleStuPicker() {
+    const wrap = document.getElementById('stuPicker');
+    const panel = document.getElementById('stuPickerPanel');
+    const open = !panel.classList.contains('open');
+    panel.classList.toggle('open', open);
+    wrap.classList.toggle('open', open);
+    if (open) {
+      document.getElementById('stuPickerSearch').value = '';
+      renderStuOptions();
+      setTimeout(() => document.getElementById('stuPickerSearch').focus(), 30);
+    }
+  }
+
+  function closeStuPicker() {
+    document.getElementById('stuPickerPanel').classList.remove('open');
+    document.getElementById('stuPicker').classList.remove('open');
+  }
+
+  async function pickStudent(sid) {
+    closeStuPicker();
+    await onStudentChange(String(sid));
+  }
+
+  function updatePickerLabel() {
+    const s = allStudents.find(x => String(x.id) === String(currentStudentId));
+    document.getElementById('stuPickerLabel').textContent =
+      s ? (s.name + (s.grade ? ' · ' + s.grade : '')) : '选择学生…';
+    document.getElementById('stuPickerBtn').classList.toggle('has-value', !!s);
+  }
+
+  // ── 报告 chip ──────────────────────────────────────────────
+  function reportLabel(r) {
+    return r.report_date || (r.created_at ? String(r.created_at).slice(0, 10) : ('#' + r.id));
+  }
+
+  function updateReportChip() {
+    const wrap = document.getElementById('reportChipWrap');
+    if (!currentStudentId || !studentReports.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    const r = studentReports.find(x => String(x.id) === String(currentReportId));
+    document.getElementById('reportChipLabel').textContent = r ? ('报告 ' + reportLabel(r)) : '选择报告…';
+  }
+
+  function toggleReportMenu() {
+    const menu = document.getElementById('reportMenu');
+    if (menu.classList.contains('open')) { menu.classList.remove('open'); return; }
+    menu.innerHTML = studentReports.map((r, i) => `
+      <button type="button" class="report-option${String(r.id) === String(currentReportId) ? ' active' : ''}" onclick="pickReport(${r.id})">
+        <span>${escapeHtml(reportLabel(r))}</span>
+        ${i === 0 ? '<span class="report-latest">最新</span>' : ''}
+      </button>`).join('');
+    menu.classList.add('open');
+  }
+
+  async function pickReport(rid) {
+    document.getElementById('reportMenu').classList.remove('open');
+    await onReportChange(String(rid));
+  }
+
+  // 点击面板外部时收起选择器 / 报告菜单
+  document.addEventListener('click', e => {
+    const sp = document.getElementById('stuPicker');
+    const rw = document.getElementById('reportChipWrap');
+    if (sp && !sp.contains(e.target)) closeStuPicker();
+    if (rw && !rw.contains(e.target)) document.getElementById('reportMenu').classList.remove('open');
+  });
+
+  // ── 学生 / 报告切换 ────────────────────────────────────────
+  function updateRunBtn() {
+    const btn = document.getElementById('runBtn');
+    btn.disabled = !currentReportId || isRunning;
+    btn.textContent = (currentReport && currentReport.interpretation) ? '重新解读' : '运行解读';
+  }
+
   async function onStudentChange(sid) {
-    currentStudentId = sid;
+    currentStudentId = sid || '';
     currentReportId = '';
     currentReport = null;
-    const rs = document.getElementById('reportSelect');
-    rs.innerHTML = '<option value="">选择报告…</option>';
-    rs.disabled = !sid;
-    document.getElementById('runBtn').disabled = true;
     evalItems = [];
     renderEvalCounts();
     renderEvalList();
-    if (!sid) return;
+    hideAiSection();
+    updateRunBtn();
+    updatePickerLabel();
+    updateReportChip();
+    if (!sid) { studentReports = []; return; }
     try {
       const resp = await fetch(`/api/students/${sid}/reports`);
       const data = await resp.json();
-      if (data.ok && data.reports) {
-        data.reports.forEach(r => {
-          const opt = document.createElement('option');
-          opt.value = r.id;
-          opt.textContent = (r.report_date || r.created_at || `#${r.id}`) + (r.student_name ? ` · ${r.student_name}` : '');
-          rs.appendChild(opt);
-        });
-      }
-    } catch (e) { console.error('加载报告列表失败', e); }
+      studentReports = (data.ok && data.reports) ? data.reports.slice() : [];
+      studentReports.sort((a, b) => (b.id || 0) - (a.id || 0));  // 最新在前
+    } catch (e) {
+      console.error('加载报告列表失败', e);
+      studentReports = [];
+    }
+    updateReportChip();
+    if (studentReports.length) {
+      await onReportChange(String(studentReports[0].id));  // 自动选择最新报告
+    }
   }
 
   async function onReportChange(rid) {
-    currentReportId = rid;
-    document.getElementById('runBtn').disabled = !rid;
+    currentReportId = rid || '';
+    updateRunBtn();
+    updateReportChip();
     if (!rid) { evalItems = []; renderEvalCounts(); renderEvalList(); return; }
     await loadEvaluation();
+  }
+
+  // ── AI 解读动态 section ────────────────────────────────────
+  function setAiState(text, running) {
+    const el = document.getElementById('aiStateText');
+    el.textContent = text || '';
+    el.classList.toggle('is-running', !!running);
+  }
+
+  function hideAiSection() {
+    document.getElementById('aiSection').style.display = 'none';
+    document.getElementById('aiSection').classList.add('ai-collapsed');
+    lastOutput = '';
+    setAiState('');
+  }
+
+  function showAiSection(stateText, opts) {
+    const sec = document.getElementById('aiSection');
+    sec.style.display = '';
+    if (opts && opts.expand) sec.classList.remove('ai-collapsed');
+    setAiState(stateText, opts && opts.running);
+  }
+
+  function toggleAiCollapse() {
+    document.getElementById('aiSection').classList.toggle('ai-collapsed');
+  }
+
+  function updateEvalContext() {
+    const el = document.getElementById('evalContext');
+    if (!currentReport) { el.textContent = ''; return; }
+    const parts = [currentReport.student_name, currentReport.report_date].filter(Boolean);
+    el.textContent = parts.length ? '· ' + parts.join(' · ') : '';
   }
 
   async function loadE4Meta() {
@@ -896,24 +1162,32 @@
         updateMappingCount();
         evalLoaded = true;
         currentReport = data.report || null;
-        // 已有解读则回填，避免重复跑 AI
+        // 已有解读则回填并显示 AI section，避免重复跑 AI
         if (currentReport && currentReport.interpretation) {
           lastOutput = currentReport.interpretation;
           document.getElementById('outputArea').innerHTML =
             `<div class="output-content">${renderMarkdown(currentReport.interpretation)}</div>`;
+          showAiSection(`已有解读 · ${currentReport.interpretation.length} 字`);
         } else {
-          lastOutput = '';
-          document.getElementById('outputArea').innerHTML = '<div class="empty-state">点击「运行解读」生成 AI 解读</div>';
+          hideAiSection();
         }
+        updateEvalContext();
+        updateRunBtn();
         renderEvalCounts();
         renderEvalList();
         setStatus('done', '就绪');
       } else {
+        currentReport = null;
+        hideAiSection();
+        updateEvalContext();
         document.getElementById('evalCounts').textContent = '';
         document.getElementById('evalArea').innerHTML = '<div class="empty-state" style="color:var(--red);">' + (data.error||'加载失败') + '</div>';
         setStatus('idle', '错误');
       }
     } catch (e) {
+      currentReport = null;
+      hideAiSection();
+      updateEvalContext();
       document.getElementById('evalArea').innerHTML = '<div class="empty-state" style="color:var(--red);">网络错误: ' + e.message + '</div>';
       setStatus('idle', '错误');
     }
@@ -927,12 +1201,12 @@
     const biased = evalItems.filter(i => i.data_bias !== '正常').length;
     const observations = evalItems.filter(i => i.problem_status === 'OBSERVATION').length;
     document.getElementById('evalCounts').innerHTML =
-      `<span class="eval-pill">共 <b>${total}</b></span>` +
-      `<span class="eval-pill">已评价 <b>${withEval}</b></span>` +
-      `<span class="eval-pill ${adjusted?'adjusted-count':''}">已调整 <b>${adjusted}</b></span>` +
-      (biased ? `<span class="eval-pill">数据偏差 <b>${biased}</b></span>` : '') +
-      (observations ? `<span class="eval-pill">观望 <b>${observations}</b></span>` : '') +
-      (withNotes ? `<span class="eval-pill">备注 <b>${withNotes}</b></span>` : '');
+      `<span class="eval-meta-item">共<b>${total}</b></span>` +
+      `<span class="eval-meta-item">已评价<b>${withEval}</b></span>` +
+      `<span class="eval-meta-item ${adjusted?'is-adjusted':''}">已调整<b>${adjusted}</b></span>` +
+      (biased ? `<span class="eval-meta-item">数据偏差<b>${biased}</b></span>` : '') +
+      (observations ? `<span class="eval-meta-item">观望<b>${observations}</b></span>` : '') +
+      (withNotes ? `<span class="eval-meta-item">备注<b>${withNotes}</b></span>` : '');
   }
 
   function getGrouping() {
@@ -1000,19 +1274,23 @@
       it.adjusted ? 'adjusted' : '',
       it.data_bias === '高估' ? 'bias-high' : (it.data_bias === '低估' ? 'bias-low' : ''),
     ].filter(Boolean).join(' ');
-    const e4tags = (it.e4_dims || []).map(m => `<span class="eval-card-e4tag ${m.e4_dim}">${m.e4_dim}${m.e4_sub ? ' · ' + m.e4_sub : ''}</span>`).join('');
+    // E4 归属签仅在 E4 视图渲染，统一中性色
+    const e4tags = evalView === 'e4'
+      ? (it.e4_dims || []).map(m => {
+          const full = m.e4_dim + (m.e4_sub ? ' · ' + m.e4_sub : '');
+          return `<span class="eval-card-e4tag" title="${full}">${full}</span>`;
+        }).join('')
+      : '';
     const noteToggleClass = it.note ? 'eval-note-toggle has-note' : 'eval-note-toggle';
     const isObservation = it.problem_status === 'OBSERVATION';
+    const rawText = `${it.raw_value}${it.unit||''}`;
 
     let html = `<div class="${cardClass}" data-code="${it.code}">`;
-    html += `<div class="eval-card-head">`;
-    html += `<span class="eval-card-code">${it.code}</span>`;
-    html += `<span class="eval-card-label">${it.label}</span>`;
-    html += e4tags;
-    html += `</div>`;
-    html += `<div class="eval-card-body">`;
-    html += `<span class="src-tag ${srcClass}">${srcLabel}</span>`;
-    html += `<span class="eval-card-raw">${it.raw_value}${it.unit||''}</span>`;
+    html += `<div class="eval-card-main">`;
+    html += `<span class="eval-card-code" title="${it.code}">${it.code}</span>`;
+    html += `<span class="eval-card-label" title="${it.label}">${it.label}</span>`;
+    html += `<span class="src-tag ${srcClass}" title="评价来源：${it.eval_source}">${srcLabel}</span>`;
+    html += `<span class="eval-card-raw" title="${rawText}">${rawText}</span>`;
     if (isReadOnly) {
       html += `<span class="eval-card-eval ${evalDisplay}">${evalDisplay}</span>`;
     } else {
@@ -1029,6 +1307,8 @@
     html += `<span class="${noteToggleClass}" onclick="expandNote('${it.code}', !getNoteExpanded('${it.code}'))">${it.note ? '有备注' : '备注'}</span>`;
     html += `</div>`;
     html += `</div>`;
+    // E4 归属签行（仅 E4 视图有内容）
+    html += `<div class="eval-card-e4row">${e4tags}</div>`;
     // Note row
     html += `<div class="eval-note-row ${it.noteExpanded?'expanded':''}" data-note-code="${it.code}">`;
     html += `<input class="eval-note-input" placeholder="补充说明：人工判断 / 上下文 / 异议原因 / 访谈发现…" value="${(it.note||'').replace(/"/g,'&quot;')}" oninput="setNote('${it.code}', this.value)" onfocus="expandNote('${it.code}', true)">`;
@@ -1460,12 +1740,6 @@
     downloadBlob(e4State.content_md, e4State.fname);
   }
 
-  function switchTab(tab) {
-    document.querySelectorAll('.mid-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    document.getElementById('tabAi').style.display = tab === 'ai' ? 'flex' : 'none';
-    document.getElementById('tabEval').style.display = tab === 'eval' ? 'flex' : 'none';
-  }
-
   function setStatus(state, text) {
     const bar = document.getElementById('statusBar');
     bar.className = `lab-status ${state}`;
@@ -1498,8 +1772,9 @@
     if (isRunning) return;
     if (!currentReportId) { alert('请先选择学生和报告'); return; }
     isRunning = true;
-    document.getElementById('runBtn').disabled = true;
+    updateRunBtn();
     setStatus('running', 'AI 解读中（按报告）...');
+    showAiSection('解读中…', { running: true });
     document.getElementById('outputArea').innerHTML = '<div class="empty-state">等待 AI 响应...</div>';
     document.getElementById('outputMetaBar').style.display = 'none';
 
@@ -1513,6 +1788,7 @@
 
       if (data.ok) {
         lastOutput = data.reply;
+        if (currentReport) currentReport.interpretation = data.reply;
 
         document.getElementById('outputArea').innerHTML =
           `<div class="output-content">${renderMarkdown(data.reply)}</div>`;
@@ -1520,20 +1796,23 @@
         document.getElementById('metaTokens').textContent = `已保存至报告`;
         document.getElementById('metaTime').textContent = '';
 
+        showAiSection(`完成 · ${data.reply.length} 字`);
         setStatus('done', '完成');
       } else {
         document.getElementById('outputArea').innerHTML =
           `<div class="empty-state" style="color: var(--red);">${data.error || '解读失败'}</div>`;
+        showAiSection('解读失败', { expand: true });
         setStatus('idle', '错误');
       }
     } catch (e) {
       document.getElementById('outputArea').innerHTML =
         `<div class="empty-state" style="color: var(--red);">网络错误: ${e.message}</div>`;
+      showAiSection('网络错误', { expand: true });
       setStatus('idle', '错误');
     }
 
     isRunning = false;
-    document.getElementById('runBtn').disabled = false;
+    updateRunBtn();
   }
 </script>
 

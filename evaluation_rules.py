@@ -654,8 +654,9 @@ E4_FRAMEWORK: List[Dict[str, Any]] = [
              "indicators": [{"label": "学习方法与策略-学习深层方法与策略"},
                             {"label": "学习方法与策略-学习表面方法与策略"}]},
             {"q": "计划性",
-             "indicators": [{"label": "人格-责任心"}, {"label": "自驱力-自主性"},
-                            {"label": "职业兴趣-常规型"}, {"order_value": "安全稳定"}]},
+             "indicators": [{"label": "人格-责任心"}, {"label": "自驱力-自主性"}]},
+            {"q": "确定性需求",
+             "indicators": [{"label": "职业兴趣-常规型"}, {"order_value": "安全稳定"}]},
             {"q": "元认知潜力",
              "indicators": [{"label": "认知能力-推理能力"}, {"label": "能力优势-内省能力"},
                             {"label": "学习方法与策略-学习深层方法与策略"},
@@ -1125,7 +1126,7 @@ def _v_e1_safety(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     """安全感（Emotion 表达）：只看三个依恋信任。
 
     信任均为 高/不低 → 在安全感中（健康）；任一偏低 → 关注（严重依恋问题由亲子问题承担）。
-    职业兴趣常规型/安全稳定排序表达的是「确定性需求」，不属于 Emotion，已移至 E4 计划性。
+    职业兴趣常规型/安全稳定排序表达的是「确定性需求」，不属于 Emotion，已移至 E4 确定性需求。
     """
     im = _label_index(items)
     rows = []
@@ -1429,7 +1430,7 @@ def _v_e4_strategy_level(items: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _v_e4_planning(items: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """计划性：责任心/自主性为判定项；常规型/安全稳定为「确定性需求」上下文行，不进问题级判定。"""
+    """计划性：责任心/自主性为判定项。"""
     im = _label_index(items)
     rows: List[Dict[str, str]] = []
     states: List[str] = []
@@ -1440,26 +1441,33 @@ def _v_e4_planning(items: List[Dict[str, Any]]) -> Dict[str, Any]:
         st = _st_personality(_it_eval(it)) if "人格" in key else _st_norm(_it_eval(it))
         rows.append(_row(it, st))
         states.append(st)
-    demand: List[str] = []
+    state = _worst_state(states) if states else VERDICT_NEUTRAL
+    summary = "计划性"
+    return {"state": state, "summary": summary, "items": rows}
+
+
+def _v_e4_certainty_demand(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """确定性需求：常规型/安全稳定为偏好指标。有需求=HEALTHY，无需求=NEUTRAL。"""
+    im = _label_index(items)
+    rows: List[Dict[str, str]] = []
+    hits: List[str] = []
     cg = im.get("职业兴趣-常规型")
     if cg is not None:
         ev = _it_eval(cg)
+        st = VERDICT_HEALTHY if ev in ("高", "不低") else VERDICT_NEUTRAL
+        rows.append(_row(cg, st))
         if ev in ("高", "不低"):
-            demand.append(f"常规型{ev}")
-        rows.append(_row(cg, VERDICT_NEUTRAL, "确定性需求上下文（不参与计划性判定）"))
+            hits.append(f"常规型{ev}")
     aq = im.get("ORDER:安全稳定")
     if aq is not None:
         pos = _order_pos(aq)
         if pos is not None and pos <= 5:
-            demand.append(f"安全稳定第{pos}位（前五）")
-        rows.append(_row(aq, VERDICT_NEUTRAL, "确定性需求上下文" + (f"，第{pos}位/共15" if pos else "")))
-    state = _worst_state(states) if states else VERDICT_NEUTRAL
-    if state == VERDICT_PROBLEM and demand:
-        summary = "计划性不足 + 高确定性需求（" + "、".join(demand) + "）→ 结构化机制切入点（如「一表人才」）"
-    elif demand:
-        summary = "计划性" + "（确定性需求：" + "、".join(demand) + "）"
-    else:
-        summary = "计划性"
+            hits.append(f"安全稳定第{pos}位")
+            rows.append(_row(aq, VERDICT_HEALTHY))
+        else:
+            rows.append(_row(aq, VERDICT_NEUTRAL))
+    state = VERDICT_HEALTHY if hits else VERDICT_NEUTRAL
+    summary = f"有确定性需求（{'、'.join(hits)}）" if hits else "无明显确定性需求"
     return {"state": state, "summary": summary, "items": rows}
 
 
@@ -1503,6 +1511,7 @@ _QUESTION_VERDICTS = {
     "学习策略是否错配？第四组：基于表面的学习": _v_e4_mismatch_surface,
     "学习策略与方法的程度（两个都低意味着没有使用方法和策略）": _v_e4_strategy_level,
     "计划性": _v_e4_planning,
+    "确定性需求": _v_e4_certainty_demand,
     "元认知潜力": _v_e4_metacognition,
 }
 
@@ -1608,10 +1617,11 @@ E4_JUDGMENT_GUIDES: Dict[str, str] = {
         "都低时判断的核心是「整体薄弱」而非「某一类缺」——区别于第三/四组题关注的是错配，本题关注的是绝对水平。",
     "计划性":
         "判定依据：人格-责任心与自驱力-自主性。责任心不低但自主性偏低=有责任感但缺乏主动规划——这是计划性问题的典型模式。"
-        "职业兴趣-常规型与安全稳定排序是「确定性需求」上下文，不作判定依据但影响跟进方向："
-        "计划性不足+高确定性需求时，结构化工具（「一表人才」等）是对路切入点；"
-        "计划性不弱但确定性需求高，只写偏好可预测结构。"
         "判断要区分「有责任感但缺主动规划」和「两者都弱」两种情况，不要笼统写计划性不足。",
+    "确定性需求":
+        "看职业兴趣-常规型与职业价值观-安全稳定排序位置。常规型不低/高或安全稳定排前五=有确定性需求（偏好可预测的结构与规则）。"
+        "这是偏好不是问题——确定性需求高本身不需要干预，但当它与计划性不足同时出现时，结构化工具（「一表人才」等）是对路切入点。"
+        "确定性需求低=适应性强，不偏好特定结构，不构成任何问题。",
     "元认知潜力":
         "六项证据计数定方向：3 项以上正向写潜力好并点名最强证据；3 项以上偏弱写待观察；其余中性。"
         "核心 nuance：不是判断聪不聪明（认知总百分位不低不代表元认知好），而是自我监控/反思/迁移的基础是否具备。"

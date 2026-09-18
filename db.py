@@ -370,6 +370,7 @@ def get_report_raw(report_id: int) -> Optional[Dict[str, Any]]:
             "student_name": student.name,
             "grade": student.grade,
             "report_date": report.report_date.isoformat() if report.report_date else None,
+            "interpretation": report.interpretation or "",
             "raw": raw,
         }
 

@@ -361,6 +361,10 @@ def api_generate():
             download_name=download_filename,
             mimetype="application/pdf",
         )
+        # RFC 5987: 浏览器对 Content-Disposition 中的中文文件名需要 filename*=UTF-8''编码
+        from urllib.parse import quote
+        quoted = quote(download_filename)
+        resp.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{quoted}"
         resp.headers["X-Applied-Items"] = str(apply_result.get("applied", 0))
         resp.headers["X-Total-Items"] = str(apply_result.get("total_items", 0))
         return resp
@@ -1910,6 +1914,33 @@ def api_report_evaluation(report_id):
 # ---------------------------------------------------------------------------
 # Delete operations
 # ---------------------------------------------------------------------------
+@app.route("/api/students/<int:student_id>", methods=["PUT"])
+@admin_required
+def api_rename_student(student_id):
+    """Rename a student."""
+    data = request.get_json(silent=True) or {}
+    new_name = (data.get("name") or "").strip()
+    if not new_name:
+        return jsonify({"ok": False, "error": "姓名不能为空"}), 400
+    sess = _db.Session(_db.engine)
+    try:
+        student = sess.get(_db.Student, student_id)
+        if not student:
+            return jsonify({"ok": False, "error": "学生不存在"}), 404
+        student.name = new_name
+        sess.commit()
+        return jsonify({"ok": True, "student": {
+            "id": student.id, "name": student.name,
+            "grade": student.grade, "gender": student.gender,
+            "school": student.school, "advisor_name": student.advisor_name
+        }})
+    except Exception as e:
+        sess.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        sess.close()
+
+
 @app.route("/api/students/<int:student_id>", methods=["DELETE"])
 @admin_required
 def api_delete_student(student_id):
@@ -2851,7 +2882,7 @@ def _e4_step2_system() -> str:
 - E2 睡眠/饮食/运动 → 向 Gary/Jeff 核实并更新数据（得分与评级冲突时以评级为准）；运动关注具体项目类型，可对照三级象限图中的运动类投入记录。
 - 渴望成功动机成立（职业价值观·成就感排序前五）→ 访谈「过去一年学习中有成就感的时刻」，学习动机从成就感来源切入，鼓励家庭一起在学习过程中积累成就感，数据化记录是重要方式。
 - 分心组合（高感知觉+相对弱注意力）→ 关注电子产品使用与做作业时的环境管理。
-- 高确定性需求（职业兴趣-常规型不低/高，或职业价值观·安全稳定排前五）+ 计划性不足 + 学习策略使用少 → 用「一表人才」（结构化计划表/学习机制工具）帮学生搭建结构化学习过程，并在过程中逐步养成习惯。
+- 确定性需求问题判定为「有确定性需求」+ 计划性不足 + 学习策略使用少 → 用「一表人才」（结构化计划表/学习机制工具）帮学生搭建结构化学习过程，并在过程中逐步养成习惯。
 - 执行功能弱项（如工作记忆、认知灵活性）若为施测末段题目 → 点明可能受疲劳影响；若该数据点带 bias 标注，按 bias 方向调整你的判断。
 - 原始分优先原则：档位是分类标签，原始分才是实情。判断时先看原始分在量表里的实际位置，不要机械地按档位下结论。典型情况：原始分接近满分（如 9.5/10）虽落在「需关注」档，从人的视角看实际接近天花板，不应当严重关注；反之原始分在档位边界附近时要谨慎，不要因刚好踩线就当问题展开。
 - 访谈/确认建议：只在需介入或结论不确定时才建议访谈确认；健康或明确的判断不写访谈建议，跟进动作放末尾跟进线索段。

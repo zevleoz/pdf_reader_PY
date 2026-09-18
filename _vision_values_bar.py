@@ -260,11 +260,11 @@ def parse_api_result(api_result: str, min_score: float, max_score: float, min_la
 # ============================================================
 
 def detect_b6_version(pdf_path: Path) -> str:
-    """检测 B6 是初中版还是高中版。直接从文件名判断。
+    """检测 B6 版本。直接从文件名判断。
 
-    文件名包含 "高中" → 高中版
-    文件名包含 "初中" → 初中版
-    默认 → 初中版
+    文件名包含 "高中" → 高中版（价值观在第15页）
+    文件名包含 "初中" → 初中版（价值观在第12页）
+    都不包含       → 通用版（价值观在第13页，即既不是初中也不是高中的 B6）
     """
     name = pdf_path.name
     if "高中" in name:
@@ -273,18 +273,21 @@ def detect_b6_version(pdf_path: Path) -> str:
     if "初中" in name:
         print(f"[视觉] B6 版本检测: 初中版 (文件名: {name})")
         return "初中版"
-    print(f"[视觉] B6 版本检测: 初中版 (默认, 文件名: {name})")
-    return "初中版"
+    print(f"[视觉] B6 版本检测: 通用版 (非初中/非高中, 文件名: {name})")
+    return "通用版"
 
 
 def find_values_page(pdf_path: Path) -> int:
-    """返回职业价值观页面的 0-based 索引。
+    """返回职业价值观页面的 0-based 索引（extract.py 的 OCR / 像素兜底 / must_pages 均用此）。
 
     初中版 → page 12 (index 11)
     高中版 → page 15 (index 14)
+    通用版 → page 12 (index 11)   # 与初中版相同，保持原有行为不变
     """
     version = detect_b6_version(pdf_path)
-    return 11 if version == "初中版" else 14
+    if version == "高中版":
+        return 14
+    return 11  # 初中版 + 通用版
 
 
 # ============================================================
@@ -361,6 +364,22 @@ PROMPT_GAOZHONG = """这是高中版职业价值观测评报告的页面。页�
 - 必须包含所有15个编号"""
 
 
+# ============================================================
+# 通用版（非初中/非高中）专用：编号卡片页映射读取
+# 独立代码段：初中版/高中版流程不会进入这里
+# 只写 mapping.json（修 110-124），不写 bar.json（不碰 095-109）
+# ============================================================
+
+# 该版本 PDF 把"管理权利"印成"权利"，系统标准名是"管理权力"
+_GENERIC_ALIASES = {"管理权利": "管理权力"}
+
+
+def _normalize_generic_label(name: str) -> str:
+    """通用版专用标签归一：去空格 + 别名（管理权利→管理权力）。"""
+    norm = normalize_label(name)
+    return _GENERIC_ALIASES.get(norm, norm)
+
+
 def main() -> Dict[str, float]:
     base_dir = Path(__file__).resolve().parent
     input_dir = base_dir / "input"
@@ -375,6 +394,59 @@ def main() -> Dict[str, float]:
     
     # 检测版本并选择页面
     version = detect_b6_version(pdf_path)
+
+    # ============================================================
+    # 通用版（非初中/非高中）独立分支：只读编号卡片页写 mapping
+    # 不写 bar.json → 不覆盖 095-109（124 视觉 API 已读到真实分）
+    # 返回 dummy 字典 → extract.py 进入 mapping 读取分支但不触发分数覆盖
+    # ============================================================
+    if version == "通用版":
+        # 通用版 3×5 编号卡片在 index 14（第15页），复用 PROMPT_CHUZHONG
+        cards_page_idx = 14
+        print(f"[视觉] 通用版：编号卡片在第 {cards_page_idx + 1} 页")
+
+        cards_img = render_page(pdf_path, cards_page_idx)
+        _, cards_bytes = cv2.imencode('.png', cv2.cvtColor(cards_img, cv2.COLOR_RGB2BGR))
+        cards_b64 = base64.b64encode(cards_bytes).decode("utf-8")
+        print("[视觉] 通用版：调用视觉 API 识别编号卡片")
+        cards_api = call_vision_api(cards_b64, PROMPT_CHUZHONG)
+
+        num_to_label: Dict[str, str] = {}
+        if cards_api:
+            try:
+                jm = re.search(r'\{[\s\S]*\}', cards_api)
+                if jm:
+                    parsed = json.loads(jm.group())
+                    for k, v in parsed.items():
+                        if k.isdigit() and 1 <= int(k) <= 15:
+                            name = _normalize_generic_label(str(v))
+                            if name:
+                                num_to_label[str(k)] = name
+            except json.JSONDecodeError:
+                pass
+
+        if len(num_to_label) < 15:
+            print(f"[视觉] 通用版：编号卡片识别不完整 (count={len(num_to_label)})，丢弃映射")
+            return {}
+
+        print("\n[视觉] 通用版编号映射（按卡片编号排序）:")
+        for i in range(1, 16):
+            print(f"    卡片 {i}: {num_to_label.get(str(i), '')}")
+
+        # 只写 mapping.json（extract.py 据此填 110-124）
+        mapping_output_path = base_dir / "data" / "_vision_b6_values_mapping.json"
+        mapping_output_path.parent.mkdir(exist_ok=True)
+        with open(mapping_output_path, 'w', encoding='utf-8') as f:
+            json.dump(num_to_label, f, ensure_ascii=False, indent=2)
+        print(f"\n[视觉] 写入编号映射 {mapping_output_path}")
+
+        # 返回 dummy 字典：非空（让 extract.py 进入 mapping 读取分支）
+        # 但 key 不在 label_to_code 中 → 不会覆盖 095-109
+        return {"_generic_version": 0.0}
+
+    # ============================================================
+    # 初中版 / 高中版：原有流程（保持不变）
+    # ============================================================
     values_page_idx = find_values_page(pdf_path)
     print(f"[视觉] 职业价值观页面在第 {values_page_idx + 1} 页 (版本: {version})")
     

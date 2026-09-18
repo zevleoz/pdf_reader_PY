@@ -205,6 +205,12 @@
 
     <div class="card">
       <div class="section-label">学生信息</div>
+      <div class="field" style="margin-bottom:18px;">
+        <label class="field-label" for="studentSelect">关联学生</label>
+        <select id="studentSelect">
+          <option value="">— 手动输入 —</option>
+        </select>
+      </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
         <div class="field">
           <label class="field-label" for="studentName">学生姓名</label>
@@ -290,7 +296,7 @@
 
     // ---------- URL params + linked student/report ----------
     const urlParams = new URLSearchParams(window.location.search);
-    const LINKED_STUDENT_ID = urlParams.get('student_id') ? parseInt(urlParams.get('student_id')) : null;
+    let LINKED_STUDENT_ID = urlParams.get('student_id') ? parseInt(urlParams.get('student_id')) : null;
     const LINKED_REPORT_ID  = urlParams.get('report_id')  ? parseInt(urlParams.get('report_id'))  : null;
 
     // Session key with suffix
@@ -425,8 +431,56 @@
       downloadTxtBtn.style.display = 'inline-block';
     }
 
+    // ---------- Student selector ----------
+    let STUDENTS_CACHE = [];
+
+    async function loadStudentOptions() {
+      const sel = document.getElementById('studentSelect');
+      try {
+        const resp = await fetch('/api/students');
+        const data = await resp.json();
+        STUDENTS_CACHE = data.students || [];
+        for (const s of STUDENTS_CACHE) {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = s.grade ? `${s.name}（${s.grade}）` : s.name;
+          sel.appendChild(opt);
+        }
+        // Auto-select student from URL param
+        if (LINKED_STUDENT_ID) {
+          sel.value = String(LINKED_STUDENT_ID);
+        }
+      } catch (e) {
+        console.warn('Failed to load student options', e);
+      }
+    }
+
+    function onStudentSelect() {
+      const sel = document.getElementById('studentSelect');
+      const id = sel.value ? parseInt(sel.value) : null;
+      LINKED_STUDENT_ID = id;
+      const nameEl = document.getElementById('studentName');
+      const gradeEl = document.getElementById('studentGrade');
+      const genderEl = document.getElementById('studentGender');
+      if (!id) {
+        nameEl.value = '';
+        gradeEl.value = '';
+        genderEl.value = '';
+        saveToSession();
+        return;
+      }
+      const s = STUDENTS_CACHE.find(x => x.id === id);
+      if (s) {
+        nameEl.value = s.name || '';
+        gradeEl.value = s.grade || '';
+        genderEl.value = s.gender || '';
+      }
+      saveToSession();
+    }
+
     // ---------- Init linked student/report ----------
     async function initLinked() {
+      await loadStudentOptions();
       const banner = document.getElementById('linkBanner');
       const bannerTitle = document.getElementById('lbTitle');
       const bannerMeta = document.getElementById('lbMeta');
@@ -575,6 +629,7 @@
       document.getElementById(id).addEventListener('input', saveToSession);
     });
     customPromptEl.addEventListener('input', saveToSession);
+    document.getElementById('studentSelect').addEventListener('change', onStudentSelect);
 
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];

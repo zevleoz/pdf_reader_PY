@@ -51,14 +51,21 @@
       margin-bottom: 12px;
       color: var(--ink);
     }
-    .y4-done { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; }
-    .y4-pending { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--paper-2); color: var(--muted); }
+    .y4-done { display: inline-flex; align-items: center; white-space: nowrap; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; }
+    .yd-date {
+      font-weight: 400;
+      margin-left: 7px;
+      padding-left: 7px;
+      border-left: 1px solid rgba(46, 125, 50, .28);
+      opacity: .82;
+      font-variant-numeric: tabular-nums;
+    }
+    .y4-pending { display: inline-flex; align-items: center; white-space: nowrap; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--paper-2); color: var(--muted); }
     .minutes-count {
-      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      display: inline-flex; align-items: center; white-space: nowrap; padding: 2px 9px; border-radius: 999px;
       font-size: 11px; font-weight: 600;
       background: #FFF4E5; color: #B45309;
       border: 1px solid #FBD38D;
-      margin-left: 6px;
     }
     .interp-card {
       background: var(--white);
@@ -126,6 +133,222 @@
       border-radius: 10px;
       padding: 20px;
     }
+
+    /* 学生列表 — 对齐列 */
+    .stu-table-head, .student-card {
+      display: grid;
+      grid-template-columns: minmax(140px, 1.05fr) minmax(0, 1.25fr) minmax(110px, .7fr) minmax(196px, 224px) 264px;
+      gap: 14px;
+      align-items: center;
+    }
+    .stu-table-head {
+      height: 30px;
+      margin-bottom: 6px;
+      padding: 0 16px;
+      border: 1px solid transparent;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: .4px;
+    }
+    .stu-table-head span:last-child { text-align: right; }
+    .student-card {
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 6px;
+      min-height: 62px;
+      transition: background .15s var(--ease), border-color .2s var(--ease);
+    }
+    .student-card:hover {
+      background: var(--paper-2);
+      border-color: var(--line);
+    }
+    .sc-name-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .sc-name {
+      font-family: "Noto Serif SC", serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.4;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .sc-grade-tag {
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--paper-2);
+      border: 1px solid var(--line-soft);
+      border-radius: 5px;
+      padding: 1px 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .sc-school, .sc-advisor {
+      font-size: 13px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sc-school { color: var(--ink); }
+    .sc-advisor { color: var(--ink-2); }
+    .sc-school.is-empty, .sc-advisor.is-empty { color: var(--muted); }
+    .sc-badges { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+    .sc-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+    .sc-actions .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+    .sc-actions .btn-minutes { min-width: 70px; justify-content: center; }
+    .sc-actions .sc-ghost {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--muted);
+    }
+    .sc-actions .sc-ghost:hover {
+      color: var(--ink);
+      background: var(--white);
+      border-color: var(--line);
+    }
+    .sc-actions .sc-ghost.sc-danger:hover {
+      color: var(--red);
+      border-color: var(--red);
+      background: #FEF2F2;
+    }
+    .sc-rename {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0 4px;
+      border-top: 1px dashed var(--line-soft);
+      margin-top: 4px;
+    }
+    .rename-input {
+      flex: 1;
+      min-width: 180px;
+      padding: 7px 12px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: "Inter", "Noto Serif SC", sans-serif;
+      color: var(--ink);
+      background: var(--white);
+      outline: none;
+      transition: border-color .2s var(--ease);
+    }
+    .rename-input:focus { border-color: var(--red); }
+    @media (max-width: 860px) {
+      .stu-table-head { display: none; }
+      .student-card { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
+      .sc-name-cell { flex: 1 1 auto; }
+      .sc-badges { margin-left: auto; }
+      .sc-school, .sc-advisor { flex-basis: 100%; }
+      .sc-school { order: 3; }
+      .sc-advisor { order: 4; }
+      .sc-actions { order: 5; flex-basis: 100%; justify-content: flex-start; }
+    }
+    /* 学生列表搜索与筛选 */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .st-filter-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 320px;
+      flex-wrap: wrap;
+    }
+    .st-search-wrap {
+      position: relative;
+      flex: 1;
+      max-width: 380px;
+      min-width: 200px;
+    }
+    .st-search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+      display: flex;
+      transition: color .2s var(--ease);
+    }
+    .st-search-wrap:focus-within .st-search-icon { color: var(--red); }
+    .st-search {
+      width: 100%;
+      padding: 9px 14px 9px 36px;
+      border: 1.5px solid transparent;
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--ink);
+      background: var(--paper-2);
+      outline: none;
+      transition: background .2s var(--ease), border-color .2s var(--ease);
+      font-family: inherit;
+    }
+    .st-search:focus {
+      background: var(--white);
+      border-color: var(--red);
+    }
+    .st-search::placeholder { color: var(--muted); }
+    .st-seg {
+      display: flex;
+      align-items: center;
+      background: var(--paper-2);
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .st-seg-item {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 7px;
+      font-size: 12.5px;
+      font-family: inherit;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: color .18s var(--ease), background .18s var(--ease);
+    }
+    .st-seg-item:hover:not(.active) { color: var(--ink); }
+    .st-seg-item.active {
+      background: var(--ink);
+      color: var(--white);
+      font-weight: 500;
+    }
+    .st-seg-item .seg-count {
+      font-size: 10.5px;
+      font-weight: 600;
+      opacity: .6;
+    }
+    .st-result-count {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .st-actions { display: flex; gap: 8px; align-items: center; }
   </style>
 </head>
 <body>
@@ -136,8 +359,24 @@
       <p class="page-subtitle">所有已生成报告的学生记录。点击学生查看历史报告，或直接「新建议程」开始撰写解读会会议记录。</p>
     </div>
     <div class="toolbar">
-      <button class="btn btn-secondary" onclick="window.location.href='/api/export'">导出 CSV</button>
-      <button class="btn btn-secondary" onclick="loadStudents()">刷新</button>
+      <div class="st-filter-group">
+        <div class="st-search-wrap">
+          <span class="st-search-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </span>
+          <input class="st-search" id="studentSearch" placeholder="搜索姓名、年级、学校、顾问…" oninput="filterStudents()">
+        </div>
+        <div class="st-seg" id="statusSeg">
+          <button type="button" class="st-seg-item active" data-status="all" onclick="setStatusFilter('all')">全部 <span class="seg-count" id="cntAll"></span></button>
+          <button type="button" class="st-seg-item" data-status="done" onclick="setStatusFilter('done')">已完成 Y4 <span class="seg-count" id="cntDone"></span></button>
+          <button type="button" class="st-seg-item" data-status="pending" onclick="setStatusFilter('pending')">未测评 <span class="seg-count" id="cntPending"></span></button>
+        </div>
+      </div>
+      <div class="st-actions">
+        <span class="st-result-count" id="resultCount"></span>
+        <button class="btn btn-secondary" onclick="window.location.href='/api/export'">导出 CSV</button>
+        <button class="btn btn-secondary" onclick="loadStudents()">刷新</button>
+      </div>
     </div>
     <div id="studentList"></div>
     <div id="reportList" class="report-list" style="display:none"></div>
@@ -148,39 +387,91 @@
     let currentStudentId = null;
     let currentStudentName = '';
 
+    let allStudents = [];
+    let currentStatus = 'all';
+
+    function setStatusFilter(v) {
+      currentStatus = v;
+      document.querySelectorAll('#statusSeg .st-seg-item').forEach(b => {
+        b.classList.toggle('active', b.dataset.status === v);
+      });
+      filterStudents();
+    }
+
     async function loadStudents() {
       const resp = await fetch('/api/students');
       const data = await resp.json();
+      allStudents = data.students || [];
+      filterStudents();
+    }
+
+    function filterStudents() {
+      const q = (document.getElementById('studentSearch').value || '').trim().toLowerCase();
+      let list = allStudents;
+      if (q) {
+        list = list.filter(s => {
+          return (s.name || '').toLowerCase().includes(q) ||
+                 (s.grade || '').toLowerCase().includes(q) ||
+                 (s.school || '').toLowerCase().includes(q) ||
+                 (s.advisor_name || '').toLowerCase().includes(q);
+        });
+      }
+      if (currentStatus === 'done') list = list.filter(s => s.report_count > 0);
+      else if (currentStatus === 'pending') list = list.filter(s => s.report_count === 0);
+      renderStudents(list);
+    }
+
+    function renderStudents(students) {
       const el = document.getElementById('studentList');
-      if (!data.students || data.students.length === 0) {
-        el.innerHTML = '<div class="empty">暂无学生记录</div>';
+      const doneCount = allStudents.filter(s => s.report_count > 0).length;
+      document.getElementById('cntAll').textContent = allStudents.length;
+      document.getElementById('cntDone').textContent = doneCount;
+      document.getElementById('cntPending').textContent = allStudents.length - doneCount;
+      document.getElementById('resultCount').textContent = students.length === allStudents.length
+        ? '共 ' + students.length + ' 位学生'
+        : students.length + ' / ' + allStudents.length + ' 位学生';
+      if (!students || students.length === 0) {
+        el.innerHTML = '<div class="empty">暂无匹配的学生记录</div>';
         return;
       }
-      let html = '<table><thead><tr><th>ID</th><th>姓名</th><th>顾问</th><th>学校</th><th>年级</th><th>Y4 状态</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
-      for (const s of data.students) {
+      let html = '<div class="stu-table-head"><span>学生</span><span>学校</span><span>顾问</span><span>状态</span><span>操作</span></div>';
+      for (const s of students) {
         const y4Status = s.report_count > 0
-          ? '<span class="y4-done">✓ 已完成' + (s.latest_report_date ? ' (' + s.latest_report_date + ')' : '') + '</span>'
+          ? '<span class="y4-done">已完成' + (s.latest_report_date ? '<span class="yd-date">' + s.latest_report_date + '</span>' : '') + '</span>'
           : '<span class="y4-pending">未测评</span>';
         const minutesBadge = s.minutes_count > 0 ? `<span class="minutes-count" title="该学生已有解读会纪要条数">纪要 ${s.minutes_count}</span>` : '';
         const canMinutes = s.report_count > 0;
-        html += `<tr>
-          <td>${s.id}</td>
-          <td><strong>${s.name}</strong>${minutesBadge}</td>
-          <td>${s.advisor_name || '-'}</td>
-          <td>${s.school || '-'}</td>
-          <td>${s.grade || '-'}</td>
-          <td>${y4Status}</td>
-          <td>${s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : '-'}</td>
-          <td><div class="action-cell">
-            <a class="action-link" href="#" onclick="showReports(${s.id}, ${JSON.stringify(s.name).replace(/"/g,'&quot;')});return false;">查看报告</a>
-            <button class="btn btn-sm btn-minutes" onclick="newMinutesForStudent(${s.id})" ${canMinutes ? '' : 'disabled title="先生成测评报告后再做解读会纪要"'}>
-              ${canMinutes ? '✎ 新建议程' : '无报告'}
-            </button>
-            <button class="btn btn-sm btn-danger" onclick="deleteStudent(${s.id}, '${s.name}')">删除</button>
-          </div></td>
-        </tr>`;
+        const nameJson = JSON.stringify(s.name).replace(/"/g, '&quot;');
+        const created = s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : '-';
+        const gradeTag = s.grade ? '<span class="sc-grade-tag">' + escapeHtml(s.grade) + '</span>' : '';
+        const schoolHtml = s.school
+          ? escapeHtml(s.school)
+          : '<span class="is-empty">—</span>';
+        const advisorHtml = s.advisor_name
+          ? escapeHtml(s.advisor_name)
+          : '<span class="is-empty">—</span>';
+        html += `<div class="student-card" data-id="${s.id}" title="创建于 ${created}">
+          <div class="sc-name-cell">
+            <span class="sc-name" id="name-${s.id}">${escapeHtml(s.name)}</span>
+            ${gradeTag}
+          </div>
+          <div class="sc-school" title="${escapeHtml(s.school || '')}">${schoolHtml}</div>
+          <div class="sc-advisor" title="${escapeHtml(s.advisor_name || '')}">${advisorHtml}</div>
+          <div class="sc-badges">${y4Status}${minutesBadge}</div>
+          <div class="sc-actions">
+            <a class="action-link" href="#" onclick="showReports(${s.id}, ${nameJson});return false;">查看报告</a>
+            <button class="btn btn-sm btn-minutes" onclick="newMinutesForStudent(${s.id})" ${canMinutes ? '' : 'disabled title="先生成测评报告后再做解读会纪要"'}>${canMinutes ? '新建议程' : '无报告'}</button>
+            <button class="btn btn-sm sc-ghost" onclick="startRename(${s.id})">重命名</button>
+            <button class="btn btn-sm sc-ghost sc-danger" onclick="deleteStudent(${s.id}, ${nameJson})">删除</button>
+          </div>
+          <div class="sc-rename" id="rename-${s.id}" style="display:none">
+            <input type="text" class="rename-input" id="rename-input-${s.id}" value="${escapeHtml(s.name)}"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();confirmRename(${s.id})}else if(event.key==='Escape'){cancelRename(${s.id})}" />
+            <button class="btn btn-sm btn-primary" onclick="confirmRename(${s.id})">确认</button>
+            <button class="btn btn-sm btn-secondary" onclick="cancelRename(${s.id})">取消</button>
+          </div>
+        </div>`;
       }
-      html += '</tbody></table>';
       el.innerHTML = html;
     }
 
@@ -456,6 +747,45 @@
         document.getElementById('minutesHistory').style.display = 'none';
       } else {
         alert('删除失败：' + (data.error || '未知错误'));
+      }
+    }
+
+    function startRename(studentId) {
+      const editor = document.getElementById('rename-' + studentId);
+      if (!editor) return;
+      editor.style.display = 'flex';
+      const input = document.getElementById('rename-input-' + studentId);
+      if (input) { input.focus(); input.select(); }
+    }
+
+    function cancelRename(studentId) {
+      const editor = document.getElementById('rename-' + studentId);
+      if (!editor) return;
+      editor.style.display = 'none';
+      const input = document.getElementById('rename-input-' + studentId);
+      const nameEl = document.getElementById('name-' + studentId);
+      if (input && nameEl) input.value = nameEl.textContent.trim();
+    }
+
+    async function confirmRename(studentId) {
+      const input = document.getElementById('rename-input-' + studentId);
+      if (!input) return;
+      const newName = (input.value || '').trim();
+      if (!newName) { alert('姓名不能为空'); return; }
+      try {
+        const resp = await fetch(`/api/students/${studentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newName }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          loadStudents();
+        } else {
+          alert('重命名失败：' + (data.error || '未知错误'));
+        }
+      } catch (e) {
+        alert('重命名失败：' + e.message);
       }
     }
 

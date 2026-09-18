@@ -1005,10 +1005,16 @@
       if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
       lastBlobUrl = URL.createObjectURL(blob);
 
-      // Extract filename from Content-Disposition header
+      // Extract filename from Content-Disposition header (supports RFC 5987 filename*)
       const disposition = resp.headers.get('Content-Disposition') || '';
-      const match = disposition.match(/filename="?([^";\n]+)"?/);
-      lastPdfFilename = match ? match[1] : '综合测评报告.pdf';
+      lastPdfFilename = '综合测评报告.pdf';
+      const starMatch = disposition.match(/filename\*=UTF-8''([^;\n]+)/i);
+      if (starMatch) {
+        lastPdfFilename = decodeURIComponent(starMatch[1]);
+      } else {
+        const match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match) lastPdfFilename = match[1];
+      }
 
       // Enable download button
       document.getElementById('downloadBtn').disabled = false;
