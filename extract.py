@@ -1467,6 +1467,61 @@ _SCHEMA_PROMPT_USER_124 = """你是一个严格按编号从 PDF 报告中抽取�
 """
 
 
+# ---------------------------------------------------------------------------
+# Slot 拆分：把 133 项 schema 按 PDF 来源（A2/B3/B4/B6）拆成 4 个批次
+# ---------------------------------------------------------------------------
+_SCHEMA_ITEM_LINE_RE = re.compile(
+    r"^(\d{3})\s+(.+?)\s+(number|string)（([AB]\d)[^）]*）\s*$"
+)
+
+
+def _parse_slot_items() -> Dict[str, List[Tuple[str, str]]]:
+    """把 _SCHEMA_PROMPT_USER_124 拆成 {slot: [(code, 行文本), ...]}。
+    保留原始行文本（含（slot，…）标签），per-slot prompt 通过过滤而非重写构造。"""
+    out: Dict[str, List[Tuple[str, str]]] = {"A2": [], "B3": [], "B4": [], "B6": []}
+    for raw in _SCHEMA_PROMPT_USER_124.splitlines():
+        line = raw.rstrip()
+        m = _SCHEMA_ITEM_LINE_RE.match(line)
+        if not m:
+            continue
+        code, _desc, _type, slot = m.groups()
+        out.setdefault(slot, []).append((code, line))
+    return out
+
+
+_SLOT_ITEMS: Dict[str, List[Tuple[str, str]]] = _parse_slot_items()
+# 42 + 15 + 23 + 53 == 133
+assert sum(len(v) for v in _SLOT_ITEMS.values()) == 133, "slot 拆分数量不等于 133"
+
+
+_PER_SLOT_HEADER_TMPL = """你是一个严格按编号从 PDF 报告中抽取数据的助手。
+以下是我需要你严格输出的 {n} 项数据点的编号和取值口径。
+输出形式固定为一个 JSON：顶层只有一个 key "data"，对应一个长度 {n} 的数组。
+数组里每一项为 {{"code": "NNN", "value": <你的结果>}}。
+必须按下面定义的编号顺序输出，一个都不能少。编号不能跳。
+编号顺序必须严格是我下面定义的顺序。
+每个 value 都必须按照我给的"类型约束"来输出：
+  - number —— 纯数字（整数或小数均可）。不要写汉字。如果读不到写 ""。
+  - string —— 文字值（档位/类型/名称/代码）。
+严格按照下面的 {n} 项定义的 type 字段来输出。不要写其他文字解释。
+不要输出 code 和 value 之外的字段。
+不要在任何位置写你的分析或解释。
+不要用 null。不要用中文在 JSON 之外。
+数据点定义（按编号顺序）：
+"""
+
+
+def _build_slot_prompt(slot: str) -> str:
+    """构造只含指定 slot 数据项的 prompt。条目行从 _SCHEMA_PROMPT_USER_124
+    原样透传，保证与原 133 项 schema 逐字一致。"""
+    items = _SLOT_ITEMS.get(slot, [])
+    if not items:
+        raise ValueError(f"no items for slot {slot}")
+    header = _PER_SLOT_HEADER_TMPL.format(n=len(items))
+    body = "\n".join(line for _code, line in items)
+    return header + body + "\n"
+
+
 def _build_schema_payload(b64_images: List[str]) -> Dict[str, Any]:
     """组装多图 payload（OpenAI 兼容格式）。"""
     image_entries = [
@@ -1486,7 +1541,8 @@ def _build_schema_payload(b64_images: List[str]) -> Dict[str, Any]:
 VISION_MODEL_NAME = os.environ.get("VISION_MODEL_NAME", "qwen3-vl-plus").strip()
 
 
-def _call_dashscope_native_multi(b64_images: List[str], timeout: int = 300) -> Optional[Dict[str, Any]]:
+def _call_dashscope_native_multi(b64_images: List[str], timeout: int = 300,
+                                 prompt: str = _SCHEMA_PROMPT_USER_124) -> Optional[Dict[str, Any]]:
     """使用 DashScope 原生 SDK 调用多模态模型（支持多图输入）。"""
     from multiprocessing.pool import ThreadPool
     from concurrent.futures import ThreadPoolExecutor
@@ -1503,7 +1559,7 @@ def _call_dashscope_native_multi(b64_images: List[str], timeout: int = 300) -> O
             "role": "user",
             "content": [
                 {"image": img_url} for img_url in image_urls
-            ] + [{"text": _SCHEMA_PROMPT_USER_124}]
+            ] + [{"text": prompt}]
         }
     ]
 
@@ -1541,6 +1597,47 @@ def _call_dashscope_native_multi(b64_images: List[str], timeout: int = 300) -> O
         dt = time.time() - t0
         print(f"  [DashScope SDK] 调用异常 {type(e).__name__}: {e} ({dt:.0f}s)")
         return None
+
+
+_VISION_RETRY_DELAYS = (5, 10, 20)  # 指数退避：3 次重试间隔 5s/10s/20s
+
+
+def _call_vision_with_retry(slot: str,
+                            b64_images: List[str],
+                            prompt: str,
+                            max_retries: int = 3,
+                            timeout: int = 300) -> Optional[Dict[str, Any]]:
+    """带指数退避的视觉 API 调用。返回含 "data" 的解析 dict，全部失败返回 None。
+
+    重试条件：API 异常返回 None、空内容、JSON 无法解析或缺少 "data" 键。
+    """
+    last_reason = "unknown"
+    for attempt in range(max_retries + 1):  # 1 次初始 + 3 次重试
+        if attempt > 0:
+            delay = _VISION_RETRY_DELAYS[attempt - 1]
+            print(f"  [slot {slot}] 重试 {attempt}/{max_retries}（等 {delay}s，上次原因: {last_reason}）")
+            time.sleep(delay)
+        resp = _call_dashscope_native_multi(b64_images, timeout=timeout, prompt=prompt)
+        if resp is None:
+            last_reason = "API 返回 None（异常/超时/网络错误）"
+            continue
+        content = (resp.get("content") or "").strip()
+        if not content:
+            last_reason = "空内容"
+            continue
+        parsed = _extract_json_from_response(content)
+        if parsed is None or "data" not in parsed:
+            last_reason = "JSON 解析失败或缺少 data 键"
+            # 保存原始响应便于事后排查
+            try:
+                (DATA_DIR / f"vision_raw_response_{slot}_attempt{attempt}.txt").write_text(
+                    content, encoding="utf-8")
+            except Exception:
+                pass
+            continue
+        return parsed
+    print(f"  [slot {slot}] {max_retries + 1} 次尝试全部失败（最后原因: {last_reason}）")
+    return None
 
 
 def _call_openai_compat_multi(payload: Dict[str, Any], timeout: int = 300
@@ -1595,8 +1692,8 @@ def _extract_json_from_response(text: str) -> Optional[Dict[str, Any]]:
 
 
 def _render_pages_for_vision(max_per_pdf: int = 8,
-                            matrix_scale: float = 3.0) -> List[Path]:
-    """把 input/*.pdf 的代表页渲染成高清 PNG。
+                            matrix_scale: float = 3.0) -> Dict[str, List[Path]]:
+    """把 input/*.pdf 的代表页渲染成高清 PNG，按 slot 分组返回。
     先做"关键字定位"：对每页文本检查关键词（如"职业价值观"、
     "情绪稳定性"、"依恋模式"、"思维模式"等），命中的优先纳入；
     剩余配额用等间距补全。
@@ -1625,7 +1722,7 @@ def _render_pages_for_vision(max_per_pdf: int = 8,
                "多样变化", "管理权力", "安全稳定", "声望地位", "生活方式"],
     }
 
-    paths: List[Path] = []
+    paths_by_slot: Dict[str, List[Path]] = {}
     for pdf in pdfs:
         doc = fitz.open(str(pdf))
         total = len(doc)
@@ -1677,12 +1774,12 @@ def _render_pages_for_vision(max_per_pdf: int = 8,
                                            alpha=False)
                 out = PAGES_DIR / f"{pdf.stem}_vision_{p:02d}.png"
                 pix.save(str(out))
-                paths.append(out)
+                paths_by_slot.setdefault(slot, []).append(out)
             except Exception as e:
                 print(f"  [渲染失败] {pdf.name} page {p}: {e}")
         doc.close()
         print(f"  {pdf.name} slot={slot}: {len(picks)} 页 → PNG (must_pages={len(must_pages)})")
-    return paths
+    return paths_by_slot
 
 
 def extract_124_points_with_vision() -> Dict[str, Any]:
@@ -1690,9 +1787,9 @@ def extract_124_points_with_vision() -> Dict[str, Any]:
     便于后续写入 USER_DATA 时做二次转换。
 
     ⚠️  本函数 **强制依赖视觉 API**（不降级为纯文本提取）。
-    - 未配置 API key → 抛出 RuntimeError
-    - API 调用失败 → 抛出 RuntimeError
-    - API 返回格式不符合 124 项 schema → 抛出 RuntimeError
+    按 slot（A2/B3/B4/B6）分 4 批调用视觉 API（每批 8-11 张图），
+    每批带指数退避重试；单批失败跳过（返回部分结果，由文本兜底补充），
+    全部 4 批失败才抛出 RuntimeError。
 
     调用方（app.py 的 Flask 前端）必须捕获这些异常并给用户提示。
     """
@@ -1703,14 +1800,7 @@ def extract_124_points_with_vision() -> Dict[str, Any]:
     if not pdfs:
         return {}
 
-    # 1) 渲染代表页（更多页面，保证关键表格被包含）
-    image_paths = _render_pages_for_vision(max_per_pdf=8)
-    b64_images = []
-    for p in image_paths:
-        with open(p, "rb") as f:
-            b64_images.append(base64.b64encode(f.read()).decode("utf-8"))
-
-    # 2) ⚠️  强制检查 API key — 无 key 不允许继续
+    # ⚠️  强制检查 API key — 无 key 不允许继续
     if not VISION_ACTIVE_KEY:
         raise RuntimeError(
             "未设置视觉 API Key。请在环境变量中配置以下任意一项：\n"
@@ -1721,47 +1811,69 @@ def extract_124_points_with_vision() -> Dict[str, Any]:
             "当前方案：视觉 OCR 是必填步骤，不支持纯文本降级。"
         )
 
-    # 3) 使用 DashScope 原生 SDK 调用（支持多图输入）
-    print(f"  [视觉 API] 使用 DashScope SDK，模型 {VISION_MODEL_NAME}，含 {len(b64_images)} 张图片")
-    t0 = time.time()
-    resp = _call_dashscope_native_multi(b64_images, timeout=300)
-    dt = time.time() - t0
-    if resp is None:
+    # 1) 按 slot 渲染代表页（更多页面，保证关键表格被包含）
+    slot_paths = _render_pages_for_vision(max_per_pdf=8)
+
+    # 2) 按 slot 分批调用（每批只带该 slot 的图片 + 只要求该 slot 的 schema 项）
+    all_results: Dict[str, Any] = {}
+    failed_slots: List[str] = []
+    t_total = time.time()
+
+    for slot in ("A2", "B3", "B4", "B6"):
+        paths = slot_paths.get(slot, [])
+        if not paths:
+            print(f"  [视觉 API] slot={slot}: 无渲染页面，跳过")
+            failed_slots.append(slot)
+            continue
+
+        b64_images: List[str] = []
+        for p in paths:
+            with open(p, "rb") as f:
+                b64_images.append(base64.b64encode(f.read()).decode("utf-8"))
+
+        prompt = _build_slot_prompt(slot)
+        n_items = len(_SLOT_ITEMS[slot])
+        print(f"  [视觉 API] slot={slot}: {len(b64_images)} 张图片, {n_items} 项 "
+              f"(DashScope SDK / {VISION_MODEL_NAME})")
+
+        parsed = _call_vision_with_retry(slot, b64_images, prompt, timeout=300)
+        if parsed is None:
+            failed_slots.append(slot)
+            continue
+
+        # 安全过滤：只接受属于该 slot 的 code，防止幻觉污染其他 slot
+        expected_codes = {code for code, _ in _SLOT_ITEMS[slot]}
+        added = 0
+        for item in parsed.get("data", []):
+            code = str(item.get("code", "")).strip()
+            if code not in expected_codes:
+                continue
+            value = item.get("value")
+            if value is None:
+                value = ""
+            all_results[code] = value
+            added += 1
+        print(f"  [视觉 API] slot={slot}: 成功读取 {added}/{n_items} 项（累计 {len(all_results)} 项）")
+
+    dt_total = time.time() - t_total
+    print(f"  视觉 API 总耗时 {dt_total:.0f}s；成功 {len(all_results)}/133 项；"
+          f"失败 slots={failed_slots if failed_slots else '无'}")
+
+    # 3) 全部失败才 raise —— 保持原有"视觉 API 不可用即报错"的契约；
+    #    部分失败则返回部分结果，由文本兜底和 _vision_values_bar 补充。
+    if not all_results:
         raise RuntimeError(
-            f"视觉 API 调用失败 (超时 / 网络错误 / API key 无效)。\n"
+            f"视觉 API 全部 {len(failed_slots)} 个 slot 批次调用失败"
+            f"（重试 + 指数退避后仍无结果）。\n"
             f"当前配置：DashScope SDK / {VISION_MODEL_NAME}\n\n"
             f"请检查：\n"
             f"  1) API Key 是否有效（{len(VISION_ACTIVE_KEY)} 字符）\n"
-            f"  2) 网络是否连通\n\n"
+            f"  2) 网络 / 限流 / 配额\n"
+            f"  3) data/vision_raw_response_*.txt 内原始响应\n\n"
             f"⚠️  当前方案：视觉 OCR 是必填步骤，不支持纯文本降级。"
         )
 
-    # 4) 解析 JSON -> {code: value}
-    text = resp.get("content", "")
-    print(f"  视觉 API 返回长度 {len(text)} 字符（{dt:.0f}s）")
-    parsed = _extract_json_from_response(text)
-    if parsed is None or "data" not in parsed:
-        # 写 raw text 到 data/ 以便手工检查
-        (DATA_DIR / "vision_raw_response.txt").write_text(text, encoding="utf-8")
-        raise RuntimeError(
-            f"视觉 API 返回格式不符合要求（预期 124 项 JSON schema）。\n"
-            f"原始内容已写入 data/vision_raw_response.txt，请检查。\n\n"
-            f"⚠️  当前方案：视觉 OCR 是必填步骤，不支持纯文本降级。"
-        )
-
-    data = parsed["data"]
-    result: Dict[str, Any] = {}
-    for item in data:
-        code = str(item.get("code", "")).strip()
-        if not code:
-            continue
-        value = item.get("value")
-        # value 若为 None / null，记成空字符串
-        if value is None:
-            value = ""
-        result[code] = value
-    print(f"  视觉 API 成功读取 {len(result)} / 124 项")
-    return result
+    return all_results
 
 
 # ---------------------------------------------------------------------------
