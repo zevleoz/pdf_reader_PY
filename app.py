@@ -51,6 +51,11 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'y4admin2026')
 
+# 外部 API 配置（供其他网站下载 Y4 报告）
+Y4_API_KEY = os.environ.get('Y4_API_KEY', '')
+Y4_API_CORS_ORIGINS = os.environ.get('Y4_API_CORS_ORIGINS', '*').strip()
+Y4_API_RATE_LIMIT = int(os.environ.get('Y4_API_RATE_LIMIT', '60'))
+
 
 def admin_required(f):
     """Decorator: require admin session for mutating endpoints."""
@@ -70,6 +75,68 @@ def page_login_required(f):
             return redirect('/login?next=' + request.path)
         return f(*args, **kwargs)
     return wrapper
+
+
+# ---------------------------------------------------------------------------
+# 外部 API 鉴权 + CORS + 限流（/api/v1/* 专用，与 admin session 完全独立）
+# ---------------------------------------------------------------------------
+import time as _v1_time
+import hmac as _v1_hmac
+from collections import deque as _v1_deque
+
+_V1_RATE_BUCKETS: dict = {}
+
+
+def _v1_rate_check() -> bool:
+    """每 IP+Key 滑动窗口限流（每分钟 N 次）。返回 True 表示通过。"""
+    if Y4_API_RATE_LIMIT <= 0:
+        return True
+    key = (request.remote_addr or '') + '|' + (request.headers.get('Authorization', '')[:16])
+    now = _v1_time.time()
+    win = _V1_RATE_BUCKETS.setdefault(key, _v1_deque())
+    while win and win[0] < now - 60:
+        win.popleft()
+    if len(win) >= Y4_API_RATE_LIMIT:
+        return False
+    win.append(now)
+    return True
+
+
+def api_key_required(f):
+    """Decorator: require Bearer token for external /api/v1/* endpoints.
+
+    Checks ``Authorization: Bearer <Y4_API_KEY>`` header. Returns 401 JSON if
+    missing/invalid. Independent of admin session — safe for server-to-server.
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not Y4_API_KEY:
+            return jsonify({"ok": False, "error": "外部 API 未配置 (Y4_API_KEY 未设置)"}), 503
+        auth = request.headers.get('Authorization', '')
+        token = auth[7:].strip() if auth.startswith('Bearer ') else ''
+        if not token or not _v1_hmac.compare_digest(token, Y4_API_KEY):
+            return jsonify({"ok": False, "error": "无效的 API Key"}), 401
+        if not _v1_rate_check():
+            return jsonify({"ok": False, "error": "请求过于频繁，请稍后再试"}), 429
+        return f(*args, **kwargs)
+    return wrapper
+
+
+@app.after_request
+def _apply_v1_cors(resp):
+    """为 /api/v1/* 路径注入 CORS 头，不影响既有页面与管理 API。"""
+    if request.path.startswith('/api/v1/'):
+        resp.headers['Access-Control-Allow-Origin'] = Y4_API_CORS_ORIGINS or '*'
+        resp.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        resp.headers['Access-Control-Max-Age'] = '600'
+    return resp
+
+
+@app.route('/api/v1/<path:_any>', methods=['OPTIONS'])
+def _v1_options(_any):
+    """Preflight handler for /api/v1/* CORS."""
+    return ('', 204)
 
 
 @app.route("/style.css")
@@ -112,6 +179,12 @@ def request_entity_too_large(error):
 @app.route("/")
 def landing():
     return render_template("landing.html")
+
+
+@app.route("/api/docs")
+def api_docs():
+    """公开 API 文档页面（无需登录）。"""
+    return render_template("api_docs.html")
 
 
 @app.route("/login")
@@ -1032,6 +1105,122 @@ def api_student_reports(student_id):
     return jsonify({"ok": True, "reports": reports})
 
 
+# ---------------------------------------------------------------------------
+# 外部 API（/api/v1/*）— 供其他网站下载 Y4 报告，API Key 鉴权，只读 GET
+# ---------------------------------------------------------------------------
+@app.route('/api/v1/students')
+@api_key_required
+def v1_students():
+    """学生列表（含报告数、最新报告日期等摘要）。"""
+    students = _db.get_students()
+    return jsonify({"ok": True, "students": students})
+
+
+@app.route('/api/v1/students/<int:student_id>/reports')
+@api_key_required
+def v1_student_reports(student_id):
+    """某学生的报告列表。"""
+    reports = _db.get_student_reports(student_id)
+    return jsonify({"ok": True, "reports": reports})
+
+
+@app.route('/api/v1/reports/<int:report_id>')
+@api_key_required
+def v1_report_meta(report_id):
+    """报告元数据（不含 raw 全量数据）。"""
+    record = _db.get_report_raw(report_id)
+    if not record:
+        return jsonify({"ok": False, "error": "报告不存在"}), 404
+    meta = {
+        "report_id": record["report_id"],
+        "student_id": record["student_id"],
+        "student_name": record["student_name"],
+        "grade": record["grade"],
+        "report_date": record["report_date"],
+        "has_interpretation": bool(record.get("interpretation")),
+    }
+    return jsonify({"ok": True, "report": meta})
+
+
+@app.route('/api/v1/reports/<int:report_id>/y4-json')
+@api_key_required
+def v1_report_y4_json(report_id):
+    """导出 Y4 JSON（四维数据点 + 常模参照 + AI 解读）。"""
+    payload, err = _report_qualification_payload(report_id)
+    if err:
+        return jsonify({"ok": False, "error": err}), 404
+    items = payload['items']
+    student = payload['student']
+    interpretation = payload['report'].get('interpretation') or ''
+    student_name = payload['report'].get('student_name') or student.get('name') or '测试'
+    y4 = _build_y4_payload(items, interpretation, student, student_name)
+    return jsonify({"ok": True, "json": y4})
+
+
+@app.route('/api/v1/reports/<int:report_id>/y4-md')
+@api_key_required
+def v1_report_y4_md(report_id):
+    """下载 Y4 Markdown 报告（?include_raw=1 包含原始数据）。"""
+    import io as _io
+    payload, err = _report_qualification_payload(report_id)
+    if err:
+        return jsonify({"ok": False, "error": err}), 404
+    items = payload['items']
+    student = payload['student']
+    interpretation = payload['report'].get('interpretation') or ''
+    student_name = payload['report'].get('student_name') or student.get('name') or '测试'
+    include_raw = request.args.get('include_raw', '0') in ('1', 'true', 'yes')
+    md_text = _build_phase1_md_text(items, include_raw, interpretation, student, student_name)
+    buf = _io.BytesIO(md_text.encode('utf-8'))
+    safe_name = student_name.replace(' ', '').replace('/', '_')
+    return send_file(buf, mimetype='text/markdown', as_attachment=True,
+                     download_name=f"Y4报告_{safe_name}.md")
+
+
+@app.route('/api/v1/reports/<int:report_id>/pdf')
+@api_key_required
+def v1_report_pdf(report_id):
+    """下载 Y4 PDF 报告文件。"""
+    pdf_path_str = _db.get_report_pdf_path(report_id)
+    if not pdf_path_str:
+        return jsonify({"ok": False, "error": "报告不存在或无 PDF"}), 404
+    pdf_path = Path(pdf_path_str)
+    if not pdf_path.is_absolute():
+        pdf_path = (BASE_DIR / pdf_path).resolve()
+    if not pdf_path.exists():
+        return jsonify({"ok": False, "error": "PDF 文件丢失"}), 404
+    record = _db.get_report_raw(report_id)
+    student_name = (record or {}).get('student_name') or 'report'
+    safe_name = student_name.replace(' ', '').replace('/', '_')
+    return send_file(str(pdf_path), mimetype='application/pdf',
+                     as_attachment=True, download_name=f"Y4报告_{safe_name}.pdf")
+
+
+@app.route('/api/v1/reports/<int:report_id>/e4-protocol')
+@api_key_required
+def v1_report_e4_protocol(report_id):
+    """生成并下载 E4 协议 Markdown（含跨维度 AI 分析 + 总览）。
+
+    注意：此端点会实时调用 AI 模型生成分析，响应时间可能较长（通常 10-30 秒）。
+    查询参数 ?include_raw=1 可在协议中包含原始数据。
+    """
+    import io as _io
+    payload, err = _report_qualification_payload(report_id)
+    if err:
+        return jsonify({"ok": False, "error": err}), 404
+    items = payload['items']
+    student = payload['student']
+    interpretation = payload['report'].get('interpretation') or ''
+    student_name = payload['report'].get('student_name') or student.get('name') or '测试'
+    include_raw = request.args.get('include_raw', '0') in ('1', 'true', 'yes')
+    result = _generate_e4_protocol_core(items, include_raw, interpretation, student, student_name)
+    content_md = result.get('content_md', '')
+    buf = _io.BytesIO(content_md.encode('utf-8'))
+    safe_name = student_name.replace(' ', '').replace('/', '_')
+    return send_file(buf, mimetype='text/markdown', as_attachment=True,
+                     download_name=f"E4协议_{safe_name}.md")
+
+
 @app.route("/dashboard")
 @page_login_required
 def dashboard_page():
@@ -1615,6 +1804,18 @@ def api_report_e4_protocol(report_id):
     else:
         interpretation = (record.get("interpretation") or "").strip()
 
+    result = _generate_e4_protocol_core(items, include_raw, interpretation, student, student_name)
+    return jsonify(result)
+
+
+def _generate_e4_protocol_core(items: List[Dict[str, Any]], include_raw: bool,
+                                interpretation: str, student: Dict[str, Any],
+                                student_name: str) -> Dict[str, Any]:
+    """E4 协议生成核心逻辑（step1 数据整编 + step2 跨维度分析 + step3 总览成文）。
+
+    与数据来源解耦：调用方传入 items / interpretation / student / student_name。
+    返回与原 /api/reports/<id>/e4-protocol 完全一致的 result dict。
+    """
     # Step1：数据整编（纯 Python）
     vgroups, other_items, _dims_by_code = _eval_rules.evaluate_question_verdicts(items)
     groups_payload: List[Dict[str, Any]] = []
@@ -1692,7 +1893,7 @@ def api_report_e4_protocol(report_id):
     content_md = _assemble_e4_protocol(items, include_raw, analyses, overview_md,
                                       full_analysis, interpretation,
                                       student=student, student_name=student_name)
-    return jsonify({
+    return {
         "ok": True,
         "content_md": content_md,
         "stats": {"step2": stats2, "step3": stats3},
@@ -1704,7 +1905,7 @@ def api_report_e4_protocol(report_id):
             "group_counts": group_counts,
             "unmapped_count": len(other_lines),
         },
-    })
+    }
 
 
 # ---------------------------------------------------------------------------

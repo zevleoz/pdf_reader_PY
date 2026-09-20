@@ -18,3 +18,11 @@ pages/
 data/
 branding/
 *.log
+
+# 环境变量（含密钥，禁止提交）
+.env
+.env.production
+
+# 本地 API 调用演示页 & IDE 计划文档（不进生产）
+api_demo_client/
+.trae/

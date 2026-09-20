@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>API 文档 · Y4 综合测评系统</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --paper: #FAF7F2;
+      --paper-2: #F2EDE3;
+      --ink: #141414;
+      --ink-2: #4A4A4A;
+      --muted: #8A8A8A;
+      --line: #D9D2C5;
+      --line-soft: #E8E2D5;
+      --red: #B33A3A;
+      --red-deep: #8C2828;
+      --white: #FFFFFF;
+      --code-bg: #1A1A1A;
+      --code-text: #E8E8E8;
+      --code-comment: #6B7280;
+      --green: #2D7D4F;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--red); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Nav */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      padding: 16px 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(250, 247, 242, 0.92);
+      backdrop-filter: blur(14px) saturate(1.1);
+      -webkit-backdrop-filter: blur(14px) saturate(1.1);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .nav-brand { display: flex; align-items: center; gap: 11px; }
+    .nav-brand .brand-text {
+      font-family: "Noto Serif SC", serif; font-weight: 600; font-size: 15px; letter-spacing: 0.04em;
+    }
+    .nav-brand .brand-tag {
+      font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.12em;
+      color: var(--muted); padding-left: 11px; margin-left: 4px;
+      border-left: 1px solid var(--line); text-transform: uppercase;
+    }
+    .nav-back {
+      font-size: 13px; color: var(--ink-2); transition: color 0.2s;
+    }
+    .nav-back:hover { color: var(--red); text-decoration: none; }
+
+    /* Layout */
+    .container { max-width: 960px; margin: 0 auto; padding: 48px 40px 120px; }
+
+    /* Typography */
+    h1 {
+      font-family: "Noto Serif SC", serif; font-size: 32px; font-weight: 700;
+      letter-spacing: -0.01em; margin-bottom: 8px;
+    }
+    .subtitle { color: var(--muted); font-size: 15px; margin-bottom: 40px; }
+    h2 {
+      font-family: "Noto Serif SC", serif; font-size: 22px; font-weight: 600;
+      margin-top: 56px; margin-bottom: 16px; padding-bottom: 10px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    h3 {
+      font-family: "Inter", sans-serif; font-size: 16px; font-weight: 600;
+      margin-top: 32px; margin-bottom: 12px; color: var(--ink);
+    }
+    p { margin-bottom: 12px; color: var(--ink-2); }
+    ul, ol { margin-bottom: 16px; padding-left: 24px; }
+    li { margin-bottom: 6px; color: var(--ink-2); }
+    code {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.88em; background: var(--paper-2); padding: 2px 6px;
+      border-radius: 4px; color: var(--red-deep);
+    }
+
+    /* Code blocks */
+    pre {
+      background: var(--code-bg); color: var(--code-text);
+      padding: 20px 24px; border-radius: 8px; overflow-x: auto;
+      margin-bottom: 20px; font-size: 13px; line-height: 1.6;
+    }
+    pre code {
+      background: none; padding: 0; color: inherit; font-size: inherit;
+      border-radius: 0;
+    }
+    .code-comment { color: var(--code-comment); }
+
+    /* Endpoint cards */
+    .endpoint {
+      background: var(--white); border: 1px solid var(--line-soft);
+      border-radius: 10px; padding: 24px 28px; margin-bottom: 20px;
+      transition: box-shadow 0.3s var(--ease);
+    }
+    .endpoint:hover { box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
+    .endpoint-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .method {
+      font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 4px; letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .method.get { background: #E8F5E9; color: var(--green); }
+    .path {
+      font-family: "JetBrains Mono", monospace; font-size: 14px;
+      font-weight: 500; color: var(--ink);
+    }
+    .badge {
+      font-family: "JetBrains Mono", monospace; font-size: 10px;
+      padding: 3px 8px; border-radius: 4px; background: var(--paper-2);
+      color: var(--muted); letter-spacing: 0.04em;
+    }
+    .badge.ai { background: #FFF3E0; color: #C65800; }
+    .endpoint-desc { color: var(--ink-2); font-size: 14px; margin-bottom: 14px; }
+
+    /* Tables */
+    table {
+      width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13px;
+    }
+    th, td {
+      text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
+    }
+    th { font-weight: 600; color: var(--ink); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    td { color: var(--ink-2); }
+    td code { font-size: 12px; }
+
+    /* Callout */
+    .callout {
+      background: #FFF8E1; border: 1px solid #FFE082; border-radius: 8px;
+      padding: 16px 20px; margin-bottom: 20px; font-size: 14px; color: var(--ink-2);
+    }
+    .callout strong { color: var(--ink); }
+
+    /* TOC */
+    .toc {
+      background: var(--white); border: 1px solid var(--line-soft);
+      border-radius: 10px; padding: 20px 24px; margin-bottom: 40px;
+    }
+    .toc-title {
+      font-family: "JetBrains Mono", monospace; font-size: 10px;
+      letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .toc ol { list-style: none; padding: 0; margin: 0; columns: 2; gap: 32px; }
+    .toc li { margin-bottom: 4px; }
+    .toc a { color: var(--ink-2); font-size: 14px; }
+    .toc a:hover { color: var(--red); text-decoration: none; }
+
+    /* Tabs */
+    .tabs { margin-bottom: 16px; }
+    .tab-buttons { display: flex; gap: 4px; margin-bottom: 0; }
+    .tab-btn {
+      font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 500;
+      padding: 6px 14px; border: 1px solid var(--line-soft); border-bottom: none;
+      border-radius: 6px 6px 0 0; background: var(--paper-2); color: var(--muted);
+      cursor: pointer; transition: all 0.2s;
+    }
+    .tab-btn.active { background: var(--code-bg); color: var(--code-text); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .tab-content pre { border-radius: 0 8px 8px 8px; margin-bottom: 0; }
+
+    /* Anchor offset */
+    h2[id], h3[id] { scroll-margin-top: 80px; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .nav { padding: 14px 20px; }
+      .container { padding: 32px 20px 80px; }
+      h1 { font-size: 26px; }
+      .toc ol { columns: 1; }
+      pre { font-size: 12px; padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">
+    <span class="brand-text">凭远教育</span>
+    <span class="brand-tag">Y4 API</span>
+  </div>
+  <a href="/" class="nav-back">返回首页</a>
+</nav>
+
+<div class="container">
+
+  <h1>Y4 综合测评 · 外部 API 文档</h1>
+  <p class="subtitle">供第三方网站接入，下载 Y4 报告数据与 E4 评估协议</p>
+
+  <div class="toc">
+    <div class="toc-title">目录</div>
+    <ol>
+      <li><a href="#overview">概述</a></li>
+      <li><a href="#auth">认证方式</a></li>
+      <li><a href="#rate-limit">速率限制</a></li>
+      <li><a href="#cors">跨域 (CORS)</a></li>
+      <li><a href="#ep-students">学生列表</a></li>
+      <li><a href="#ep-reports">学生报告列表</a></li>
+      <li><a href="#ep-meta">报告元数据</a></li>
+      <li><a href="#ep-y4-json">Y4 JSON</a></li>
+      <li><a href="#ep-y4-md">Y4 Markdown</a></li>
+      <li><a href="#ep-pdf">PDF 下载</a></li>
+      <li><a href="#ep-e4">E4 协议</a></li>
+      <li><a href="#errors">错误码</a></li>
+    </ol>
+  </div>
+
+  <!-- Overview -->
+  <h2 id="overview">概述</h2>
+  <p>本 API 提供 Y4 综合测评报告的只读访问。所有端点位于 <code>/api/v1/</code> 前缀下，使用 GET 方法，需通过 API Key 认证。</p>
+  <p>Base URL: <code>https://your-domain/api/v1</code></p>
+
+  <!-- Auth -->
+  <h2 id="auth">认证方式</h2>
+  <p>所有请求必须在 HTTP 头中携带 API Key：</p>
+  <pre><code>Authorization: Bearer YOUR_API_KEY</code></pre>
+  <p>缺少或无效的 API Key 将返回 <code>401</code>。未在服务端配置 API Key 时返回 <code>503</code>。</p>
+  <div class="callout">
+    <strong>获取 API Key：</strong>请联系凭远教育管理员获取你的专属 API Key。请妥善保管，不要在前端代码中暴露。
+  </div>
+
+  <!-- Rate Limit -->
+  <h2 id="rate-limit">速率限制</h2>
+  <p>默认每 IP 每分钟 60 次请求。超出限制时返回 <code>429</code>。限制可由服务端管理员调整。</p>
+
+  <!-- CORS -->
+  <h2 id="cors">跨域 (CORS)</h2>
+  <p>API 默认允许所有来源 (<code>*</code>) 的跨域请求。生产环境建议管理员将允许来源限定为你的网站域名。浏览器跨域请求需显式携带 <code>Authorization</code> 头，不会自动发送凭据。</p>
+
+  <!-- Endpoints -->
+  <h2 id="ep-students">1. 学生列表</h2>
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/students</span>
+    </div>
+    <p class="endpoint-desc">获取所有学生列表，包含报告数、纪要数、最新报告日期等摘要信息。</p>
+    <h3>响应示例</h3>
+    <pre><code>{
+  "ok": true,
+  "students": [
+    {
+      "id": 1,
+      "name": "张三",
+      "grade": "初三",
+      "school": "某中学",
+      "advisor_name": "李老师",
+      "report_count": 2,
+      "minutes_count": 1,
+      "latest_report_date": "2026-09-15"
+    }
+  ]
+}</code></pre>
+  </div>
+
+  <h2 id="ep-reports">2. 学生报告列表</h2>
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/students/{student_id}/reports</span>
+    </div>
+    <p class="endpoint-desc">获取指定学生的所有报告列表，按创建时间倒序排列。</p>
+    <h3>路径参数</h3>
+    <table>
+      <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>student_id</code></td><td>int</td><td>学生 ID（从学生列表获取）</td></tr>
+    </table>
+    <h3>响应示例</h3>
+    <pre><code>{
+  "ok": true,
+  "reports": [
+    {
+      "id": 42,
+      "report_date": "2026-09-15",
+      "pdf_path": "output/report_张三.pdf",
+      "created_at": "2026-09-15T10:30:00",
+      "interpretation": "..."
+    }
+  ]
+}</code></pre>
+  </div>
+
+  <h2 id="ep-meta">3. 报告元数据</h2>
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/reports/{report_id}</span>
+    </div>
+    <p class="endpoint-desc">获取单份报告的元数据（不含原始数据全量，用于确认报告存在性和基本信息）。</p>
+    <h3>路径参数</h3>
+    <table>
+      <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>report_id</code></td><td>int</td><td>报告 ID（从报告列表获取）</td></tr>
+    </table>
+    <h3>响应示例</h3>
+    <pre><code>{
+  "ok": true,
+  "report": {
+    "report_id": 42,
+    "student_id": 1,
+    "student_name": "张三",
+    "grade": "初三",
+    "report_date": "2026-09-15",
+    "has_interpretation": true
+  }
+}</code></pre>
+  </div>
+
+  <h2 id="ep-y4-json">4. Y4 JSON 数据</h2>
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/reports/{report_id}/y4-json</span>
+    </div>
+    <p class="endpoint-desc">导出 Y4 JSON v2.0 格式报告，包含四维数据点（心力/精力/学习力/生涯力）、常模参照、AI 解读。适用于程序化处理。</p>
+    <h3>响应结构</h3>
+    <table>
+      <tr><th>字段</th><th>说明</th></tr>
+      <tr><td><code>json.meta</code></td><td>学生元信息（姓名、年级、日期等）</td></tr>
+      <tr><td><code>json.dimensions</code></td><td>四维数据：心力、精力、学习力、生涯力</td></tr>
+      <tr><td><code>json.norm_references</code></td><td>常模参照数据</td></tr>
+      <tr><td><code>json.ai_interpretation</code></td><td>AI 解读原文（Markdown 字符串）</td></tr>
+    </table>
+    <h3>响应示例</h3>
+    <pre><code>{
+  "ok": true,
+  "json": {
+    "meta": {
+      "student_name": "张三",
+      "grade": "初三",
+      "report_date": "2026-09-15"
+    },
+    "dimensions": {
+      "心力": { "items": [...] },
+      "精力": { "items": [...] },
+      "学习力": { "items": [...] },
+      "生涯力": { "items": [...] }
+    },
+    "norm_references": [...],
+    "ai_interpretation": "## 核心发现\n..."
+  }
+}</code></pre>
+  </div>
+
+  <h2 id="ep-y4-md">5. Y4 Markdown 报告</h2>
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/reports/{report_id}/y4-md</span>
+    </div>
+    <p class="endpoint-desc">下载人类可读的 Y4 报告 Markdown 文件，包含学生信息 + 四维已确认数据 + AI 解读原文。</p>
+    <h3>查询参数</h3>
+    <table>
+      <tr><th>参数</th><th>默认</th><th>说明</th></tr>
+      <tr><td><code>include_raw</code></td><td><code>0</code></td><td>设为 <code>1</code> 在报告中包含原始数据值</td></tr>
+    </table>
+    <h3>响应</h3>
+    <p>返回 <code>text/markdown</code> 附件下载，文件名格式：<code>Y4报告_姓名.md</code></p>
+  </div>
+
+  <h2 id="ep-pdf">6. PDF 报告下载</h2>
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/reports/{report_id}/pdf</span>
+    </div>
+    <p class="endpoint-desc">下载 Y4 评测报告 PDF 文件。</p>
+    <h3>响应</h3>
+    <p>返回 <code>application/pdf</code> 附件下载，文件名格式：<code>Y4报告_姓名.pdf</code></p>
+    <div class="callout">
+      <strong>注意：</strong>如果 PDF 文件在服务器上不存在（可能已被清理），将返回 <code>404</code>。
+    </div>
+  </div>
+
+  <h2 id="ep-e4">7. E4 评估协议</h2>
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/reports/{report_id}/e4-protocol</span>
+      <span class="badge ai">AI 生成</span>
+    </div>
+    <p class="endpoint-desc">生成并下载 E4 评估协议 Markdown 文件。包含跨维度 AI 分析、问题级判定、总览成文。每次调用都会实时调用 AI 模型生成。</p>
+    <h3>查询参数</h3>
+    <table>
+      <tr><th>参数</th><th>默认</th><th>说明</th></tr>
+      <tr><td><code>include_raw</code></td><td><code>0</code></td><td>设为 <code>1</code> 在协议中包含原始数据值</td></tr>
+    </table>
+    <h3>响应</h3>
+    <p>返回 <code>text/markdown</code> 附件下载，文件名格式：<code>E4协议_姓名.md</code></p>
+    <div class="callout">
+      <strong>注意：</strong>此端点会实时调用 AI 模型（Step2 跨维度分析 + Step3 总览成文），响应时间通常为 10-30 秒，请设置足够的超时时间。E4 协议与 Y4 报告是两套独立体系：Y4 面向内部同事阅读，E4 面向 AI 系统间传递。
+    </div>
+  </div>
+
+  <!-- Code Examples -->
+  <h2 id="examples">快速开始</h2>
+
+  <div class="tabs">
+    <div class="tab-buttons">
+      <button class="tab-btn active" onclick="switchTab(this, 'tab-curl')">cURL</button>
+      <button class="tab-btn" onclick="switchTab(this, 'tab-js')">JavaScript</button>
+      <button class="tab-btn" onclick="switchTab(this, 'tab-py')">Python</button>
+    </div>
+
+    <div id="tab-curl" class="tab-content active">
+<pre><code><span class="code-comment"># 获取学生列表</span>
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     https://your-domain/api/v1/students
+
+<span class="code-comment"># 下载 Y4 JSON</span>
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     https://your-domain/api/v1/reports/42/y4-json
+
+<span class="code-comment"># 下载 Y4 Markdown（含原始数据）</span>
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     -o Y4报告.md \
+     "https://your-domain/api/v1/reports/42/y4-md?include_raw=1"
+
+<span class="code-comment"># 下载 PDF</span>
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     -o report.pdf \
+     https://your-domain/api/v1/reports/42/pdf
+
+<span class="code-comment"># 生成 E4 协议（响应较慢，建议设超时）</span>
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     --max-time 120 \
+     -o E4协议.md \
+     https://your-domain/api/v1/reports/42/e4-protocol</code></pre>
+    </div>
+
+    <div id="tab-js" class="tab-content">
+<pre><code>const API_KEY = 'YOUR_API_KEY';
+const BASE = 'https://your-domain/api/v1';
+
+const headers = { 'Authorization': `Bearer ${API_KEY}` };
+
+<span class="code-comment">// 获取学生列表</span>
+const res = await fetch(`${BASE}/students`, { headers });
+const { students } = await res.json();
+
+<span class="code-comment">// 下载 Y4 JSON</span>
+const jsonRes = await fetch(`${BASE}/reports/42/y4-json`, { headers });
+const { json: y4Data } = await jsonRes.json();
+console.log(y4Data.dimensions);
+
+<span class="code-comment">// 下载 Y4 Markdown</span>
+const mdRes = await fetch(`${BASE}/reports/42/y4-md?include_raw=1`, { headers });
+const mdText = await mdRes.text();
+
+<span class="code-comment">// 下载 PDF（触发浏览器下载）</span>
+window.open(`${BASE}/reports/42/pdf?token=${API_KEY}`, '_blank');
+<span class="code-comment">// 注意：浏览器原生 fetch 下载文件建议用 Blob</span>
+const pdfRes = await fetch(`${BASE}/reports/42/pdf`, { headers });
+const blob = await pdfRes.blob();
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url; a.download = 'Y4报告.pdf'; a.click();</code></pre>
+    </div>
+
+    <div id="tab-py" class="tab-content">
+<pre><code>import requests
+
+API_KEY = 'YOUR_API_KEY'
+BASE = 'https://your-domain/api/v1'
+headers = {'Authorization': f'Bearer {API_KEY}'}
+
+<span class="code-comment"># 获取学生列表</span>
+r = requests.get(f'{BASE}/students', headers=headers)
+students = r.json()['students']
+
+<span class="code-comment"># 下载 Y4 JSON</span>
+r = requests.get(f'{BASE}/reports/42/y4-json', headers=headers)
+y4_data = r.json()['json']
+
+<span class="code-comment"># 下载 Y4 Markdown</span>
+r = requests.get(f'{BASE}/reports/42/y4-md?include_raw=1', headers=headers)
+with open('Y4报告.md', 'wb') as f:
+    f.write(r.content)
+
+<span class="code-comment"># 下载 PDF</span>
+r = requests.get(f'{BASE}/reports/42/pdf', headers=headers)
+with open('Y4报告.pdf', 'wb') as f:
+    f.write(r.content)
+
+<span class="code-comment"># 生成 E4 协议（响应较慢，设超时 120s）</span>
+r = requests.get(f'{BASE}/reports/42/e4-protocol', headers=headers, timeout=120)
+with open('E4协议.md', 'wb') as f:
+    f.write(r.content)</code></pre>
+    </div>
+  </div>
+
+  <!-- Errors -->
+  <h2 id="errors">错误码</h2>
+  <table>
+    <tr><th>状态码</th><th>含义</th></tr>
+    <tr><td><code>401</code></td><td>API Key 缺失或无效</td></tr>
+    <tr><td><code>404</code></td><td>报告不存在或 PDF 文件丢失</td></tr>
+    <tr><td><code>429</code></td><td>请求频率超出限制</td></tr>
+    <tr><td><code>503</code></td><td>服务端未配置 API Key</td></tr>
+  </table>
+  <p>所有错误响应均为 JSON 格式：</p>
+  <pre><code>{ "ok": false, "error": "错误描述信息" }</code></pre>
+
+</div>
+
+<script>
+function switchTab(btn, tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+</script>
+
+</body>
+</html>

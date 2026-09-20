@@ -375,6 +375,13 @@ def get_report_raw(report_id: int) -> Optional[Dict[str, Any]]:
         }
 
 
+def get_report_pdf_path(report_id: int) -> Optional[str]:
+    """Return the stored pdf_path for a single report, or None if missing."""
+    with Session(engine) as sess:
+        stmt = select(Report.pdf_path).where(Report.id == report_id)
+        return sess.execute(stmt).scalar()
+
+
 def get_all_reports() -> List[Dict[str, Any]]:
     """Get all reports joined with student info (for export)."""
     with Session(engine) as sess:
