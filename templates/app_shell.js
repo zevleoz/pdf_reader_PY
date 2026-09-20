@@ -24,6 +24,7 @@
     mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/>',
     download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
     flask: '<path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>',
+    book: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
     collapse: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
@@ -48,7 +49,8 @@
     ] },
     { title: '内部工具', items: [
       { label: '内部下载', href: '/internal', icon: 'download' },
-      { label: 'Prompt Lab', href: '/prompt-lab', icon: 'flask' }
+      { label: 'Prompt Lab', href: '/prompt-lab', icon: 'flask' },
+      { label: 'API 文档', href: '/api/docs', icon: 'book', blank: true }
     ] }
   ];
 
@@ -114,7 +116,8 @@
       html += '<div class="y4-nav-group" data-group="' + group.title + '">';
       html += '<div class="y4-group-title">' + group.title + '</div>';
       group.items.forEach(function (item) {
-        html += '<a class="y4-item" href="' + item.href + '" data-label="' + item.label + '" data-group="' + group.title + '">' +
+        var blankAttr = item.blank ? ' target="_blank" rel="noopener noreferrer"' : '';
+        html += '<a class="y4-item" href="' + item.href + '" data-label="' + item.label + '" data-group="' + group.title + '"' + blankAttr + '>' +
           '<span class="y4-item-icon">' + svg(ICONS[item.icon], 18) + '</span>' +
           '<span class="y4-item-label">' + item.label + '</span></a>';
       });
