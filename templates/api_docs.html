@@ -239,7 +239,7 @@
 
   <!-- Rate Limit -->
   <h2 id="rate-limit">速率限制</h2>
-  <p>默认每 IP 每分钟 60 次请求。超出限制时返回 <code>429</code>。限制可由服务端管理员调整。</p>
+  <p>默认每 IP 每分钟 60 次请求。<strong>E4 协议端点</strong>（<code>/api/v1/reports/&#123;id&#125;/e4-protocol</code>）因实时调用 AI 模型，单独限制为每 IP 每分钟 8 次。超出限制时返回 <code>429</code>。限制均可由服务端管理员调整。</p>
 
   <!-- CORS -->
   <h2 id="cors">跨域 (CORS)</h2>
@@ -252,7 +252,7 @@
       <span class="method get">GET</span>
       <span class="path">/api/v1/students</span>
     </div>
-    <p class="endpoint-desc">获取所有学生列表，包含报告数、纪要数、最新报告日期等摘要信息。</p>
+    <p class="endpoint-desc">获取所有学生列表，包含报告数、最新报告日期等摘要信息。仅返回外部接入所需的最小字段集（联系方式等敏感 PII 不外泄）。</p>
     <h3>响应示例</h3>
     <pre><code>{
   "ok": true,
@@ -262,9 +262,7 @@
       "name": "张三",
       "grade": "初三",
       "school": "某中学",
-      "advisor_name": "李老师",
       "report_count": 2,
-      "minutes_count": 1,
       "latest_report_date": "2026-09-15"
     }
   ]
@@ -277,7 +275,7 @@
       <span class="method get">GET</span>
       <span class="path">/api/v1/students/{student_id}/reports</span>
     </div>
-    <p class="endpoint-desc">获取指定学生的所有报告列表，按创建时间倒序排列。</p>
+    <p class="endpoint-desc">获取指定学生的所有报告列表，按创建时间倒序排列。仅返回摘要字段（服务器文件路径、AI 解读全文不在此端点返回，后者请用 y4-json / y4-md 端点获取）。</p>
     <h3>路径参数</h3>
     <table>
       <tr><th>参数</th><th>类型</th><th>说明</th></tr>
@@ -290,9 +288,8 @@
     {
       "id": 42,
       "report_date": "2026-09-15",
-      "pdf_path": "output/report_张三.pdf",
       "created_at": "2026-09-15T10:30:00",
-      "interpretation": "..."
+      "has_interpretation": true
     }
   ]
 }</code></pre>

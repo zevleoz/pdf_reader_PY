@@ -21,6 +21,7 @@ from typing import List, Optional, Dict
 
 from flask import (Flask, jsonify, render_template, request,
                    send_from_directory, send_file, abort, session, redirect)
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import extract
 import validate
@@ -49,12 +50,18 @@ app = Flask(__name__, template_folder=str(TEMPLATE_DIR),
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
 
+# ProxyFix: 信任单层反向代理（Nginx）注入的 X-Forwarded-* 头，
+# 使 request.remote_addr 反映真实客户端 IP（限流/审计依赖此值）。
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'y4admin2026')
 
 # 外部 API 配置（供其他网站下载 Y4 报告）
 Y4_API_KEY = os.environ.get('Y4_API_KEY', '')
 Y4_API_CORS_ORIGINS = os.environ.get('Y4_API_CORS_ORIGINS', '*').strip()
 Y4_API_RATE_LIMIT = int(os.environ.get('Y4_API_RATE_LIMIT', '60'))
+# E4 协议端点会实时调用 AI 模型（成本/耗时较高），使用更严格的独立限流。
+Y4_API_E4_RATE_LIMIT = int(os.environ.get('Y4_API_E4_RATE_LIMIT', '8'))
 
 
 def admin_required(f):
@@ -87,16 +94,19 @@ from collections import deque as _v1_deque
 _V1_RATE_BUCKETS: dict = {}
 
 
-def _v1_rate_check() -> bool:
-    """每 IP+Key 滑动窗口限流（每分钟 N 次）。返回 True 表示通过。"""
-    if Y4_API_RATE_LIMIT <= 0:
+def _v1_rate_check(limit: int = Y4_API_RATE_LIMIT, scope: str = 'default') -> bool:
+    """每 IP 滑动窗口限流（每分钟 ``limit`` 次）。返回 True 表示通过。
+
+    ``scope`` 用于为高成本端点（如 E4 调 AI）单独计数。
+    """
+    if limit <= 0:
         return True
-    key = (request.remote_addr or '') + '|' + (request.headers.get('Authorization', '')[:16])
+    key = (request.remote_addr or '') + '|' + scope
     now = _v1_time.time()
     win = _V1_RATE_BUCKETS.setdefault(key, _v1_deque())
     while win and win[0] < now - 60:
         win.popleft()
-    if len(win) >= Y4_API_RATE_LIMIT:
+    if len(win) >= limit:
         return False
     win.append(now)
     return True
@@ -1111,17 +1121,33 @@ def api_student_reports(student_id):
 @app.route('/api/v1/students')
 @api_key_required
 def v1_students():
-    """学生列表（含报告数、最新报告日期等摘要）。"""
+    """学生列表（含报告数、最新报告日期等摘要）。
+
+    仅返回外部接入方所需的最小字段集；联系方式（email/phone）、
+    家庭状况（single_parent）、导师姓名（advisor_name）等敏感 PII 不外泄。
+    """
+    _V1_STUDENT_FIELDS = ('id', 'name', 'grade', 'school',
+                          'report_count', 'latest_report_date')
     students = _db.get_students()
-    return jsonify({"ok": True, "students": students})
+    slim = [{k: s.get(k) for k in _V1_STUDENT_FIELDS} for s in students]
+    return jsonify({"ok": True, "students": slim})
 
 
 @app.route('/api/v1/students/<int:student_id>/reports')
 @api_key_required
 def v1_student_reports(student_id):
-    """某学生的报告列表。"""
+    """某学生的报告列表。
+
+    仅返回外部接入方所需的摘要字段；pdf_path（服务器文件路径）、
+    interpretation（AI 解读全文）不在此端点外泄，后者可通过 y4-json/y4-md 专用端点获取。
+    """
+    _V1_REPORT_FIELDS = ('id', 'report_date', 'created_at')
     reports = _db.get_student_reports(student_id)
-    return jsonify({"ok": True, "reports": reports})
+    slim = [{k: r.get(k) for k in _V1_REPORT_FIELDS} for r in reports]
+    # 额外提供 has_interpretation 布尔值，方便接入方判断是否已生成解读。
+    for r, orig in zip(slim, reports):
+        r['has_interpretation'] = bool(orig.get('interpretation'))
+    return jsonify({"ok": True, "reports": slim})
 
 
 @app.route('/api/v1/reports/<int:report_id>')
@@ -1187,6 +1213,11 @@ def v1_report_pdf(report_id):
     pdf_path = Path(pdf_path_str)
     if not pdf_path.is_absolute():
         pdf_path = (BASE_DIR / pdf_path).resolve()
+    # 路径围栏：解析后必须落在项目目录内，防止越目录读取任意文件。
+    try:
+        pdf_path.relative_to(BASE_DIR)
+    except ValueError:
+        return jsonify({"ok": False, "error": "PDF 路径非法"}), 404
     if not pdf_path.exists():
         return jsonify({"ok": False, "error": "PDF 文件丢失"}), 404
     record = _db.get_report_raw(report_id)
@@ -1205,6 +1236,8 @@ def v1_report_e4_protocol(report_id):
     查询参数 ?include_raw=1 可在协议中包含原始数据。
     """
     import io as _io
+    if not _v1_rate_check(limit=Y4_API_E4_RATE_LIMIT, scope='e4'):
+        return jsonify({"ok": False, "error": "E4 生成请求过于频繁，请稍后再试"}), 429
     payload, err = _report_qualification_payload(report_id)
     if err:
         return jsonify({"ok": False, "error": err}), 404
