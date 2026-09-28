@@ -349,6 +349,55 @@
       white-space: nowrap;
     }
     .st-actions { display: flex; gap: 8px; align-items: center; }
+
+    /* ---------- 行内报告展开面板 ---------- */
+    .student-row { margin-bottom: 6px; }
+    .student-row .student-card { margin-bottom: 0; }
+    .report-panel {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height .35s var(--ease), opacity .25s var(--ease), margin .35s var(--ease);
+      margin-top: 0;
+    }
+    .report-panel.expanded {
+      max-height: 5000px;
+      opacity: 1;
+      margin-top: 6px;
+    }
+    .report-panel-inner {
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 20px 24px;
+    }
+    .report-panel-inner h3 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--ink);
+    }
+    .sc-expand-loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px 0;
+      font-size: 13px;
+    }
+    .expand-chevron {
+      display: inline-block;
+      transition: transform .2s var(--ease);
+      font-size: 10px;
+      margin-left: 3px;
+    }
+    .student-row.expanded .expand-chevron { transform: rotate(180deg); }
+    .student-row.expanded .student-card {
+      border-color: var(--red);
+      background: var(--paper-2);
+    }
+    .report-panel table { margin-bottom: 0; }
+    .report-panel .minutes-history { margin-top: 20px; }
+    .report-panel .minutes-history h3 { margin-bottom: 12px; }
   </style>
 </head>
 <body>
@@ -379,13 +428,12 @@
       </div>
     </div>
     <div id="studentList"></div>
-    <div id="reportList" class="report-list" style="display:none"></div>
-    <div id="minutesHistory" class="minutes-history" style="display:none"></div>
   </div>
   <script>
     let currentReports = [];
     let currentStudentId = null;
     let currentStudentName = '';
+    let expandedStudentId = null;
 
     let allStudents = [];
     let currentStatus = 'all';
@@ -450,7 +498,8 @@
         const advisorHtml = s.advisor_name
           ? escapeHtml(s.advisor_name)
           : '<span class="is-empty">—</span>';
-        html += `<div class="student-card" data-id="${s.id}" title="创建于 ${created}">
+        html += `<div class="student-row" data-id="${s.id}">
+          <div class="student-card" data-id="${s.id}" title="创建于 ${created}">
           <div class="sc-name-cell">
             <span class="sc-name" id="name-${s.id}">${escapeHtml(s.name)}</span>
             ${gradeTag}
@@ -459,20 +508,42 @@
           <div class="sc-advisor" title="${escapeHtml(s.advisor_name || '')}">${advisorHtml}</div>
           <div class="sc-badges">${y4Status}${minutesBadge}</div>
           <div class="sc-actions">
-            <a class="action-link" href="#" onclick="showReports(${s.id}, ${nameJson});return false;">查看报告</a>
+            <a class="action-link" href="#" onclick="showReports(${s.id}, ${nameJson});return false;">查看报告 <span class="expand-chevron">▼</span></a>
             <button class="btn btn-sm btn-minutes" onclick="newMinutesForStudent(${s.id})" ${canMinutes ? '' : 'disabled title="先生成测评报告后再做解读会纪要"'}>${canMinutes ? '新建议程' : '无报告'}</button>
-            <button class="btn btn-sm sc-ghost" onclick="startRename(${s.id})">重命名</button>
+            <button class="btn btn-sm sc-ghost" onclick="startEditStudent(${s.id})">编辑</button>
             <button class="btn btn-sm sc-ghost sc-danger" onclick="deleteStudent(${s.id}, ${nameJson})">删除</button>
           </div>
           <div class="sc-rename" id="rename-${s.id}" style="display:none">
             <input type="text" class="rename-input" id="rename-input-${s.id}" value="${escapeHtml(s.name)}"
-                   onkeydown="if(event.key==='Enter'){event.preventDefault();confirmRename(${s.id})}else if(event.key==='Escape'){cancelRename(${s.id})}" />
-            <button class="btn btn-sm btn-primary" onclick="confirmRename(${s.id})">确认</button>
-            <button class="btn btn-sm btn-secondary" onclick="cancelRename(${s.id})">取消</button>
+                   placeholder="姓名" title="姓名"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();confirmEditStudent(${s.id})}else if(event.key==='Escape'){cancelEditStudent(${s.id})}" />
+            <input type="text" class="rename-input" id="edit-school-${s.id}" value="${escapeHtml(s.school || '')}"
+                   placeholder="学校" title="学校（以 Y4 报告读取为准，可手动修正）"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();confirmEditStudent(${s.id})}else if(event.key==='Escape'){cancelEditStudent(${s.id})}" />
+            <input type="text" class="rename-input" id="edit-advisor-${s.id}" value="${escapeHtml(s.advisor_name || '')}"
+                   placeholder="顾问" title="顾问"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();confirmEditStudent(${s.id})}else if(event.key==='Escape'){cancelEditStudent(${s.id})}" />
+            <button class="btn btn-sm btn-primary" onclick="confirmEditStudent(${s.id})">确认</button>
+            <button class="btn btn-sm btn-secondary" onclick="cancelEditStudent(${s.id})">取消</button>
+          </div>
+          </div>
+          <div class="report-panel" id="panel-${s.id}">
+            <div class="report-panel-inner" id="panel-inner-${s.id}"></div>
           </div>
         </div>`;
       }
       el.innerHTML = html;
+      // 重新渲染后恢复展开状态
+      if (expandedStudentId) {
+        const row = document.querySelector('.student-row[data-id="' + expandedStudentId + '"]');
+        const panel = document.getElementById('panel-' + expandedStudentId);
+        if (row && panel) {
+          row.classList.add('expanded');
+          panel.classList.add('expanded');
+        } else {
+          expandedStudentId = null;
+        }
+      }
     }
 
     function newMinutesForStudent(studentId) {
@@ -483,51 +554,84 @@
       window.open(`/transcript?student_id=${studentId}&report_id=${reportId}`, '_blank');
     }
 
+    function getPanelInner(studentId) {
+      return document.getElementById('panel-inner-' + (studentId || expandedStudentId));
+    }
+
     async function showReports(studentId, studentName) {
-      currentStudentId = studentId;
-      currentStudentName = studentName || '';
-      const resp = await fetch(`/api/students/${studentId}/reports`);
-      const data = await resp.json();
-      const el = document.getElementById('reportList');
-      currentReports = data.reports || [];
-      document.getElementById('minutesHistory').style.display = 'none';
-      if (currentReports.length === 0) {
-        el.innerHTML = '<h3>该学生暂无报告</h3>';
-        el.style.display = 'block';
-        loadMinutesHistory(studentId, studentName);  // still show minutes even if no reports
-        el.scrollIntoView({ behavior: 'smooth' });
+      const row = document.querySelector('.student-row[data-id="' + studentId + '"]');
+      const panel = document.getElementById('panel-' + studentId);
+      const panelInner = document.getElementById('panel-inner-' + studentId);
+      if (!panel || !panelInner) return;
+
+      // 再次点击同一学生：收起
+      if (expandedStudentId === studentId) {
+        panel.classList.remove('expanded');
+        if (row) row.classList.remove('expanded');
+        expandedStudentId = null;
+        currentStudentId = null;
+        currentStudentName = '';
         return;
       }
-      let html = '<h3>历史报告</h3><table><thead><tr><th>日期</th><th>PDF 文件</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
-      for (const r of currentReports) {
-        const interpLabel = r.interpretation ? 'AI 解读 ✓' : 'AI 解读';
-        const minutesUrl = `/transcript?student_id=${studentId}&report_id=${r.id}`;
-        html += `<tr>
-          <td>${r.report_date || '-'}</td>
-          <td><a href="/output/${r.pdf_path.split('/').pop()}" target="_blank">查看 PDF</a></td>
-          <td>${r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-'}</td>
-          <td>
-            <button class="btn btn-sm btn-secondary" onclick="showInterpretation(${r.id})">${interpLabel}</button>
-            <button class="btn btn-sm btn-minutes" onclick="window.open('${minutesUrl}', '_blank')">✎ 解读会纪要</button>
-            <button class="btn btn-sm btn-secondary" onclick="showRawData(${r.id})">原始数据</button>
-            <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/raw?download=1" download>下载 JSON</a>
-            <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/evaluation" download>下载 有效评价</a>
-            <button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">删除</button>
-          </td>
-        </tr>`;
+
+      // 收起之前展开的学生
+      if (expandedStudentId) {
+        const prevPanel = document.getElementById('panel-' + expandedStudentId);
+        const prevRow = document.querySelector('.student-row[data-id="' + expandedStudentId + '"]');
+        if (prevPanel) prevPanel.classList.remove('expanded');
+        if (prevRow) prevRow.classList.remove('expanded');
       }
-      html += '</tbody></table>';
-      el.innerHTML = html;
-      el.style.display = 'block';
-      // Load student minutes history
+
+      expandedStudentId = studentId;
+      currentStudentId = studentId;
+      currentStudentName = studentName || '';
+      panel.classList.add('expanded');
+      if (row) row.classList.add('expanded');
+      panelInner.innerHTML = '<div class="sc-expand-loading">加载中…</div>';
+
+      const resp = await fetch(`/api/students/${studentId}/reports`);
+      const data = await resp.json();
+      currentReports = data.reports || [];
+
+      renderReportsIntoPanel(studentId);
       loadMinutesHistory(studentId, studentName);
-      el.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function renderReportsIntoPanel(studentId) {
+      const panelInner = getPanelInner(studentId);
+      if (!panelInner) return;
+      let html = '<h3>历史报告</h3>';
+      if (currentReports.length === 0) {
+        html += '<p style="color:var(--muted);font-size:13px;margin-bottom:0">该学生暂无报告</p>';
+      } else {
+        html += '<table><thead><tr><th>日期</th><th>PDF 文件</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+        for (const r of currentReports) {
+          const interpLabel = r.interpretation ? 'AI 解读 ✓' : 'AI 解读';
+          const minutesUrl = `/transcript?student_id=${studentId}&report_id=${r.id}`;
+          html += `<tr>
+            <td>${r.report_date || '-'}</td>
+            <td><a href="/output/${r.pdf_path.split('/').pop()}" target="_blank">查看 PDF</a></td>
+            <td>${r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-'}</td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="showInterpretation(${r.id})">${interpLabel}</button>
+              <button class="btn btn-sm btn-minutes" onclick="window.open('${minutesUrl}', '_blank')">✎ 解读会纪要</button>
+              <button class="btn btn-sm btn-secondary" onclick="showRawData(${r.id})">原始数据</button>
+              <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/raw?download=1" download>下载 JSON</a>
+              <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/evaluation" download>下载 有效评价</a>
+              <button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">删除</button>
+            </td>
+          </tr>`;
+        }
+        html += '</tbody></table>';
+      }
+      panelInner.innerHTML = html;
     }
 
     async function showRawData(reportId) {
       const resp = await fetch(`/api/reports/${reportId}/raw`);
       const data = await resp.json();
-      const el = document.getElementById('reportList');
+      const panelInner = getPanelInner();
+      if (!panelInner) return;
       if (!data.ok) { alert(data.error || '加载失败'); return; }
       const schemaItems = (data.raw.schema_124 || []);
       const student = data.raw.student || {};
@@ -539,8 +643,7 @@
       }
       html += '</tbody></table></div>';
       html += `<div style="margin-top:12px;"><button class="btn btn-sm btn-secondary" onclick="showReportsFromCache()">← 返回报告列表</button></div>`;
-      el.innerHTML = html;
-      el.scrollIntoView({ behavior: 'smooth' });
+      panelInner.innerHTML = html;
     }
 
     function renderMd(text) {
@@ -564,7 +667,8 @@
     }
 
     function renderInterpCard(r) {
-      const el = document.getElementById('reportList');
+      const panelInner = getPanelInner();
+      if (!panelInner) return;
       let html = `<h3>AI 解读 — 报告 #${r.id}（${r.report_date || '-'}）</h3>`;
       if (r.interpretation) {
         html += `<div class="interp-card"><div class="interp-content">${renderMd(r.interpretation)}</div></div>`;
@@ -576,8 +680,7 @@
         <button class="btn btn-sm btn-minutes" onclick="window.open('/transcript?student_id=${currentStudentId}&report_id=${r.id}', '_blank')">✎ 撰写解读会纪要</button>
         <button class="btn btn-sm btn-secondary" onclick="showReportsFromCache()">← 返回报告列表</button>
       </div>`;
-      el.innerHTML = html;
-      el.scrollIntoView({ behavior: 'smooth' });
+      panelInner.innerHTML = html;
     }
 
     async function showInterpretation(reportId) {
@@ -598,7 +701,8 @@
       const r = findReport(reportId);
       if (!r) return;
       if (!loadingEl && r.interpretation) {
-        const card = document.querySelector('.interp-card');
+        const panelInner = getPanelInner();
+        const card = panelInner ? panelInner.querySelector('.interp-card') : null;
         if (card) card.insertAdjacentHTML('afterbegin',
           '<div class="interp-loading" id="interpLoading">AI 正在重新解读，约需 10–30 秒…</div>');
       }
@@ -624,69 +728,47 @@
     }
 
     function showReportsFromCache() {
-      const el = document.getElementById('reportList');
-      let html = '<h3>历史报告</h3><table><thead><tr><th>日期</th><th>PDF 文件</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
-      for (const r of currentReports) {
-        const interpLabel = r.interpretation ? 'AI 解读 ✓' : 'AI 解读';
-        html += `<tr>
-          <td>${r.report_date || '-'}</td>
-          <td><a href="/output/${r.pdf_path.split('/').pop()}" target="_blank">查看 PDF</a></td>
-          <td>${r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-'}</td>
-          <td>
-            <button class="btn btn-sm btn-secondary" onclick="showInterpretation(${r.id})">${interpLabel}</button>
-            <button class="btn btn-sm btn-minutes" onclick="window.open('/transcript?student_id=${currentStudentId}&report_id=${r.id}', '_blank')">✎ 解读会纪要</button>
-            <button class="btn btn-sm btn-secondary" onclick="showRawData(${r.id})">原始数据</button>
-            <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/raw?download=1" download>下载 JSON</a>
-            <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/evaluation" download>下载 有效评价</a>
-            <button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">删除</button>
-          </td>
-        </tr>`;
-      }
-      html += '</tbody></table>';
-      el.innerHTML = html;
-      el.style.display = 'block';
-      // Re-show minutes history after returning from detail
-      if (currentStudentId) loadMinutesHistory(currentStudentId, currentStudentName);
-      el.scrollIntoView({ behavior: 'smooth' });
+      if (!expandedStudentId) return;
+      renderReportsIntoPanel(expandedStudentId);
+      loadMinutesHistory(expandedStudentId, currentStudentName);
     }
 
     // -------------------- Minutes history --------------------
     async function loadMinutesHistory(studentId, studentName) {
-      const wrap = document.getElementById('minutesHistory');
+      const panelInner = getPanelInner(studentId);
+      if (!panelInner) return;
       try {
         const resp = await fetch(`/api/students/${studentId}/minutes`);
         const data = await resp.json();
-        if (!data.ok || !data.minutes || data.minutes.length === 0) {
-          wrap.innerHTML = `
-            <h3>历史解读会纪要</h3>
+        let html = '';
+        if (data.ok && data.minutes && data.minutes.length > 0) {
+          html += `<h3 style="margin-top:24px">历史解读会纪要（共 ${data.minutes.length} 条）</h3>`;
+          for (const m of data.minutes) {
+            const created = m.created_at ? new Date(m.created_at).toLocaleString('zh-CN') : '—';
+            const reportTag = m.report_date ? `关联报告：${m.report_date}` : '未绑定报告';
+            html += `<div class="minutes-item" data-id="${m.id}">
+              <div class="mi-head">
+                <span class="mi-date">${created}</span>
+                <span class="mi-report">${reportTag}</span>
+              </div>
+              <div class="mi-preview">${escapeHtml(m.preview || '（无预览）')}</div>
+              <div class="mi-actions">
+                <a class="btn btn-sm btn-secondary" href="/transcript?student_id=${studentId}#m${m.id}" target="_blank">查看完整内容</a>
+                <button class="btn btn-sm btn-primary" onclick="downloadMinutesDocx(${m.id})">下载 DOCX</button>
+                <button class="btn btn-sm btn-danger" style="background:var(--white);color:var(--red);border:1.5px solid var(--line);"
+                  onclick="deleteMinutes(${m.id})">删除</button>
+              </div>
+            </div>`;
+          }
+        } else {
+          html += `<h3 style="margin-top:24px">历史解读会纪要</h3>
             <div class="minutes-empty">
               该学生暂无历史解读会纪要。&nbsp;&nbsp;
               <a href="/transcript?student_id=${studentId}" target="_blank"
                  style="color:var(--red);font-weight:600;">立即新建第一条 →</a>
             </div>`;
-          wrap.style.display = 'block';
-          return;
         }
-        let html = `<h3>历史解读会纪要（共 ${data.minutes.length} 条）</h3>`;
-        for (const m of data.minutes) {
-          const created = m.created_at ? new Date(m.created_at).toLocaleString('zh-CN') : '—';
-          const reportTag = m.report_date ? `关联报告：${m.report_date}` : '未绑定报告';
-          html += `<div class="minutes-item" data-id="${m.id}">
-            <div class="mi-head">
-              <span class="mi-date">${created}</span>
-              <span class="mi-report">${reportTag}</span>
-            </div>
-            <div class="mi-preview">${escapeHtml(m.preview || '（无预览）')}</div>
-            <div class="mi-actions">
-              <a class="btn btn-sm btn-secondary" href="/transcript?student_id=${studentId}#m${m.id}" target="_blank">查看完整内容</a>
-              <button class="btn btn-sm btn-primary" onclick="downloadMinutesDocx(${m.id})">下载 DOCX</button>
-              <button class="btn btn-sm btn-danger" style="background:var(--white);color:var(--red);border:1.5px solid var(--line);"
-                onclick="deleteMinutes(${m.id})">删除</button>
-            </div>
-          </div>`;
-        }
-        wrap.innerHTML = html;
-        wrap.style.display = 'block';
+        panelInner.insertAdjacentHTML('beforeend', html);
       } catch (e) {
         console.warn(e);
       }
@@ -742,15 +824,18 @@
       const resp = await fetch(`/api/students/${id}`, { method: 'DELETE' });
       const data = await resp.json();
       if (data.ok) {
+        if (expandedStudentId === id) {
+          expandedStudentId = null;
+          currentStudentId = null;
+          currentStudentName = '';
+        }
         loadStudents();
-        document.getElementById('reportList').style.display = 'none';
-        document.getElementById('minutesHistory').style.display = 'none';
       } else {
         alert('删除失败：' + (data.error || '未知错误'));
       }
     }
 
-    function startRename(studentId) {
+    function startEditStudent(studentId) {
       const editor = document.getElementById('rename-' + studentId);
       if (!editor) return;
       editor.style.display = 'flex';
@@ -758,34 +843,48 @@
       if (input) { input.focus(); input.select(); }
     }
 
-    function cancelRename(studentId) {
+    function cancelEditStudent(studentId) {
       const editor = document.getElementById('rename-' + studentId);
       if (!editor) return;
       editor.style.display = 'none';
       const input = document.getElementById('rename-input-' + studentId);
       const nameEl = document.getElementById('name-' + studentId);
       if (input && nameEl) input.value = nameEl.textContent.trim();
+      const schoolInput = document.getElementById('edit-school-' + studentId);
+      const advisorInput = document.getElementById('edit-advisor-' + studentId);
+      // 还原为列表中的当前值（data 缓存于 renderStudents）
+      const s = (allStudents || []).find(x => x.id === studentId);
+      if (s) {
+        if (schoolInput) schoolInput.value = s.school || '';
+        if (advisorInput) advisorInput.value = s.advisor_name || '';
+      }
     }
 
-    async function confirmRename(studentId) {
+    async function confirmEditStudent(studentId) {
       const input = document.getElementById('rename-input-' + studentId);
       if (!input) return;
       const newName = (input.value || '').trim();
       if (!newName) { alert('姓名不能为空'); return; }
+      const schoolInput = document.getElementById('edit-school-' + studentId);
+      const advisorInput = document.getElementById('edit-advisor-' + studentId);
       try {
         const resp = await fetch(`/api/students/${studentId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: newName }),
+          body: JSON.stringify({
+            name: newName,
+            school: (schoolInput && schoolInput.value || '').trim(),
+            advisor_name: (advisorInput && advisorInput.value || '').trim(),
+          }),
         });
         const data = await resp.json();
         if (data.ok) {
           loadStudents();
         } else {
-          alert('重命名失败：' + (data.error || '未知错误'));
+          alert('保存失败：' + (data.error || '未知错误'));
         }
       } catch (e) {
-        alert('重命名失败：' + e.message);
+        alert('保存失败：' + e.message);
       }
     }
 

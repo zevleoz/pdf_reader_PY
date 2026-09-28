@@ -232,14 +232,28 @@ body.y4-collapsed .y4-sidebar.y4-hover-expand {
 .y4-logout svg { width: 15px; height: 15px; flex-shrink: 0; }
 
 /* ---------- 收起态（桌面端） ---------- */
-body.y4-collapsed .y4-brand { justify-content: center; padding: 46px 0 10px; }
+/* 保持与展开态相同的垂直布局，仅隐藏文字内容，确保悬停展开时元素不跳动 */
+body.y4-collapsed .y4-brand { justify-content: center; padding: 18px 16px; }
 body.y4-collapsed .y4-brand-text-wrap,
 body.y4-collapsed .y4-group-title,
 body.y4-collapsed .y4-item-label,
-body.y4-collapsed .y4-search-box,
-body.y4-collapsed .y4-footer-text { display: none; }
-body.y4-collapsed .y4-item { justify-content: center; padding: 0; }
-body.y4-collapsed .y4-collapse { top: 10px; right: auto; left: 50%; transform: translateX(-50%); }
+body.y4-collapsed .y4-search-box input,
+body.y4-collapsed .y4-search-box .y4-kbd,
+body.y4-collapsed .y4-footer-text {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease;
+}
+body.y4-collapsed .y4-search-box {
+  /* 保留搜索框占位，但隐藏内容 */
+  visibility: visible;
+}
+body.y4-collapsed .y4-search-box svg {
+  opacity: 0;
+  transition: opacity .16s ease;
+}
+body.y4-collapsed .y4-item { justify-content: center; padding: 0 12px; }
+body.y4-collapsed .y4-collapse { top: 19px; right: auto; left: 50%; transform: translateX(-50%); }
 body.y4-collapsed .y4-collapse svg { transform: rotate(180deg); }
 body.y4-collapsed .y4-footer { align-items: center; padding-left: 0; padding-right: 0; }
 
@@ -248,9 +262,15 @@ body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-brand { justify-content: flex-
 body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-brand-text-wrap,
 body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-group-title,
 body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-item-label,
-body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-search-box,
-body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-footer-text { display: flex; }
-body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-search-box { display: flex; }
+body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-search-box input,
+body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-search-box .y4-kbd,
+body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-footer-text {
+  opacity: 1;
+  pointer-events: auto;
+}
+body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-search-box svg {
+  opacity: 1;
+}
 body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-item { justify-content: flex-start; padding: 0 12px; }
 body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-collapse { top: 19px; right: 12px; left: auto; transform: none; }
 body.y4-collapsed .y4-sidebar.y4-hover-expand .y4-collapse svg { transform: rotate(180deg); }

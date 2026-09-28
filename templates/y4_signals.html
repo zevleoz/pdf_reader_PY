@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Y4 研判 — Y4 综合测评系统</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/app_shell.css">
+  <style>
+    /* ── ShadCN 风格设计令牌（本页作用域） ── */
+    .ys-root, .ys-root * { box-sizing: border-box; }
+    .ys-root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --ink: #0f172a;
+      --ink-2: #334155;
+      --muted: #94a3b8;
+      --muted-2: #64748b;
+      --soft: #f1f5f9;
+      --soft-2: #f8fafc;
+      --radius: 10px;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .04);
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .ys-wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 22px 24px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+    }
+
+    /* ── 页头 ── */
+    .ys-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .ys-title { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
+    .ys-sub { margin: 4px 0 0; font-size: 13px; color: var(--muted-2); }
+
+    .ys-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .ys-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 34px; padding: 0 13px;
+      background: var(--card); color: var(--ink-2);
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: border-color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .ys-btn:hover { border-color: var(--border-strong); background: var(--soft-2); }
+    .ys-btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .ys-btn.primary:hover { background: #1e293b; }
+    .ys-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    select.ys-select {
+      height: 34px; padding: 0 28px 0 12px;
+      background: var(--card) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") no-repeat right 9px center;
+      border: 1px solid var(--border); border-radius: 8px;
+      color: var(--ink-2); font-size: 13px;
+      appearance: none; -webkit-appearance: none; cursor: pointer;
+      max-width: 200px;
+    }
+    select.ys-select:focus { outline: 2px solid rgba(15,23,42,.15); outline-offset: 1px; }
+
+    /* 学生 combobox */
+    .ys-combo { position: relative; }
+    .ys-combo-panel {
+      position: absolute; z-index: 40; top: calc(100% + 6px); right: 0;
+      width: 280px; background: var(--card);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: 0 12px 32px rgba(15,23,42,.12), 0 2px 6px rgba(15,23,42,.06);
+      padding: 8px; display: none;
+    }
+    .ys-combo-panel.open { display: block; }
+    .ys-combo-search {
+      width: 100%; height: 32px; padding: 0 10px; margin-bottom: 6px;
+      border: 1px solid var(--border); border-radius: 7px;
+      font-size: 13px; color: var(--ink); background: var(--soft-2);
+    }
+    .ys-combo-search:focus { outline: 2px solid rgba(15,23,42,.12); border-color: var(--border-strong); }
+    .ys-combo-list { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+    .ys-combo-item {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+      width: 100%; padding: 7px 10px; border: 0; border-radius: 7px;
+      background: transparent; cursor: pointer; text-align: left;
+    }
+    .ys-combo-item:hover, .ys-combo-item.active { background: var(--soft); }
+    .ys-combo-item .n { font-size: 13px; font-weight: 500; color: var(--ink); }
+    .ys-combo-item .m { font-size: 11.5px; color: var(--muted); }
+    .ys-combo-empty { padding: 14px; text-align: center; font-size: 12.5px; color: var(--muted); }
+
+    /* ── 通用卡片 ── */
+    .ys-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .ys-scope {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 12px 16px;
+      background: var(--soft-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px; color: var(--ink-2);
+    }
+    .ys-scope-tag {
+      flex: none; font-size: 11.5px; font-weight: 600;
+      padding: 2px 9px; border-radius: 999px;
+      background: var(--ink); color: #fff;
+      margin-top: 1px;
+    }
+
+    .ys-meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted-2); }
+    .ys-meta-row .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--border-strong); }
+
+    /* ── 四名单概览 ── */
+    .ys-lists { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .ys-list-card {
+      text-align: left; padding: 14px 15px 12px; cursor: pointer;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      display: flex; flex-direction: column; gap: 8px;
+      transition: border-color .15s, box-shadow .15s, transform .15s;
+      font: inherit; color: inherit; width: 100%;
+    }
+    .ys-list-card:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15,23,42,.07); }
+    .ys-list-card.active { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+    .ys-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .ys-list-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+    .ys-list-count { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .ys-list-entries { display: flex; flex-direction: column; gap: 5px; margin-top: 2px; }
+    .ys-list-entry { font-size: 12px; color: var(--muted-2); display: flex; gap: 7px; line-height: 1.45; }
+    .ys-list-entry .id { flex: none; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; padding-top: 1px; }
+    .ys-list-empty { font-size: 12px; color: var(--muted); }
+
+    .ys-filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ys-filter-hint { font-size: 12.5px; color: var(--muted-2); }
+
+    /* ── 维度分区与问题卡 ── */
+    .ys-dim { display: flex; flex-direction: column; gap: 10px; }
+    .ys-dim-head { display: flex; align-items: baseline; gap: 10px; margin: 6px 2px 0; }
+    .ys-dim-name { font-size: 15px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+    .ys-dim-count { font-size: 12px; color: var(--muted); }
+
+    .ys-q { padding: 15px 17px; display: flex; flex-direction: column; gap: 10px; }
+    .ys-q.strong { border-color: var(--ink); }
+    .ys-q-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .ys-q-title-wrap { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
+    .ys-q-id { flex: none; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: var(--muted); }
+    .ys-q-title { font-size: 14.5px; font-weight: 600; color: var(--ink); line-height: 1.5; }
+    .ys-badges { display: flex; gap: 6px; flex: none; flex-wrap: wrap; }
+    .ys-badge {
+      display: inline-flex; align-items: center; height: 22px; padding: 0 9px;
+      font-size: 11.5px; font-weight: 500; border-radius: 999px;
+      background: var(--soft); color: var(--ink-2);
+      border: 1px solid transparent; white-space: nowrap;
+    }
+    .ys-badge.outline { background: transparent; border-color: var(--border-strong); color: var(--muted-2); }
+    .ys-badge.solid { background: var(--ink); color: #fff; }
+    .ys-q-summary { font-size: 13.5px; color: var(--ink-2); line-height: 1.7; }
+    .ys-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ys-tag {
+      font-size: 12px; color: var(--muted-2);
+      background: var(--soft-2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 2px 8px; line-height: 1.6;
+    }
+
+    details.ys-rows { border-top: 1px solid var(--border); margin: 2px -17px -15px; }
+    details.ys-rows[open] { padding-bottom: 4px; }
+    .ys-rows-summary {
+      list-style: none; cursor: pointer; user-select: none;
+      padding: 9px 17px; font-size: 12.5px; color: var(--muted-2);
+      display: flex; align-items: center; gap: 7px;
+    }
+    .ys-rows-summary::-webkit-details-marker { display: none; }
+    .ys-rows-summary .chev { transition: transform .18s; color: var(--muted); display: inline-flex; }
+    details[open] .ys-rows-summary .chev { transform: rotate(180deg); }
+    .ys-rows-summary:hover { color: var(--ink-2); }
+    .ys-row-list { padding: 0 17px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .ys-row {
+      display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 4px 18px;
+      padding: 9px 0; border-top: 1px dashed var(--border);
+    }
+    .ys-row-label { font-size: 13px; color: var(--ink); font-weight: 500; }
+    .ys-row-label .src { display: block; font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 1px; }
+    .ys-row-vals { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: flex-start; align-items: baseline; min-width: 0; }
+    .ys-v { font-size: 12.5px; color: var(--muted-2); display: inline-flex; gap: 5px; min-width: 0; }
+    .ys-v b { color: var(--ink-2); font-weight: 600; font-weight: 600; }
+    .ys-v.eval b { color: var(--ink); }
+    .ys-row-note { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted-2); line-height: 1.65; }
+    .ys-row.is-problem .ys-row-label { color: var(--ink); }
+    .ys-row.is-problem .ys-v.eval b { font-weight: 700; }
+    .ys-row.is-asset .ys-v.eval b { font-weight: 700; }
+    .ys-row.is-problem::before, .ys-row.is-asset::before { content: none; }
+    .ys-side-mark { font-size: 10.5px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border-strong); color: var(--muted-2); }
+
+    /* ── 状态页 ── */
+    .ys-state { padding: 64px 24px; text-align: center; color: var(--muted-2); font-size: 13.5px; }
+    .ys-state strong { display: block; color: var(--ink); font-size: 15px; margin-bottom: 6px; }
+    .ys-spinner {
+      width: 20px; height: 20px; margin: 0 auto 12px;
+      border: 2px solid var(--border); border-top-color: var(--ink);
+      border-radius: 50%; animation: ys-spin .7s linear infinite;
+    }
+    @keyframes ys-spin { to { transform: rotate(360deg); } }
+
+    .ys-section-title { font-size: 13px; font-weight: 600; color: var(--muted-2); letter-spacing: .02em; margin: 8px 2px 0; text-transform: none; }
+
+    /* ── 响应式 ── */
+    @media (max-width: 1080px) { .ys-lists { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px) {
+      .ys-wrap { padding: 16px 14px 40px; }
+      .ys-lists { grid-template-columns: 1fr; }
+      .ys-row { grid-template-columns: 1fr; gap: 3px; }
+      .ys-combo-panel { right: -8px; width: calc(100vw - 44px); max-width: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+<div data-app-shell></div>
+
+<div class="ys-root">
+  <div class="ys-wrap">
+
+    <header class="ys-header">
+      <div>
+        <h1 class="ys-title">Y4 原生问题研判</h1>
+        <p class="ys-sub">潜能 / 干预双轴研判，四个名单与五维问题明细。与 E4 平行的独立问题系统。</p>
+      </div>
+      <div class="ys-controls">
+        <div class="ys-combo" id="stuCombo">
+          <button type="button" class="ys-btn" id="stuBtn" style="min-width:168px;justify-content:space-between;">
+            <span id="stuBtnLabel">选择学生…</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="ys-combo-panel" id="stuPanel">
+            <input type="text" class="ys-combo-search" id="stuSearch" placeholder="搜索姓名 / 年级 / 学校…" autocomplete="off">
+            <div class="ys-combo-list" id="stuList"></div>
+          </div>
+        </div>
+        <select class="ys-select" id="reportSelect" disabled></select>
+      </div>
+    </header>
+
+    <div id="content">
+      <div class="ys-state"><strong>开始研判</strong>选择一位学生，系统将自动读取其最新报告。</div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/app_shell.js" defer></script>
+<script>
+(function () {
+  'use strict';
+
+  var LIST_ORDER = ['强干预', '弱干预', '强潜能', '弱潜能'];
+  var LIST_DESC = {
+    '强干预': '风险明确且程度重，优先介入',
+    '弱干预': '存在需要关注或支持的信号',
+    '强潜能': '无显著问题，且有突出匹配或超常优势',
+    '弱潜能': '运行平稳，保持观察即可'
+  };
+
+  var allStudents = [];
+  var reports = [];
+  var currentResult = null;
+  var activeFilter = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* ── 学生 combobox ── */
+  $('stuBtn').addEventListener('click', function (e) {
+    e.stopPropagation();
+    var open = $('stuPanel').classList.toggle('open');
+    if (open) {
+      $('stuSearch').value = '';
+      renderStuList();
+      setTimeout(function () { $('stuSearch').focus(); }, 30);
+    }
+  });
+  $('stuSearch').addEventListener('input', renderStuList);
+  document.addEventListener('click', function (e) {
+    if (!$('stuCombo').contains(e.target)) $('stuPanel').classList.remove('open');
+  });
+
+  function renderStuList() {
+    var q = ($('stuSearch').value || '').trim().toLowerCase();
+    var items = allStudents.filter(function (s) {
+      return !q || (s.name || '').toLowerCase().indexOf(q) >= 0 ||
+        (s.school || '').toLowerCase().indexOf(q) >= 0 ||
+        (s.grade || '').toLowerCase().indexOf(q) >= 0;
+    });
+    if (!items.length) { $('stuList').innerHTML = '<div class="ys-combo-empty">无匹配学生</div>'; return; }
+    $('stuList').innerHTML = items.map(function (s) {
+      return '<button type="button" class="ys-combo-item" data-sid="' + s.id + '">' +
+        '<span class="n">' + esc(s.name) + '</span>' +
+        '<span class="m">' + esc([s.grade, s.school].filter(Boolean).join(' · ')) + '</span></button>';
+    }).join('');
+  }
+  $('stuList').addEventListener('click', function (e) {
+    var btn = e.target.closest('.ys-combo-item');
+    if (!btn) return;
+    $('stuPanel').classList.remove('open');
+    pickStudent(btn.getAttribute('data-sid'));
+  });
+
+  $('reportSelect').addEventListener('change', function () {
+    if (this.value) loadResult(this.value);
+  });
+
+  function loadStudents() {
+    fetch('/api/students').then(function (r) { return r.json(); }).then(function (d) {
+      allStudents = (d.ok && d.students) ? d.students : [];
+    }).catch(function () { allStudents = []; });
+  }
+
+  function pickStudent(sid) {
+    var s = allStudents.find(function (x) { return String(x.id) === String(sid); });
+    $('stuBtnLabel').textContent = s ? (s.name + (s.grade ? ' · ' + s.grade : '')) : '选择学生…';
+    var sel = $('reportSelect');
+    sel.innerHTML = '';
+    sel.disabled = true;
+    currentResult = null;
+    renderLoading();
+    fetch('/api/students/' + encodeURIComponent(sid) + '/reports')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        reports = (d.ok && d.reports) ? d.reports.slice().sort(function (a, b) { return b.id - a.id; }) : [];
+        if (!reports.length) { renderEmpty('该学生暂无报告'); return; }
+        sel.innerHTML = reports.map(function (r, i) {
+          var label = r.report_date || (r.created_at ? String(r.created_at).slice(0, 10) : ('#' + r.id));
+          return '<option value="' + r.id + '">' + esc(label) + (i === 0 ? '（最新）' : '') + '</option>';
+        }).join('');
+        sel.disabled = false;
+        loadResult(reports[0].id);
+      })
+      .catch(function () { renderEmpty('报告列表加载失败'); });
+  }
+
+  /* ── 数据加载 ── */
+  function renderLoading() {
+    $('content').innerHTML = '<div class="ys-state"><div class="ys-spinner"></div>正在生成研判结果…</div>';
+  }
+  function renderEmpty(msg) {
+    $('content').innerHTML = '<div class="ys-state">' + esc(msg) + '</div>';
+  }
+
+  function loadResult(reportId) {
+    activeFilter = null;
+    renderLoading();
+    fetch('/api/reports/' + encodeURIComponent(reportId) + '/y4-signals')
+      .then(function (r) {
+        if (r.status === 403) throw new Error('无权限访问，请使用管理员账号登录');
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d.ok) throw new Error(d.error || '加载失败');
+        currentResult = d;
+        renderResult();
+      })
+      .catch(function (e) { renderEmpty(e.message || '加载失败'); });
+  }
+
+  /* ── 渲染 ── */
+  function stateBadge(q) {
+    var cls = 'ys-badge ';
+    if (q.list_assignment === '强干预') cls += 'solid';
+    else cls += 'outline';
+    return '<span class="' + cls + '">' + esc(q.state_label || '') + '</span>';
+  }
+
+  function listBadge(listName) {
+    if (!listName) return '';
+    var cls = 'ys-badge ' + (listName === '强干预' ? 'solid' : 'outline');
+    return '<span class="' + cls + '">' + esc(listName) + '</span>';
+  }
+
+  function rowHtml(r) {
+    var side = '';
+    if (r.state === 'problem') side = '<span class="ys-side-mark">问题侧</span>';
+    else if (r.state === 'healthy') side = '<span class="ys-side-mark">资产侧</span>';
+    else if (r.state === 'watch') side = '<span class="ys-side-mark">关注</span>';
+    else if (r.state === 'observed') side = '<span class="ys-side-mark">观察</span>';
+
+    var vals = [];
+    if (r.eval) vals.push('<span class="ys-v eval"><span>判定</span><b>' + esc(r.eval) + '</b></span>');
+    if (r.raw && String(r.raw) !== String(r.eval))
+      vals.push('<span class="ys-v"><span>原始</span><b>' + esc(r.raw) + '</b></span>');
+    if (r.bias && r.bias !== '正常')
+      vals.push('<span class="ys-v"><span>偏差</span><b>' + esc(r.bias) + '</b></span>');
+    if (side) vals.push(side);
+
+    var rowCls = 'ys-row ' + (r.state === 'problem' ? 'is-problem' : r.state === 'healthy' ? 'is-asset' : '');
+    return '<div class="' + rowCls.trim() + '">' +
+      '<div class="ys-row-label">' + esc(r.label) +
+        (r.source ? '<span class="src">' + esc(r.source) + '</span>' : '') + '</div>' +
+      '<div class="ys-row-vals">' + vals.join('') + '</div>' +
+      (r.note ? '<div class="ys-row-note">' + esc(r.note) + '</div>' : '') +
+      '</div>';
+  }
+
+  function questionCard(q) {
+    var tags = (q.tags || []).map(function (t) { return '<span class="ys-tag">' + esc(t) + '</span>'; }).join('');
+    var rows = (q.rows || []);
+    var rowsBlock = '';
+    if (rows.length) {
+      rowsBlock = '<details class="ys-rows">' +
+        '<summary class="ys-rows-summary"><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>' +
+        '查看指标依据（' + rows.length + '）</summary>' +
+        '<div class="ys-row-list">' + rows.map(rowHtml).join('') + '</div></details>';
+    }
+    return '<article class="ys-card ys-q' + (q.list_assignment === '强干预' ? ' strong' : '') + '" data-list="' + esc(q.list_assignment || '') + '">' +
+      '<div class="ys-q-head"><div class="ys-q-title-wrap">' +
+        '<span class="ys-q-id">' + esc(q.id) + '</span>' +
+        '<span class="ys-q-title">' + esc(q.q) + '</span></div>' +
+        '<div class="ys-badges">' + stateBadge(q) + listBadge(q.list_assignment) + '</div></div>' +
+      '<div class="ys-q-summary">' + esc(q.summary) + '</div>' +
+      (tags ? '<div class="ys-tags">' + tags + '</div>' : '') +
+      rowsBlock + '</article>';
+  }
+
+  function renderResult() {
+    var res = currentResult.result;
+    var report = currentResult.report || {};
+    var html = '';
+
+    html += '<div class="ys-scope"><span class="ys-scope-tag">' + (res.scope === 'career' ? '生涯导向' : '学习导向') + '</span>' +
+      '<span>' + esc(res.scope_note) + '</span></div>';
+
+    html += '<div class="ys-meta-row"><span>报告 ' + esc(report.report_date || '#' + report.id) + '</span>' +
+      '<span class="dot"></span><span>已判定 ' + res.answered + ' / ' + res.total + ' 题</span>' +
+      (res.missing ? '<span class="dot"></span><span>' + res.missing + ' 题指标缺失</span>' : '') + '</div>';
+
+    // 四名单概览
+    html += '<section class="ys-lists">';
+    LIST_ORDER.forEach(function (name) {
+      var entries = res.lists[name] || [];
+      var inner = entries.length
+        ? entries.slice(0, 5).map(function (e) {
+            return '<div class="ys-list-entry"><span class="id">' + esc(e.id) + '</span><span>' + esc(e.q) + '</span></div>';
+          }).join('') + (entries.length > 5 ? '<div class="ys-list-empty">其余 ' + (entries.length - 5) + ' 项见下方明细</div>' : '')
+        : '<div class="ys-list-empty">' + esc(LIST_DESC[name]) + '，当前为空</div>';
+      html += '<button type="button" class="ys-list-card' + (activeFilter === name ? ' active' : '') + '" data-filter="' + esc(name) + '">' +
+        '<div class="ys-list-head"><span class="ys-list-name">' + esc(name) + '</span>' +
+        '<span class="ys-list-count">' + entries.length + '</span></div>' +
+        '<div class="ys-list-entries">' + inner + '</div></button>';
+    });
+    html += '</section>';
+
+    // 过滤条
+    if (activeFilter) {
+      html += '<div class="ys-filter-bar"><span class="ys-filter-hint">当前仅显示「' + esc(activeFilter) + '」名单</span>' +
+        '<button type="button" class="ys-btn" id="clearFilter">显示全部问题</button></div>';
+    }
+
+    // 五维问题
+    res.groups.forEach(function (g) {
+      var qs = g.questions.filter(function (q) { return !activeFilter || q.list_assignment === activeFilter; });
+      if (!qs.length) return;
+      html += '<section class="ys-dim"><div class="ys-dim-head"><span class="ys-dim-name">' + esc(g.dim_label) + '</span>' +
+        '<span class="ys-dim-count">' + qs.length + ' 题</span></div>' +
+        qs.map(questionCard).join('') + '</section>';
+    });
+
+    // 分型标签（永不进名单）
+    if (!activeFilter && res.label_questions && res.label_questions.length) {
+      html += '<section class="ys-dim"><div class="ys-section-title">分型标签 · 不进名单，仅产出标签</div>' +
+        res.label_questions.map(function (q) {
+          var qq = {
+            id: q.id, q: q.q, state_label: q.state_label || '分型标签',
+            list_assignment: null, summary: q.summary, tags: q.tags, rows: q.rows
+          };
+          return questionCard(qq);
+        }).join('') + '</section>';
+    }
+
+    $('content').innerHTML = html;
+
+    Array.prototype.forEach.call(document.querySelectorAll('.ys-list-card'), function (el) {
+      el.addEventListener('click', function () {
+        var f = el.getAttribute('data-filter');
+        activeFilter = (activeFilter === f) ? null : f;
+        renderResult();
+        window.scrollTo({ top: document.querySelector('.ys-lists').getBoundingClientRect().top + window.pageYOffset - 20, behavior: 'smooth' });
+      });
+    });
+    var clearBtn = $('clearFilter');
+    if (clearBtn) clearBtn.addEventListener('click', function () { activeFilter = null; renderResult(); });
+  }
+
+  loadStudents();
+})();
+</script>
+
+</body>
+</html>

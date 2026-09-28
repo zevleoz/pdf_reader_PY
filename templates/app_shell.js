@@ -28,7 +28,8 @@
     search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
     collapse: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
-    shield: '<path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/>'
+    shield: '<path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/>',
+    radar: '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4.93 4.93A10 10 0 0 0 3.34 17"/><path d="M22 12A10 10 0 0 0 12 2"/><path d="M12 12l5-5"/><path d="M12 22a10 10 0 0 0 10-10"/><path d="M12 22a10 10 0 0 1-10-10"/><path d="M22 12a10 10 0 0 1-2.93 7.07"/><circle cx="12" cy="12" r="1"/>'
   };
 
   var MENU_ICON = '<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>';
@@ -38,7 +39,8 @@
     { title: '工作台', items: [
       { label: '报告生成', href: '/generate', icon: 'file' },
       { label: '学生档案', href: '/students', icon: 'users' },
-      { label: '数据总览', href: '/dashboard', icon: 'chart' }
+      { label: '数据总览', href: '/dashboard', icon: 'chart' },
+      { label: 'Y4 研判', href: '/y4-signals', icon: 'radar' }
     ] },
     { title: '预约中心', items: [
       { label: '预约测评', href: '/booking', icon: 'calendar' },

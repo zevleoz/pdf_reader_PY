@@ -29,6 +29,7 @@ import generate as _generate_module
 from data_points import apply_report_data
 import db as _db
 import evaluation_rules as _eval_rules
+import y4_questions as _y4q
 
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_DIR = BASE_DIR / "input"
@@ -399,6 +400,15 @@ def api_generate():
                 selected_sid = request.form.get("student_id", "").strip()
                 manual_name = request.form.get("manual_student_name", "").strip()
 
+                # 学校/顾问以 Y4 input 读取结果为准（预约时可能未填写），
+                # 覆盖 students 表中的旧值；提取失败（空或"—"）时保留原值。
+                def _clean_y4(v: str) -> str:
+                    v = (v or "").strip()
+                    return "" if v in ("", "—", "-") else v
+
+                y4_school = _clean_y4(student_info.get("school", ""))
+                y4_advisor = _clean_y4(student_info.get("teacher", ""))
+
                 if selected_sid:
                     # Use the pre-selected student from booking
                     sid = int(selected_sid)
@@ -409,10 +419,16 @@ def api_generate():
                             "gender": student_info.get("gender", ""),
                             "birthday": student_info.get("birthday", ""),
                             "grade": student_info.get("grade", ""),
+                            "school": y4_school,
+                            "advisor_name": y4_advisor,
                         }.items() if v})
                     print(f"[DB] 关联到预约学生: {sname} (id={sid})")
                 elif manual_name:
-                    sid = _db.find_or_create_student(name=manual_name)
+                    sid = _db.find_or_create_student(
+                        name=manual_name,
+                        school=y4_school,
+                        advisor_name=y4_advisor,
+                    )
                     sname = manual_name
                     print(f"[DB] 手动输入学生: {sname} (id={sid})")
                 elif sname:
@@ -421,6 +437,8 @@ def api_generate():
                         gender=student_info.get("gender", ""),
                         birthday=student_info.get("birthday", ""),
                         grade=student_info.get("grade", ""),
+                        school=y4_school,
+                        advisor_name=y4_advisor,
                     )
                     print(f"[DB] 从PDF提取学生: {sname} (id={sid})")
                 else:
@@ -1756,6 +1774,30 @@ def api_report_qualification(report_id):
     return jsonify({"ok": True, **payload})
 
 
+@app.route("/api/reports/<int:report_id>/y4-signals")
+@admin_required
+def api_report_y4_signals(report_id):
+    """按报告取 Y4 原生问题研判结果（潜能/干预四名单 + 五维问题明细 + 分型标签）。"""
+    record = _db.get_report_raw(report_id)
+    if not record:
+        return jsonify({"ok": False, "error": "报告不存在"}), 404
+    raw = record.get("raw") or {}
+    schema_items = [it for it in (raw.get("schema_124") or []) if not _eval_rules.is_hidden_raw(it)]
+    student = raw.get("student", {}) or {}
+    items, _summary, _mapping_done, _opts = _build_qualification_view(schema_items)
+    result = _y4q.evaluate_y4_questions(items, student)
+    return jsonify({
+        "ok": True,
+        "student": student,
+        "report": {
+            "id": report_id,
+            "report_date": record.get("report_date"),
+            "student_name": record.get("student_name"),
+        },
+        "result": result,
+    })
+
+
 @app.route("/api/reports/<int:report_id>/protocol-md", methods=["POST"])
 @admin_required
 def api_report_protocol_md(report_id):
@@ -2151,17 +2193,27 @@ def api_report_evaluation(report_id):
 @app.route("/api/students/<int:student_id>", methods=["PUT"])
 @admin_required
 def api_rename_student(student_id):
-    """Rename a student."""
+    """更新学生档案字段（姓名/学校/顾问，均可选，至少提供一项）。"""
     data = request.get_json(silent=True) or {}
-    new_name = (data.get("name") or "").strip()
-    if not new_name:
-        return jsonify({"ok": False, "error": "姓名不能为空"}), 400
+    updates = {}
+    if "name" in data:
+        new_name = (data.get("name") or "").strip()
+        if not new_name:
+            return jsonify({"ok": False, "error": "姓名不能为空"}), 400
+        updates["name"] = new_name
+    if "school" in data:
+        updates["school"] = (data.get("school") or "").strip()
+    if "advisor_name" in data:
+        updates["advisor_name"] = (data.get("advisor_name") or "").strip()
+    if not updates:
+        return jsonify({"ok": False, "error": "未提供任何修改字段"}), 400
     sess = _db.Session(_db.engine)
     try:
         student = sess.get(_db.Student, student_id)
         if not student:
             return jsonify({"ok": False, "error": "学生不存在"}), 404
-        student.name = new_name
+        for k, v in updates.items():
+            setattr(student, k, v)
         sess.commit()
         return jsonify({"ok": True, "student": {
             "id": student.id, "name": student.name,
@@ -2278,6 +2330,13 @@ def prompt_lab_page():
 def internal_download_page():
     """内部下载页：有效评价 qualification + 协议下载（生产版，不含 prompt 迭代工具）。"""
     return render_template("internal.html")
+
+
+@app.route("/y4-signals")
+@page_login_required
+def y4_signals_page():
+    """Y4 原生问题研判页（潜能/干预四名单，与 E4 平行的独立系统）。"""
+    return render_template("y4_signals.html")
 
 
 @app.route("/api/prompt-lab/run", methods=["POST"])
