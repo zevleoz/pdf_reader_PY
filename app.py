@@ -90,9 +90,12 @@ def page_login_required(f):
 # ---------------------------------------------------------------------------
 import time as _v1_time
 import hmac as _v1_hmac
+import hashlib
 from collections import deque as _v1_deque
 
 _V1_RATE_BUCKETS: dict = {}
+_E4_CACHE: dict = {}
+_E4_CACHE_TTL = int(os.environ.get('Y4_E4_CACHE_TTL', '600'))
 
 
 def _v1_rate_check(limit: int = Y4_API_RATE_LIMIT, scope: str = 'default') -> bool:
@@ -113,6 +116,24 @@ def _v1_rate_check(limit: int = Y4_API_RATE_LIMIT, scope: str = 'default') -> bo
     return True
 
 
+ERROR_CODES = (
+    'UNAUTHORIZED', 'BAD_REQUEST', 'NOT_FOUND',
+    'RATE_LIMITED', 'SERVICE_UNAVAILABLE', 'AI_UNAVAILABLE',
+)
+
+
+def _v1_error(code, message, status):
+    """返回 /api/v1/* 统一结构化错误信封。"""
+    return jsonify({"ok": False, "code": code, "error": message}), status
+
+
+def _v1_int_id(value, name):
+    """校验路径 int 参数为正整数；非法返回 BAD_REQUEST 信封，合法返回 None。"""
+    if not isinstance(value, int) or value <= 0:
+        return _v1_error("BAD_REQUEST", f"{name} 非法", 400)
+    return None
+
+
 def api_key_required(f):
     """Decorator: require Bearer token for external /api/v1/* endpoints.
 
@@ -122,13 +143,14 @@ def api_key_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not Y4_API_KEY:
-            return jsonify({"ok": False, "error": "外部 API 未配置 (Y4_API_KEY 未设置)"}), 503
+            return _v1_error("SERVICE_UNAVAILABLE",
+                             "外部 API 未配置 (Y4_API_KEY 未设置)", 503)
         auth = request.headers.get('Authorization', '')
         token = auth[7:].strip() if auth.startswith('Bearer ') else ''
         if not token or not _v1_hmac.compare_digest(token, Y4_API_KEY):
-            return jsonify({"ok": False, "error": "无效的 API Key"}), 401
+            return _v1_error("UNAUTHORIZED", "无效的 API Key", 401)
         if not _v1_rate_check():
-            return jsonify({"ok": False, "error": "请求过于频繁，请稍后再试"}), 429
+            return _v1_error("RATE_LIMITED", "请求过于频繁，请稍后再试", 429)
         return f(*args, **kwargs)
     return wrapper
 
@@ -148,6 +170,18 @@ def _apply_v1_cors(resp):
 def _v1_options(_any):
     """Preflight handler for /api/v1/* CORS."""
     return ('', 204)
+
+
+@app.route('/api/v1/health', methods=['GET'])
+def v1_health():
+    """健康检查端点（无需 API Key，不计入限流）。
+
+    供接入方验证服务连通性与基本可用性；CORS 头由 _apply_v1_cors 注入。
+    """
+    from datetime import datetime, timezone
+    return jsonify({"ok": True, "status": "healthy", "service": "y4-api",
+                    "version": "v1",
+                    "time": datetime.now(timezone.utc).isoformat()}), 200
 
 
 @app.route("/style.css")
@@ -1159,6 +1193,9 @@ def v1_student_reports(student_id):
     仅返回外部接入方所需的摘要字段；pdf_path（服务器文件路径）、
     interpretation（AI 解读全文）不在此端点外泄，后者可通过 y4-json/y4-md 专用端点获取。
     """
+    err = _v1_int_id(student_id, 'student_id')
+    if err:
+        return err
     _V1_REPORT_FIELDS = ('id', 'report_date', 'created_at')
     reports = _db.get_student_reports(student_id)
     slim = [{k: r.get(k) for k in _V1_REPORT_FIELDS} for r in reports]
@@ -1172,9 +1209,12 @@ def v1_student_reports(student_id):
 @api_key_required
 def v1_report_meta(report_id):
     """报告元数据（不含 raw 全量数据）。"""
+    err = _v1_int_id(report_id, 'report_id')
+    if err:
+        return err
     record = _db.get_report_raw(report_id)
     if not record:
-        return jsonify({"ok": False, "error": "报告不存在"}), 404
+        return _v1_error("NOT_FOUND", "报告不存在", 404)
     meta = {
         "report_id": record["report_id"],
         "student_id": record["student_id"],
@@ -1190,9 +1230,12 @@ def v1_report_meta(report_id):
 @api_key_required
 def v1_report_y4_json(report_id):
     """导出 Y4 JSON（四维数据点 + 常模参照 + AI 解读）。"""
+    err = _v1_int_id(report_id, 'report_id')
+    if err:
+        return err
     payload, err = _report_qualification_payload(report_id)
     if err:
-        return jsonify({"ok": False, "error": err}), 404
+        return _v1_error("NOT_FOUND", err, 404)
     items = payload['items']
     student = payload['student']
     interpretation = payload['report'].get('interpretation') or ''
@@ -1206,14 +1249,20 @@ def v1_report_y4_json(report_id):
 def v1_report_y4_md(report_id):
     """下载 Y4 Markdown 报告（?include_raw=1 包含原始数据）。"""
     import io as _io
+    err = _v1_int_id(report_id, 'report_id')
+    if err:
+        return err
+    _raw_val = request.args.get('include_raw', '0').lower()
+    if _raw_val not in ('0', '1', 'true', 'yes', 'false', 'no'):
+        return _v1_error("BAD_REQUEST", "include_raw 非法", 400)
     payload, err = _report_qualification_payload(report_id)
     if err:
-        return jsonify({"ok": False, "error": err}), 404
+        return _v1_error("NOT_FOUND", err, 404)
     items = payload['items']
     student = payload['student']
     interpretation = payload['report'].get('interpretation') or ''
     student_name = payload['report'].get('student_name') or student.get('name') or '测试'
-    include_raw = request.args.get('include_raw', '0') in ('1', 'true', 'yes')
+    include_raw = _raw_val in ('1', 'true', 'yes')
     md_text = _build_phase1_md_text(items, include_raw, interpretation, student, student_name)
     buf = _io.BytesIO(md_text.encode('utf-8'))
     safe_name = student_name.replace(' ', '').replace('/', '_')
@@ -1225,9 +1274,12 @@ def v1_report_y4_md(report_id):
 @api_key_required
 def v1_report_pdf(report_id):
     """下载 Y4 PDF 报告文件。"""
+    err = _v1_int_id(report_id, 'report_id')
+    if err:
+        return err
     pdf_path_str = _db.get_report_pdf_path(report_id)
     if not pdf_path_str:
-        return jsonify({"ok": False, "error": "报告不存在或无 PDF"}), 404
+        return _v1_error("NOT_FOUND", "报告不存在或无 PDF", 404)
     pdf_path = Path(pdf_path_str)
     if not pdf_path.is_absolute():
         pdf_path = (BASE_DIR / pdf_path).resolve()
@@ -1235,9 +1287,9 @@ def v1_report_pdf(report_id):
     try:
         pdf_path.relative_to(BASE_DIR)
     except ValueError:
-        return jsonify({"ok": False, "error": "PDF 路径非法"}), 404
+        return _v1_error("NOT_FOUND", "PDF 路径非法", 404)
     if not pdf_path.exists():
-        return jsonify({"ok": False, "error": "PDF 文件丢失"}), 404
+        return _v1_error("NOT_FOUND", "PDF 文件丢失", 404)
     record = _db.get_report_raw(report_id)
     student_name = (record or {}).get('student_name') or 'report'
     safe_name = student_name.replace(' ', '').replace('/', '_')
@@ -1255,21 +1307,46 @@ def v1_report_e4_protocol(report_id):
     """
     import io as _io
     if not _v1_rate_check(limit=Y4_API_E4_RATE_LIMIT, scope='e4'):
-        return jsonify({"ok": False, "error": "E4 生成请求过于频繁，请稍后再试"}), 429
+        return _v1_error("RATE_LIMITED", "E4 生成请求过于频繁，请稍后再试", 429)
+    err = _v1_int_id(report_id, 'report_id')
+    if err:
+        return err
+    _raw_val = request.args.get('include_raw', '0').lower()
+    if _raw_val not in ('0', '1', 'true', 'yes', 'false', 'no'):
+        return _v1_error("BAD_REQUEST", "include_raw 非法", 400)
+    include_raw = _raw_val in ('1', 'true', 'yes')
     payload, err = _report_qualification_payload(report_id)
     if err:
-        return jsonify({"ok": False, "error": err}), 404
+        return _v1_error("NOT_FOUND", err, 404)
     items = payload['items']
     student = payload['student']
     interpretation = payload['report'].get('interpretation') or ''
     student_name = payload['report'].get('student_name') or student.get('name') or '测试'
-    include_raw = request.args.get('include_raw', '0') in ('1', 'true', 'yes')
-    result = _generate_e4_protocol_core(items, include_raw, interpretation, student, student_name)
+    cache_key = (report_id, include_raw)
+    interp_hash = hashlib.md5(interpretation.encode('utf-8')).hexdigest()
+    now = _v1_time.time()
+    cached = _E4_CACHE.get(cache_key)
+    if cached and (now - cached[1] < _E4_CACHE_TTL) and cached[2] == interp_hash:
+        content_md = cached[0]
+        buf = _io.BytesIO(content_md.encode('utf-8'))
+        safe_name = student_name.replace(' ', '').replace('/', '_')
+        resp = send_file(buf, mimetype='text/markdown', as_attachment=True,
+                         download_name=f"E4协议_{safe_name}.md")
+        resp.headers['X-Cache'] = 'HIT'
+        return resp
+    try:
+        result = _generate_e4_protocol_core(items, include_raw, interpretation,
+                                             student, student_name)
+    except Exception:
+        return _v1_error("AI_UNAVAILABLE", "AI 服务暂时不可用，请稍后重试", 503)
     content_md = result.get('content_md', '')
+    _E4_CACHE[cache_key] = (content_md, now, interp_hash)
     buf = _io.BytesIO(content_md.encode('utf-8'))
     safe_name = student_name.replace(' ', '').replace('/', '_')
-    return send_file(buf, mimetype='text/markdown', as_attachment=True,
+    resp = send_file(buf, mimetype='text/markdown', as_attachment=True,
                      download_name=f"E4协议_{safe_name}.md")
+    resp.headers['X-Cache'] = 'MISS'
+    return resp
 
 
 @app.route("/dashboard")

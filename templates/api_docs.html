@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <title>API 文档 · Y4 综合测评系统</title>
+  <title>外部 API 文档 · Y4 综合测评系统</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -203,7 +203,7 @@
 <div class="container">
 
   <h1>Y4 综合测评 · 外部 API 文档</h1>
-  <p class="subtitle">供第三方网站接入，下载 Y4 报告数据与 E4 评估协议</p>
+  <p class="subtitle">供第三方网站接入，下载 Y4 报告数据与 E4 评估协议 · 生产地址已迁移至 Cloudflare Tunnel 域名</p>
 
   <div class="toc">
     <div class="toc-title">目录</div>
@@ -212,6 +212,7 @@
       <li><a href="#auth">认证方式</a></li>
       <li><a href="#rate-limit">速率限制</a></li>
       <li><a href="#cors">跨域 (CORS)</a></li>
+      <li><a href="#ep-health">健康检查</a></li>
       <li><a href="#ep-students">学生列表</a></li>
       <li><a href="#ep-reports">学生报告列表</a></li>
       <li><a href="#ep-meta">报告元数据</a></li>
@@ -220,39 +221,90 @@
       <li><a href="#ep-pdf">PDF 下载</a></li>
       <li><a href="#ep-e4">E4 协议</a></li>
       <li><a href="#errors">错误码</a></li>
+      <li><a href="#migration">迁移与连通性排查</a></li>
+      <li><a href="#key-mgmt">密钥保管与轮换</a></li>
+      <li><a href="#retry">重试与幂等</a></li>
+      <li><a href="#changelog">Changelog</a></li>
+      <li><a href="#examples">快速开始</a></li>
     </ol>
   </div>
 
   <!-- Overview -->
   <h2 id="overview">概述</h2>
-  <p>本 API 提供 Y4 综合测评报告的只读访问。所有端点位于 <code>/api/v1/</code> 前缀下，使用 GET 方法，需通过 API Key 认证。</p>
-  <p>Base URL: <code>https://your-domain/api/v1</code></p>
+  <p>本 API 提供 Y4 综合测评报告的只读访问。所有端点位于 <code>/api/v1/</code> 前缀下，仅支持 <code>GET</code> 方法，并通过 API Key（服务端环境变量 <code>Y4_API_KEY</code>）认证，与后台管理员登录体系相互独立。</p>
+  <div class="callout">
+    <strong>生产 Base URL：</strong><code>https://report.p4learning-ark.app/api/v1</code>
+    <br />该地址经 Cloudflare Tunnel 提供，自 2026-09-26 起取代旧直连 IP / 旧域名。请勿再使用任何占位符或旧 IP，必须使用上述真实地址。
+  </div>
+  <p>共提供 8 个端点：1 个无需鉴权的健康检查 + 7 个需 API Key 的数据端点。</p>
 
   <!-- Auth -->
   <h2 id="auth">认证方式</h2>
-  <p>所有请求必须在 HTTP 头中携带 API Key：</p>
+  <p>除 <code>/api/v1/health</code> 外，所有请求必须在 HTTP 头中携带 API Key：</p>
   <pre><code>Authorization: Bearer YOUR_API_KEY</code></pre>
-  <p>缺少或无效的 API Key 将返回 <code>401</code>。未在服务端配置 API Key 时返回 <code>503</code>。</p>
+  <p>缺少或无效的 API Key 返回 <code>401</code>（错误码 <code>UNAUTHORIZED</code>）；服务端未配置 <code>Y4_API_KEY</code> 时返回 <code>503</code>（错误码 <code>SERVICE_UNAVAILABLE</code>）。</p>
   <div class="callout">
-    <strong>获取 API Key：</strong>请联系凭远教育管理员获取你的专属 API Key。请妥善保管，不要在前端代码中暴露。
+    <strong>关于 API Key：</strong><code>Y4_API_KEY</code> 是服务端环境变量，与具体服务器无关——服务器迁移后仍然有效，无需重新申请。请联系凭远教育管理员获取你的 API Key。<strong>切勿在前端代码、公开仓库或客户端日志中暴露</strong>，应仅在服务端读取。
   </div>
 
   <!-- Rate Limit -->
   <h2 id="rate-limit">速率限制</h2>
-  <p>默认每 IP 每分钟 60 次请求。<strong>E4 协议端点</strong>（<code>/api/v1/reports/&#123;id&#125;/e4-protocol</code>）因实时调用 AI 模型，单独限制为每 IP 每分钟 8 次。超出限制时返回 <code>429</code>。限制均可由服务端管理员调整。</p>
+  <p>默认每 IP 每分钟 60 次请求。<strong>E4 协议端点</strong>（<code>/api/v1/reports/&#123;report_id&#125;/e4-protocol</code>）因实时调用 AI 模型，单独限制为每 IP 每分钟 8 次。超出限制返回 <code>429</code>（错误码 <code>RATE_LIMITED</code>）。限制均可由服务端管理员调整。</p>
 
   <!-- CORS -->
   <h2 id="cors">跨域 (CORS)</h2>
-  <p>API 默认允许所有来源 (<code>*</code>) 的跨域请求。生产环境建议管理员将允许来源限定为你的网站域名。浏览器跨域请求需显式携带 <code>Authorization</code> 头，不会自动发送凭据。</p>
+  <p>API 默认允许所有来源（<code>*</code>）的跨域请求，便于本地开发联调。生产环境强烈建议管理员通过环境变量 <code>Y4_API_CORS_ORIGINS</code> 将允许来源限定为接入方的具体域名。</p>
+  <div class="callout">
+    <strong><code>*</code> 的风险：</strong>允许任意来源意味着任何网站都可以在用户浏览器中调用本 API；一旦 API Key 泄露，攻击者可从任意前端直接发起请求。收紧为具体域名可大幅缩小暴露面。浏览器跨域请求需显式携带 <code>Authorization</code> 头，浏览器不会自动发送凭据（Cookie 默认不随 <code>*</code> 跨域携带）。
+  </div>
 
   <!-- Endpoints -->
+  <h2 id="ep-health">0. 健康检查</h2>
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/health</span>
+      <span class="badge">无需鉴权</span>
+    </div>
+    <p class="endpoint-desc">公开端点，用于接入方验证服务连通性与基本可用性。不消耗默认限流配额，不要求 API Key。</p>
+    <h3>响应字段</h3>
+    <table>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>ok</code></td><td>bool</td><td>固定为 <code>true</code></td></tr>
+      <tr><td><code>status</code></td><td>str</td><td>服务状态，正常为 <code>healthy</code></td></tr>
+      <tr><td><code>service</code></td><td>str</td><td>固定为 <code>y4-api</code></td></tr>
+      <tr><td><code>version</code></td><td>str</td><td>API 版本，当前 <code>v1</code></td></tr>
+      <tr><td><code>time</code></td><td>str</td><td>服务器时间，ISO 8601 字符串</td></tr>
+    </table>
+    <h3>响应示例</h3>
+    <pre><code>{
+  "ok": true,
+  "status": "healthy",
+  "service": "y4-api",
+  "version": "v1",
+  "time": "2026-09-28T10:30:00+08:00"
+}</code></pre>
+    <h3>错误码</h3>
+    <p>本端点不返回业务错误码；仅在网络层或服务彻底不可用时返回 <code>5xx</code>。</p>
+  </div>
+
   <h2 id="ep-students">1. 学生列表</h2>
   <div class="endpoint">
     <div class="endpoint-header">
       <span class="method get">GET</span>
       <span class="path">/api/v1/students</span>
     </div>
-    <p class="endpoint-desc">获取所有学生列表，包含报告数、最新报告日期等摘要信息。仅返回外部接入所需的最小字段集（联系方式等敏感 PII 不外泄）。</p>
+    <p class="endpoint-desc">获取所有学生列表，包含报告数、最新报告日期等摘要信息。仅返回外部接入所需的最小字段集；联系方式等敏感 PII（邮箱、电话、单亲标识、顾问姓名等）不在本端点返回。</p>
+    <h3>响应字段</h3>
+    <table>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>id</code></td><td>int</td><td>学生 ID</td></tr>
+      <tr><td><code>name</code></td><td>str</td><td>学生姓名</td></tr>
+      <tr><td><code>grade</code></td><td>str</td><td>年级</td></tr>
+      <tr><td><code>school</code></td><td>str</td><td>学校</td></tr>
+      <tr><td><code>report_count</code></td><td>int</td><td>该学生的报告总数</td></tr>
+      <tr><td><code>latest_report_date</code></td><td>str|null</td><td>最新报告日期，格式 <code>YYYY-MM-DD</code>；无报告时为 <code>null</code></td></tr>
+    </table>
     <h3>响应示例</h3>
     <pre><code>{
   "ok": true,
@@ -267,6 +319,8 @@
     }
   ]
 }</code></pre>
+    <h3>错误码</h3>
+    <p><code>UNAUTHORIZED</code>（401）· <code>RATE_LIMITED</code>（429）· <code>SERVICE_UNAVAILABLE</code>（503）</p>
   </div>
 
   <h2 id="ep-reports">2. 学生报告列表</h2>
@@ -275,11 +329,19 @@
       <span class="method get">GET</span>
       <span class="path">/api/v1/students/{student_id}/reports</span>
     </div>
-    <p class="endpoint-desc">获取指定学生的所有报告列表，按创建时间倒序排列。仅返回摘要字段（服务器文件路径、AI 解读全文不在此端点返回，后者请用 y4-json / y4-md 端点获取）。</p>
+    <p class="endpoint-desc">获取指定学生的所有报告列表，按创建时间倒序排列。仅返回摘要字段；服务器文件路径、AI 解读全文不在此端点返回，后者请用 y4-json / y4-md 端点获取。</p>
     <h3>路径参数</h3>
     <table>
       <tr><th>参数</th><th>类型</th><th>说明</th></tr>
-      <tr><td><code>student_id</code></td><td>int</td><td>学生 ID（从学生列表获取）</td></tr>
+      <tr><td><code>student_id</code></td><td>int</td><td>学生 ID（正整数，从学生列表获取）。<code>&lt;=0</code> 或非整数返回 <code>400 BAD_REQUEST</code></td></tr>
+    </table>
+    <h3>响应字段</h3>
+    <table>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>id</code></td><td>int</td><td>报告 ID</td></tr>
+      <tr><td><code>report_date</code></td><td>str</td><td>报告日期，<code>YYYY-MM-DD</code></td></tr>
+      <tr><td><code>created_at</code></td><td>str</td><td>创建时间，ISO 8601</td></tr>
+      <tr><td><code>has_interpretation</code></td><td>bool</td><td>是否已生成 AI 解读</td></tr>
     </table>
     <h3>响应示例</h3>
     <pre><code>{
@@ -293,6 +355,8 @@
     }
   ]
 }</code></pre>
+    <h3>错误码</h3>
+    <p><code>UNAUTHORIZED</code>（401）· <code>BAD_REQUEST</code>（400，<code>student_id</code> 非法）· <code>RATE_LIMITED</code>（429）· <code>SERVICE_UNAVAILABLE</code>（503）</p>
   </div>
 
   <h2 id="ep-meta">3. 报告元数据</h2>
@@ -301,11 +365,21 @@
       <span class="method get">GET</span>
       <span class="path">/api/v1/reports/{report_id}</span>
     </div>
-    <p class="endpoint-desc">获取单份报告的元数据（不含原始数据全量，用于确认报告存在性和基本信息）。</p>
+    <p class="endpoint-desc">获取单份报告的元数据（不含原始数据全量），用于确认报告存在性与基本信息。</p>
     <h3>路径参数</h3>
     <table>
       <tr><th>参数</th><th>类型</th><th>说明</th></tr>
-      <tr><td><code>report_id</code></td><td>int</td><td>报告 ID（从报告列表获取）</td></tr>
+      <tr><td><code>report_id</code></td><td>int</td><td>报告 ID（正整数）。<code>&lt;=0</code> 或非整数返回 <code>400 BAD_REQUEST</code></td></tr>
+    </table>
+    <h3>响应字段</h3>
+    <table>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>report_id</code></td><td>int</td><td>报告 ID</td></tr>
+      <tr><td><code>student_id</code></td><td>int</td><td>所属学生 ID</td></tr>
+      <tr><td><code>student_name</code></td><td>str</td><td>学生姓名</td></tr>
+      <tr><td><code>grade</code></td><td>str</td><td>年级</td></tr>
+      <tr><td><code>report_date</code></td><td>str</td><td>报告日期，<code>YYYY-MM-DD</code></td></tr>
+      <tr><td><code>has_interpretation</code></td><td>bool</td><td>是否已生成 AI 解读</td></tr>
     </table>
     <h3>响应示例</h3>
     <pre><code>{
@@ -319,6 +393,8 @@
     "has_interpretation": true
   }
 }</code></pre>
+    <h3>错误码</h3>
+    <p><code>UNAUTHORIZED</code>（401）· <code>BAD_REQUEST</code>（400）· <code>NOT_FOUND</code>（404）· <code>RATE_LIMITED</code>（429）· <code>SERVICE_UNAVAILABLE</code>（503）</p>
   </div>
 
   <h2 id="ep-y4-json">4. Y4 JSON 数据</h2>
@@ -328,13 +404,19 @@
       <span class="path">/api/v1/reports/{report_id}/y4-json</span>
     </div>
     <p class="endpoint-desc">导出 Y4 JSON v2.0 格式报告，包含四维数据点（心力/精力/学习力/生涯力）、常模参照、AI 解读。适用于程序化处理。</p>
+    <h3>路径参数</h3>
+    <table>
+      <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>report_id</code></td><td>int</td><td>报告 ID（正整数）。<code>&lt;=0</code> 或非整数返回 <code>400 BAD_REQUEST</code></td></tr>
+    </table>
     <h3>响应结构</h3>
     <table>
-      <tr><th>字段</th><th>说明</th></tr>
-      <tr><td><code>json.meta</code></td><td>学生元信息（姓名、年级、日期等）</td></tr>
-      <tr><td><code>json.dimensions</code></td><td>四维数据：心力、精力、学习力、生涯力</td></tr>
-      <tr><td><code>json.norm_references</code></td><td>常模参照数据</td></tr>
-      <tr><td><code>json.ai_interpretation</code></td><td>AI 解读原文（Markdown 字符串）</td></tr>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>json</code></td><td>object</td><td>Y4 JSON 报告对象</td></tr>
+      <tr><td><code>json.meta</code></td><td>object</td><td>学生元信息（姓名、年级、日期等）</td></tr>
+      <tr><td><code>json.dimensions</code></td><td>object</td><td>四维数据：心力、精力、学习力、生涯力</td></tr>
+      <tr><td><code>json.norm_references</code></td><td>object</td><td>常模参照数据</td></tr>
+      <tr><td><code>json.ai_interpretation</code></td><td>str</td><td>AI 解读原文（Markdown 字符串）</td></tr>
     </table>
     <h3>响应示例</h3>
     <pre><code>{
@@ -355,6 +437,8 @@
     "ai_interpretation": "## 核心发现\n..."
   }
 }</code></pre>
+    <h3>错误码</h3>
+    <p><code>UNAUTHORIZED</code>（401）· <code>BAD_REQUEST</code>（400）· <code>NOT_FOUND</code>（404）· <code>RATE_LIMITED</code>（429）· <code>SERVICE_UNAVAILABLE</code>（503）</p>
   </div>
 
   <h2 id="ep-y4-md">5. Y4 Markdown 报告</h2>
@@ -364,13 +448,20 @@
       <span class="path">/api/v1/reports/{report_id}/y4-md</span>
     </div>
     <p class="endpoint-desc">下载人类可读的 Y4 报告 Markdown 文件，包含学生信息 + 四维已确认数据 + AI 解读原文。</p>
+    <h3>路径参数</h3>
+    <table>
+      <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>report_id</code></td><td>int</td><td>报告 ID（正整数）。<code>&lt;=0</code> 或非整数返回 <code>400 BAD_REQUEST</code></td></tr>
+    </table>
     <h3>查询参数</h3>
     <table>
-      <tr><th>参数</th><th>默认</th><th>说明</th></tr>
-      <tr><td><code>include_raw</code></td><td><code>0</code></td><td>设为 <code>1</code> 在报告中包含原始数据值</td></tr>
+      <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>include_raw</code></td><td>str</td><td>是否包含原始数据值，取值集合 <code>&#123;0, 1, true, yes, false, no&#125;</code>，默认 <code>0</code>。非法值返回 <code>400 BAD_REQUEST</code></td></tr>
     </table>
     <h3>响应</h3>
     <p>返回 <code>text/markdown</code> 附件下载，文件名格式：<code>Y4报告_姓名.md</code></p>
+    <h3>错误码</h3>
+    <p><code>UNAUTHORIZED</code>（401）· <code>BAD_REQUEST</code>（400，<code>report_id</code> 或 <code>include_raw</code> 非法）· <code>NOT_FOUND</code>（404）· <code>RATE_LIMITED</code>（429）· <code>SERVICE_UNAVAILABLE</code>（503）</p>
   </div>
 
   <h2 id="ep-pdf">6. PDF 报告下载</h2>
@@ -380,11 +471,18 @@
       <span class="path">/api/v1/reports/{report_id}/pdf</span>
     </div>
     <p class="endpoint-desc">下载 Y4 评测报告 PDF 文件。</p>
+    <h3>路径参数</h3>
+    <table>
+      <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>report_id</code></td><td>int</td><td>报告 ID（正整数）。<code>&lt;=0</code> 或非整数返回 <code>400 BAD_REQUEST</code></td></tr>
+    </table>
     <h3>响应</h3>
     <p>返回 <code>application/pdf</code> 附件下载，文件名格式：<code>Y4报告_姓名.pdf</code></p>
     <div class="callout">
-      <strong>注意：</strong>如果 PDF 文件在服务器上不存在（可能已被清理），将返回 <code>404</code>。
+      <strong>路径安全：</strong>报告文件按 <code>report_id</code> 在受控目录内查找，文件名由服务端拼接学生姓名生成，<code>report_id</code> 经整数校验，避免路径穿越。若 PDF 文件在服务器上不存在（可能已被清理或未生成），返回 <code>404 NOT_FOUND</code>。
     </div>
+    <h3>错误码</h3>
+    <p><code>UNAUTHORIZED</code>（401）· <code>BAD_REQUEST</code>（400）· <code>NOT_FOUND</code>（404）· <code>RATE_LIMITED</code>（429）· <code>SERVICE_UNAVAILABLE</code>（503）</p>
   </div>
 
   <h2 id="ep-e4">7. E4 评估协议</h2>
@@ -394,18 +492,100 @@
       <span class="path">/api/v1/reports/{report_id}/e4-protocol</span>
       <span class="badge ai">AI 生成</span>
     </div>
-    <p class="endpoint-desc">生成并下载 E4 评估协议 Markdown 文件。包含跨维度 AI 分析、问题级判定、总览成文。每次调用都会实时调用 AI 模型生成。</p>
+    <p class="endpoint-desc">生成并下载 E4 评估协议 Markdown 文件。包含跨维度 AI 分析、问题级判定、总览成文。</p>
+    <h3>路径参数</h3>
+    <table>
+      <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>report_id</code></td><td>int</td><td>报告 ID（正整数）。<code>&lt;=0</code> 或非整数返回 <code>400 BAD_REQUEST</code></td></tr>
+    </table>
     <h3>查询参数</h3>
     <table>
-      <tr><th>参数</th><th>默认</th><th>说明</th></tr>
-      <tr><td><code>include_raw</code></td><td><code>0</code></td><td>设为 <code>1</code> 在协议中包含原始数据值</td></tr>
+      <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>include_raw</code></td><td>str</td><td>是否包含原始数据值，取值集合 <code>&#123;0, 1, true, yes, false, no&#125;</code>，默认 <code>0</code>。非法值返回 <code>400 BAD_REQUEST</code></td></tr>
+    </table>
+    <h3>缓存行为</h3>
+    <p>服务端按 <code>(report_id, include_raw)</code> 缓存生成结果，TTL 约 10 分钟。同一参数在 TTL 内且对应报告的 <code>interpretation</code> 未变更时再次请求，直接返回缓存内容，<strong>不再调用 AI</strong>，节省模型计费。</p>
+    <table>
+      <tr><th>响应头</th><th>含义</th></tr>
+      <tr><td><code>X-Cache: HIT</code></td><td>命中缓存，未调用 AI，响应快</td></tr>
+      <tr><td><code>X-Cache: MISS</code></td><td>首次生成 / TTL 过期 / interpretation 变更后重新调用 AI</td></tr>
     </table>
     <h3>响应</h3>
     <p>返回 <code>text/markdown</code> 附件下载，文件名格式：<code>E4协议_姓名.md</code></p>
     <div class="callout">
-      <strong>注意：</strong>此端点会实时调用 AI 模型（Step2 跨维度分析 + Step3 总览成文），响应时间通常为 10-30 秒，请设置足够的超时时间。E4 协议与 Y4 报告是两套独立体系：Y4 面向内部同事阅读，E4 面向 AI 系统间传递。
+      <strong>调用注意：</strong>首次或重新生成时需实时调用 AI（跨维度分析 + 总览成文），响应时间通常为 10-30 秒，<strong>请将客户端超时设置为 ≥120 秒</strong>。E4 协议与 Y4 报告是两套独立体系：Y4 面向内部同事阅读，E4 面向 AI 系统间互操作。AI 调用失败时返回 <code>503 AI_UNAVAILABLE</code>，且不写入缓存。
     </div>
+    <h3>错误码</h3>
+    <p><code>UNAUTHORIZED</code>（401）· <code>BAD_REQUEST</code>（400）· <code>NOT_FOUND</code>（404）· <code>RATE_LIMITED</code>（429）· <code>SERVICE_UNAVAILABLE</code>（503）· <code>AI_UNAVAILABLE</code>（503）</p>
   </div>
+
+  <!-- Errors -->
+  <h2 id="errors">错误码</h2>
+  <p>所有 <code>/api/v1/*</code> 端点的错误响应均为统一 JSON 信封：</p>
+  <pre><code>{ "ok": false, "code": "ERROR_CODE", "error": "人类可读描述" }</code></pre>
+  <table>
+    <tr><th>错误码</th><th>HTTP</th><th>含义</th></tr>
+    <tr><td><code>UNAUTHORIZED</code></td><td><code>401</code></td><td>API Key 缺失或无效</td></tr>
+    <tr><td><code>BAD_REQUEST</code></td><td><code>400</code></td><td>路径或查询参数非法（如 <code>student_id</code> / <code>report_id</code> 非正整数，<code>include_raw</code> 取值越界）</td></tr>
+    <tr><td><code>NOT_FOUND</code></td><td><code>404</code></td><td>报告不存在或 PDF 文件丢失</td></tr>
+    <tr><td><code>RATE_LIMITED</code></td><td><code>429</code></td><td>请求频率超出限制</td></tr>
+    <tr><td><code>SERVICE_UNAVAILABLE</code></td><td><code>503</code></td><td>服务端未配置 API Key 或服务不可用</td></tr>
+    <tr><td><code>AI_UNAVAILABLE</code></td><td><code>503</code></td><td>E4 协议 AI 调用失败</td></tr>
+  </table>
+  <h3>错误响应示例</h3>
+  <pre><code>{
+  "ok": false,
+  "code": "UNAUTHORIZED",
+  "error": "Missing or invalid API key"
+}</code></pre>
+
+  <!-- Migration -->
+  <h2 id="migration">迁移与连通性排查</h2>
+  <div class="callout">
+    <strong>旧地址已废弃：</strong>旧直连 IP <code>120.55.0.127</code> 及旧直连域名自 <strong>2026-09-26</strong> 起失效不可达。请尽快迁移至新生产地址 <code>https://report.p4learning-ark.app/api/v1</code>。
+  </div>
+  <h3>连通性自检</h3>
+  <p>依次执行以下 curl，确认连通与鉴权正常：</p>
+  <pre><code><span class="code-comment"># (a) 健康检查，无需 Key，期望 200</span>
+curl -i https://report.p4learning-ark.app/api/v1/health
+
+<span class="code-comment"># (b) 带 Key 访问受保护端点，期望 200</span>
+curl -i -H "Authorization: Bearer YOUR_API_KEY" \
+     https://report.p4learning-ark.app/api/v1/students</code></pre>
+  <h3>常见失败原因与处理</h3>
+  <table>
+    <tr><th>现象</th><th>原因</th><th>处理</th></tr>
+    <tr><td>DNS 无法解析 <code>report.p4learning-ark.app</code></td><td>未使用 Cloudflare DNS 或本地 DNS 缓存过期</td><td>使用 Cloudflare 公共 DNS（1.1.1.1），或刷新本地 DNS 缓存</td></tr>
+    <tr><td>直连旧 IP 返回 <code>403</code>（ICP/Beaver 拦截）</td><td>阿里云对直连 IP 的未备案访问拦截</td><td>该拦截仅作用于直连阿里云 IP；Cloudflare Tunnel 已绕过——<strong>请使用域名而非 IP</strong></td></tr>
+    <tr><td>Cloudflare 首次连接略慢（~0.8s）</td><td>Tunnel 首包建链</td><td>正常现象，无需处理；后续请求会更快</td></tr>
+    <tr><td><code>401 UNAUTHORIZED</code></td><td>API Key 错误或缺失</td><td>核对 <code>Authorization: Bearer &lt;KEY&gt;</code> 头格式与 Key 值</td></tr>
+    <tr><td><code>503 SERVICE_UNAVAILABLE</code></td><td>服务端未配置 <code>Y4_API_KEY</code> 环境变量</td><td>联系凭远教育管理员确认服务端 Key 已配置并已重启</td></tr>
+  </table>
+
+  <!-- Key Management -->
+  <h2 id="key-mgmt">密钥保管与轮换</h2>
+  <ul>
+    <li><strong>不要</strong>将 API Key 写入前端代码、提交到代码仓库或记录在客户端日志中；应在服务端通过环境变量或密钥管理服务读取。</li>
+    <li><strong>轮换流程：</strong>由凭远教育管理员修改服务端 <code>Y4_API_KEY</code> 环境变量并重启服务即可生效；建议与接入方协调切换窗口，避免轮换瞬间出现短时 401。</li>
+    <li><strong>泄露处置：</strong>一旦怀疑 Key 泄露，立即通知管理员轮换，并排查访问日志。</li>
+    <li><strong>按接入方独立 Key：</strong>当前暂不支持，所有接入方共用同一 <code>Y4_API_KEY</code>；按接入方独立 Key 与配额为后续规划项。</li>
+  </ul>
+
+  <!-- Retry -->
+  <h2 id="retry">重试与幂等</h2>
+  <ul>
+    <li>所有端点均为 <code>GET</code>，幂等且安全可重试。</li>
+    <li>E4 协议端点：遇 <code>503 AI_UNAVAILABLE</code> 应在退避后重试；缓存命中（<code>X-Cache: HIT</code>）的响应安全可重复获取。</li>
+    <li>遇 <code>429 RATE_LIMITED</code> 应遵守退避，建议指数退避 <code>1s / 2s / 4s</code>，最多重试 3 次。</li>
+    <li><strong>客户端超时建议：</strong>普通端点 ≥30 秒；E4 协议端点 ≥120 秒。</li>
+  </ul>
+
+  <!-- Changelog -->
+  <h2 id="changelog">Changelog</h2>
+  <table>
+    <tr><th>日期</th><th>变更</th></tr>
+    <tr><td>2026-09-28</td><td>新增 <code>GET /api/v1/health</code> 健康检查端点（无需鉴权）；统一结构化错误信封 <code>&#123;ok:false,code,error&#125;</code>；新增路径/查询参数校验（<code>student_id</code> / <code>report_id</code> / <code>include_raw</code>）；E4 协议端点新增缓存与 <code>X-Cache: HIT/MISS</code> 响应头；文档写明真实生产 Base URL；新增迁移与连通性排查、密钥保管与轮换、重试与幂等章节；旧直连 IP 服务器迁移至 Cloudflare Tunnel 域名。</td></tr>
+  </table>
 
   <!-- Code Examples -->
   <h2 id="examples">快速开始</h2>
@@ -418,34 +598,37 @@
     </div>
 
     <div id="tab-curl" class="tab-content active">
-<pre><code><span class="code-comment"># 获取学生列表</span>
+<pre><code><span class="code-comment"># 健康检查（无需 Key）</span>
+curl -i https://report.p4learning-ark.app/api/v1/health
+
+<span class="code-comment"># 获取学生列表</span>
 curl -H "Authorization: Bearer YOUR_API_KEY" \
-     https://your-domain/api/v1/students
+     https://report.p4learning-ark.app/api/v1/students
 
 <span class="code-comment"># 下载 Y4 JSON</span>
 curl -H "Authorization: Bearer YOUR_API_KEY" \
-     https://your-domain/api/v1/reports/42/y4-json
+     https://report.p4learning-ark.app/api/v1/reports/42/y4-json
 
 <span class="code-comment"># 下载 Y4 Markdown（含原始数据）</span>
 curl -H "Authorization: Bearer YOUR_API_KEY" \
      -o Y4报告.md \
-     "https://your-domain/api/v1/reports/42/y4-md?include_raw=1"
+     "https://report.p4learning-ark.app/api/v1/reports/42/y4-md?include_raw=1"
 
 <span class="code-comment"># 下载 PDF</span>
 curl -H "Authorization: Bearer YOUR_API_KEY" \
      -o report.pdf \
-     https://your-domain/api/v1/reports/42/pdf
+     https://report.p4learning-ark.app/api/v1/reports/42/pdf
 
-<span class="code-comment"># 生成 E4 协议（响应较慢，建议设超时）</span>
+<span class="code-comment"># 生成 E4 协议（响应较慢，建议设超时 ≥120s）</span>
 curl -H "Authorization: Bearer YOUR_API_KEY" \
      --max-time 120 \
      -o E4协议.md \
-     https://your-domain/api/v1/reports/42/e4-protocol</code></pre>
+     https://report.p4learning-ark.app/api/v1/reports/42/e4-protocol</code></pre>
     </div>
 
     <div id="tab-js" class="tab-content">
-<pre><code>const API_KEY = 'YOUR_API_KEY';
-const BASE = 'https://your-domain/api/v1';
+<pre><code>const API_KEY = 'YOUR_API_KEY'; <span class="code-comment">// 仅在服务端使用，勿暴露到前端</span>
+const BASE = 'https://report.p4learning-ark.app/api/v1';
 
 const headers = { 'Authorization': `Bearer ${API_KEY}` };
 
@@ -462,9 +645,7 @@ console.log(y4Data.dimensions);
 const mdRes = await fetch(`${BASE}/reports/42/y4-md?include_raw=1`, { headers });
 const mdText = await mdRes.text();
 
-<span class="code-comment">// 下载 PDF（触发浏览器下载）</span>
-window.open(`${BASE}/reports/42/pdf?token=${API_KEY}`, '_blank');
-<span class="code-comment">// 注意：浏览器原生 fetch 下载文件建议用 Blob</span>
+<span class="code-comment">// 下载 PDF（建议用 Blob 触发下载）</span>
 const pdfRes = await fetch(`${BASE}/reports/42/pdf`, { headers });
 const blob = await pdfRes.blob();
 const url = URL.createObjectURL(blob);
@@ -476,45 +657,38 @@ a.href = url; a.download = 'Y4报告.pdf'; a.click();</code></pre>
 <pre><code>import requests
 
 API_KEY = 'YOUR_API_KEY'
-BASE = 'https://your-domain/api/v1'
+BASE = 'https://report.p4learning-ark.app/api/v1'
 headers = {'Authorization': f'Bearer {API_KEY}'}
 
+<span class="code-comment"># 健康检查（无需 Key）</span>
+r = requests.get(f'{BASE}/health', timeout=30)
+print(r.json())
+
 <span class="code-comment"># 获取学生列表</span>
-r = requests.get(f'{BASE}/students', headers=headers)
+r = requests.get(f'{BASE}/students', headers=headers, timeout=30)
 students = r.json()['students']
 
 <span class="code-comment"># 下载 Y4 JSON</span>
-r = requests.get(f'{BASE}/reports/42/y4-json', headers=headers)
+r = requests.get(f'{BASE}/reports/42/y4-json', headers=headers, timeout=30)
 y4_data = r.json()['json']
 
 <span class="code-comment"># 下载 Y4 Markdown</span>
-r = requests.get(f'{BASE}/reports/42/y4-md?include_raw=1', headers=headers)
+r = requests.get(f'{BASE}/reports/42/y4-md?include_raw=1', headers=headers, timeout=30)
 with open('Y4报告.md', 'wb') as f:
     f.write(r.content)
 
 <span class="code-comment"># 下载 PDF</span>
-r = requests.get(f'{BASE}/reports/42/pdf', headers=headers)
+r = requests.get(f'{BASE}/reports/42/pdf', headers=headers, timeout=30)
 with open('Y4报告.pdf', 'wb') as f:
     f.write(r.content)
 
 <span class="code-comment"># 生成 E4 协议（响应较慢，设超时 120s）</span>
 r = requests.get(f'{BASE}/reports/42/e4-protocol', headers=headers, timeout=120)
+print(r.headers.get('X-Cache'))  <span class="code-comment"># HIT 或 MISS</span>
 with open('E4协议.md', 'wb') as f:
     f.write(r.content)</code></pre>
     </div>
   </div>
-
-  <!-- Errors -->
-  <h2 id="errors">错误码</h2>
-  <table>
-    <tr><th>状态码</th><th>含义</th></tr>
-    <tr><td><code>401</code></td><td>API Key 缺失或无效</td></tr>
-    <tr><td><code>404</code></td><td>报告不存在或 PDF 文件丢失</td></tr>
-    <tr><td><code>429</code></td><td>请求频率超出限制</td></tr>
-    <tr><td><code>503</code></td><td>服务端未配置 API Key</td></tr>
-  </table>
-  <p>所有错误响应均为 JSON 格式：</p>
-  <pre><code>{ "ok": false, "error": "错误描述信息" }</code></pre>
 
 </div>
 
