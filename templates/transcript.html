@@ -79,6 +79,14 @@
     }
     .file-name { font-size: 12px; color: var(--muted); }
 
+    /* Result edit toolbar + editor */
+    .result-toolbar {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      margin-top: 18px;
+    }
+    .result-toolbar .rt-hint { font-size: 12.5px; color: var(--muted); }
+    #resultEditor { min-height: 400px; margin-top: 12px; }
+
     /* Linked-student banner */
     .link-banner {
       background: linear-gradient(135deg, #FFF5F5 0%, #FFFFFF 60%);
@@ -268,6 +276,11 @@
       <div id="status" class="status" style="display:none"></div>
     </div>
 
+    <div id="resultToolbar" class="result-toolbar" style="display:none">
+      <button class="btn btn-sm btn-secondary" id="editToggleBtn" onclick="toggleEditMode()">编辑内容</button>
+      <span class="rt-hint" id="editHint" style="display:none">修改将用于下载，并同步保存到学生档案</span>
+    </div>
+    <textarea id="resultEditor" placeholder="在此编辑会议纪要文字..." style="display:none"></textarea>
     <div id="result" class="result" style="display:none"></div>
 
     <div id="historyWrap" class="history-wrap" style="display:none">
@@ -290,9 +303,15 @@
     const gotoArchiveBtn = document.getElementById('gotoArchiveBtn');
     const saveNotice = document.getElementById('saveNotice');
     const customPromptEl = document.getElementById('customPrompt');
+    const resultToolbar = document.getElementById('resultToolbar');
+    const resultEditor = document.getElementById('resultEditor');
+    const editToggleBtn = document.getElementById('editToggleBtn');
+    const editHint = document.getElementById('editHint');
 
     let lastResult = '';
     let lastMinutesId = null;
+    let editMode = false;
+    let editedDirty = false;
 
     // ---------- URL params + linked student/report ----------
     const urlParams = new URLSearchParams(window.location.search);
@@ -334,6 +353,7 @@
         if (data.summary) {
           lastResult = data.summary;
           if (data.minutesId) lastMinutesId = data.minutesId;
+          resetEditState();
           renderResult(data.summary);
           showResultButtons();
           if (data.minutesId) { saveNotice.style.display = 'inline-flex'; }
@@ -429,7 +449,43 @@
       copyBtn.style.display = 'inline-block';
       downloadDocxBtn.style.display = 'inline-block';
       downloadTxtBtn.style.display = 'inline-block';
+      resultToolbar.style.display = 'flex';
     }
+
+    // ---------- Result edit mode ----------
+    function resetEditState() {
+      editMode = false;
+      editedDirty = false;
+      resultEditor.style.display = 'none';
+      resultEditor.value = '';
+      editToggleBtn.textContent = '编辑内容';
+      editHint.style.display = 'none';
+      saveNotice.textContent = '✓ 已保存到学生档案';
+    }
+
+    function toggleEditMode() {
+      if (!editMode) {
+        // 进入编辑态
+        resultEditor.value = lastResult;
+        resultEditor.style.display = 'block';
+        resultEl.style.display = 'none';
+        editMode = true;
+        editToggleBtn.textContent = '预览';
+        editHint.style.display = 'inline';
+        resultEditor.focus();
+      } else {
+        // 回到预览态，同步编辑后的文本
+        lastResult = resultEditor.value;
+        renderResult(lastResult);
+        resultEditor.style.display = 'none';
+        editMode = false;
+        editToggleBtn.textContent = '编辑内容';
+        editHint.style.display = 'none';
+        saveToSession();
+      }
+    }
+
+    resultEditor.addEventListener('input', () => { editedDirty = true; });
 
     // ---------- Student selector ----------
     let STUDENTS_CACHE = [];
@@ -590,6 +646,7 @@
         if (data.student_gender) genderEl.value = data.student_gender;
         lastResult = data.minutes_text || '';
         lastMinutesId = data.id;
+        resetEditState();
         if (lastResult) {
           renderResult(lastResult);
           showResultButtons();
@@ -661,6 +718,8 @@
       generateBtn.disabled = true;
       setStatus('<span class="spinner"></span>正在撰写会议纪要，请稍候（约 15–30 秒）...', 'loading');
       resultEl.style.display = 'none';
+      resultToolbar.style.display = 'none';
+      resetEditState();
       copyBtn.style.display = 'none';
       downloadTxtBtn.style.display = 'none';
       downloadDocxBtn.style.display = 'none';
@@ -700,6 +759,7 @@
         if (data.student_grade) document.getElementById('studentGrade').value  = data.student_grade;
         if (data.student_gender) document.getElementById('studentGender').value = data.student_gender;
 
+        resetEditState();
         renderResult(data.summary);
         showResultButtons();
         gotoArchiveBtn.style.display = 'inline-block';
@@ -765,43 +825,61 @@
     }
 
     async function downloadDocx() {
+      // 若处于编辑态，先切回预览（lastResult 取编辑后文本）
+      if (editMode) toggleEditMode();
+
+      const name = document.getElementById('studentName').value.trim();
+      const grade = document.getElementById('studentGrade').value.trim();
+      const gender = document.getElementById('studentGender').value.trim();
+
       const oldText = downloadDocxBtn.textContent;
       downloadDocxBtn.disabled = true;
       downloadDocxBtn.textContent = '生成中…';
       try {
-        // If we have a minutes_id, prefer the DB route (server already has all info)
-        if (lastMinutesId) {
-          await downloadDocxById(lastMinutesId);
-        } else {
-          const name = document.getElementById('studentName').value.trim();
-          const grade = document.getElementById('studentGrade').value.trim();
-          const gender = document.getElementById('studentGender').value.trim();
-          const resp = await fetch('/api/transcript/docx', {
-            method: 'POST',
+        // 有编辑且已入库：先把修改写回档案，保证档案与下载件一致
+        if (editedDirty && lastMinutesId) {
+          const putResp = await fetch(`/api/minutes/${lastMinutesId}`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              summary: lastResult,
-              student_name: name,
-              student_grade: grade,
-              student_gender: gender,
-            }),
+            body: JSON.stringify({ minutes_text: lastResult }),
           });
-          if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            throw new Error(err.error || 'DOCX 生成失败');
+          if (!putResp.ok) {
+            const err = await putResp.json().catch(() => ({}));
+            throw new Error(err.error || '保存修改失败');
           }
-          const blob = await resp.blob();
-          const disp = resp.headers.get('Content-Disposition') || '';
-          let filename = `凭远Y4解读会纪要_${name || '学生'}.docx`;
-          const match = disp.match(/filename\*=UTF-8''([^;]+)/);
-          if (match) { try { filename = decodeURIComponent(match[1]); } catch { /* use default */ } }
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = filename;
-          document.body.appendChild(a); a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
+          saveNotice.textContent = '✓ 修改已保存到学生档案';
+          saveNotice.style.display = 'inline-flex';
         }
+
+        // 总是用 legacy 模式按当前文本渲染 DOCX（DB 路由感知不到前端编辑）
+        const resp = await fetch('/api/transcript/docx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            summary: lastResult,
+            student_name: name,
+            student_grade: grade,
+            student_gender: gender,
+          }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || 'DOCX 生成失败');
+        }
+        const blob = await resp.blob();
+        const disp = resp.headers.get('Content-Disposition') || '';
+        let filename = `凭远Y4解读会纪要_${name || '学生'}.docx`;
+        const match = disp.match(/filename\*=UTF-8''([^;]+)/);
+        if (match) { try { filename = decodeURIComponent(match[1]); } catch { /* use default */ } }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        editedDirty = false;
+        saveToSession();
       } catch (e) {
         alert('下载 DOCX 失败：' + e.message);
       } finally {
