@@ -66,11 +66,15 @@
 
   <main class="container container-narrow">
     <div class="login-panel">
-      <h2>管理员登录</h2>
-      <p>输入密码以访问管理功能</p>
+      <h2>登录</h2>
+      <p>使用账号密码登录</p>
       <div class="field">
-        <input type="password" id="pwd" placeholder="管理员密码" style="width:100%;"
-               onkeydown="if(event.key==='Enter')doLogin()" autofocus />
+        <input type="text" id="user" placeholder="账号" style="width:100%;margin-bottom:10px;"
+               autocomplete="username" autofocus />
+      </div>
+      <div class="field">
+        <input type="password" id="pwd" placeholder="密码" style="width:100%;"
+               onkeydown="if(event.key==='Enter')doLogin()" autocomplete="current-password" />
       </div>
       <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px;" onclick="doLogin()">登录</button>
       <div id="err" style="color:var(--red);text-align:center;font-size:13px;margin-top:12px;display:none;"></div>
@@ -79,14 +83,20 @@
 
   <script>
     async function doLogin() {
+      const username = document.getElementById('user').value.trim();
       const pwd = document.getElementById('pwd').value;
       const errEl = document.getElementById('err');
       errEl.style.display = 'none';
+      if (!username) {
+        errEl.textContent = '请输入账号';
+        errEl.style.display = 'block';
+        return;
+      }
       try {
         const resp = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pwd }),
+          body: JSON.stringify({ username: username, password: pwd }),
         });
         const data = await resp.json();
         if (data.ok) {

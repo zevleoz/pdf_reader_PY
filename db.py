@@ -38,6 +38,7 @@ engine = create_engine(DATABASE_URL, connect_args=connect_args)
 class Student(Base):
     __tablename__ = "students"
     id = Column(Integer, primary_key=True, autoincrement=True)
+    student_code = Column(String(20), unique=True, index=True)  # Y4-0001 格式唯一业务 ID
     name = Column(String(100), nullable=False)
     gender = Column(String(20))
     birthday = Column(String(50))
@@ -67,7 +68,8 @@ class MeetingMinutes(Base):
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
     report_id = Column(Integer, ForeignKey("reports.id"), nullable=True)
     transcript_text = Column(Text)  # 原始逐字稿
-    minutes_text = Column(Text)     # AI 生成的会议纪要
+    minutes_text = Column(Text)     # AI 生成的会议纪要（渲染后的 Markdown）
+    minutes_json = Column(Text, nullable=True)  # 结构化纪要 JSON（内部中间层，minutes-v1）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -110,6 +112,48 @@ class E4Mapping(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class SixAmProfile(Base):
+    """6 A.M. 六维启动档案：每次重跑插入新行（version 递增），不覆盖旧行。"""
+    __tablename__ = "six_am_profiles"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    report_id = Column(Integer, ForeignKey("reports.id"), nullable=False)
+    profile_json = Column(Text, nullable=False)
+    version = Column(Integer, nullable=False, default=1)   # 该学生档案版本号，递增
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SixAmRuleVersion(Base):
+    """6 A.M. 规则版本：params_json = {"params": {...}, "rule_overrides": {...}}。
+
+    status: draft（可多个）/ published（至多 1 个）/ archived。
+    """
+    __tablename__ = "six_am_rule_versions"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    label = Column(String(100), nullable=False)            # 如 "draft-20261013-1"
+    status = Column(String(20), nullable=False, default="draft")
+    params_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    published_at = Column(DateTime)
+
+
+class User(Base):
+    """平台用户（Admin / Advisor / Viewer 三角色）。
+
+    role: 'admin' / 'advisor' / 'viewer'；role=advisor 时 advisor_name 关联
+    students.advisor_name 用于数据隔离。密码存 werkzeug 哈希。
+    """
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(100), nullable=False, unique=True, index=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(20), nullable=False, default="viewer")
+    advisor_name = Column(String(100))
+    display_name = Column(String(100))
+    is_active = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db() -> None:
     """Create tables if they don't exist, and run migrations."""
     Base.metadata.create_all(engine)
@@ -121,7 +165,8 @@ def _migrate_schema() -> None:
     import sqlite3
     if not DATABASE_URL.startswith("sqlite"):
         return
-    db_path = str(DEFAULT_DB)
+    # 以实际配置的 DATABASE_URL 为准（默认即 DEFAULT_DB），避免测试/多库场景误迁移
+    db_path = DATABASE_URL.split("sqlite:///", 1)[-1]
     if not Path(db_path).exists():
         return
     conn = sqlite3.connect(db_path)
@@ -152,6 +197,8 @@ def _migrate_schema() -> None:
         ("advisor_name", "ALTER TABLE students ADD COLUMN advisor_name VARCHAR(100) DEFAULT ''"),
         ("school", "ALTER TABLE students ADD COLUMN school VARCHAR(200) DEFAULT ''"),
         ("single_parent", "ALTER TABLE students ADD COLUMN single_parent VARCHAR(10) DEFAULT 'false'"),
+        # student_code：先加普通列（SQLite ALTER TABLE 不支持加 UNIQUE），唯一性用索引实现
+        ("student_code", "ALTER TABLE students ADD COLUMN student_code VARCHAR(20)"),
     ]
     for col_name, sql in student_migrations:
         if col_name not in student_cols:
@@ -160,6 +207,14 @@ def _migrate_schema() -> None:
                 conn.commit()
             except Exception:
                 pass
+
+    # student_code 唯一索引（NULL 可重复，回填由迁移脚本负责）
+    # 名称与 ORM 的 index=True 保持一致，避免重复索引
+    try:
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_students_student_code ON students(student_code)")
+        conn.commit()
+    except Exception:
+        pass
 
     # Check existing columns in reports table
     cursor.execute("PRAGMA table_info(reports)")
@@ -186,12 +241,23 @@ def _migrate_schema() -> None:
                     report_id INTEGER,
                     transcript_text TEXT,
                     minutes_text TEXT,
+                    minutes_json TEXT,
                     created_at DATETIME,
                     updated_at DATETIME,
                     FOREIGN KEY (student_id) REFERENCES students(id),
                     FOREIGN KEY (report_id) REFERENCES reports(id)
                 )
             """)
+            conn.commit()
+        except Exception:
+            pass
+
+    # meeting_minutes: add minutes_json for existing databases
+    cursor.execute("PRAGMA table_info(meeting_minutes)")
+    mm_cols = {row[1] for row in cursor.fetchall()}
+    if "minutes_json" not in mm_cols:
+        try:
+            cursor.execute("ALTER TABLE meeting_minutes ADD COLUMN minutes_json TEXT")
             conn.commit()
         except Exception:
             pass
@@ -230,16 +296,98 @@ def _migrate_schema() -> None:
                 try: conn.rollback()
                 except Exception: pass
 
+    # Check if six_am_profiles / six_am_rule_versions tables exist; if not create
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='six_am_profiles'")
+    if not cursor.fetchone():
+        try:
+            cursor.execute("""
+                CREATE TABLE six_am_profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER NOT NULL,
+                    report_id INTEGER NOT NULL,
+                    profile_json TEXT NOT NULL,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    created_at DATETIME,
+                    FOREIGN KEY (student_id) REFERENCES students(id),
+                    FOREIGN KEY (report_id) REFERENCES reports(id)
+                )
+            """)
+            conn.commit()
+        except Exception:
+            pass
+
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='six_am_rule_versions'")
+    if not cursor.fetchone():
+        try:
+            cursor.execute("""
+                CREATE TABLE six_am_rule_versions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    label VARCHAR(100) NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'draft',
+                    params_json TEXT NOT NULL,
+                    created_at DATETIME,
+                    published_at DATETIME
+                )
+            """)
+            conn.commit()
+        except Exception:
+            pass
+
+    # Check if users table exists; if not create (2.0 角色体系)
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    if not cursor.fetchone():
+        try:
+            cursor.execute("""
+                CREATE TABLE users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username VARCHAR(100) NOT NULL UNIQUE,
+                    password_hash VARCHAR(255) NOT NULL,
+                    role VARCHAR(20) NOT NULL DEFAULT 'viewer',
+                    advisor_name VARCHAR(100),
+                    display_name VARCHAR(100),
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at DATETIME
+                )
+            """)
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username ON users (username)")
+            conn.commit()
+        except Exception:
+            pass
+
     conn.close()
 
 
 # ─── Student CRUD ───────────────────────────────────────────────
+
+def next_student_code(sess=None) -> str:
+    """分配下一个学生业务 ID（`Y4-0001` 起）。
+
+    基于现有 code 的最大序号 +1。``sess`` 非空时复用调用方事务（事务内 SELECT MAX + 1）；
+    否则自开 Session。并发下由 ``student_code`` 唯一索引兜底。
+    """
+    def _calc(s) -> str:
+        rows = s.execute(select(Student.student_code)).all()
+        max_n = 0
+        for (c,) in rows:
+            if c and str(c).startswith("Y4-"):
+                try:
+                    max_n = max(max_n, int(str(c)[3:]))
+                except ValueError:
+                    pass
+        return f"Y4-{max_n + 1:04d}"
+
+    if sess is not None:
+        return _calc(sess)
+    with Session(engine) as s:
+        return _calc(s)
+
 
 def add_student(name: str, gender: str = "", birthday: str = "",
                 grade: str = "", email: str = "", phone: str = "") -> int:
     """Create a student record. Returns student id."""
     with Session(engine) as sess:
         stmt = insert(Student).values(
+            student_code=next_student_code(sess),
             name=name, gender=gender, birthday=birthday,
             grade=grade, email=email, phone=phone,
         )
@@ -252,11 +400,30 @@ def find_or_create_student(name: str, gender: str = "", birthday: str = "",
                            grade: str = "", email: str = "", phone: str = "",
                            advisor_name: str = "", school: str = "",
                            single_parent: str = "false") -> int:
-    """Find student by name, or create one. Returns student id.
-    If found, update advisor/school/single_parent fields."""
+    """Find student by (name, birthday), or create one. Returns student id.
+
+    匹配规则：优先 (name, birthday)；birthday 为空时退化为纯姓名匹配；同名不同生日创建新学生。
+    若命中历史数据中同名但生日为空的记录，则补录生日（避免同名重复建档）。
+    命中后更新 advisor/school/single_parent 字段。
+    """
+    name = (name or "").strip()
+    birthday = (birthday or "").strip()
     with Session(engine) as sess:
-        stmt = select(Student).where(Student.name == name)
-        row = sess.execute(stmt).first()
+        row = None
+        if birthday:
+            row = sess.execute(
+                select(Student).where(Student.name == name, Student.birthday == birthday)
+            ).first()
+            if not row:
+                # 兼容历史：同名但生日为空的记录视为同一人
+                row = sess.execute(
+                    select(Student).where(
+                        Student.name == name,
+                        (Student.birthday == "") | (Student.birthday.is_(None)),
+                    )
+                ).first()
+        else:
+            row = sess.execute(select(Student).where(Student.name == name)).first()
         if row:
             student = row[0]
             # Update booking-related fields if provided
@@ -267,6 +434,9 @@ def find_or_create_student(name: str, gender: str = "", birthday: str = "",
                 update_values["school"] = school
             if single_parent and single_parent != "false":
                 update_values["single_parent"] = single_parent
+            # 历史记录补录生日（仅当原值为空）
+            if birthday and not (student.birthday or "").strip():
+                update_values["birthday"] = birthday
             if update_values:
                 sess.execute(update(Student).where(Student.id == student.id).values(**update_values))
                 sess.commit()
@@ -274,6 +444,7 @@ def find_or_create_student(name: str, gender: str = "", birthday: str = "",
     # Create new student
     with Session(engine) as sess:
         stmt = insert(Student).values(
+            student_code=next_student_code(sess),
             name=name, gender=gender, birthday=birthday,
             grade=grade, email=email, phone=phone,
             advisor_name=advisor_name, school=school, single_parent=single_parent,
@@ -283,10 +454,15 @@ def find_or_create_student(name: str, gender: str = "", birthday: str = "",
         return result.lastrowid
 
 
-def get_students() -> List[Dict[str, Any]]:
-    """List all students with their report counts, minutes count, and latest report date."""
+def get_students(advisor_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List students with report counts, minutes count, and latest report date.
+
+    ``advisor_name`` 非 None 时仅返回该顾问名下学生（advisor 数据隔离）。
+    """
     with Session(engine) as sess:
         stmt = select(Student).order_by(Student.created_at.desc())
+        if advisor_name is not None:
+            stmt = stmt.where(Student.advisor_name == advisor_name)
         rows = sess.execute(stmt).all()
         results = []
         for row in rows:
@@ -300,6 +476,7 @@ def get_students() -> List[Dict[str, Any]]:
             latest_report_date = latest_row[0].report_date.isoformat() if latest_row and latest_row[0].report_date else None
             results.append({
                 "id": student.id,
+                "student_code": student.student_code or "",
                 "name": student.name,
                 "gender": student.gender,
                 "grade": student.grade,
@@ -314,6 +491,29 @@ def get_students() -> List[Dict[str, Any]]:
                 "latest_report_date": latest_report_date,
             })
         return results
+
+
+def get_student(student_id: int) -> Optional[Dict[str, Any]]:
+    """按 id 取学生基本信息（用于 advisor 归属校验等）。不存在返回 None。"""
+    with Session(engine) as sess:
+        row = sess.execute(select(Student).where(Student.id == int(student_id))).first()
+        if not row:
+            return None
+        s = row[0]
+        return {
+            "id": s.id,
+            "student_code": s.student_code or "",
+            "name": s.name,
+            "advisor_name": s.advisor_name or "",
+            "school": s.school or "",
+        }
+
+
+def get_report_student_id(report_id: int) -> Optional[int]:
+    """取报告所属学生 id；报告不存在返回 None。"""
+    with Session(engine) as sess:
+        row = sess.execute(select(Report.student_id).where(Report.id == int(report_id))).first()
+        return row[0] if row else None
 
 
 # ─── Report CRUD ────────────────────────────────────────────────
@@ -454,6 +654,7 @@ def create_booking_with_student(student_name: str, appointment_time: datetime,
             student_id = student.id
         else:
             result = sess.execute(insert(Student).values(
+                student_code=next_student_code(sess),
                 name=student_name, advisor_name=advisor_name,
                 school=school, single_parent=single_parent))
             sess.flush()
@@ -724,7 +925,8 @@ def get_availability_range(start_date: date, end_date: date) -> Dict[str, List[D
 # ─── MeetingMinutes CRUD ────────────────────────────────────────
 
 def add_minutes(student_id: int, report_id: Optional[int],
-                transcript_text: str, minutes_text: str) -> int:
+                transcript_text: str, minutes_text: str,
+                minutes_json: Optional[str] = None) -> int:
     """Create a meeting minutes record. Returns minutes id."""
     now = datetime.utcnow()
     with Session(engine) as sess:
@@ -733,6 +935,7 @@ def add_minutes(student_id: int, report_id: Optional[int],
             report_id=report_id,
             transcript_text=transcript_text,
             minutes_text=minutes_text,
+            minutes_json=minutes_json,
             created_at=now,
             updated_at=now,
         )
@@ -762,6 +965,7 @@ def get_minutes(minutes_id: int) -> Optional[Dict[str, Any]]:
             "report_date": report.report_date.isoformat() if report and report.report_date else None,
             "transcript_text": mm.transcript_text or "",
             "minutes_text": mm.minutes_text or "",
+            "minutes_json": mm.minutes_json,
             "created_at": mm.created_at.isoformat() if mm.created_at else None,
             "updated_at": mm.updated_at.isoformat() if mm.updated_at else None,
         }
@@ -877,6 +1081,111 @@ def save_e4_mapping(entries: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, s
                     updated_at=datetime.utcnow()))
         sess.commit()
     return get_e4_mapping()
+
+
+# ─── 6AM CRUD ──────────────────────────────────────────────────
+
+def _six_am_profile_row(m: "SixAmProfile") -> Dict[str, Any]:
+    return {
+        "id": m.id,
+        "student_id": m.student_id,
+        "report_id": m.report_id,
+        "profile_json": m.profile_json,
+        "version": m.version,
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+    }
+
+
+def add_six_am_profile(student_id: int, report_id: int, profile_json: str,
+                       version: int = 1) -> int:
+    """插入一条 6AM 档案（每次重跑插入新行）。Returns profile id."""
+    with Session(engine) as sess:
+        result = sess.execute(insert(SixAmProfile).values(
+            student_id=student_id, report_id=report_id,
+            profile_json=profile_json, version=version))
+        sess.commit()
+        return result.lastrowid
+
+
+def get_six_am_profile(profile_id: int) -> Optional[Dict[str, Any]]:
+    with Session(engine) as sess:
+        m = sess.get(SixAmProfile, profile_id)
+        return _six_am_profile_row(m) if m else None
+
+
+def get_latest_six_am_profile(report_id: int) -> Optional[Dict[str, Any]]:
+    """取该报告最新版本档案（version 最大；并列取 id 最大）。"""
+    with Session(engine) as sess:
+        stmt = (select(SixAmProfile).where(SixAmProfile.report_id == report_id)
+                .order_by(SixAmProfile.version.desc(), SixAmProfile.id.desc()).limit(1))
+        m = sess.execute(stmt).scalars().first()
+        return _six_am_profile_row(m) if m else None
+
+
+def get_six_am_profiles_by_student(student_id: int) -> List[Dict[str, Any]]:
+    """该学生全部档案（version 降序）。"""
+    with Session(engine) as sess:
+        stmt = (select(SixAmProfile).where(SixAmProfile.student_id == student_id)
+                .order_by(SixAmProfile.version.desc(), SixAmProfile.id.desc()))
+        return [_six_am_profile_row(m) for m in sess.execute(stmt).scalars().all()]
+
+
+def get_six_am_report_ids() -> List[int]:
+    """存在 6AM 档案的 report_id 去重列表（沙盒"全部学生"用）。"""
+    with Session(engine) as sess:
+        rows = sess.execute(select(SixAmProfile.report_id).distinct()).scalars().all()
+        return [int(r) for r in rows if r]
+
+
+def _six_am_rv_row(m: "SixAmRuleVersion") -> Dict[str, Any]:
+    return {
+        "id": m.id,
+        "label": m.label,
+        "status": m.status,
+        "params_json": m.params_json,
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+        "published_at": m.published_at.isoformat() if m.published_at else None,
+    }
+
+
+def list_six_am_rule_versions() -> List[Dict[str, Any]]:
+    with Session(engine) as sess:
+        stmt = select(SixAmRuleVersion).order_by(SixAmRuleVersion.id.desc())
+        return [_six_am_rv_row(m) for m in sess.execute(stmt).scalars().all()]
+
+
+def get_six_am_rule_version(vid: int) -> Optional[Dict[str, Any]]:
+    with Session(engine) as sess:
+        m = sess.get(SixAmRuleVersion, vid)
+        return _six_am_rv_row(m) if m else None
+
+
+def save_six_am_rule_version(label: str, params_json: str) -> int:
+    """新建 draft 版本。Returns version id."""
+    with Session(engine) as sess:
+        result = sess.execute(insert(SixAmRuleVersion).values(
+            label=label, status="draft", params_json=params_json))
+        sess.commit()
+        return result.lastrowid
+
+
+def publish_six_am_rule_version(vid: int) -> None:
+    """发布：目标 → published；其余 published → archived（唯一 published 不变式）。"""
+    with Session(engine) as sess:
+        sess.execute(update(SixAmRuleVersion)
+                     .where(SixAmRuleVersion.status == "published")
+                     .values(status="archived"))
+        sess.execute(update(SixAmRuleVersion).where(SixAmRuleVersion.id == vid)
+                     .values(status="published", published_at=datetime.utcnow()))
+        sess.commit()
+
+
+def delete_six_am_rule_version(vid: int) -> None:
+    """删除 draft 版本（published/archived 不在此列，由发布链路管理）。"""
+    with Session(engine) as sess:
+        sess.execute(delete(SixAmRuleVersion).where(SixAmRuleVersion.id == vid,
+                                                     SixAmRuleVersion.status == "draft"))
+        sess.commit()
 
 
 # ─── Dashboard aggregation ─────────────────────────────────────
@@ -1779,3 +2088,135 @@ def get_dimension_balance() -> Dict[str, Any]:
         "avg_balance_score": avg_balance,
         "imbalanced_count": imbalanced_count,
     }
+
+
+# ─── User CRUD（2.0 角色体系）──────────────────────────────────
+
+VALID_ROLES = ("admin", "advisor", "viewer")
+
+
+def _row_to_user_dict(u: "User") -> Dict[str, Any]:
+    """User ORM 对象 → 普通 dict（避免 detached instance）。"""
+    return {
+        "id": u.id,
+        "username": u.username,
+        "role": u.role,
+        "advisor_name": u.advisor_name or "",
+        "display_name": u.display_name or "",
+        "is_active": int(u.is_active or 0),
+        "created_at": u.created_at.isoformat() if u.created_at else None,
+    }
+
+
+def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+    """按登录名查用户，返回 dict（含 password_hash，仅供内部校验用）。"""
+    username = (username or "").strip()
+    if not username:
+        return None
+    with Session(engine) as sess:
+        row = sess.execute(select(User).where(User.username == username)).first()
+        if not row:
+            return None
+        d = _row_to_user_dict(row[0])
+        d["password_hash"] = row[0].password_hash
+        return d
+
+
+def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+    """按 id 查用户，返回 dict（不含 password_hash）。"""
+    with Session(engine) as sess:
+        row = sess.execute(select(User).where(User.id == int(user_id))).first()
+        return _row_to_user_dict(row[0]) if row else None
+
+
+def list_users() -> List[Dict[str, Any]]:
+    """列出全部用户（不含 password_hash），按创建时间升序。"""
+    with Session(engine) as sess:
+        rows = sess.execute(select(User).order_by(User.id.asc())).all()
+        return [_row_to_user_dict(r[0]) for r in rows]
+
+
+def create_user(username: str, password: str, role: str,
+                advisor_name: str = "", display_name: str = "") -> int:
+    """创建用户，返回 id。role 必须是 VALID_ROLES 之一，username 唯一。"""
+    from werkzeug.security import generate_password_hash
+    username = (username or "").strip()
+    role = (role or "").strip()
+    if not username:
+        raise ValueError("username 不能为空")
+    if role not in VALID_ROLES:
+        raise ValueError(f"role 必须是 {VALID_ROLES} 之一")
+    if not password:
+        raise ValueError("password 不能为空")
+    with Session(engine) as sess:
+        if sess.execute(select(User).where(User.username == username)).first():
+            raise ValueError(f"用户名已存在: {username}")
+        stmt = insert(User).values(
+            username=username,
+            password_hash=generate_password_hash(password),
+            role=role,
+            advisor_name=advisor_name or None,
+            display_name=display_name or None,
+            is_active=1,
+        )
+        result = sess.execute(stmt)
+        sess.commit()
+        return result.lastrowid
+
+
+def update_user(user_id: int, password: Optional[str] = None,
+                role: Optional[str] = None, advisor_name: Optional[str] = None,
+                display_name: Optional[str] = None,
+                is_active: Optional[int] = None) -> bool:
+    """更新用户可控字段（改密/改角色/停用/改名）。返回是否更新成功。"""
+    values: Dict[str, Any] = {}
+    if password:
+        from werkzeug.security import generate_password_hash
+        values["password_hash"] = generate_password_hash(password)
+    if role is not None:
+        if role not in VALID_ROLES:
+            raise ValueError(f"role 必须是 {VALID_ROLES} 之一")
+        values["role"] = role
+    if advisor_name is not None:
+        values["advisor_name"] = advisor_name or None
+    if display_name is not None:
+        values["display_name"] = display_name or None
+    if is_active is not None:
+        values["is_active"] = int(bool(is_active))
+    if not values:
+        return False
+    with Session(engine) as sess:
+        result = sess.execute(update(User).where(User.id == int(user_id)).values(**values))
+        sess.commit()
+        return result.rowcount > 0
+
+
+def count_users_by_role(role: str) -> int:
+    """统计某角色的用户数（用于防止删除/停用最后一个 admin）。"""
+    with Session(engine) as sess:
+        return int(sess.execute(
+            select(func.count()).select_from(User).where(User.role == role, User.is_active == 1)
+        ).scalar() or 0)
+
+
+def delete_user(user_id: int) -> bool:
+    """物理删除用户。返回是否删除成功。"""
+    with Session(engine) as sess:
+        result = sess.execute(delete(User).where(User.id == int(user_id)))
+        sess.commit()
+        return result.rowcount > 0
+
+
+def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:
+    """校验登录名+密码。成功返回用户 dict（不含 password_hash），失败返回 None。
+
+    停用用户（is_active=0）一律返回 None。
+    """
+    from werkzeug.security import check_password_hash
+    user = get_user_by_username(username)
+    if not user or not user.get("is_active"):
+        return None
+    if not check_password_hash(user.get("password_hash") or "", password or ""):
+        return None
+    user.pop("password_hash", None)
+    return user

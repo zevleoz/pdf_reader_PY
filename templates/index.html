@@ -570,6 +570,9 @@
           <button class="btn btn-primary" id="downloadBtn" onclick="downloadPdf()" disabled>
             下载报告
           </button>
+          <button class="btn btn-secondary" id="downloadLegacyBtn" style="display:none" onclick="downloadLegacyPdf()">
+            旧版报告
+          </button>
           <button class="btn btn-secondary" onclick="goToTranscript()">
             解读会纪要
           </button>
@@ -615,6 +618,7 @@
   const files = {};
   let lastBlobUrl = null;
   let lastPdfFilename = '综合测评报告.pdf';
+  let v2Available = false;
   let chatHistory = [];
 
   // =====================================
@@ -686,6 +690,13 @@
         lastPdfFilename = report.pdfFilename || '综合测评报告.pdf';
         document.getElementById('downloadBtn').disabled = false;
         setStatus('已恢复上次生成的报告，可直接下载。', 'ok');
+        // 上次任务若产出了 v2 新版，恢复时显示“旧版”备用按钮
+        fetch('/api/generate/result?v=2', { method: 'HEAD' })
+          .then(r => {
+            v2Available = r.ok;
+            document.getElementById('downloadLegacyBtn').style.display = v2Available ? '' : 'none';
+          })
+          .catch(() => {});
       }
 
       // Restore chat history
@@ -921,15 +932,70 @@
   }
 
   // =====================================
-  // Generate action (upload PDFs + generate report)
+  // Generate action (chunked upload + async job + poll + fetch result)
+  //
+  // Cloudflare 免费版代理对源站响应有约 100 秒超时，因此把原来的「一次性上传
+  // + 同步生成」拆成多个短请求：分片上传 → 启动任务 → 轮询进度 → 取回结果。
   // =====================================
+  const CHUNK_SIZE = 1 * 1024 * 1024;
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // 分片上传单个文件：每片约 1.5MB，顺序 POST 到 /api/upload/chunk
+  async function uploadFileChunked(key, file, uploadId, onBytes) {
+    const total = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+    for (let i = 0; i < total; i++) {
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(file.size, start + CHUNK_SIZE);
+      const fd = new FormData();
+      fd.append('key', key);
+      fd.append('upload_id', uploadId);
+      fd.append('chunk_index', String(i));
+      fd.append('total_chunks', String(total));
+      fd.append('chunk', file.slice(start, end), key + '.part');
+
+      const resp = await fetch('/api/upload/chunk', { method: 'POST', body: fd });
+      if (!resp.ok) {
+        let msg = '上传失败 (HTTP ' + resp.status + ')';
+        try { const e = await resp.json(); if (e && e.error) msg = e.error; } catch (_) {}
+        throw new Error(msg);
+      }
+      onBytes(end - start);
+    }
+  }
+
+  // 轮询 /api/progress 直到任务完成或失败
+  async function pollGenerateProgress(progFill, progText) {
+    const startedAt = Date.now();
+    while (true) {
+      await sleep(2000);
+      let p = null;
+      try {
+        const r = await fetch('/api/progress');
+        if (r.ok) p = await r.json();
+      } catch (_) {}
+      if (p) {
+        // 服务端进度（5-100）映射到 30-100，衔接上传阶段的进度条
+        const pct = Math.max(30, Math.round(30 + (p.percent || 0) * 0.7));
+        progFill.style.width = pct + '%';
+        progText.textContent = p.message || (pct + '%');
+        if (p.status === 'done' || p.status === 'error') return p;
+      }
+      if (Date.now() - startedAt > 20 * 60 * 1000) {
+        return { status: 'error', error: '生成超时（超过 20 分钟），请稍后重试' };
+      }
+    }
+  }
+
   async function generate() {
     const picked = Object.keys(files).length;
     if (picked < 1) { alert('请至少上传 1 份 PDF'); return; }
 
     const btn = document.getElementById('genBtn');
     btn.disabled = true;
-    setStatus('上传并解析 ' + picked + ' 份 PDF，约需 1-3 分钟，请耐心等待…', 'loading');
+    setStatus('正在上传 ' + picked + ' 份 PDF…', 'loading');
     setChatStatus('报告生成中…', 'loading');
 
     // Show progress bar
@@ -938,66 +1004,68 @@
     const progText = document.getElementById('progressText');
     progWrap.style.display = 'block';
     progFill.style.width = '0%';
-    progText.textContent = '准备中…';
-
-    // Start polling progress
-    let progressTimer = setInterval(async () => {
-      try {
-        const r = await fetch('/api/progress');
-        const p = await r.json();
-        if (p.percent > 0) {
-          progFill.style.width = p.percent + '%';
-          progText.textContent = p.message || (p.percent + '%');
-        }
-      } catch (_) {}
-    }, 2000);
+    progText.textContent = '上传中…';
 
     // Show typing indicator in chat
     addMessage('assistant', '正在生成报告，完成后将自动解读，请稍候…');
 
-    const fd = new FormData();
-    SLOTS.forEach(s => {
-      if (files[s.key]) fd.append(s.key, files[s.key], files[s.key].name);
-    });
-    const mindset = document.getElementById('mindsetScore');
-    if (mindset && mindset.value.trim()) {
-      fd.append('mindset_score', mindset.value.trim());
-    }
-    // Pass selected student_id or manual name for archiving
-    const studentSelect = document.getElementById('studentSelect');
-    const manualName = document.getElementById('manualName');
-    if (studentSelect && studentSelect.value) {
-      fd.append('student_id', studentSelect.value);
-    } else if (manualName && manualName.value.trim()) {
-      fd.append('manual_student_name', manualName.value.trim());
-    }
-
-    const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 900000);
+    const uploadId = 'u' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
 
     try {
-      const resp = await fetch('/api/generate', {
-        method: 'POST', body: fd, signal: controller.signal
-      });
-      clearTimeout(tid);
+      // 1) 分片上传
+      const keys = SLOTS.map(s => s.key).filter(k => files[k]);
+      const totalBytes = keys.reduce((n, k) => n + files[k].size, 0) || 1;
+      let uploadedBytes = 0;
+      const manifest = {};
+      keys.forEach(k => { manifest[k] = { filename: files[k].name }; });
 
+      for (const k of keys) {
+        await uploadFileChunked(k, files[k], uploadId, (delta) => {
+          uploadedBytes += delta;
+          const pct = Math.min(30, Math.round(uploadedBytes / totalBytes * 30));
+          progFill.style.width = pct + '%';
+          progText.textContent = '上传中 ' + pct + '%';
+        });
+      }
+
+      // 2) 启动生成任务
+      progFill.style.width = '30%';
+      progText.textContent = '正在启动生成任务…';
+      const form = new FormData();
+      form.append('upload_id', uploadId);
+      form.append('manifest', JSON.stringify(manifest));
+      const mindset = document.getElementById('mindsetScore');
+      if (mindset && mindset.value.trim()) {
+        form.append('mindset_score', mindset.value.trim());
+      }
+      const studentSelect = document.getElementById('studentSelect');
+      const manualName = document.getElementById('manualName');
+      if (studentSelect && studentSelect.value) {
+        form.append('student_id', studentSelect.value);
+      } else if (manualName && manualName.value.trim()) {
+        form.append('manual_student_name', manualName.value.trim());
+      }
+
+      const startResp = await fetch('/api/generate/start', { method: 'POST', body: form });
+      if (!startResp.ok) {
+        let msg = '启动生成失败 (HTTP ' + startResp.status + ')';
+        try { const e = await startResp.json(); if (e && e.error) msg = e.error; } catch (_) {}
+        throw new Error(msg);
+      }
+
+      // 3) 轮询任务进度
+      const final = await pollGenerateProgress(progFill, progText);
+      if (final.status === 'error') {
+        throw new Error(final.error || '生成失败');
+      }
+
+      // 4) 取回生成的 PDF
+      progText.textContent = '正在获取报告…';
+      const resp = await fetch('/api/generate/result');
       if (!resp.ok) {
-        let msg = '生成失败 (HTTP ' + resp.status + ')';
-        let detail = '';
-        try {
-          const err = await resp.json();
-          if (err && err.error) {
-            msg = err.error;
-            if (err.trace) detail = '\n\n完整错误堆栈：\n' + err.trace;
-          }
-        } catch (_) {}
-        clearInterval(progressTimer);
-        progWrap.style.display = 'none';
-        setStatus(msg, 'error');
-        updateLastMessage('assistant', '生成失败：' + msg);
-        setChatStatus('生成失败', '');
-        btn.disabled = Object.keys(files).length < 1;
-        return;
+        let msg = '获取报告失败 (HTTP ' + resp.status + ')';
+        try { const e = await resp.json(); if (e && e.error) msg = e.error; } catch (_) {}
+        throw new Error(msg);
       }
 
       // Save PDF blob for download
@@ -1018,11 +1086,13 @@
 
       // Enable download button
       document.getElementById('downloadBtn').disabled = false;
+      // 新版（v2）为默认下载；v2 产出可用时显示“旧版”备用按钮
+      v2Available = resp.headers.get('X-V2-Available') === '1';
+      document.getElementById('downloadLegacyBtn').style.display = v2Available ? '' : 'none';
 
       // Save report to sessionStorage
       saveReportToSession(blob, lastPdfFilename);
 
-      clearInterval(progressTimer);
       progFill.style.width = '100%';
       progText.textContent = '完成';
       setTimeout(() => { progWrap.style.display = 'none'; }, 2000);
@@ -1036,16 +1106,10 @@
       await autoStartAIInterpretation();
 
     } catch (err) {
-      clearInterval(progressTimer);
       progWrap.style.display = 'none';
-      if (err.name === 'AbortError') {
-        setStatus('请求超时（超过 15 分钟），请稍后重试', 'error');
-        updateLastMessage('assistant', '请求超时，请稍后重试。');
-      } else {
-        setStatus('网络错误: ' + err, 'error');
-        updateLastMessage('assistant', '网络错误: ' + err);
-      }
-      setChatStatus('连接失败', '');
+      setStatus(err.message || ('网络错误: ' + err), 'error');
+      updateLastMessage('assistant', '生成失败：' + (err.message || err));
+      setChatStatus('生成失败', '');
     } finally {
       btn.disabled = Object.keys(files).length < 1;
     }
@@ -1138,11 +1202,26 @@
   // =====================================
   // Download PDF
   // =====================================
+  // 主下载：新版（v2）优先，缺失时回落旧版（v1）
   function downloadPdf() {
-    if (!lastBlobUrl) return;
+    if (v2Available) {
+      window.location.href = '/api/generate/result?v=2';
+      return;
+    }
+    downloadBlob(lastBlobUrl, lastPdfFilename);
+  }
+
+  // 旧版（v1）备用下载
+  function downloadLegacyPdf() {
+    const name = (lastPdfFilename || '综合测评报告.pdf').replace(/\.pdf$/i, '') + '_旧版.pdf';
+    downloadBlob(lastBlobUrl, name);
+  }
+
+  function downloadBlob(url, filename) {
+    if (!url) return;
     const a = document.createElement('a');
-    a.href = lastBlobUrl;
-    a.download = lastPdfFilename;
+    a.href = url;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

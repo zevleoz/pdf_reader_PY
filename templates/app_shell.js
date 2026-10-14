@@ -29,30 +29,36 @@
     collapse: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
     shield: '<path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/>',
-    radar: '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4.93 4.93A10 10 0 0 0 3.34 17"/><path d="M22 12A10 10 0 0 0 12 2"/><path d="M12 12l5-5"/><path d="M12 22a10 10 0 0 0 10-10"/><path d="M12 22a10 10 0 0 1-10-10"/><path d="M22 12a10 10 0 0 1-2.93 7.07"/><circle cx="12" cy="12" r="1"/>'
+    radar: '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4.93 4.93A10 10 0 0 0 3.34 17"/><path d="M22 12A10 10 0 0 0 12 2"/><path d="M12 12l5-5"/><path d="M12 22a10 10 0 0 0 10-10"/><path d="M12 22a10 10 0 0 1-10-10"/><path d="M22 12a10 10 0 0 1-2.93 7.07"/><circle cx="12" cy="12" r="1"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'
   };
 
   var MENU_ICON = '<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>';
 
   /* ---------- 导航定义 ---------- */
+  // roles 缺省 = 所有已登录角色可见；'public' 声明对未登录也显示。
   var NAV = [
     { title: '工作台', items: [
-      { label: '报告生成', href: '/generate', icon: 'file' },
+      { label: '报告生成', href: '/generate', icon: 'file', roles: ['admin', 'advisor'] },
       { label: '学生档案', href: '/students', icon: 'users' },
       { label: '数据总览', href: '/dashboard', icon: 'chart' },
-      { label: 'Y4 研判', href: '/y4-signals', icon: 'radar' }
+      { label: 'Y4 研判', href: '/y4-signals', icon: 'radar' },
+      { label: '6AM 启动模型', href: '/six-am', icon: 'target' }
     ] },
     { title: '预约中心', items: [
-      { label: '预约测评', href: '/booking', icon: 'calendar' },
-      { label: '预约管理', href: '/admin/bookings', icon: 'clipboard' }
+      { label: '预约测评', href: '/booking', icon: 'calendar', roles: ['public'] },
+      { label: '预约管理', href: '/admin/bookings', icon: 'clipboard', roles: ['admin', 'advisor'] }
     ] },
     { title: '解读', items: [
-      { label: '解读会纪要', href: '/transcript', icon: 'mic' }
+      { label: '解读会纪要', href: '/transcript', icon: 'mic', roles: ['admin', 'advisor'] }
     ] },
     { title: '内部工具', items: [
-      { label: '内部下载', href: '/internal', icon: 'download' },
-      { label: 'Prompt Lab', href: '/prompt-lab', icon: 'flask' },
-      { label: 'API 文档', href: '/api/docs', icon: 'book', blank: true }
+      { label: '内部下载', href: '/internal', icon: 'download', roles: ['admin', 'advisor'] },
+      { label: 'Prompt Lab', href: '/prompt-lab', icon: 'flask', roles: ['admin'] },
+      { label: 'API 文档', href: '/api/docs', icon: 'book', blank: true, roles: ['public'] }
+    ] },
+    { title: '系统', items: [
+      { label: '用户管理', href: '/system/users', icon: 'shield', roles: ['admin'] }
     ] }
   ];
 
@@ -119,7 +125,8 @@
       html += '<div class="y4-group-title">' + group.title + '</div>';
       group.items.forEach(function (item) {
         var blankAttr = item.blank ? ' target="_blank" rel="noopener noreferrer"' : '';
-        html += '<a class="y4-item" href="' + item.href + '" data-label="' + item.label + '" data-group="' + group.title + '"' + blankAttr + '>' +
+        var rolesAttr = item.roles ? ' data-roles="' + item.roles.join(',') + '"' : '';
+        html += '<a class="y4-item" href="' + item.href + '" data-label="' + item.label + '" data-group="' + group.title + '"' + blankAttr + rolesAttr + '>' +
           '<span class="y4-item-icon">' + svg(ICONS[item.icon], 18) + '</span>' +
           '<span class="y4-item-label">' + item.label + '</span></a>';
       });
@@ -234,20 +241,44 @@
     if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
   }
 
-  /* ---------- 底部：管理员状态 ---------- */
+  /* ---------- 按角色过滤导航 ---------- */
+  function applyRoleNav(role) {
+    if (!sidebar) return;
+    var items = sidebar.querySelectorAll('.y4-item[data-roles]');
+    Array.prototype.forEach.call(items, function (el) {
+      var allowed = (el.getAttribute('data-roles') || '').split(',');
+      var visible = allowed.indexOf('public') !== -1 || (role && allowed.indexOf(role) !== -1);
+      el.style.display = visible ? '' : 'none';
+    });
+    // 组内若无可见项则隐藏组标题
+    var groups = sidebar.querySelectorAll('.y4-nav-group');
+    Array.prototype.forEach.call(groups, function (group) {
+      var its = group.querySelectorAll('.y4-item');
+      var any = Array.prototype.some.call(its, function (el) { return el.style.display !== 'none'; });
+      var title = group.querySelector('.y4-group-title');
+      if (title) title.style.display = any ? '' : 'none';
+    });
+  }
+
+  /* ---------- 底部：登录状态 ---------- */
   function loadFooter() {
     footerEl = sidebar.querySelector('#y4Footer');
     fetch('/api/admin/check')
       .then(function (r) { return r.json(); })
-      .then(function (d) { renderFooter(!!(d && d.is_admin)); })
-      .catch(function () { renderFooter(false); });
+      .then(function (d) {
+        renderFooter(d || {});
+        applyRoleNav((d && d.authenticated && d.role) || null);
+      })
+      .catch(function () { renderFooter({}); applyRoleNav(null); });
   }
 
-  function renderFooter(isAdmin) {
+  function renderFooter(user) {
     if (!footerEl) return;
-    if (isAdmin) {
+    if (user && user.authenticated) {
+      var roleLabel = user.role === 'admin' ? '管理员'
+        : (user.role === 'advisor' ? '顾问' : '查阅者');
       footerEl.innerHTML =
-        '<div class="y4-admin-chip">' + svg(ICONS.shield, 14) + '<span class="y4-footer-text">管理员</span></div>' +
+        '<div class="y4-admin-chip">' + svg(ICONS.shield, 14) + '<span class="y4-footer-text">' + roleLabel + '</span></div>' +
         '<button type="button" class="y4-logout">' + svg(ICONS.logout, 15) + '<span class="y4-footer-text">登出</span></button>';
       footerEl.querySelector('.y4-logout').addEventListener('click', function () {
         fetch('/api/admin/logout', { method: 'POST' })
@@ -255,7 +286,7 @@
           .catch(function () { window.location.href = '/login'; });
       });
     } else {
-      footerEl.innerHTML = '<a class="y4-login-link" href="/login">管理员登录</a>';
+      footerEl.innerHTML = '<a class="y4-login-link" href="/login">登录</a>';
     }
   }
 

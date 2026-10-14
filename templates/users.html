@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>用户管理 — Y4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/app_shell.css" />
+  <style>
+    .um-grid { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 20px; align-items: start; }
+    .um-form .field { margin-bottom: 12px; }
+    .um-form label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .um-form input, .um-form select { width: 100%; }
+    .um-role-hint { font-size: 12px; color: var(--muted); margin: -6px 0 12px; line-height: 1.5; }
+    .um-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+    .um-table-wrap table { min-width: 720px; }
+    .um-role-select { min-width: 96px; }
+    .um-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .um-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .um-badge.on { background: #E8F5E9; color: #2E7D32; }
+    .um-badge.off { background: var(--paper-2); color: var(--muted); }
+    .um-msg { font-size: 13px; min-height: 18px; margin-top: 8px; }
+    .um-msg.err { color: var(--red); }
+    @media (max-width: 900px) {
+      .um-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div data-app-shell></div>
+
+  <div class="container">
+    <div class="page-header">
+      <h1 class="page-title">用户管理</h1>
+      <p class="page-subtitle">创建账号、分配角色与绑定顾问。仅管理员可见。</p>
+    </div>
+
+    <div class="um-grid">
+      <div class="card um-form">
+        <h2 class="card-title">新增用户</h2>
+        <div class="field">
+          <label for="nu">账号</label>
+          <input type="text" id="nu" placeholder="登录账号" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="np">初始密码</label>
+          <input type="password" id="np" placeholder="初始密码" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="nr">角色</label>
+          <select id="nr" onchange="onRoleChange()">
+            <option value="viewer">查阅者（只读）</option>
+            <option value="advisor">顾问</option>
+            <option value="admin">管理员</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="na">绑定顾问（顾问角色必填，用于数据隔离）</label>
+          <input type="text" id="na" placeholder="顾问姓名" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="nd">显示名（可选）</label>
+          <input type="text" id="nd" placeholder="显示名" autocomplete="off" />
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="createUser()">添加</button>
+        <div class="um-msg" id="createMsg"></div>
+        <p class="um-role-hint">角色说明：管理员拥有全部权限；顾问仅可见名下学生的档案与报告；查阅者全站只读，无任何写操作。</p>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">用户列表</h2>
+        <div id="userList"><div class="empty">加载中…</div></div>
+        <div class="um-msg" id="listMsg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var ROLE_LABEL = { admin: '管理员', advisor: '顾问', viewer: '查阅者' };
+    var me = null;
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    function onRoleChange() {
+      var role = document.getElementById('nr').value;
+      document.getElementById('na').disabled = (role !== 'advisor');
+    }
+
+    async function loadMe() {
+      try {
+        var r = await fetch('/api/admin/check');
+        var d = await r.json();
+        if (d.authenticated) me = d;
+      } catch (e) {}
+    }
+
+    async function loadUsers() {
+      var el = document.getElementById('userList');
+      try {
+        var r = await fetch('/api/users');
+        var d = await r.json();
+        if (!d.ok) { el.innerHTML = '<div class="empty">' + esc(d.error || '加载失败') + '</div>'; return; }
+        renderUsers(d.users || []);
+      } catch (e) {
+        el.innerHTML = '<div class="empty">网络错误</div>';
+      }
+    }
+
+    function renderUsers(users) {
+      var el = document.getElementById('userList');
+      if (!users.length) { el.innerHTML = '<div class="empty">暂无用户</div>'; return; }
+      var html = '<div class="um-table-wrap"><table><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>绑定顾问</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+      users.forEach(function (u) {
+        var isSelf = me && u.id === me.user_id;
+        var roleSel = '<select class="um-role-select" onchange="changeRole(' + u.id + ', this.value)">' +
+          ['admin', 'advisor', 'viewer'].map(function (r) {
+            return '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>';
+          }).join('') + '</select>';
+        var stateBadge = u.is_active
+          ? '<span class="um-badge on">启用</span>'
+          : '<span class="um-badge off">停用</span>';
+        var toggleBtn = u.is_active
+          ? '<button class="btn btn-sm btn-secondary" onclick="toggleActive(' + u.id + ', 0)">停用</button>'
+          : '<button class="btn btn-sm btn-secondary" onclick="toggleActive(' + u.id + ', 1)">启用</button>';
+        var actions = '<div class="um-actions">' +
+          '<button class="btn btn-sm btn-secondary" onclick="resetPassword(' + u.id + ')">重置密码</button>' +
+          toggleBtn +
+          '<button class="btn btn-sm btn-secondary" onclick="editAdvisor(' + u.id + ', \'' + esc(u.advisor_name) + '\')">顾问</button>' +
+          (isSelf ? '' : '<button class="btn btn-sm btn-secondary" onclick="deleteUser(' + u.id + ')">删除</button>') +
+          '</div>';
+        html += '<tr>' +
+          '<td><span class="student-name">' + esc(u.username) + '</span></td>' +
+          '<td>' + esc(u.display_name || '-') + '</td>' +
+          '<td>' + roleSel + '</td>' +
+          '<td class="advisor-cell">' + esc(u.advisor_name || '-') + '</td>' +
+          '<td>' + stateBadge + '</td>' +
+          '<td>' + actions + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table></div>';
+      el.innerHTML = html;
+    }
+
+    function setMsg(id, text, isErr) {
+      var el = document.getElementById(id);
+      el.textContent = text || '';
+      el.className = 'um-msg' + (isErr ? ' err' : '');
+    }
+
+    async function putUser(id, payload, okMsg) {
+      var r = await fetch('/api/users/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      var d = await r.json();
+      if (!d.ok) { setMsg('listMsg', d.error || '操作失败', true); return false; }
+      if (okMsg) setMsg('listMsg', okMsg, false);
+      await loadUsers();
+      return true;
+    }
+
+    async function createUser() {
+      var username = document.getElementById('nu').value.trim();
+      var password = document.getElementById('np').value;
+      var role = document.getElementById('nr').value;
+      var advisor_name = document.getElementById('na').value.trim();
+      var display_name = document.getElementById('nd').value.trim();
+      setMsg('createMsg', '');
+      if (!username) { setMsg('createMsg', '请输入账号', true); return; }
+      if (!password) { setMsg('createMsg', '请输入初始密码', true); return; }
+      if (role === 'advisor' && !advisor_name) { setMsg('createMsg', '顾问角色需填写绑定顾问', true); return; }
+      try {
+        var r = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: username, password: password, role: role, advisor_name: advisor_name, display_name: display_name }),
+        });
+        var d = await r.json();
+        if (!d.ok) { setMsg('createMsg', d.error || '创建失败', true); return; }
+        setMsg('createMsg', '已创建：' + username, false);
+        document.getElementById('nu').value = '';
+        document.getElementById('np').value = '';
+        document.getElementById('na').value = '';
+        document.getElementById('nd').value = '';
+        await loadUsers();
+      } catch (e) {
+        setMsg('createMsg', '网络错误', true);
+      }
+    }
+
+    function changeRole(id, role) {
+      var payload = { role: role };
+      if (role !== 'advisor') payload.advisor_name = '';
+      putUser(id, payload, '角色已更新');
+    }
+
+    function toggleActive(id, active) {
+      putUser(id, { is_active: active }, active ? '已启用' : '已停用');
+    }
+
+    function resetPassword(id) {
+      var pwd = window.prompt('输入新密码（至少 1 位）：');
+      if (pwd === null) return;
+      if (!pwd) { setMsg('listMsg', '密码不能为空', true); return; }
+      putUser(id, { password: pwd }, '密码已重置');
+    }
+
+    function editAdvisor(id, current) {
+      var v = window.prompt('绑定顾问（用于数据隔离）：', current || '');
+      if (v === null) return;
+      putUser(id, { advisor_name: v.trim() }, '绑定顾问已更新');
+    }
+
+    async function deleteUser(id) {
+      if (!window.confirm('确认删除该用户？此操作不可撤销。')) return;
+      try {
+        var r = await fetch('/api/users/' + id, { method: 'DELETE' });
+        var d = await r.json();
+        if (!d.ok) { setMsg('listMsg', d.error || '删除失败', true); return; }
+        setMsg('listMsg', '已删除', false);
+        await loadUsers();
+      } catch (e) {
+        setMsg('listMsg', '网络错误', true);
+      }
+    }
+
+    (async function () {
+      onRoleChange();
+      await loadMe();
+      await loadUsers();
+    })();
+  </script>
+</body>
+</html>
