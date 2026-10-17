@@ -1,0 +1,25 @@
+{% extends "student/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block header %}
+<header class="q-head">
+  <img class="q-shield" src="/branding/logo_red.png" alt="凭远教育"
+       onerror="this.style.display='none'" />
+  <div class="q-head-name">凭远教育 · Y4 综合测评</div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="q-wrap">
+  <div class="q-card q-center" style="margin-top:12px">
+    <img class="q-shield" src="/branding/logo_red.png" alt=""
+         onerror="this.style.display='none'" />
+    <h1 class="q-qtitle q-serif" style="margin-top:14px">{{ title }}</h1>
+    <p class="q-muted" style="margin-top:10px">{{ message }}</p>
+    {# show_login 默认 False：仅链接失效/过期等需引导登录态的场景才显示登录按钮 #}
+    {% if show_login %}
+    <a class="q-btn q-btn-ghost" style="margin-top:18px" href="/student/login">前往登录</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

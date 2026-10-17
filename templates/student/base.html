@@ -1,0 +1,201 @@
+{# 学生端 base（独立轻模板，不套管理端壳）——移动优先，品牌色见 03 指令包 §5.6 #}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="icon" href="/favicon.ico" type="image/png" />
+  <title>{% block title %}问卷作答{% endblock %} · 凭远教育</title>
+  <script>
+    // CSRF：学生端已登录后的草稿保存/提交等 mutating fetch 自动带 X-CSRF-Token
+    (function () {
+      var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+      var origFetch = window.fetch;
+      window.fetch = function (url, opts) {
+        opts = opts || {};
+        var method = (opts.method || 'GET').toUpperCase();
+        if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
+          var isSameOrigin = typeof url !== 'string' || url.charAt(0) === '/' ||
+                             url.indexOf(location.origin) === 0;
+          if (isSameOrigin) {
+            opts.headers = Object.assign({}, opts.headers, { 'X-CSRF-Token': token });
+          }
+        }
+        return origFetch.call(this, url, opts);
+      };
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --s-paper:#FAF7F2; --s-ink:#161310; --s-soft:#6B655E; --s-line:#E4DED3; --s-brand:#D25454; }
+    *,*::before,*::after { box-sizing: border-box; }
+    body { margin:0; background:var(--s-paper); color:var(--s-ink); font-size:15px; line-height:1.7;
+      font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",Roboto,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased; }
+    a { color:inherit; text-decoration:none; }
+    button { font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+    [x-cloak] { display:none !important; }
+    .s-wrap { max-width:720px; margin:0 auto; padding:0 18px 56px; }
+    .s-top { position:sticky; top:0; z-index:20; background:rgba(250,247,242,.92); backdrop-filter:blur(8px);
+      border-bottom:1px solid var(--s-line); }
+    .s-top-in { max-width:720px; margin:0 auto; padding:12px 18px; display:flex; align-items:center; gap:10px; }
+    .s-top img { height:20px; width:auto; }
+    .s-brand { font-size:12.5px; color:var(--s-soft); }
+    .s-card { background:#fff; border:1px solid var(--s-line); border-radius:12px; padding:18px 18px; }
+    .s-h1 { font-size:19px; font-weight:650; letter-spacing:.01em; }
+    .s-muted { color:var(--s-soft); }
+    .s-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:11px 18px;
+      border-radius:10px; font-size:14px; font-weight:600; border:1px solid transparent; }
+    .s-btn-primary { background:var(--s-brand); color:#fff; }
+    .s-btn-secondary { background:#fff; border-color:var(--s-line); }
+    .s-btn:disabled { opacity:.55; }
+    .s-input { width:100%; padding:11px 12px; border:1px solid var(--s-line); border-radius:10px; font-size:15px;
+      background:#fff; outline:none; }
+    .s-input:focus { border-color:var(--s-brand); }
+    .s-q { padding:16px 0; border-bottom:1px solid var(--s-line); }
+    .s-q:last-child { border-bottom:none; }
+    .s-q-title { font-size:14.5px; font-weight:600; }
+    .s-q-idx { color:var(--s-brand); font-weight:700; margin-right:6px; font-variant-numeric:tabular-nums; }
+    .s-opt { display:flex; align-items:center; gap:10px; padding:9px 12px; margin-top:8px;
+      border:1px solid var(--s-line); border-radius:10px; cursor:pointer; font-size:14px; }
+    .s-opt input { accent-color:var(--s-brand); width:16px; height:16px; flex:0 0 auto; }
+    .s-opt.is-checked { border-color:var(--s-brand); background:#FDF3F3; }
+    .s-opt:has(input:checked) { border-color:var(--s-brand); background:#FDF3F3; }
+    .s-opt-label { min-width:0; }
+    .s-sec { margin:22px 0 6px; }
+    .s-sec-title { font-size:15px; font-weight:700; }
+    .s-sec-intro { font-size:13px; color:var(--s-soft); margin-top:4px; }
+    .s-alert { background:#FEF2F2; border:1px solid #F3C6C6; color:#B33A3A; border-radius:10px;
+      padding:10px 14px; font-size:13px; }
+    /* 校验失败内联横幅：可点击的题号 + 题目高亮闪烁（07 指令包 P1-2） */
+    .q-error-links { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .q-error-link { background:#fff; border:1px solid #F3C6C6; color:#B33A3A; border-radius:8px;
+      padding:3px 10px; font-size:12.5px; font-weight:600; }
+    .q-error-link:hover { background:#FDF3F3; }
+    .q-flash { animation:q-flash 1.4s ease; }
+    @keyframes q-flash {
+      0%, 100% { box-shadow:0 0 0 0 rgba(210,84,84,0); }
+      15%, 60% { box-shadow:0 0 0 3px rgba(210,84,84,.35); }
+    }
+    .s-progress { position:fixed; left:0; right:0; top:0; height:3px; background:transparent; z-index:30; }
+    .s-progress > span { display:block; height:100%; background:var(--s-brand); transition:width .2s ease; }
+    .s-foot { text-align:center; color:var(--s-soft); font-size:12px; padding:28px 0 8px; }
+    .s-actions { position:sticky; bottom:0; background:rgba(250,247,242,.95); backdrop-filter:blur(8px);
+      padding:12px 0; margin-top:16px; border-top:1px solid var(--s-line); }
+
+    /* ── 学生端品牌视觉系统（15 指令包 §6）──────────────────────────────
+       与管理端 v2 的冷 SaaS 语汇区分：纸感 + 盾徽 + serif，面向家长/学生的对外品牌面。
+       与上面的 .s-* 并存不冲突（.s-* 供 login/home 沿用）。 ─────────────── */
+    :root { --q-paper:#F7F3EB; --q-card:#FFFDF8; --q-line:#E8E0D0; --q-ink:#211C15;
+      --q-soft:#7A7164; --q-brand:#C43C30; --q-brand-soft:#FBEFED; }
+    .q-serif { font-family:"Songti SC","STSong","Source Han Serif SC","Noto Serif SC",Georgia,serif; }
+    body:has(.q-wrap) { background:var(--q-paper); }
+    .q-wrap { max-width:600px; margin:0 auto; }
+    .q-head { max-width:600px; margin:0 auto; padding:30px 18px 6px; text-align:center; }
+    .q-shield { height:44px; width:auto; display:block; margin:0 auto; }
+    .q-head-name { font-size:12.5px; color:var(--q-soft); letter-spacing:.14em; margin-top:10px; }
+    .q-card { background:var(--q-card); border:1px solid var(--q-line); border-radius:10px;
+      padding:22px 20px; box-shadow:0 2px 12px rgba(120,90,40,.06); }
+    .q-center { text-align:center; }
+    .q-qnum { font-size:12.5px; color:var(--q-soft); letter-spacing:.12em; margin-bottom:10px; }
+    .q-qtitle { font-size:19px; font-weight:600; line-height:1.5; margin:0; color:var(--q-ink); outline:none; }
+    .q-req { display:inline-block; font-size:11.5px; color:var(--q-brand); border:1px solid var(--q-line);
+      border-radius:999px; padding:1px 8px; margin-top:8px; }
+    .q-err { color:var(--q-brand); font-size:13px; margin-top:8px; }
+    .q-opts { margin-top:16px; }
+    .q-opt { display:flex; align-items:center; gap:12px; padding:13px 14px; margin-top:8px;
+      border:1px solid var(--q-line); border-radius:10px; background:#fff; cursor:pointer;
+      font-size:15px; position:relative; transition:background .12s ease, border-color .12s ease; }
+    .q-opt:hover { background:#FBF7EF; }
+    .q-opt:has(input:checked) { border:1.5px solid var(--q-brand); background:var(--q-brand-soft); padding:12.5px 13.5px; }
+    .q-opt input { position:absolute; top:50%; left:14px; opacity:0; width:1px; height:1px; margin:0; }
+    .q-opt-label { flex:1 1 auto; min-width:0; line-height:1.5; }
+    .q-mark { flex:0 0 auto; width:16px; height:16px; border-radius:50%; border:1px solid var(--q-line);
+      position:relative; }
+    .q-opt.is-multi .q-mark { border-radius:4px; }
+    .q-opt:has(input:checked) .q-mark { border-color:var(--q-brand); background:var(--q-brand); }
+    .q-opt:has(input:checked) .q-mark::after { content:""; position:absolute; left:5px; top:2px;
+      width:4px; height:8px; border:solid #fff; border-width:0 1.5px 1.5px 0; transform:rotate(45deg); }
+    .q-opt:focus-within { outline:2px solid rgba(196,60,48,.35); outline-offset:1px; }
+    .q-input, .q-textarea { width:100%; margin-top:14px; padding:12px; border:1px solid var(--q-line);
+      border-radius:10px; font-size:15px; background:#fff; outline:none; font-family:inherit; }
+    .q-input:focus, .q-textarea:focus { border-color:var(--q-brand); }
+    .q-scale { display:flex; gap:6px; flex-wrap:wrap; margin-top:14px; }
+    .q-scale > label { flex:1 1 0; min-width:34px; text-align:center; padding:10px 0; font-size:14px;
+      border:1px solid var(--q-line); border-radius:9px; background:#fff; cursor:pointer;
+      position:relative; }
+    .q-scale > label:has(input:checked) { border:1.5px solid var(--q-brand); background:var(--q-brand-soft); }
+    .q-scale input { position:absolute; top:50%; left:50%; opacity:0; width:1px; height:1px; margin:0; }
+    .q-scale-ends { display:flex; justify-content:space-between; font-size:12px; color:var(--q-soft); margin-top:8px; }
+    .q-nav { display:flex; align-items:center; gap:10px; margin-top:22px; padding-top:16px;
+      border-top:1px solid var(--q-line); }
+    .q-nav .q-spacer { flex:1 1 auto; }
+    .q-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:46px;
+      padding:0 20px; border-radius:8px; font-size:15px; font-weight:600; border:1px solid transparent;
+      cursor:pointer; white-space:nowrap; }
+    .q-btn-primary { background:var(--q-brand); color:#fff; }
+    .q-btn-primary:disabled { opacity:.5; cursor:default; }
+    .q-btn-ghost { background:transparent; color:var(--q-soft); border-color:var(--q-line); }
+    .q-btn-mini { height:30px; padding:0 12px; font-size:13px; background:#fff; color:var(--q-ink);
+      border-color:var(--q-line); }
+    .q-linkbtn { background:none; border:none; padding:0 4px; color:var(--q-soft); font-size:13px;
+      text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+    .q-btn-wide { width:100%; margin-top:18px; }
+    .q-hint { font-size:12.5px; color:var(--q-soft); text-align:center; margin-top:10px; }
+    .q-muted { color:var(--q-soft); }
+    .q-alert { background:#FBF3F1; border:1px solid #EBD3CE; color:#8E3A31; border-radius:10px;
+      padding:12px 14px; font-size:13.5px; margin-top:14px; }
+    .q-missing { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .q-missing button { background:#fff; border:1px solid #EBD3CE; color:#8E3A31; border-radius:8px;
+      padding:3px 10px; font-size:12.5px; font-weight:600; cursor:pointer; }
+    .q-bar { display:flex; align-items:center; justify-content:flex-end; padding:6px 0 0; }
+    .q-sync { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--q-soft); }
+    .q-dot { width:7px; height:7px; border-radius:50%; background:#C9C2B4; flex:0 0 auto; }
+    .q-sync.is-cloud .q-dot { background:#4E9A6B; }
+    .q-sync.is-offline .q-dot { background:#C99A2E; animation:q-spin 1.2s linear infinite; }
+    @keyframes q-spin { to { transform:rotate(360deg); } }
+    .q-note { background:#FBF5E9; border:1px solid var(--q-line); color:var(--q-soft); border-radius:8px;
+      padding:8px 12px; font-size:12.5px; margin-top:10px; }
+    .q-banner { position:fixed; left:0; right:0; top:0; z-index:45; background:#FBF3F1;
+      border-bottom:1px solid #EBD3CE; color:#8E3A31; font-size:13px; padding:10px 16px;
+      display:flex; align-items:center; gap:12px; justify-content:center; flex-wrap:wrap; }
+    .q-banner.is-warn { background:#FBF5E9; border-bottom-color:var(--q-line); color:#7A6230; }
+    .q-progress { position:fixed; left:0; right:0; top:0; height:3px; z-index:44; }
+    .q-progress > span { display:block; height:100%; background:var(--q-brand); transition:width .2s ease; }
+    .q-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+    .q-in-next { animation:q-in-next .18s ease-out; }
+    .q-in-prev { animation:q-in-prev .18s ease-out; }
+    @keyframes q-in-next { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:none; } }
+    @keyframes q-in-prev { from { opacity:0; transform:translateX(-14px); } to { opacity:1; transform:none; } }
+    .q-shake { border-color:var(--q-brand) !important; animation:q-shake .3s ease; }
+    @keyframes q-shake { 0%,100% { transform:none; } 25%,75% { transform:translateX(-4px); } 50% { transform:translateX(4px); } }
+    @media (prefers-reduced-motion: reduce) {
+      .q-in-next, .q-in-prev, .q-shake, .q-sync.is-offline .q-dot { animation:none !important; }
+      .q-progress > span { transition:none; }
+    }
+    @media (max-width:420px) {
+      .q-card { padding:18px 15px; }
+      .q-qtitle { font-size:17.5px; }
+    }
+  </style>
+  {% block head_extra %}{% endblock %}
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+  {% block header %}
+  <header class="s-top">
+    <div class="s-top-in">
+      <img src="/branding/logo_inline.png" alt="凭远教育" onerror="this.style.display='none'" />
+      <span class="s-brand">凭远教育 · Y4 综合测评</span>
+      <span style="margin-left:auto">{% block top_right %}{% endblock %}</span>
+    </div>
+  </header>
+  {% endblock %}
+  <main class="s-wrap">
+    {% block content %}{% endblock %}
+    <div class="s-foot">凭远教育 · Y4 综合测评系统</div>
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

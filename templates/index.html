@@ -1,90 +1,204 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <title>报告生成 · Y4 综合测评</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css" />
-  <link rel="stylesheet" href="/app_shell.css" />
-  <style>
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% block title %}报告生成{% endblock %}
+{% block page_title %}报告生成{% endblock %}
+
+{% block head_extra %}
+{# 网络字体 link 已移除（11 包去 serif / 去网络字体）：本页字体统一走系统 sans 栈，
+   .slot-tag / 代码块走系统 mono 栈。style.css（暖纸主题）已随旧壳退役移除。 #}
+<style>
+    /* ========== 旧壳色令牌桥（页内脚本与样式引用旧名，不动上传/轮询逻辑） ========== */
+    :root {
+      --paper: #FFFFFF;
+      --paper-2: var(--line-soft);
+      --white: #FFFFFF;
+      --red: var(--brand);
+      --red-deep: var(--brand-deep);
+    }
+
+    /* 本页是全屏双栏工作台：去掉壳 .content 的容器约束 */
+    .content { padding: 0; max-width: none; }
+
     /* ========== Layout ========== */
     .layout {
       display: grid;
       grid-template-columns: minmax(360px, 33%) 1fr;
       gap: 0;
       min-height: 0;
-      flex: 1;
+      height: calc(100vh - 52px);
     }
 
     /* ========== Left Panel ========== */
     .left-panel {
-      padding: 28px 28px 32px;
+      padding: 24px;
       border-right: 1px solid var(--line);
-      background: var(--paper);
+      background: var(--surface);
       overflow-y: auto;
-      max-height: 100vh;
+      max-height: 100%;
     }
 
-    .panel-title {
-      font-family: "Noto Serif SC", serif;
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--ink);
-      margin-bottom: 4px;
-      letter-spacing: 0.02em;
-    }
-
+    /* 页内大标题已移除：标题由壳层顶栏（page_title）承载，此处只留一行 13px muted 副标题 */
     .panel-subtitle {
       color: var(--muted);
       font-size: 13px;
-      margin-bottom: 22px;
+      margin-bottom: 16px;
       line-height: 1.6;
     }
 
+    /* ========== 页内兜底（原 style.css 提供，随旧壳退役收编到本页） ========== */
+    .hint {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--brand);
+      border-radius: var(--r-sm);
+      padding: 10px 13px;
+      font-size: 12.5px;
+      line-height: 1.7;
+      color: var(--ink-2);
+      margin-bottom: 16px;
+    }
+    .hint strong { color: var(--brand-deep); font-weight: 600; }
+    .field-hint {
+      margin-top: 5px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .field select,
+    .field input[type=text],
+    .field input[type=number] {
+      display: block; width: 100%;
+      height: 34px; padding: 0 11px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      font-size: 13px; color: var(--ink);
+      transition: border-color .15s, box-shadow .15s;
+      font-family: inherit;
+    }
+    .field select { appearance: none; padding-right: 30px; cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center; }
+    .field select:focus, .field input:focus {
+      outline: none; border-color: var(--brand);
+      box-shadow: 0 0 0 4px var(--brand-ring);
+    }
+    .status {
+      min-height: 18px; margin-top: 10px;
+      font-size: 12.5px; color: var(--muted);
+      display: flex; align-items: center; gap: 7px;
+    }
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--ok); }
+    .status .spinner {
+      width: 12px; height: 12px; flex: none;
+      border: 2px solid var(--line);
+      border-top-color: var(--brand);
+      border-radius: 50%;
+      animation: idxSpin .7s linear infinite;
+    }
+    @keyframes idxSpin { to { transform: rotate(360deg); } }
+
     /* ========== Upload Slots ========== */
-    .slots { display: flex; flex-direction: column; gap: 12px; margin-bottom: 22px; }
+    /* 四个上传槽状态化（纯视觉）。class 钩子挂在既有 JS 的状态赋值处：
+       renderSlots() 的 slot.className，以及 generate() 的进度/成功/失败分支。
+       状态：.is-empty 空态（虚线框）/ .is-uploading 上传中（进度条动效）/
+             .has-file.is-filled 已上传（badge-ok + 文件名 + 移除）/
+             .is-done 已就绪 / .is-error 失败（danger 描边 + 重试横幅） */
+    .slots { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
 
     .slot {
-      border: 2px dashed var(--line);
-      border-radius: 8px;
-      padding: 14px 16px;
-      transition: all .2s var(--ease);
-      background: var(--paper-2);
+      position: relative;
+      border: 1px dashed #D4D4D8;
+      border-radius: var(--r);
+      padding: 16px;
+      transition: border-color .2s var(--ease), background .2s var(--ease), box-shadow .2s var(--ease);
+      background: var(--surface);
       cursor: pointer;
+      overflow: hidden;
     }
 
     .slot:hover {
-      border-color: var(--red);
-      background: var(--white);
+      border-color: var(--brand);
+      background: var(--surface);
     }
 
+    /* 已上传：ok 描边 + 浅底 */
     .slot.has-file {
-      border-color: var(--red);
+      border-color: var(--ok);
       border-style: solid;
-      background: #FEF6F6;
+      background: var(--ok-soft);
     }
+    /* 已上传：状态文字收编为 badge-ok 药丸（renderSlots 输出的 .slot-sub 原位换肤） */
+    .slot.has-file .slot-sub {
+      background: #DCFCE7;
+      color: var(--ok);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+
+    /* 上传中：品牌描边（该槽开始分片上传时由既有回调切换该类）+ 底部进度动效 */
+    .slot.has-file.is-uploading {
+      border-color: var(--brand);
+      border-style: solid;
+      background: var(--surface);
+      box-shadow: 0 0 0 3px var(--brand-ring);
+    }
+    .slot.is-uploading .slot-file::after {
+      content: '上传中…';
+      flex: 0 0 auto;
+      font-size: 11px;
+      color: var(--brand-deep);
+      font-weight: 600;
+    }
+    .slot.is-uploading::after {
+      content: '';
+      position: absolute;
+      left: 0; bottom: 0;
+      height: 3px; width: 40%;
+      background: var(--brand);
+      border-radius: 0 3px 3px 0;
+      animation: slotUpload 1.1s ease-in-out infinite;
+    }
+    @keyframes slotUpload {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+
+    /* 失败：danger 描边 + 浅底（整体或任一槽失败） */
+    .slot.is-error,
+    .slots.is-error .slot.has-file {
+      border-color: var(--danger);
+      border-style: solid;
+      background: var(--danger-soft);
+    }
+    .slots.is-error .slot { border-color: var(--danger); }
+
+    /* 完成态（.is-done 挂在 #slots 根上）：保持已上传的 ok 视觉 */
+    .slots.is-done .slot.has-file { border-color: var(--ok); background: var(--ok-soft); }
 
     .slot-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
 
     .slot-tag {
       display: inline-block;
-      background: var(--red);
-      color: var(--white);
+      background: var(--brand);
+      color: #fff;
       padding: 3px 10px;
-      border-radius: 4px;
+      border-radius: var(--r-sm);
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.08em;
-      font-family: "JetBrains Mono", monospace;
+      font-family: var(--mono);
     }
 
     .slot-sub {
@@ -104,23 +218,51 @@
       margin-top: 2px;
     }
 
-    .slot-fname {
-      font-size: 12px;
-      color: var(--red);
+    /* 已上传行：图标 + 文件名 + 大小 + 移除 */
+    .slot-file {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--line);
+    }
+    .slot-fileicon { display: flex; flex: 0 0 auto; color: var(--ok); }
+    .slot-fname {
+      flex: 1;
+      min-width: 0;
+      font-size: 12px;
+      color: var(--ink);
       word-break: break-all;
-      min-height: 16px;
+    }
+    .slot-size {
+      flex: 0 0 auto;
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .slot-remove {
+      flex: 0 0 auto;
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 3px 10px;
+      background: var(--surface);
+      transition: color .15s, border-color .15s;
+    }
+    .slot-remove:hover { color: var(--danger); border-color: var(--danger); }
+
+    /* 空态提示行 */
+    .slot-empty-hint {
       display: flex;
       align-items: center;
       gap: 6px;
-    }
-
-    .slot-placeholder {
-      color: var(--muted);
-      font-style: italic;
-      font-size: 12px;
       margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
     }
+    .slot-empty-hint svg { flex: 0 0 auto; }
 
     .slot input[type=file] { display: none; }
 
@@ -139,19 +281,21 @@
 
     .field-row input[type=number] {
       flex: 0 0 140px;
-      padding: 10px 12px;
-      border: 1.5px solid var(--line);
-      border-radius: 6px;
+      height: 34px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
       font-size: 13px;
       outline: none;
-      transition: border-color .2s var(--ease);
-      background: var(--white);
+      transition: border-color .2s var(--ease), box-shadow .15s;
+      background: var(--surface);
       color: var(--ink);
       font-family: inherit;
     }
 
     .field-row input[type=number]:focus {
-      border-color: var(--red);
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px var(--brand-ring);
     }
 
     .field-row span {
@@ -160,8 +304,12 @@
     }
 
     /* ========== Generate Button ========== */
+    /* is-loading spinner（原旧壳按钮 loading 态，随旧壳退役收编本页）：
+       请求期间由既有 generate() 分支切换 is-loading 钩子。 */
     .gen-btn {
       width: 100%;
+      display: inline-flex;
+      justify-content: center;
       background: var(--red);
       color: var(--white);
       border: none;
@@ -171,7 +319,7 @@
       font-weight: 600;
       cursor: pointer;
       transition: all .2s var(--ease);
-      margin-top: 22px;
+      margin-top: 16px;
       letter-spacing: 0.04em;
       font-family: inherit;
     }
@@ -188,6 +336,16 @@
     .gen-btn:disabled {
       opacity: .4;
       cursor: not-allowed;
+    }
+    .gen-btn.is-loading { pointer-events: none; opacity: .7; }
+    .gen-btn.is-loading::after {
+      content: '';
+      width: 14px; height: 14px;
+      margin-left: 9px;
+      border: 2px solid rgba(255, 255, 255, .45);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: idxSpin .7s linear infinite;
     }
 
     /* ========== Progress Bar ========== */
@@ -215,13 +373,53 @@
       letter-spacing: 0.02em;
     }
 
+    /* 分阶段 stepper（随旧壳退役收编本页，页作用域 idx-step）：
+       is-done / is-current 由 setStage() 按进度百分比切换（视觉映射，非后端阶段） */
+    .slot-stepper { display: flex; align-items: center; margin-top: 12px; }
+    .idx-step { display: flex; align-items: center; flex: 0 0 auto; }
+    .idx-step-dot {
+      width: 20px; height: 20px;
+      display: grid; place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      font-size: 11px; font-weight: 600;
+      color: var(--muted);
+      font-family: var(--mono);
+      transition: border-color .15s, background .15s, color .15s;
+    }
+    .idx-step.is-done .idx-step-dot { border-color: var(--ok); color: var(--ok); }
+    .idx-step.is-current .idx-step-dot { border-color: var(--brand); background: var(--brand); color: #fff; }
+    .idx-step-label { font-size: 12.5px; color: var(--faint); margin-left: 8px; }
+    .idx-step.is-current .idx-step-label { color: var(--ink); font-weight: 600; }
+    .idx-step-line { width: 28px; height: 1px; background: var(--line); margin: 0 10px; flex: 0 0 auto; }
+    .idx-step.is-done .idx-step-line { background: var(--ok); }
+    @media (max-width: 820px) {
+      .idx-step-label { display: none; }
+      .idx-step-line { width: 16px; margin: 0 6px; }
+    }
+
+    /* 成功/失败横幅（原旧壳 banner/alert 组件，随旧壳退役收编本页） */
+    .slot-banner { margin-top: 16px; }
+    .gen-banner {
+      display: flex; gap: 9px; align-items: flex-start;
+      background: var(--ok-soft); color: var(--ok);
+      border: 1px solid #BBF7D0;
+      font-size: 12.5px; border-radius: var(--r-sm); padding: 9px 12px;
+    }
+    .gen-banner .gen-banner-icon { display: flex; flex: 0 0 auto; margin-top: 1px; }
+    .slot-retry { margin-left: auto; }
+
+    /* 完成态：下载按钮高亮（静态描边，无动画） */
+    .btn.is-highlight { box-shadow: 0 0 0 3px var(--brand-ring); }
+    .btn-sec.is-highlight { border-color: var(--brand); color: var(--brand-deep); }
+
     /* ========== Right Panel ========== */
     .right-panel {
-      background: var(--paper-2);
+      background: var(--bg);
       display: flex;
       flex-direction: column;
       min-height: 0;
-      height: 100vh;
+      height: 100%;
     }
 
     .chat-toolbar {
@@ -259,7 +457,7 @@
       transition: background .2s;
     }
 
-    .chat-status.active .dot { background: #16A34A; }
+    .chat-status.active .dot { background: var(--ok); }
     .chat-status.loading .dot { background: var(--red); animation: pulse 1s ease-in-out infinite; }
     @keyframes pulse { 50% { opacity: 0.4; } }
 
@@ -338,7 +536,7 @@
     .chat-bubble h1, .chat-bubble h2, .chat-bubble h3 {
       margin: 10px 0 6px;
       font-weight: 600;
-      font-family: "Noto Serif SC", serif;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, Arial, sans-serif;
     }
     .chat-bubble h1 { font-size: 16px; }
     .chat-bubble h2 { font-size: 15px; }
@@ -353,7 +551,7 @@
       padding: 2px 6px;
       border-radius: 4px;
       font-size: 12px;
-      font-family: "JetBrains Mono", monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .chat-bubble pre {
       background: var(--paper-2);
@@ -435,7 +633,7 @@
     }
 
     .chat-empty .empty-title {
-      font-family: "Noto Serif SC", serif;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, Arial, sans-serif;
       font-weight: 600;
       color: var(--ink);
       font-size: 17px;
@@ -486,6 +684,7 @@
       .layout {
         grid-template-columns: 1fr;
         grid-template-rows: auto auto;
+        height: auto;
       }
       .left-panel {
         border-right: none;
@@ -500,16 +699,15 @@
       .chat-input-area { padding: 12px 16px; }
     }
   </style>
-</head>
-<body>
-  <div data-app-shell></div>
+{% endblock %}
+
+{% block content %}
 
   <main class="layout">
     <!-- ================================= -->
     <!-- LEFT: Upload panel                -->
     <!-- ================================= -->
     <aside class="left-panel">
-      <div class="panel-title">上传报告</div>
       <div class="panel-subtitle">按报告标识上传对应 PDF，至少 1 份即可生成综合报告。</div>
 
       <div class="hint">
@@ -549,12 +747,42 @@
         生成报告 + AI 解读
       </button>
 
-      <!-- Progress bar -->
+      <!-- Progress bar + 分阶段 stepper（静态视觉，随既有 progressWrap 显隐） -->
       <div class="progress-wrap" id="progressWrap" style="display:none;">
         <div class="progress-bar">
           <div class="progress-fill" id="progressFill" style="width:0%"></div>
         </div>
         <div class="progress-text" id="progressText">准备中…</div>
+        <div class="slot-stepper" id="genStepper" aria-hidden="true">
+          <span class="idx-step" data-stage="upload">
+            <span class="idx-step-dot">1</span><span class="idx-step-label">上传</span>
+            <span class="idx-step-line"></span>
+          </span>
+          <span class="idx-step" data-stage="parse">
+            <span class="idx-step-dot">2</span><span class="idx-step-label">解析</span>
+            <span class="idx-step-line"></span>
+          </span>
+          <span class="idx-step" data-stage="render">
+            <span class="idx-step-dot">3</span><span class="idx-step-label">渲染</span>
+            <span class="idx-step-line"></span>
+          </span>
+          <span class="idx-step" data-stage="done">
+            <span class="idx-step-dot">4</span><span class="idx-step-label">完成</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- 完成 / 失败横幅（静态元素；显隐与文案由既有成功/失败分支切换） -->
+      <div class="gen-banner slot-banner" id="genBanner" style="display:none;">
+        <span class="gen-banner-icon">{{ icon('check-circle', 16) }}</span>
+        <span>报告已生成，可在右侧下载报告（默认新版，可另存旧版）。</span>
+      </div>
+      <div class="alert slot-banner" id="errBanner" style="display:none;" role="alert">
+        <span class="alert-icon" style="display:flex;flex:0 0 auto;margin-top:1px">{{ icon('x-circle', 16) }}</span>
+        <span id="errBannerText">生成失败，请重试。</span>
+        <button type="button" class="btn btn-sec btn-sm slot-retry" onclick="generate()">
+          {{ icon('refresh', 14) }}重试
+        </button>
       </div>
 
       <div class="status" id="status"></div>
@@ -570,10 +798,10 @@
           <button class="btn btn-primary" id="downloadBtn" onclick="downloadPdf()" disabled>
             下载报告
           </button>
-          <button class="btn btn-secondary" id="downloadLegacyBtn" style="display:none" onclick="downloadLegacyPdf()">
+          <button class="btn btn-sec" id="downloadLegacyBtn" style="display:none" onclick="downloadLegacyPdf()">
             旧版报告
           </button>
-          <button class="btn btn-secondary" onclick="goToTranscript()">
+          <button class="btn btn-sec" onclick="goToTranscript()">
             解读会纪要
           </button>
         </div>
@@ -600,8 +828,13 @@
       </div>
     </section>
   </main>
+{% endblock %}
 
+{% block scripts %}
 <script>
+  // 页面内图标（Jinja 预渲染成 JS 常量；JS 模板串里不能调 Jinja 函数）
+  const IDX_ICON_FILE = '{{ icon("file", 15) }}';
+  const IDX_ICON_FILE_SM = '{{ icon("file", 14) }}';
   // =====================================
   // Slot definitions
   // =====================================
@@ -747,17 +980,26 @@
     SLOTS.forEach(s => {
       const f = files[s.key];
       const slot = document.createElement('div');
-      slot.className = 'slot' + (f ? ' has-file' : '');
+      // 状态钩子（纯视觉）：有文件 = .has-file.is-filled，无文件 = .is-empty。
+      // 上传中 / 失败类由 generate() 在既有分支追加，不改任何上传/轮询逻辑。
+      slot.className = 'slot' + (f ? ' has-file is-filled' : ' is-empty');
+      slot.setAttribute('data-key', s.key);
       slot.innerHTML = `
         <div class="slot-head">
           <span class="slot-tag">${s.key}</span>
-          <span class="slot-sub">点击选择 PDF</span>
+          <span class="slot-sub">${f ? '已上传' : '点击选择 PDF'}</span>
         </div>
         <div class="slot-title">${s.title}</div>
         <div class="slot-desc">${s.sub}</div>
         ${f
-          ? `<div class="slot-fname">${escapeHtml(f.name)}</div>`
-          : `<div class="slot-placeholder">未选择文件 · 点击选择 ${s.key} 报告 PDF…</div>`
+          ? `<div class="slot-file">
+               <span class="slot-fileicon">${IDX_ICON_FILE}</span>
+               <span class="slot-fname">${escapeHtml(f.name)}</span>
+               <span class="slot-size">${f.size >= 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB'}</span>
+               <button type="button" class="slot-remove" aria-label="移除 ${s.key}"
+                       onclick="removeSlot('${s.key}'); event.stopPropagation();">移除</button>
+             </div>`
+          : `<div class="slot-empty-hint">${IDX_ICON_FILE_SM}未选择文件 · 点击选择 ${s.key} 报告 PDF…</div>`
         }
         <input type="file" accept="application/pdf"
                onchange="onPickFile('${s.key}', this)" />
@@ -776,6 +1018,29 @@
     const f = input.files[0];
     if (f) files[key] = f;
     renderSlots();
+  }
+
+  // 槽内「移除」按钮：仅清空本地已选文件并重渲染（零请求 / 不动状态机）。
+  function removeSlot(key) {
+    delete files[key];
+    renderSlots();
+  }
+
+  // 生成按钮的分阶段进度（视觉映射，非后端阶段）：既有轮询只返回 percent/message/status，
+  // 无阶段字段，故按进度百分比区间映射：0–30 上传 / 30–60 解析 / 60–95 渲染 / 95–100 完成。
+  function setStage(pct) {
+    const steps = document.querySelectorAll('#genStepper .idx-step');
+    if (!steps.length) return;
+    steps.forEach(el => el.classList.remove('is-done', 'is-current'));
+    if (pct >= 100) {
+      steps.forEach(el => el.classList.add('is-done'));
+      return;
+    }
+    const idx = pct < 30 ? 0 : (pct < 60 ? 1 : 2);
+    steps.forEach((el, i) => {
+      el.classList.toggle('is-done', i < idx);
+      el.classList.toggle('is-current', i === idx);
+    });
   }
 
   function escapeHtml(s) {
@@ -981,6 +1246,7 @@
         const pct = Math.max(30, Math.round(30 + (p.percent || 0) * 0.7));
         progFill.style.width = pct + '%';
         progText.textContent = p.message || (pct + '%');
+        setStage(pct);   // 视觉：按既有 percent 推进 stepper（挂在既有赋值处）
         if (p.status === 'done' || p.status === 'error') return p;
       }
       if (Date.now() - startedAt > 20 * 60 * 1000) {
@@ -995,6 +1261,7 @@
 
     const btn = document.getElementById('genBtn');
     btn.disabled = true;
+    btn.classList.add('is-loading');            // 纯视觉：复用 .gen-btn.is-loading
     setStatus('正在上传 ' + picked + ' 份 PDF…', 'loading');
     setChatStatus('报告生成中…', 'loading');
 
@@ -1002,9 +1269,16 @@
     const progWrap = document.getElementById('progressWrap');
     const progFill = document.getElementById('progressFill');
     const progText = document.getElementById('progressText');
+    const slotsRoot = document.getElementById('slots');
     progWrap.style.display = 'block';
     progFill.style.width = '0%';
     progText.textContent = '上传中…';
+    // 视觉状态切换（挂在既有赋值处）：重置并进入「上传中」
+    setStage(0);
+    slotsRoot.classList.remove('is-error', 'is-done');
+    slotsRoot.classList.add('is-uploading');
+    document.getElementById('genBanner').style.display = 'none';
+    document.getElementById('errBanner').style.display = 'none';
 
     // Show typing indicator in chat
     addMessage('assistant', '正在生成报告，完成后将自动解读，请稍候…');
@@ -1025,12 +1299,18 @@
           const pct = Math.min(30, Math.round(uploadedBytes / totalBytes * 30));
           progFill.style.width = pct + '%';
           progText.textContent = '上传中 ' + pct + '%';
+          // 视觉：标记当前正在上传的槽 + 推进 stepper（挂在既有赋值处）
+          document.querySelector('#slots .slot[data-key="' + k + '"]')?.classList.add('is-uploading');
+          setStage(pct);
         });
       }
 
       // 2) 启动生成任务
       progFill.style.width = '30%';
       progText.textContent = '正在启动生成任务…';
+      // 视觉：各槽上传完成，清除「上传中」标记（挂在既有赋值处）
+      setStage(30);
+      document.querySelectorAll('#slots .slot.has-file').forEach(el => el.classList.remove('is-uploading'));
       const form = new FormData();
       form.append('upload_id', uploadId);
       form.append('manifest', JSON.stringify(manifest));
@@ -1095,6 +1375,14 @@
 
       progFill.style.width = '100%';
       progText.textContent = '完成';
+      // 完成态视觉（挂在既有「完成」赋值处）：stepper 全亮 + 成功横幅 + 下载按钮高亮 + 一次性 Toast
+      setStage(100);
+      document.getElementById('genBanner').style.display = '';
+      document.getElementById('downloadBtn').classList.add('is-highlight');
+      if (v2Available) document.getElementById('downloadLegacyBtn').classList.add('is-highlight');
+      slotsRoot.classList.remove('is-uploading');
+      slotsRoot.classList.add('is-done');
+      window.y4Toast('报告已生成', 'success');
       setTimeout(() => { progWrap.style.display = 'none'; }, 2000);
 
       const extra = resp.headers.get('X-Applied-Items') && resp.headers.get('X-Total-Items')
@@ -1107,11 +1395,18 @@
 
     } catch (err) {
       progWrap.style.display = 'none';
+      // 失败态视觉（挂在既有失败赋值处）：danger 描边 + 错误横幅（含重试）
+      slotsRoot.classList.remove('is-uploading');
+      slotsRoot.classList.add('is-error');
+      const errBanner = document.getElementById('errBanner');
+      errBanner.style.display = '';
+      document.getElementById('errBannerText').textContent = err.message || ('网络错误: ' + err);
       setStatus(err.message || ('网络错误: ' + err), 'error');
       updateLastMessage('assistant', '生成失败：' + (err.message || err));
       setChatStatus('生成失败', '');
     } finally {
       btn.disabled = Object.keys(files).length < 1;
+      btn.classList.remove('is-loading');     // 纯视觉：解除 loading
     }
   }
 
@@ -1280,6 +1575,4 @@
   // Load student list for dropdown
   loadStudentDropdown();
 </script>
-<script src="/app_shell.js" defer></script>
-</body>
-</html>
+{% endblock %}

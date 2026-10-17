@@ -1465,6 +1465,25 @@ def main() -> None:
         # Still rename to standard name if no student name
         print(f"\n  学生姓名为空，保留默认文件名")
 
+    # --- [4/4] v2 新版设计（并行输出，失败不影响 v1）---
+    try:
+        import sys as _sys
+        _ni = str(project_dir / "new_iteration")
+        if _ni not in _sys.path:
+            _sys.path.insert(0, _ni)
+        import render_v2
+
+        v2_html = output_dir / "report_v2.html"
+        render_v2.render_html_to(report_data_path, v2_html)
+        v2_base = f"凭远Y4评测报告_v2_{safe_name}" if student_name else "凭远Y4评测报告_v2"
+        v2_pdf = output_dir / f"{v2_base}.pdf"
+        if v2_pdf.exists():
+            v2_pdf.unlink()
+        generate_pdf_with_chrome(v2_html, v2_pdf)
+        print(f"\n[4/4] v2 新版已生成: {v2_pdf.name}")
+    except Exception as exc:
+        print(f"\n  [警告] v2 新版生成失败（不影响主报告）: {exc}")
+
     print("\n" + "=" * 60)
     print(f"完成！输出目录: {output_dir}")
     print("=" * 60)

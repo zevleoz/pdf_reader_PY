@@ -16,7 +16,14 @@ def api_docs():
 @bp.route("/system/users")
 @role_required('admin')
 def system_users_page():
-    return render_template("users.html")
+    return render_template("users.html", nav_active="system.users")
+
+
+@bp.route("/system/settings")
+@role_required('admin')
+def system_settings_page():
+    """设置模块打桩页（B 包 5.4）：避免侧边栏「系统」组出现死链。"""
+    return render_template("system_settings.html", nav_active="system.settings")
 
 
 @bp.route("/api/users")

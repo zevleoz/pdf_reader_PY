@@ -1,0 +1,2225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>凭远Y4评测报告 v2 · 压力测试</title>
+<style>
+/* ================================================================
+   Y4 评测报告 · New Iteration (v2) 设计系统
+   设计来源: 4Y.pdf 设计模版 (12页) + 缺失页同语言延伸
+   四系统色: 心力=蓝 / 精力=琥珀 / 学习力=绿 / 生涯力=棕
+   ================================================================ */
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+    font-family: "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", Arial, sans-serif;
+    color: #1A1A1A; font-size: 10pt; line-height: 1.6;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+
+:root {
+    --red: #A40405;
+    --ink: #1A1A1A;
+    --body: #3F3F46;
+    --muted: #8C8C8C;
+    --desc-bg: #F4F4F2;
+    /* 心力 · 蓝 */
+    --c-xin: #4AA8E0;
+    --c-xin-bright: #5BBFEB;
+    --c-xin-tint: #F1F9FD;
+    --c-xin-card: #F0F9FD;
+    --c-xin-border: #BDE3F5;
+    /* 精力 · 琥珀 */
+    --c-jing: #F8A600;
+    --c-jing-deep: #F8B01E;
+    --c-jing-tint: #FEF6DF;
+    --c-jing-card: #FFF5D9;
+    /* 学习力 · 绿 */
+    --c-xue: #60B124;
+    --c-xue-deep: #70B735;
+    --c-xue-tint: #F7FBF4;
+    --c-xue-card: #EFF7E9;
+    /* 生涯力 · 棕 */
+    --c-sheng: #885C00;
+    --c-sheng-accent: #BAA06B;
+    --c-sheng-tint: #F4F0ED;
+    --c-sheng-panel: #EDE6D9;
+}
+
+.page {
+    width: 210mm; height: 297mm;
+    page-break-after: always;
+    position: relative; overflow: hidden;
+    background: #FFFFFF;
+}
+.page:last-child { page-break-after: auto; }
+
+/* ============ 内容页通用: 页眉 / 标题 / 描述盒 ============ */
+.phead {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    padding: 10mm 14mm 0 14mm;
+}
+.phead .crumb { font-size: 10.5pt; font-weight: 600; letter-spacing: 0.5px; padding-bottom: 2.5mm; }
+.phead .crumb .sep { font-weight: 400; opacity: 0.55; margin: 0 1.5mm; }
+.phead img { height: 8.5mm; display: block; }
+.phead-rule { height: 1px; margin: 0 14mm; }
+
+.pbody { padding: 9mm 14mm 0 14mm; }
+.ptitle { font-size: 25pt; font-weight: 700; letter-spacing: 1px; line-height: 1.2; }
+.ptitle-en {
+    font-size: 8.5pt; color: #9A9A9A; letter-spacing: 2.5px;
+    text-transform: uppercase; margin-top: 1.5mm; font-weight: 400;
+}
+.desc {
+    background: var(--desc-bg); border-radius: 10px;
+    padding: 4.5mm 5.5mm; margin-top: 6mm;
+    font-size: 10.5pt; line-height: 1.85; color: #3F3F46;
+}
+
+/* ============ P1 封面 ============ */
+.cover { background: radial-gradient(ellipse 95% 75% at 66% 40%, #B00607 0%, var(--red) 48%, #820303 100%); color: #FFF; }
+.cover-logo { position: absolute; top: 10mm; left: 12mm; display: flex; align-items: center; gap: 4mm; }
+.cover-logo img { height: 12.5mm; display: block; }
+.cover-logo .txt .l1 { font-size: 14.5pt; font-weight: 700; letter-spacing: 1px; line-height: 1.1; }
+.cover-logo .txt .l2 { font-size: 6.5pt; letter-spacing: 2.2px; opacity: 0.9; margin-top: 1mm; }
+.cover-title { position: absolute; top: 72mm; left: 12mm; }
+.cover-title .y4 { font-size: 64pt; font-weight: 800; letter-spacing: 2px; line-height: 1; }
+.cover-title .cn { font-size: 25pt; font-weight: 700; letter-spacing: 4px; margin-top: 7mm; }
+.cover-title .en { font-size: 9pt; letter-spacing: 3.5px; margin-top: 2.5mm; opacity: 0.9; text-transform: uppercase; }
+.cover-title .rule { width: 14mm; height: 3px; background: #FFF; margin-top: 6mm; }
+.cover-student { position: absolute; top: 168mm; left: 12mm; }
+.cover-student .name { font-size: 24pt; font-weight: 700; letter-spacing: 1px; }
+.cover-student .meta { font-size: 11pt; margin-top: 4mm; line-height: 1.9; opacity: 0.95; }
+.cover-date { position: absolute; bottom: 14mm; left: 12mm; font-size: 10pt; letter-spacing: 1px; opacity: 0.95; }
+.cover-art { position: absolute; top: 0; right: 0; width: 175mm; height: 297mm; pointer-events: none; }
+
+/* ============ P2 Introduction ============ */
+.intro-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10mm 14mm 0 14mm;
+}
+.intro-head .tag { font-size: 9.5pt; letter-spacing: 2.5px; color: #3F3F46; text-transform: uppercase; font-weight: 500; }
+.intro-head img { height: 8.5mm; }
+.intro-body { padding: 13mm 14mm 0 14mm; }
+.intro-title-row { display: flex; align-items: flex-start; gap: 8mm; }
+.intro-title-row .y4 { font-size: 46pt; font-weight: 800; line-height: 0.95; letter-spacing: 1px; }
+.intro-title-row .t1 { font-size: 19pt; font-weight: 600; letter-spacing: 0.5px; padding-top: 1mm; }
+.intro-title-row .t2 { font-size: 10pt; color: var(--red); letter-spacing: 2px; margin-top: 2mm; font-weight: 600; }
+.intro-lead {
+    background: var(--desc-bg); border-radius: 10px; padding: 4.5mm 5.5mm;
+    font-size: 10.5pt; line-height: 1.9; margin-top: 9mm; color: #27272A;
+}
+.intro-why { margin-top: 8mm; position: relative; }
+.intro-why .why-line { font-size: 11pt; position: relative; z-index: 2; }
+.intro-why .why-line b { font-weight: 700; }
+.intro-why .watermark {
+    font-size: 44pt; font-weight: 800; letter-spacing: 6px;
+    color: #F3F3F3; margin-top: 1mm; line-height: 1.1; user-select: none;
+}
+.intro-why .watermark .y { color: #F6D9D9; }
+.intro-q { margin-top: 7mm; font-size: 10.5pt; }
+.intro-q ul { list-style: none; margin-top: 3mm; }
+.intro-q li { padding-left: 6mm; position: relative; margin-bottom: 2.2mm; line-height: 1.7; }
+.intro-q li::before { content: "•"; position: absolute; left: 0; color: var(--red); font-weight: 700; }
+.intro-close { margin-top: 6mm; font-size: 10.5pt; line-height: 1.8; }
+.sys-cards { display: flex; gap: 4mm; margin-top: 9mm; }
+.sys-card {
+    flex: 1; border-radius: 14px; border: 1.5px solid;
+    padding: 5mm 3mm 4.5mm 3mm; text-align: center;
+}
+.sys-card .ic { height: 13mm; display: flex; align-items: center; justify-content: center; }
+.sys-card .ic svg { width: 11mm; height: 11mm; }
+.sys-card .name { font-size: 15pt; font-weight: 700; margin-top: 2.5mm; letter-spacing: 2px; }
+.sys-card .sub { font-size: 8pt; color: #52525B; margin-top: 1.5mm; }
+.sys-card .en { font-size: 5.8pt; color: #A1A1AA; letter-spacing: 0.8px; margin-top: 1.5mm; text-transform: uppercase; line-height: 1.4; }
+
+/* ============ 章节分隔页 ============ */
+.divider { padding: 0; }
+.divider .wrap { padding: 78mm 16mm 0 16mm; }
+.divider .title-row { display: flex; align-items: center; gap: 6mm; }
+.divider .title-row .ic svg { width: 16mm; height: 16mm; }
+.divider .title-row .name { font-size: 38pt; font-weight: 800; letter-spacing: 3px; }
+.divider .sub { font-size: 15pt; color: #27272A; margin-top: 3mm; letter-spacing: 1px; }
+.divider .rule { width: 16mm; height: 3px; margin-top: 5mm; }
+.divider .en { font-size: 9.5pt; letter-spacing: 3px; text-transform: uppercase; margin-top: 4mm; font-weight: 500; }
+.divider .pill {
+    display: inline-block; background: #FFF; border-radius: 999px;
+    padding: 3mm 7mm; font-size: 10.5pt; margin-top: 9mm;
+}
+.divider .para { margin-top: 8mm; font-size: 10.5pt; line-height: 1.9; color: #27272A; max-width: 165mm; }
+.divider ul { list-style: none; margin-top: 4mm; }
+.divider li { padding-left: 6mm; position: relative; margin-bottom: 2.8mm; font-size: 10.5pt; line-height: 1.75; }
+.divider li::before { content: "•"; position: absolute; left: 0; font-weight: 700; }
+
+/* 分隔页各系统配色 */
+.dv-xin { background: var(--c-xin-tint); }
+.dv-xin .rule { background: var(--c-xin-bright); }
+.dv-xin .en, .dv-xin li::before { color: var(--c-xin-bright); }
+.dv-jing { background: var(--c-jing-tint); }
+.dv-jing .rule { background: var(--c-jing); }
+.dv-jing .en, .dv-jing li::before { color: var(--c-jing); }
+.dv-xue { background: var(--c-xue-tint); }
+.dv-xue .rule { background: var(--c-xue); }
+.dv-xue .en, .dv-xue li::before { color: var(--c-xue); }
+.dv-sheng { background: var(--c-sheng-tint); }
+.dv-sheng .rule { background: var(--c-sheng); }
+.dv-sheng .en, .dv-sheng li::before { color: var(--c-sheng); }
+</style>
+<style>
+/* ============ P4 情绪稳定性 ============ */
+.em-score-row { display: flex; gap: 5mm; margin-top: 8mm; }
+.em-score-card {
+    flex: 1.35; background: var(--c-xin-card); border: 1.5px solid var(--c-xin-border);
+    border-radius: 16px; padding: 6mm 7mm; display: flex; align-items: center; gap: 7mm;
+}
+.em-face { width: 30mm; height: 30mm; border-radius: 50%; flex: 0 0 auto; }
+.em-score-card .num { font-size: 34pt; font-weight: 800; color: var(--c-xin-bright); line-height: 1; font-variant-numeric: tabular-nums; }
+.em-score-card .num small { font-size: 13pt; font-weight: 500; color: #7A7A7A; }
+.em-pill {
+    display: inline-block; margin-top: 2.5mm; background: var(--c-xin-bright); color: #FFF;
+    font-size: 9.5pt; font-weight: 600; border-radius: 999px; padding: 1.2mm 5mm; letter-spacing: 1px;
+}
+.em-peer-card {
+    flex: 1; background: #FFF; border: 1px solid #EFEFEF; border-radius: 16px;
+    padding: 6mm 7mm; display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+}
+.em-peer-card .num { font-size: 34pt; font-weight: 800; color: #4B5563; line-height: 1; font-variant-numeric: tabular-nums; }
+.em-peer-card .num small { font-size: 13pt; font-weight: 500; color: #9A9A9A; }
+.em-peer-pill {
+    display: inline-block; margin-top: 2.5mm; background: #52525B; color: #FFF;
+    font-size: 9.5pt; font-weight: 600; border-radius: 999px; padding: 1.2mm 5mm; letter-spacing: 1px;
+}
+.bipolar-list { margin-top: 11mm; }
+.bipolar-row { display: flex; align-items: center; margin-bottom: 11.5mm; }
+.bipolar-row:last-child { margin-bottom: 0; }
+.bp-pole { width: 34mm; display: flex; align-items: center; gap: 3mm; }
+.bp-pole .ic { width: 12.5mm; height: 12.5mm; border-radius: 50%; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+.bp-pole .ic svg { width: 7mm; height: 7mm; }
+.bp-pole .lab { font-size: 12pt; font-weight: 700; line-height: 1.25; }
+.bp-pole .lab .en { display: block; font-size: 6pt; font-weight: 400; color: #A1A1AA; letter-spacing: 0.8px; text-transform: uppercase; margin-top: 0.8mm; }
+.bp-pole.right { justify-content: flex-end; text-align: right; }
+.bp-track-wrap { flex: 1; padding: 0 4mm; position: relative; }
+.bp-val { position: absolute; top: 100%; margin-top: 2mm; transform: translateX(-50%); font-size: 8.5pt; font-weight: 600; color: #71717A; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; white-space: nowrap; }
+.bp-track { position: relative; height: 6px; background: #ECECEC; border-radius: 999px; }
+.bp-track .tick { position: absolute; top: 0; width: 1.5px; height: 100%; background: #DCDCDC; border-radius: 1px; }
+.bp-dot {
+    position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--c-xin-bright); border: 2.5px solid #FFF;
+    transform: translate(-50%, -50%);
+}
+
+/* ============ P5 自我概念 ============ */
+.sc-summary { margin-top: 6mm; background: var(--c-xin-card); border: 1.5px solid var(--c-xin-border); border-radius: 16px; padding: 6mm 7mm; }
+.sc-summary .head { display: flex; justify-content: space-between; align-items: baseline; }
+.sc-summary .head .t { font-size: 11pt; font-weight: 700; }
+.sc-summary .head .v { font-size: 26pt; font-weight: 800; color: var(--c-xin); font-variant-numeric: tabular-nums; }
+.sc-summary .head .v small { font-size: 11pt; color: #7A7A7A; font-weight: 500; }
+.sc-band { position: relative; margin-top: 5mm; }
+.sc-band .seg-row { display: flex; height: 10px; border-radius: 999px; overflow: hidden; }
+.sc-band .seg { height: 100%; }
+.sc-band .seg.low { background: #E3E3E3; }
+.sc-band .seg.mid { background: var(--c-xin-bright); }
+.sc-band .seg.high { background: #B9B9B9; }
+.sc-band .labels { display: flex; margin-top: 1.8mm; font-size: 7.5pt; color: #8C8C8C; }
+.sc-band .labels span { text-align: center; }
+.sc-band .labels .en { display: block; font-size: 6pt; letter-spacing: 1px; text-transform: uppercase; color: #B5B5B5; }
+.sc-marker {
+    position: absolute; top: -8.5mm; transform: translateX(-50%);
+    background: #1A1A1A; color: #FFF; font-size: 8.5pt; font-weight: 700;
+    padding: 0.8mm 2.6mm; border-radius: 6px; font-variant-numeric: tabular-nums;
+}
+.sc-marker::after {
+    content: ""; position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%);
+    border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid #1A1A1A;
+}
+.sc-rows { margin-top: 7mm; }
+.sc-row { display: flex; align-items: center; margin-bottom: 8.2mm; }
+.sc-row .lab { width: 40mm; }
+.sc-row .lab .zh { font-size: 11.5pt; font-weight: 700; }
+.sc-row .lab .en { font-size: 6.2pt; color: #A1A1AA; letter-spacing: 0.8px; text-transform: uppercase; line-height: 1.35; margin-top: 0.6mm; }
+.sc-row .track-wrap { flex: 1; padding: 0 4mm; }
+.sc-row .track { position: relative; height: 7px; background: #EFEFEF; border-radius: 999px; }
+.sc-row .dot {
+    position: absolute; top: 50%; width: 17px; height: 17px; border-radius: 50%;
+    background: var(--c-xin-bright); border: 2.5px solid #FFF;
+    transform: translate(-50%, -50%);
+}
+.sc-row .val { width: 18mm; text-align: right; font-size: 14pt; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sc-row .val small { font-size: 8.5pt; color: #9A9A9A; font-weight: 400; }
+
+/* ============ P6 依恋关系 ============ */
+.at-cards { display: flex; gap: 5mm; margin-top: 6mm; }
+.at-card {
+    flex: 1; border-radius: 16px; border: 1.5px solid; padding: 9mm 4mm 8.5mm 4mm;
+    text-align: center; position: relative;
+}
+.at-card .who { font-size: 18pt; font-weight: 700; letter-spacing: 2px; }
+.at-card .type-pill {
+    display: inline-block; margin-top: 3.5mm; color: #FFF; font-size: 10pt; font-weight: 600;
+    border-radius: 999px; padding: 1.5mm 7mm; letter-spacing: 1.5px;
+}
+.at-card .warn {
+    position: absolute; top: -4mm; right: -3mm; width: 8.5mm; height: 8.5mm; border-radius: 50%;
+    background: #FACC15; border: 2px solid #FFF;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11pt; font-weight: 800; color: #1A1A1A;
+}
+.at-detail-title { margin-top: 8mm; font-size: 9pt; color: #52525B; letter-spacing: 1px; }
+.at-detail-cards { display: flex; gap: 5mm; margin-top: 3mm; }
+.at-mini {
+    flex: 1; background: #FFF; border: 1px solid #EFEFEF; border-radius: 14px; padding: 4.5mm 4.5mm 4mm 4.5mm;
+}
+.at-mini .t { font-size: 11.5pt; font-weight: 700; }
+.at-mini .t .en { font-size: 8pt; color: #8C8C8C; font-weight: 400; letter-spacing: 0.5px; margin-left: 1mm; }
+.at-mini .rule { height: 1px; background: #ECECEC; margin: 2.5mm 0 3mm 0; }
+.at-mini .row { display: flex; align-items: center; margin-bottom: 3.6mm; font-size: 9.5pt; }
+.at-mini .row:last-child { margin-bottom: 0; }
+.at-mini .row .who { width: 9mm; color: #3F3F46; font-weight: 600; }
+.at-mini .row .bar-wrap { flex: 1; padding-right: 2.5mm; }
+.at-mini .row .bar { height: 7px; background: #F0F0F0; border-radius: 999px; overflow: hidden; }
+.at-mini .row .fill { height: 100%; border-radius: 999px; background: #3F3F46; }
+.at-mini .row .fill.low { background: #C00000; }
+.at-mini .row .valb { width: 15mm; flex: 0 0 auto; text-align: right; }
+.at-mini .row .valb .v { font-size: 10.5pt; font-weight: 800; color: #1A1A1A; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.at-mini .row .valb .v small { font-size: 7pt; font-weight: 400; color: #9A9A9A; }
+.at-mini .row .lv { font-size: 7.5pt; font-weight: 600; color: #52525B; margin-top: 0.7mm; }
+.at-mini .row .lv.low { color: #C00000; }
+.at-mini .row .lv.high { color: #1A1A1A; }
+
+/* ============ P7 内驱力 ============ */
+.drive-mindset { margin-top: 6mm; background: var(--c-xin-card); border: 1.5px solid var(--c-xin-border); border-radius: 16px; padding: 6mm 7mm 8mm 7mm; }
+.drive-mindset .t { font-size: 11pt; font-weight: 700; }
+.drive-mindset .t .en { font-size: 7.5pt; color: #8C8C8C; font-weight: 400; letter-spacing: 1.5px; text-transform: uppercase; margin-left: 2mm; }
+.ms-slider { position: relative; margin-top: 12mm; }
+.ms-track { position: relative; height: 8px; border-radius: 999px; background: linear-gradient(90deg, #E3E3E3 0%, var(--c-xin-bright) 100%); }
+.ms-dot {
+    position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%;
+    background: #FFF; border: 5px solid var(--c-xin);
+    transform: translate(-50%, -50%);
+}
+.ms-bubble {
+    position: absolute; top: -11mm; transform: translateX(-50%);
+    background: #1A1A1A; color: #FFF; font-size: 9pt; font-weight: 700;
+    padding: 1mm 3mm; border-radius: 6px; font-variant-numeric: tabular-nums;
+}
+.ms-bubble::after {
+    content: ""; position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%);
+    border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; border-top: 4.5px solid #1A1A1A;
+}
+.ms-labels { display: flex; justify-content: space-between; margin-top: 3.5mm; }
+.ms-labels .l { font-size: 11pt; font-weight: 700; }
+.ms-labels .l .en { display: block; font-size: 6.5pt; color: #A1A1AA; font-weight: 400; letter-spacing: 1px; text-transform: uppercase; margin-top: 0.5mm; }
+.ms-labels .l.right { text-align: right; color: var(--c-xin); }
+.drive-dims { margin-top: 7mm; }
+.drive-dims .group-t { font-size: 11pt; font-weight: 700; }
+.drive-dims .group-t .en { font-size: 7.5pt; color: #8C8C8C; font-weight: 400; letter-spacing: 1.5px; text-transform: uppercase; margin-left: 2mm; }
+.drive-cards { display: flex; gap: 5mm; margin-top: 3.5mm; }
+.drive-card { flex: 1; background: #FFF; border: 1px solid #EFEFEF; border-radius: 16px; padding: 6.5mm 5.5mm 7mm 5.5mm; }
+.drive-card .zh { font-size: 12pt; font-weight: 700; }
+.drive-card .en { font-size: 7pt; color: #A1A1AA; letter-spacing: 1px; text-transform: uppercase; margin-top: 0.5mm; }
+.drive-card .num { font-size: 26pt; font-weight: 800; color: var(--c-xin); margin-top: 2.5mm; font-variant-numeric: tabular-nums; line-height: 1; }
+.drive-card .num small { font-size: 10pt; color: #9A9A9A; font-weight: 400; }
+.drive-card .bar { position: relative; height: 7px; background: #EFEFEF; border-radius: 999px; margin-top: 4mm; }
+.drive-card .fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; background: var(--c-xin-bright); }
+.drive-card .avg-tick { position: absolute; top: 0; width: 2.5px; height: 100%; background: #9A9AA2; border-radius: 1.5px; }
+.drive-card .avg { font-size: 7.5pt; color: #8C8C8C; margin-top: 2.5mm; font-variant-numeric: tabular-nums; }
+
+/* ============ P8 人格 ============ */
+.pers-wrap { margin-top: 5mm; background: var(--c-xin-card); border: 1.5px solid var(--c-xin-border); border-radius: 16px; padding: 5mm 7mm 6mm 7mm; }
+.pers-grid { display: flex; align-items: center; }
+.pers-radar { flex: 1.2; }
+.pers-legend { flex: 1; }
+.pers-item { display: flex; align-items: baseline; gap: 3mm; padding: 2.6mm 0; border-bottom: 1px dashed #DCE9F2; }
+.pers-item:last-child { border-bottom: none; }
+.pers-item .zh { font-size: 11pt; font-weight: 700; width: 17mm; }
+.pers-item .en { font-size: 6.5pt; color: #A1A1AA; letter-spacing: 0.6px; text-transform: uppercase; flex: 1; white-space: nowrap; }
+.pers-item .v { font-size: 14pt; font-weight: 800; color: var(--c-xin); font-variant-numeric: tabular-nums; }
+.pers-item .v small { font-size: 8.5pt; color: #9A9A9A; font-weight: 400; }
+</style>
+<style>
+/* ============ P10 体质健康 ============ */
+.bmi-banner {
+    margin-top: 6mm; background: var(--c-jing); border-radius: 16px;
+    padding: 6mm 8mm; display: flex; align-items: center; justify-content: space-between;
+}
+.bmi-banner .l .t { font-size: 16pt; font-weight: 700; color: #1A1A1A; letter-spacing: 1px; }
+.bmi-banner .l .en { font-size: 7.5pt; color: rgba(0,0,0,0.55); letter-spacing: 2px; text-transform: uppercase; margin-top: 1mm; }
+.bmi-banner .r { display: flex; gap: 12mm; text-align: center; }
+.bmi-banner .big { font-size: 30pt; font-weight: 800; color: #1A1A1A; line-height: 1; font-variant-numeric: tabular-nums; }
+.bmi-banner .cap { font-size: 7.5pt; color: rgba(0,0,0,0.6); letter-spacing: 2px; text-transform: uppercase; margin-top: 1.5mm; }
+.body-panel { margin-top: 6mm; background: #F5F5F5; border-radius: 16px; padding: 5.5mm 6mm 6mm 6mm; }
+.body-panel .t { font-size: 10.5pt; font-weight: 700; margin-bottom: 4mm; }
+.stat-chips { display: flex; gap: 5mm; }
+.stat-chip {
+    flex: 1; background: #1A1A1A; border-radius: 12px; padding: 3.5mm 5mm;
+    display: flex; align-items: baseline; gap: 2.5mm;
+}
+.stat-chip .k { color: #FFF; font-size: 9pt; }
+.stat-chip .v { color: var(--c-jing-deep); font-size: 19pt; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.stat-chip .u { color: var(--c-jing-deep); font-size: 9pt; font-weight: 600; letter-spacing: 0.5px; }
+.shape-row { display: flex; gap: 4mm; margin-top: 5mm; }
+.shape-cell {
+    flex: 1; border-radius: 14px; border: 1.5px solid transparent;
+    padding: 5mm 2mm 4mm 2mm; text-align: center; position: relative; background: #FFF;
+}
+.shape-cell .fig { height: 26mm; display: flex; align-items: flex-end; justify-content: center; }
+.shape-cell .zh { font-size: 11pt; font-weight: 700; color: #B5B5B5; margin-top: 2.5mm; }
+.shape-cell .en { font-size: 6.5pt; color: #C8C8C8; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 0.6mm; }
+.shape-cell.active { border: 2px solid #1A1A1A; }
+.shape-cell.active .zh { color: #1A1A1A; }
+.shape-cell.active .en { color: #8C8C8C; }
+.shape-cell .cur {
+    position: absolute; top: -4.5mm; left: 50%; transform: translateX(-50%);
+    background: #1A1A1A; color: #FFF; font-size: 8pt; font-weight: 600;
+    border-radius: 999px; padding: 0.8mm 4mm; letter-spacing: 1px;
+}
+.habit-title { margin-top: 7mm; font-size: 10.5pt; font-weight: 700; }
+.habit-cards { display: flex; gap: 5mm; margin-top: 3mm; }
+.habit-card { flex: 1; background: #F5F5F5; border-radius: 14px; padding: 4.5mm 5mm; }
+.habit-card .top { display: flex; align-items: center; justify-content: space-between; }
+.habit-card .zh { font-size: 12pt; font-weight: 700; }
+.habit-card .en { font-size: 7.5pt; color: #9A9A9A; letter-spacing: 1px; margin-top: 0.5mm; }
+.habit-badge {
+    width: 11mm; height: 11mm; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    color: #FFF; font-size: 10.5pt; font-weight: 700;
+}
+.habit-card .val { margin-top: 2.5mm; font-size: 17pt; font-weight: 800; color: #4B5563; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.habit-card .val small { font-size: 8.5pt; color: #8C8C8C; font-weight: 400; margin-left: 1mm; }
+
+/* ============ P12 认知资源 ============ */
+.cog-banner {
+    margin-top: 6mm; background: var(--c-xue-deep); border-radius: 16px;
+    padding: 6mm 7mm; display: flex; align-items: stretch; gap: 6mm;
+}
+.cog-banner .l { flex: 1.1; display: flex; flex-direction: column; justify-content: center; }
+.cog-banner .l .t { font-size: 15pt; font-weight: 700; color: #FFF; letter-spacing: 1px; display: flex; align-items: center; gap: 2.5mm; }
+.cog-banner .l .en { font-size: 7.5pt; color: rgba(255,255,255,0.85); letter-spacing: 1.5px; margin-top: 1.5mm; }
+.cog-banner .stat {
+    flex: 1; background: #FFF; border-radius: 12px; padding: 4.5mm 5mm;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.cog-banner .stat .v { font-size: 30pt; font-weight: 800; color: #1A1A1A; line-height: 1; font-variant-numeric: tabular-nums; width: 100%; text-align: center; }
+.cog-banner .stat .v .pct { font-size: 16pt; }
+.cog-banner .stat .cap { font-size: 9pt; color: #52525B; margin-top: 1.2mm; width: 100%; text-align: center; }
+.cog-banner .stat .uline { width: 12mm; height: 3.5px; background: var(--c-xue-deep); border-radius: 2px; margin-top: 2mm; }
+.cog-banner .stat .cap .en { display: block; font-size: 6.5pt; color: #A1A1AA; letter-spacing: 1px; text-transform: uppercase; text-align: center; margin-top: 0.5mm; }
+.dist-title { margin-top: 11mm; font-size: 10pt; font-weight: 600; letter-spacing: 0.5px; }
+.dist-title .en { color: #8C8C8C; font-weight: 400; letter-spacing: 1.5px; }
+.dist-text { margin-top: 5mm; font-size: 12pt; color: var(--c-xue); line-height: 1.8; }
+.dist-text b { font-size: 12pt; }
+.dist-bar-wrap { position: relative; margin-top: 13mm; }
+.dist-bar { height: 14px; border-radius: 999px; background: linear-gradient(90deg, #A9D27F 0%, var(--c-xue-deep) 55%, #4E9415 100%); }
+.dist-marker { position: absolute; top: -8.5mm; transform: translateX(-50%); text-align: center; pointer-events: none; }
+.dist-marker .v { font-size: 11pt; font-weight: 800; color: #4E9415; font-variant-numeric: tabular-nums; }
+.dist-marker .arrow { width: 0; height: 0; margin: 0.5mm auto 0 auto; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #4E9415; }
+.dist-dot {
+    position: absolute; top: 7px; width: 11px; height: 11px; border-radius: 50%;
+    background: #E5F0C4; border: 2px solid rgba(255,255,255,0.9); transform: translate(-50%, -50%);
+}
+
+/* ============ P13 认知子指标 ============ */
+.subidx-grid { display: flex; flex-wrap: wrap; gap: 5mm; margin-top: 6mm; }
+.subidx-card {
+    width: calc(50% - 2.5mm); background: #FFF; border: 1px solid #EFEFEF;
+    border-radius: 16px; padding: 5mm 5.5mm;
+}
+.subidx-card .head { display: flex; justify-content: space-between; align-items: baseline; }
+.subidx-card .zh { font-size: 12pt; font-weight: 700; }
+.subidx-card .en { font-size: 7pt; color: #A1A1AA; letter-spacing: 1px; text-transform: uppercase; margin-top: 0.5mm; }
+.subidx-card .pct { font-size: 23pt; font-weight: 800; color: var(--c-xue); font-variant-numeric: tabular-nums; }
+.subidx-card .bar { height: 7px; background: #EFEFEF; border-radius: 999px; margin-top: 3mm; overflow: hidden; }
+.subidx-card .fill { height: 100%; border-radius: 999px; background: var(--c-xue-deep); }
+.subidx-card .txt { font-size: 8.6pt; color: #52525B; line-height: 1.7; margin-top: 3mm; }
+
+/* ============ P14 执行功能 ============ */
+.exec-cards { display: flex; gap: 5mm; margin-top: 6mm; }
+.exec-card {
+    flex: 1; background: var(--c-xue-card); border: 1.5px solid #D8EBC8;
+    border-radius: 16px; padding: 5.5mm 5mm; text-align: center;
+}
+.exec-card .zh { font-size: 12pt; font-weight: 700; }
+.exec-card .en { font-size: 6.8pt; color: #8C8C8C; letter-spacing: 1px; text-transform: uppercase; margin-top: 0.8mm; }
+.exec-card .pct { font-size: 30pt; font-weight: 800; color: var(--c-xue); margin-top: 2.5mm; font-variant-numeric: tabular-nums; line-height: 1; }
+.exec-descs { margin-top: 6mm; }
+.exec-desc { background: #FFF; border: 1px solid #EFEFEF; border-radius: 14px; padding: 4.5mm 5.5mm; margin-bottom: 4mm; display: flex; gap: 5mm; align-items: flex-start; }
+.exec-desc:last-child { margin-bottom: 0; }
+.exec-desc .n {
+    flex: 0 0 auto; width: 9mm; height: 9mm; border-radius: 50%; background: var(--c-xue-deep);
+    color: #FFF; font-size: 10pt; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.exec-desc .t { font-size: 10.5pt; font-weight: 700; }
+.exec-desc .t .en { font-size: 7pt; color: #A1A1AA; font-weight: 400; letter-spacing: 1px; text-transform: uppercase; margin-left: 1.5mm; }
+.exec-desc .txt { font-size: 8.5pt; color: #52525B; line-height: 1.75; margin-top: 1.2mm; }
+
+/* ============ P15 学习动机与策略 ============ */
+.lm-group { margin-top: 5mm; }
+.lm-group .group-t { font-size: 11pt; font-weight: 700; }
+.lm-group .group-t .en { font-size: 7.5pt; color: #8C8C8C; font-weight: 400; letter-spacing: 1.5px; text-transform: uppercase; margin-left: 2mm; }
+.lm-row {
+    background: #FFF; border: 1px solid #EFEFEF; border-radius: 14px;
+    padding: 4mm 5mm 4.5mm 5mm; margin-top: 3mm;
+}
+.lm-row .head { display: flex; align-items: baseline; }
+.lm-row .zh { font-size: 10.5pt; font-weight: 700; }
+.lm-row .en { font-size: 6.5pt; color: #A1A1AA; letter-spacing: 1px; text-transform: uppercase; margin-left: 1.5mm; }
+.lm-row .vals { margin-left: auto; text-align: right; }
+.lm-row .vals .v { font-size: 15pt; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lm-row .vals .v small { font-size: 8.5pt; color: #9A9A9A; font-weight: 400; }
+.lm-row .vals .avg { font-size: 8pt; color: #8C8C8C; margin-left: 3mm; font-variant-numeric: tabular-nums; }
+.lm-row .bar { position: relative; height: 7px; background: #EFEFEF; border-radius: 999px; margin-top: 3mm; }
+.lm-row .fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; background: var(--c-xue-deep); }
+.lm-row .avg-tick { position: absolute; top: 0; width: 2.5px; height: 100%; background: #9A9AA2; border-radius: 1.5px; }
+.lm-row .txt { font-size: 8pt; color: #52525B; line-height: 1.7; margin-top: 2.8mm; }
+
+/* ============ P17 职业兴趣 ============ */
+.holland-panel { margin-top: 6mm; background: var(--c-sheng-panel); border-radius: 16px; padding: 5.5mm 6mm 6mm 6mm; }
+.holland-head { display: flex; align-items: center; gap: 4mm; }
+.holland-head .t { font-size: 9pt; color: #8A6D3B; letter-spacing: 2px; font-weight: 600; }
+.holland-head .rule { flex: 1; height: 1px; background: #D8C9AC; }
+.holland-head .code { font-size: 26pt; font-weight: 800; color: #6B4E00; letter-spacing: 4px; }
+.holland-row {
+    display: flex; align-items: center; gap: 4.5mm; background: #FFF;
+    border-radius: 12px; padding: 3.5mm 5mm; margin-top: 3mm;
+    height: 23mm; box-sizing: border-box;
+}
+.holland-row.top { border: 1.5px solid var(--c-sheng-accent); background: #FBF8F1; }
+.holland-row .badge {
+    flex: 0 0 auto; width: 11mm; height: 11mm; border-radius: 10px;
+    background: #6B4E00; color: #FFF;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15pt; font-weight: 800;
+}
+.holland-row .info { flex: 1; }
+.holland-row .info .zh { font-size: 12.5pt; font-weight: 700; }
+.holland-row .info .zh .en { font-size: 7pt; color: #A1A1AA; font-weight: 400; letter-spacing: 1px; text-transform: uppercase; margin-left: 1.5mm; }
+.holland-row .info .txt { font-size: 8.4pt; color: #52525B; line-height: 1.6; margin-top: 1mm; }
+.holland-row .score { flex: 0 0 auto; text-align: right; }
+.holland-row .score .v { font-size: 22pt; font-weight: 800; color: #1A1A1A; font-variant-numeric: tabular-nums; line-height: 1; }
+.holland-row .score .v small { font-size: 9pt; color: #9A9A9A; font-weight: 400; }
+
+/* ============ P18 能力优势 ============ */
+.mi-list { margin-top: 5mm; }
+.mi-row {
+    display: flex; align-items: center; gap: 4.5mm; background: #FFF;
+    border: 1px solid #EFEFEF; border-radius: 14px; padding: 5mm 5.5mm; margin-bottom: 4.2mm;
+}
+.mi-row .rank {
+    flex: 0 0 auto; width: 9mm; height: 9mm; border-radius: 50%;
+    border: 1.5px solid #C8C8C8; color: #8C8C8C;
+    display: flex; align-items: center; justify-content: center; font-size: 10pt; font-weight: 700;
+}
+.mi-row.top { background: var(--c-sheng-tint); border-color: #E0D5C8; }
+.mi-row.top .rank { background: var(--c-sheng-accent); border-color: var(--c-sheng-accent); color: #FFF; }
+.mi-row .lab { width: 36mm; }
+.mi-row .lab .zh { font-size: 10.5pt; font-weight: 700; }
+.mi-row .lab .en { font-size: 6.5pt; color: #A1A1AA; letter-spacing: 0.8px; text-transform: uppercase; margin-top: 0.4mm; }
+.mi-row .bar-wrap { flex: 1; }
+.mi-row .bar { height: 8px; background: #EFEFEF; border-radius: 999px; overflow: hidden; }
+.mi-row .fill { height: 100%; border-radius: 999px; background: #C9B896; }
+.mi-row.top .fill { background: var(--c-sheng-accent); }
+.mi-row .v { width: 12mm; text-align: right; font-size: 15pt; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* ============ P19 职业价值观 ============ */
+.val-grid { display: flex; flex-wrap: wrap; gap: 3.5mm; margin-top: 5mm; }
+.val-card {
+    width: calc(20% - 2.8mm); background: #FFF; border: 1px solid #EFEFEF;
+    border-radius: 12px; padding: 3.5mm 3mm; position: relative;
+}
+.val-card .rank {
+    width: 7mm; height: 7mm; border-radius: 50%; border: 1.5px solid #C8C8C8; color: #8C8C8C;
+    display: flex; align-items: center; justify-content: center; font-size: 8.5pt; font-weight: 700;
+}
+.val-card .zh { font-size: 10pt; font-weight: 700; margin-top: 2mm; }
+.val-card .en { font-size: 5.5pt; color: #A1A1AA; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.35; margin-top: 0.5mm; min-height: 5mm; }
+.val-card .txt { font-size: 6.8pt; color: #52525B; line-height: 1.55; margin-top: 1.8mm; }
+.val-card .quote { font-size: 6.5pt; color: #8C8C8C; font-style: italic; line-height: 1.5; margin-top: 1.2mm; }
+.val-card.top { background: var(--c-sheng-tint); border-color: #E0D5C8; }
+.val-card.top .rank { background: var(--c-sheng-accent); border-color: var(--c-sheng-accent); color: #FFF; }
+
+/* ============ P20 阅读与说明 ============ */
+.notes-head { display: flex; justify-content: flex-end; padding: 10mm 14mm 4mm 14mm; border-bottom: 1px solid #E3E3E3; margin: 0 2mm; }
+.notes-head img { height: 8.5mm; }
+.notes-body { padding: 22mm 16mm 0 16mm; }
+.notes-title { font-size: 25pt; font-weight: 800; letter-spacing: 1px; }
+.notes-list { margin-top: 12mm; }
+.notes-item { margin-bottom: 8mm; }
+.notes-item .t { font-size: 13pt; font-weight: 700; }
+.notes-item .txt { font-size: 9.5pt; color: #52525B; margin-top: 1.5mm; line-height: 1.8; }
+.notes-foot {
+    position: absolute; bottom: 12mm; left: 16mm; right: 16mm;
+    border-top: 1px solid #E5E5E5; padding-top: 4mm;
+    font-size: 7.5pt; color: #A1A1AA; text-align: center; letter-spacing: 0.5px;
+}
+</style>
+</head>
+<body>
+
+<!-- ================= SVG 图标库 ================= -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- 心力: 人形侧影+微笑 -->
+    <symbol id="ic-xin" viewBox="0 0 48 48">
+      <path d="M16 43 V24 C16 15 22 9 29 9 C36 9 40.5 14 41 19.5 L43.5 24 L40.5 26.5 C41 29 40 32 38 33.5 V43 Z"
+            fill="#FFFFFF" stroke="#1A1A1A" stroke-width="2.5" stroke-linejoin="round"/>
+      <circle cx="20" cy="16" r="9.5" fill="#42B6E9" stroke="#1A1A1A" stroke-width="2.5"/>
+      <circle cx="16.5" cy="14.5" r="1.5" fill="#1A1A1A"/>
+      <circle cx="23.5" cy="14.5" r="1.5" fill="#1A1A1A"/>
+      <path d="M16 19.5 Q20 23.5 24 19.5" fill="none" stroke="#1A1A1A" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <!-- 精力: 电池 -->
+    <symbol id="ic-jing" viewBox="0 0 48 48">
+      <rect x="6" y="15.5" width="32" height="17" rx="4.5" fill="#F8A600" stroke="#1A1A1A" stroke-width="2.5"/>
+      <rect x="38.5" y="20.5" width="4.5" height="7" rx="1.5" fill="#F8A600" stroke="#1A1A1A" stroke-width="2.2"/>
+      <rect x="11" y="20.5" width="3.5" height="7" rx="1.75" fill="#1A1A1A"/>
+      <rect x="18" y="20" width="7.5" height="8" rx="2" fill="none" stroke="#1A1A1A" stroke-width="2.2"/>
+      <path d="M31.5 20.5 v7.5 M27.75 24.25 h7.5" stroke="#1A1A1A" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <!-- 学习力: 书+铅笔 -->
+    <symbol id="ic-xue" viewBox="0 0 48 48">
+      <path d="M8 13 C13 10.5 20 11 24 14 C28 11 35 10.5 40 13 V33 C35 30.5 28 31 24 34 C20 31 13 30.5 8 33 Z"
+            fill="#70B735" stroke="#1A1A1A" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M10.5 15.5 C15 13.7 20.5 14.2 24 17 C27.5 14.2 33 13.7 37.5 15.5 V30 C33 27.7 27.5 28.2 24 31 C20.5 28.2 15 27.7 10.5 30 Z"
+            fill="#FFFFFF" stroke="#1A1A1A" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M24 17 V31" stroke="#1A1A1A" stroke-width="1.8"/>
+      <path d="M13.5 19.5 C16 18.7 19 19 21.5 20.2 M13.5 23.5 C16 22.7 19 23 21.5 24.2 M26.5 20.2 C29 19 32 18.7 34.5 19.5 M26.5 24.2 C29 23 32 22.7 34.5 23.5"
+            fill="none" stroke="#1A1A1A" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M12 39.5 L6.5 42.2 L12 45 Z" fill="#F4F0ED" stroke="#1A1A1A" stroke-width="2" stroke-linejoin="round"/>
+      <rect x="12" y="39.5" width="22" height="5.5" fill="#70B735" stroke="#1A1A1A" stroke-width="2"/>
+      <path d="M30.5 39.5 V45" stroke="#1A1A1A" stroke-width="2"/>
+    </symbol>
+    <!-- 生涯力: 公文包+文件 -->
+    <symbol id="ic-sheng" viewBox="0 0 48 48">
+      <rect x="20" y="7" width="16" height="20" rx="2" fill="#FFFFFF" stroke="#1A1A1A" stroke-width="2.2"/>
+      <path d="M31.5 7 L36 11.5 H31.5 Z" fill="#F4F0ED" stroke="#1A1A1A" stroke-width="1.8" stroke-linejoin="round"/>
+      <circle cx="26.5" cy="14" r="3.5" fill="none" stroke="#F8A600" stroke-width="2"/>
+      <rect x="8" y="17" width="28" height="21" rx="4" fill="#957755" stroke="#1A1A1A" stroke-width="2.5"/>
+      <path d="M9 21.5 L22 27.5 L35 21.5" fill="none" stroke="#1A1A1A" stroke-width="2.2" stroke-linejoin="round"/>
+      <rect x="19.5" y="25" width="5.5" height="5.5" rx="1.5" fill="#F8A600" stroke="#1A1A1A" stroke-width="2"/>
+    </symbol>
+    <!-- 情绪分数卡: 中性表情 -->
+    <symbol id="ic-face" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="19" fill="#4ECDC4" stroke="#1A1A1A" stroke-width="2.5"/>
+      <circle cx="17.5" cy="20.5" r="2" fill="#1A1A1A"/>
+      <circle cx="30.5" cy="20.5" r="2" fill="#1A1A1A"/>
+      <path d="M17 29.5 Q24 34 31 29.5" fill="none" stroke="#1A1A1A" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <!-- 双极滑杆图标 -->
+    <symbol id="ic-down" viewBox="0 0 24 24">
+      <circle cx="9" cy="7" r="3.2" fill="none" stroke="#52525B" stroke-width="2"/>
+      <path d="M9 11.5 v5 M5.5 14 l3.5 2.5 L12.5 14" fill="none" stroke="#52525B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M17.5 6 v8 m0 0 l-2.5 -3 m2.5 3 l2.5 -3" fill="none" stroke="#52525B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ic-cloud" viewBox="0 0 24 24">
+      <path d="M7 11 a4 4 0 0 1 7.8 -1.2 A3.5 3.5 0 0 1 17.5 16.5 L7 16.5 A3.8 3.8 0 0 1 7 11 Z" fill="none" stroke="#52525B" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M8.5 19.5 l-1 2 M12.5 19.5 l-1 2 M16.5 19.5 l-1 2" stroke="#52525B" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ic-dizzy" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.5" fill="none" stroke="#52525B" stroke-width="2"/>
+      <path d="M12 12 m-3.5 0 a3.5 3.5 0 1 1 7 0 a2 2 0 1 1 -4 0" fill="none" stroke="#52525B" stroke-width="1.8"/>
+    </symbol>
+    <symbol id="ic-battlow" viewBox="0 0 24 24">
+      <rect x="3" y="8" width="15" height="8.5" rx="2.5" fill="none" stroke="#52525B" stroke-width="2"/>
+      <rect x="19" y="10.5" width="2.5" height="3.5" rx="1" fill="#52525B"/>
+      <rect x="5.5" y="10.5" width="3" height="3.5" rx="1" fill="#52525B"/>
+    </symbol>
+    <symbol id="ic-star" viewBox="0 0 24 24">
+      <path d="M12 3.5 L14.6 9 L20.5 9.7 L16.2 13.8 L17.4 19.8 L12 16.8 L6.6 19.8 L7.8 13.8 L3.5 9.7 L9.4 9 Z" fill="#F8B01E" stroke="#B97E0A" stroke-width="1.2" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ic-happy" viewBox="0 0 24 24">
+      <circle cx="12" cy="5.5" r="2.8" fill="#F8B01E"/>
+      <path d="M4.5 8.5 L12 12 L19.5 8.5 M12 12 v7 M12 19 l-4 2.5 M12 19 l4 2.5" fill="none" stroke="#B97E0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ic-calm" viewBox="0 0 24 24">
+      <path d="M12 4 C14 7 14 10 12 12.5 C10 10 10 7 12 4 Z" fill="#70B735"/>
+      <path d="M5.5 8.5 C9 9.5 11 12 11.3 15 C7.5 14.8 5.5 12 5.5 8.5 Z" fill="#A9D27F"/>
+      <path d="M18.5 8.5 C15 9.5 13 12 12.7 15 C16.5 14.8 18.5 12 18.5 8.5 Z" fill="#A9D27F"/>
+      <path d="M4 17.5 Q12 21 20 17.5" fill="none" stroke="#4E9415" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ic-target" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.5" fill="none" stroke="#E0653A" stroke-width="2"/>
+      <circle cx="12" cy="12" r="4.5" fill="none" stroke="#E0653A" stroke-width="2"/>
+      <circle cx="12" cy="12" r="1.6" fill="#E0653A"/>
+    </symbol>
+    <!-- 认知: 灯泡 -->
+    <symbol id="ic-bulb" viewBox="0 0 48 48">
+      <path d="M24 6 a13 13 0 0 1 7 24 c-1.5 1.2-2.5 2.5-2.5 4.5 h-9 c0-2-1-3.3-2.5-4.5 A13 13 0 0 1 24 6 Z" fill="#FACC15" stroke="#1A1A1A" stroke-width="2.5" stroke-linejoin="round"/>
+      <line x1="20" y1="38.5" x2="28" y2="38.5" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="21.5" y1="42.5" x2="26.5" y2="42.5" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M24 14 v5 M18 18 l3 3 M30 18 l-3 3" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round" fill="none"/>
+    </symbol>
+    <!-- 人形体（体型） -->
+    <symbol id="ic-person" viewBox="0 0 60 100">
+      <circle cx="30" cy="12" r="9.5"/>
+      <path d="M30 25 C19 25 13 31 12.5 41 L12 56 C11.8 59.5 13.6 61 16.2 61 L19.5 61 L20 50 L21 50 L20.5 88 C20.4 91.6 22.2 93.2 25 93.2 L28.6 93.2 L29.4 63 L30.6 63 L31.4 93.2 L35 93.2 C37.8 93.2 39.6 91.6 39.5 88 L39 50 L40 50 L40.5 61 L43.8 61 C46.4 61 48.2 59.5 48 56 L47.5 41 C47 31 41 25 30 25 Z"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- ================= P1 封面 ================= -->
+<div class="page cover">
+  <svg class="cover-art" viewBox="0 0 700 1190" preserveAspectRatio="xMaxYMid slice">
+    <defs>
+      <filter id="softArc" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="7"/>
+      </filter>
+      <clipPath id="coverClip"><circle cx="445" cy="490" r="148"/></clipPath>
+    </defs>
+    <g stroke="#FFFFFF" fill="none">
+      <circle cx="445" cy="490" r="150" stroke-opacity="0.55" stroke-width="1.5"/>
+      <circle cx="445" cy="490" r="205" stroke-opacity="0.35" stroke-width="1.2"/>
+      <circle cx="445" cy="490" r="265" stroke-opacity="0.28" stroke-width="1.2"/>
+      <circle cx="445" cy="490" r="330" stroke-opacity="0.22" stroke-width="1.2"/>
+      <circle cx="445" cy="490" r="400" stroke-opacity="0.16" stroke-width="1.2"/>
+      <circle cx="445" cy="490" r="475" stroke-opacity="0.12" stroke-width="1.2"/>
+    </g>
+    <g stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="1">
+      
+      <line x1="595.0" y1="490.0"
+            x2="915.0" y2="490.0"/>
+      
+      <line x1="589.9" y1="528.8"
+            x2="899.0" y2="611.6"/>
+      
+      <line x1="574.9" y1="565.0"
+            x2="852.0" y2="725.0"/>
+      
+      <line x1="551.1" y1="596.1"
+            x2="777.3" y2="822.3"/>
+      
+      <line x1="520.0" y1="619.9"
+            x2="680.0" y2="897.0"/>
+      
+      <line x1="483.8" y1="634.9"
+            x2="566.6" y2="944.0"/>
+      
+      <line x1="445.0" y1="640.0"
+            x2="445.0" y2="960.0"/>
+      
+      <line x1="406.2" y1="634.9"
+            x2="323.4" y2="944.0"/>
+      
+      <line x1="370.0" y1="619.9"
+            x2="210.0" y2="897.0"/>
+      
+      <line x1="338.9" y1="596.1"
+            x2="112.7" y2="822.3"/>
+      
+      <line x1="315.1" y1="565.0"
+            x2="38.0" y2="725.0"/>
+      
+      <line x1="300.1" y1="528.8"
+            x2="-9.0" y2="611.6"/>
+      
+      <line x1="295.0" y1="490.0"
+            x2="-25.0" y2="490.0"/>
+      
+      <line x1="300.1" y1="451.2"
+            x2="-9.0" y2="368.4"/>
+      
+      <line x1="315.1" y1="415.0"
+            x2="38.0" y2="255.0"/>
+      
+      <line x1="338.9" y1="383.9"
+            x2="112.7" y2="157.7"/>
+      
+      <line x1="370.0" y1="360.1"
+            x2="210.0" y2="83.0"/>
+      
+      <line x1="406.2" y1="345.1"
+            x2="323.4" y2="36.0"/>
+      
+      <line x1="445.0" y1="340.0"
+            x2="445.0" y2="20.0"/>
+      
+      <line x1="483.8" y1="345.1"
+            x2="566.6" y2="36.0"/>
+      
+      <line x1="520.0" y1="360.1"
+            x2="680.0" y2="83.0"/>
+      
+      <line x1="551.1" y1="383.9"
+            x2="777.3" y2="157.7"/>
+      
+      <line x1="574.9" y1="415.0"
+            x2="852.0" y2="255.0"/>
+      
+      <line x1="589.9" y1="451.2"
+            x2="899.0" y2="368.4"/>
+      
+    </g>
+    <g filter="url(#softArc)" stroke="#FFFFFF" fill="none" stroke-linecap="round">
+      <path d="M 648.1682868574673 229.95645130978176 A 330 330 0 0 1 705.0435486902182 693.1682868574673"
+            stroke-opacity="0.22" stroke-width="58"/>
+      <path d="M 78.5767489635453 684.8306985561446 A 415 415 0 0 1 46.07639618559767 375.6104973359454"
+            stroke-opacity="0.18" stroke-width="58"/>
+      <path d="M 596.7156703334443 865.5094610995488 A 405 405 0 0 1 430.8657038354871 894.7532849427338"
+            stroke-opacity="0.18" stroke-width="58"/>
+    </g>
+    <circle cx="445" cy="490" r="150" fill="#FFFFFF" fill-opacity="0.22"/>
+    <!-- 人物剪影: 通用圆形头+肩膀 -->
+    <g clip-path="url(#coverClip)" fill="#8E0404" fill-opacity="0.8">
+      <circle cx="445" cy="452" r="56"/>
+      <path d="M445 514 C 378 514 350 566 346 660 L 544 660 C 540 566 512 514 445 514 Z"/>
+    </g>
+    <g fill="#FFFFFF">
+      <circle cx="622.5352077758099" cy="387.5" r="6" fill-opacity="0.75"/>
+      <circle cx="562.5831694519644" cy="657.9261690792433" r="4.5" fill-opacity="0.55"/>
+      <circle cx="293.0022443669728" cy="707.0752917365828" r="6" fill-opacity="0.65"/>
+      <circle cx="491.0167670817366" cy="229.02594545176487" r="4" fill-opacity="0.5"/>
+      <circle cx="115.0" cy="490.00000000000006" r="6" fill-opacity="0.6"/>
+      <circle cx="763.7555226753925" cy="404.5897151161681" r="4.5" fill-opacity="0.55"/>
+      <circle cx="375.5407289332279" cy="883.9231012048832" r="5.5" fill-opacity="0.5"/>
+      <circle cx="245.00000000000006" cy="143.5898384862245" r="4" fill-opacity="0.45"/>
+      <circle cx="891.3539948733064" cy="652.4595680796926" r="5" fill-opacity="0.4"/>
+      <circle cx="-1.3539948733064762" cy="327.54043192030724" r="4" fill-opacity="0.38"/>
+    </g>
+    <g stroke="#FFFFFF" stroke-width="2" stroke-opacity="0.38" fill="none" stroke-linecap="round">
+      <path d="M 194 300 h 12 M 200 294 v 12"/>
+      <path d="M 574 196 h 12 M 580 190 v 12"/>
+      <path d="M 604 694 h 12 M 610 688 v 12"/>
+      <path d="M 164 714 h 12 M 170 708 v 12"/>
+    </g>
+  </svg>
+  <div class="cover-logo">
+    <img src="branding/logo_crest_white.png" alt="">
+    <div class="txt">
+      <div class="l1">凭远APP·ARK</div>
+      <div class="l2">WORK HARD · DREAM BIG</div>
+    </div>
+  </div>
+  <div class="cover-title">
+    <div class="y4">Y4</div>
+    <div class="cn">评测报告</div>
+    <div class="en">Y4 Assessment Report</div>
+    <div class="rule"></div>
+  </div>
+  <div class="cover-student">
+    <div class="name">压力测试</div>
+    <div class="meta">上海外国语大学附属外国语学校<br>高一</div>
+  </div>
+  <div class="cover-date">测评时间：2026-01-31</div>
+</div>
+
+<!-- ================= P2 Introduction ================= -->
+<div class="page">
+  <div class="intro-head">
+    <div class="tag">Introduction</div>
+    <img src="branding/logo_inline.png" alt="凭远APP·ARK">
+  </div>
+  <div class="intro-body">
+    <div class="intro-title-row">
+      <div class="y4">Y4</div>
+      <div>
+        <div class="t1">Youth Profile in Four Dimensions</div>
+        <div class="t2">凭远教育 · 四个成长系统的综合画像</div>
+      </div>
+    </div>
+    <div class="intro-lead">Y4 是凭远从四个相互关联的成长系统出发，对青少年当前状态、发展资源和潜在困难形成的综合画像。</div>
+    <div class="intro-why">
+      <div class="why-line">Y 代表 <b>Youth</b>，也呼应 <b>Why</b>。</div>
+      <div class="watermark">WH<span class="y">-Y</span>OUTH</div>
+    </div>
+    <div class="intro-q">
+      <div>Y4 不只描述一个学生"是什么样"，也试图进一步回答：</div>
+      <ul>
+        <li><b>TA为什么</b>会产生这样的情绪和行为；</li>
+        <li><b>TA为什么</b>在某些环境中充满动力，在另一些环境中难以行动；</li>
+        <li><b>TA为什么</b>在某些学习任务中表现突出，却在另一些任务中频繁受阻；</li>
+        <li><b>TA为什么</b>被某些方向吸引；</li>
+        <li>什么样的成长支持，<b>能够真正帮助TA把潜能转化为未来</b>。</li>
+      </ul>
+    </div>
+    <div class="intro-close">Y4 不以单一分数定义学生，也不把学生简单归类为某一种类型。它通过以下四个系统之间的联系，理解一个真实、复杂并且仍在发展中的青少年。</div>
+    <div class="sys-cards">
+      <div class="sys-card" style="background:var(--c-xin-card); border-color:var(--c-xin-border);">
+        <div class="ic"><svg><use href="#ic-xin"/></svg></div>
+        <div class="name">心力</div>
+        <div class="sub">情绪与动力系统</div>
+        <div class="en">Emotional &amp;<br>Motivational System</div>
+      </div>
+      <div class="sys-card" style="background:var(--c-jing-card); border-color:#F2DFA0;">
+        <div class="ic"><svg><use href="#ic-jing"/></svg></div>
+        <div class="name">精力</div>
+        <div class="sub">精力管理与身体健康系统</div>
+        <div class="en">Vitality &amp; Physical<br>Wellbeing System</div>
+      </div>
+      <div class="sys-card" style="background:var(--c-xue-card); border-color:#D8EBC8;">
+        <div class="ic"><svg><use href="#ic-xue"/></svg></div>
+        <div class="name">学习力</div>
+        <div class="sub">学习系统</div>
+        <div class="en">Learning Power<br>System</div>
+      </div>
+      <div class="sys-card" style="background:var(--c-sheng-tint); border-color:#E0D5C8;">
+        <div class="ic"><svg><use href="#ic-sheng"/></svg></div>
+        <div class="name">生涯力</div>
+        <div class="sub">专业与职业发展系统</div>
+        <div class="en">Major &amp; Career<br>Development System</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= P3 心力 分隔页 ================= -->
+<div class="page divider dv-xin">
+  <div class="wrap">
+    <div class="title-row">
+      <div class="ic"><svg><use href="#ic-xin"/></svg></div>
+      <div class="name">心力</div>
+    </div>
+    <div class="sub">情绪与动力系统</div>
+    <div class="rule"></div>
+    <div class="en">Emotional &amp; Motivational System</div>
+    <div class="pill">心力，是一个青少年理解自己、稳定自己、连接他人并启动行动的内在基础。</div>
+    <div class="para">这一系统关注的不是学生是否"情绪好"或者"性格好"，而是：</div>
+    <ul>
+      <li><b>TA是否能够</b>在压力、失败和变化中保持基本稳定；</li>
+      <li><b>TA如何</b>评价自己、理解自己；</li>
+      <li><b>TA是否</b>相信自己有能力面对挑战；</li>
+      <li><b>TA是否</b>拥有值得信任和依靠的关系；</li>
+      <li><b>TA能否</b>表达需要，并在困难时寻求帮助；</li>
+      <li><b>TA行动的</b>动力来自哪里；</li>
+      <li><b>TA如何</b>与环境、他人和任务建立关系。</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ================= P4 情绪稳定性 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-xin-bright);">心力<span class="sep">|</span>情绪与动力系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-xin-bright);"></div>
+  <div class="pbody">
+    <div class="ptitle">情绪稳定性</div>
+    <div class="ptitle-en">Emotional Stability Assessment</div>
+    <div class="desc">情绪稳定性是指人的情绪状态受外界或内部心理变化影响，情绪波动大小、强弱的情况。情绪稳定性的调查基于运用最多的艾森克情绪稳定性测验。心理学家艾森克认为，自卑、抑郁、焦虑、依赖他人的人，情绪更敏感、脆弱，易受到外部环境影响而情绪化。相反自尊、愉快、安详和自主的人，情绪更稳定，即使有情绪，也更容易恢复平静。</div>
+    <div class="em-score-row">
+      <div class="em-score-card">
+        <svg class="em-face"><use href="#ic-face"/></svg>
+        <div>
+          <div class="num">30.5<small> / 60</small></div>
+        </div>
+      </div>
+      <div class="em-peer-card">
+        <div class="num">40<small> / 60</small></div>
+        <div class="em-peer-pill">同龄平均</div>
+      </div>
+    </div>
+    <div class="bipolar-list">
+      
+      <div class="bipolar-row">
+        <div class="bp-pole">
+          <div class="ic" style="background:#EFEFEF;"><svg><use href="#ic-down"/></svg></div>
+          <div class="lab">自卑<span class="en">Inferiority</span></div>
+        </div>
+        <div class="bp-track-wrap">
+          <div class="bp-track">
+            <div class="tick" style="left:25%"></div>
+            <div class="tick" style="left:50%"></div>
+            <div class="tick" style="left:75%"></div>
+            <div class="bp-dot" style="left:13.3%"></div>
+          </div>
+          <div class="bp-val" style="left:13.3%">2 / 15</div>
+        </div>
+        <div class="bp-pole right">
+          <div class="lab">自尊<span class="en">Self-Esteem</span></div>
+          <div class="ic" style="background:#FEF3D8;"><svg><use href="#ic-star"/></svg></div>
+        </div>
+      </div>
+      
+      <div class="bipolar-row">
+        <div class="bp-pole">
+          <div class="ic" style="background:#EFEFEF;"><svg><use href="#ic-cloud"/></svg></div>
+          <div class="lab">抑郁<span class="en">Depression</span></div>
+        </div>
+        <div class="bp-track-wrap">
+          <div class="bp-track">
+            <div class="tick" style="left:25%"></div>
+            <div class="tick" style="left:50%"></div>
+            <div class="tick" style="left:75%"></div>
+            <div class="bp-dot" style="left:20.0%"></div>
+          </div>
+          <div class="bp-val" style="left:20.0%">3 / 15</div>
+        </div>
+        <div class="bp-pole right">
+          <div class="lab">愉快<span class="en">Pleasure</span></div>
+          <div class="ic" style="background:#FEF3D8;"><svg><use href="#ic-happy"/></svg></div>
+        </div>
+      </div>
+      
+      <div class="bipolar-row">
+        <div class="bp-pole">
+          <div class="ic" style="background:#EFEFEF;"><svg><use href="#ic-dizzy"/></svg></div>
+          <div class="lab">焦虑<span class="en">Anxiety</span></div>
+        </div>
+        <div class="bp-track-wrap">
+          <div class="bp-track">
+            <div class="tick" style="left:25%"></div>
+            <div class="tick" style="left:50%"></div>
+            <div class="tick" style="left:75%"></div>
+            <div class="bp-dot" style="left:13.3%"></div>
+          </div>
+          <div class="bp-val" style="left:13.3%">2 / 15</div>
+        </div>
+        <div class="bp-pole right">
+          <div class="lab">安详<span class="en">Serenity</span></div>
+          <div class="ic" style="background:#EFF7E9;"><svg><use href="#ic-calm"/></svg></div>
+        </div>
+      </div>
+      
+      <div class="bipolar-row">
+        <div class="bp-pole">
+          <div class="ic" style="background:#EFEFEF;"><svg><use href="#ic-battlow"/></svg></div>
+          <div class="lab">无力感<span class="en">Helplessness</span></div>
+        </div>
+        <div class="bp-track-wrap">
+          <div class="bp-track">
+            <div class="tick" style="left:25%"></div>
+            <div class="tick" style="left:50%"></div>
+            <div class="tick" style="left:75%"></div>
+            <div class="bp-dot" style="left:20.0%"></div>
+          </div>
+          <div class="bp-val" style="left:20.0%">3 / 15</div>
+        </div>
+        <div class="bp-pole right">
+          <div class="lab">掌控感<span class="en">Controllability</span></div>
+          <div class="ic" style="background:#FDEAE0;"><svg><use href="#ic-target"/></svg></div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- ================= P5 自我概念 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-xin-bright);">心力<span class="sep">|</span>情绪与动力系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-xin-bright);"></div>
+  <div class="pbody">
+    <div class="ptitle">自我概念</div>
+    <div class="ptitle-en">Self-Concept Dimensions</div>
+    <div class="desc">自我概念是个体对自己认识的集合，个体认为的"我是谁，我是一个怎样的人"。也可以理解为个人心中对自己的印象，包括对身体、能力、性格、态度等。比如"我是聪明的"、"我是漂亮的"、"我学习好"。自我概念的发展过程是一个人个性形成和社会化发展的关键。</div>
+    <div class="sc-summary">
+      <div class="head">
+        <div class="t">自我概念整体水平<span style="font-size:7.5pt; color:#8C8C8C; font-weight:400; letter-spacing:1.5px; margin-left:2mm;">OVERALL SELF-CONCEPT</span></div>
+        <div class="v">30<small> / 120</small></div>
+      </div>
+      <div class="sc-band">
+        <div class="sc-marker" style="left:25.0%">30</div>
+        <div class="seg-row">
+          <div class="seg low" style="width:33.3%"></div>
+          <div class="seg mid" style="width:33.4%"></div>
+          <div class="seg high" style="width:33.3%"></div>
+        </div>
+        <div class="labels">
+          <span style="width:33.3%">偏低<span class="en">Low</span></span>
+          <span style="width:33.4%">正常<span class="en">Normal</span></span>
+          <span style="width:33.3%">偏高<span class="en">High</span></span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:6mm; font-size:9.5pt; color:#52525B; line-height:1.8;">个体的自我概念是对众多方面自我认知的整体感知，本测评选取了影响儿童自我概念的六大重要方面，包括行为表现、能力与学校表现、躯体外貌、情绪焦虑、合群、幸福与满意。下面是你在这六大方面得分的具体情况：</div>
+    <div class="sc-rows">
+      
+      <div class="sc-row">
+        <div class="lab">
+          <div class="zh">行为表现</div>
+          <div class="en">Behavioral Adjustment</div>
+        </div>
+        <div class="track-wrap">
+          <div class="track">
+            <div class="dot" style="left:20.0%"></div>
+          </div>
+        </div>
+        <div class="val">2<small> /10.0</small></div>
+      </div>
+      
+      <div class="sc-row">
+        <div class="lab">
+          <div class="zh">能力与学校表现</div>
+          <div class="en">Intellectual and School Status</div>
+        </div>
+        <div class="track-wrap">
+          <div class="track">
+            <div class="dot" style="left:30.0%"></div>
+          </div>
+        </div>
+        <div class="val">3<small> /10.0</small></div>
+      </div>
+      
+      <div class="sc-row">
+        <div class="lab">
+          <div class="zh">躯体外貌</div>
+          <div class="en">Physical Appearance and Attributes</div>
+        </div>
+        <div class="track-wrap">
+          <div class="track">
+            <div class="dot" style="left:20.0%"></div>
+          </div>
+        </div>
+        <div class="val">2<small> /10.0</small></div>
+      </div>
+      
+      <div class="sc-row">
+        <div class="lab">
+          <div class="zh">情绪状态</div>
+          <div class="en">Freedom from Anxiety</div>
+        </div>
+        <div class="track-wrap">
+          <div class="track">
+            <div class="dot" style="left:30.0%"></div>
+          </div>
+        </div>
+        <div class="val">3<small> /10.0</small></div>
+      </div>
+      
+      <div class="sc-row">
+        <div class="lab">
+          <div class="zh">合群</div>
+          <div class="en">Popularity</div>
+        </div>
+        <div class="track-wrap">
+          <div class="track">
+            <div class="dot" style="left:20.0%"></div>
+          </div>
+        </div>
+        <div class="val">2<small> /10.0</small></div>
+      </div>
+      
+      <div class="sc-row">
+        <div class="lab">
+          <div class="zh">幸福与满足</div>
+          <div class="en">Happiness and Satisfaction</div>
+        </div>
+        <div class="track-wrap">
+          <div class="track">
+            <div class="dot" style="left:30.0%"></div>
+          </div>
+        </div>
+        <div class="val">3<small> /10.0</small></div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- ================= P6 依恋关系 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-xin-bright);">心力<span class="sep">|</span>情绪与动力系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-xin-bright);"></div>
+  <div class="pbody">
+    <div class="ptitle">依恋关系</div>
+    <div class="ptitle-en">Social Attachment Dimensions</div>
+    <div class="desc">依恋类型，是个体早期与主要抚养者之间形成的一种最初的社会性联结，是个体与重要他人保持亲密关系的倾向。依恋类型分为安全型依恋（Secure Attachment）、回避型依恋（Avoidant Attachment）和焦虑-矛盾型依恋（Anxious-Ambivalent Attachment）。安全型依恋的个体容易与人亲近，对人表现出信任和依赖；回避型依恋的个体回避与人亲近；焦虑-矛盾型依恋的个体，期待与人亲密但又害怕与人亲密，容易纠结、矛盾。</div>
+    <div class="at-cards">
+      
+      <div class="at-card" style="background:#FAECEC; border-color:#C00000;">
+        <div class="warn">!</div>
+        <div class="who">母亲</div>
+        <div class="type-pill" style="background:#C00000;">回避型</div>
+      </div>
+      
+      <div class="at-card" style="background:#ECF9F2; border-color:#00AF50;">
+        <div class="warn">!</div>
+        <div class="who">父亲</div>
+        <div class="type-pill" style="background:#00AF50;">焦虑-矛盾型</div>
+      </div>
+      
+      <div class="at-card" style="background:#F0F9FD; border-color:#42B6E9;">
+        
+        <div class="who">同伴</div>
+        <div class="type-pill" style="background:#42B6E9;">安全型</div>
+      </div>
+      
+    </div>
+    <div class="at-detail-title">依恋模式测评详情</div>
+    <div class="at-detail-cards">
+      
+      <div class="at-mini">
+        <div class="t">信任<span class="en">Trust</span></div>
+        <div class="rule"></div>
+        
+        <div class="row">
+          <div class="who">母亲</div>
+          <div class="bar-wrap"><div class="bar"><div class="fill low" style="width:16.0%"></div></div></div>
+          <div class="valb">
+            <div class="v">8<small> / 50</small></div>
+            <div class="lv low">低</div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="who">父亲</div>
+          <div class="bar-wrap"><div class="bar"><div class="fill " style="width:80.0%"></div></div></div>
+          <div class="valb">
+            <div class="v">40<small> / 50</small></div>
+            <div class="lv high">高</div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="who">同伴</div>
+          <div class="bar-wrap"><div class="bar"><div class="fill low" style="width:20.0%"></div></div></div>
+          <div class="valb">
+            <div class="v">10<small> / 50</small></div>
+            <div class="lv low">低</div>
+          </div>
+        </div>
+        
+      </div>
+      
+      <div class="at-mini">
+        <div class="t">沟通<span class="en">Communication</span></div>
+        <div class="rule"></div>
+        
+        <div class="row">
+          <div class="who">母亲</div>
+          <div class="bar-wrap"><div class="bar"><div class="fill low" style="width:13.3%"></div></div></div>
+          <div class="valb">
+            <div class="v">6<small> / 45</small></div>
+            <div class="lv low">低</div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="who">父亲</div>
+          <div class="bar-wrap"><div class="bar"><div class="fill " style="width:84.4%"></div></div></div>
+          <div class="valb">
+            <div class="v">38<small> / 45</small></div>
+            <div class="lv high">高</div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="who">同伴</div>
+          <div class="bar-wrap"><div class="bar"><div class="fill low" style="width:20.0%"></div></div></div>
+          <div class="valb">
+            <div class="v">9<small> / 45</small></div>
+            <div class="lv low">低</div>
+          </div>
+        </div>
+        
+      </div>
+      
+      <div class="at-mini">
+        <div class="t">亲近<span class="en">Closeness</span></div>
+        <div class="rule"></div>
+        
+        <div class="row">
+          <div class="who">母亲</div>
+          <div class="bar-wrap"><div class="bar"><div class="fill low" style="width:13.3%"></div></div></div>
+          <div class="valb">
+            <div class="v">4<small> / 30</small></div>
+            <div class="lv low">低</div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="who">父亲</div>
+          <div class="bar-wrap"><div class="bar"><div class="fill " style="width:86.7%"></div></div></div>
+          <div class="valb">
+            <div class="v">26<small> / 30</small></div>
+            <div class="lv high">高</div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="who">同伴</div>
+          <div class="bar-wrap"><div class="bar"><div class="fill low" style="width:20.0%"></div></div></div>
+          <div class="valb">
+            <div class="v">6<small> / 30</small></div>
+            <div class="lv low">低</div>
+          </div>
+        </div>
+        
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- ================= P7 内驱力 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-xin-bright);">心力<span class="sep">|</span>情绪与动力系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-xin-bright);"></div>
+  <div class="pbody">
+    <div class="ptitle">内驱力</div>
+    <div class="ptitle-en">Inner Drive Dimensions</div>
+    <div class="desc">内驱力是个体发自内心想要做事、成长与进步的动力。它不由外部奖励或压力驱动，而来源于自主选择的感受、对自己能力的信心，以及与他人的联结感。思维模式则反映了个体相信能力是可以发展（成长型），还是固定不变（固定型）。</div>
+    <div class="drive-mindset">
+      <div class="t">思维模式<span class="en">Mode of Thinking</span></div>
+      <div class="ms-slider">
+        <div class="ms-bubble" style="left:18.0%">18</div>
+        <div class="ms-track"><div class="ms-dot" style="left:18.0%"></div></div>
+        <div class="ms-labels">
+          <div class="l">固定型思维模式<span class="en">Fixed Mindset</span></div>
+          <div class="l right">成长型思维模式<span class="en">Growth Mindset</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="drive-dims">
+      <div class="group-t">三个核心维度<span class="en">Three Core Dimensions</span></div>
+      <div class="drive-cards">
+        
+        <div class="drive-card">
+          <div class="zh">自主性</div>
+          <div class="en">Autonomy</div>
+          <div class="num">2<small> / 10.0</small></div>
+          <div class="bar">
+            <div class="fill" style="width:20.0%"></div>
+            <div class="avg-tick" style="left:59.0%"></div>
+          </div>
+          <div class="avg">同龄平均：5.9</div>
+        </div>
+        
+        <div class="drive-card">
+          <div class="zh">胜任感</div>
+          <div class="en">Competence</div>
+          <div class="num">2.5<small> / 10.0</small></div>
+          <div class="bar">
+            <div class="fill" style="width:25.0%"></div>
+            <div class="avg-tick" style="left:63.0%"></div>
+          </div>
+          <div class="avg">同龄平均：6.3</div>
+        </div>
+        
+        <div class="drive-card">
+          <div class="zh">归属感</div>
+          <div class="en">Relatedness</div>
+          <div class="num">3<small> / 10.0</small></div>
+          <div class="bar">
+            <div class="fill" style="width:30.0%"></div>
+            <div class="avg-tick" style="left:68.0%"></div>
+          </div>
+          <div class="avg">同龄平均：6.8</div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= P8 人格 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-xin-bright);">心力<span class="sep">|</span>情绪与动力系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-xin-bright);"></div>
+  <div class="pbody">
+    <div class="ptitle">人格</div>
+    <div class="ptitle-en">Big Five Personality Dimensions</div>
+    <div class="desc">人格，是指一个人对自己、他人和外界事物所表现出的相对稳定的态度、思维方式和行为倾向。比如有人内向，有人外向；有人开放，有人保守。人格受遗传因素影响，也与能力、兴趣、理想和价值观等密切相关。它不仅关系到个体的身心健康，也与学业适应和职业发展息息相关。本测评基于大五人格理论，从内外向（外倾性）、人际相处方式（宜人性）、规则意识与自我管理（责任心）、情绪稳定程度（神经质）以及对新知识新经验的开放程度（开放性）五个方面进行评估。</div>
+    <div class="pers-wrap">
+      <div class="pers-grid">
+        <div class="pers-radar">
+          <svg viewBox="-15 0 445 340" style="width:100%; display:block;">
+            <!-- 网格: 5层五边形 -->
+            
+            <polygon points="200.0,149.0 220.0,163.5 212.3,187.0 187.7,187.0 180.0,163.5" fill="none" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            <polygon points="200.0,128.0 239.9,157.0 224.7,204.0 175.3,204.0 160.1,157.0" fill="none" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            <polygon points="200.0,107.0 259.9,150.5 237.0,221.0 163.0,221.0 140.1,150.5" fill="none" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            <polygon points="200.0,86.0 279.9,144.0 249.4,238.0 150.6,238.0 120.1,144.0" fill="none" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            <polygon points="200.0,65.0 299.9,137.6 261.7,254.9 138.3,254.9 100.1,137.6" fill="none" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            
+            <line x1="200" y1="170" x2="200.0" y2="65.0" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            <line x1="200" y1="170" x2="299.9" y2="137.6" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            <line x1="200" y1="170" x2="261.7" y2="254.9" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            <line x1="200" y1="170" x2="138.3" y2="254.9" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            <line x1="200" y1="170" x2="100.1" y2="137.6" stroke="#D8E7F2" stroke-width="1.2"/>
+            
+            <polygon points="200.0,138.5 239.9,157.0 212.3,187.0 169.1,212.5 180.0,163.5" fill="rgba(91,191,235,0.28)" stroke="#4AA8E0" stroke-width="2.5" stroke-linejoin="round"/>
+            
+            <circle cx="200.0" cy="138.5" r="5" fill="#FFF" stroke="#4AA8E0" stroke-width="2.5"/>
+            
+            <circle cx="239.9" cy="157.0" r="5" fill="#FFF" stroke="#4AA8E0" stroke-width="2.5"/>
+            
+            <circle cx="212.3" cy="187.0" r="5" fill="#FFF" stroke="#4AA8E0" stroke-width="2.5"/>
+            
+            <circle cx="169.1" cy="212.5" r="5" fill="#FFF" stroke="#4AA8E0" stroke-width="2.5"/>
+            
+            <circle cx="180.0" cy="163.5" r="5" fill="#FFF" stroke="#4AA8E0" stroke-width="2.5"/>
+            
+            
+            <text x="200.0" y="27.0" text-anchor="middle" style="font-size:15px; font-weight:700; fill:#1A1A1A;">开放性</text>
+            <text x="200.0" y="43.0" text-anchor="middle" style="font-size:10px; fill:#9A9A9A; letter-spacing:1px;">Openness</text>
+            <text x="200.0" y="59.0" text-anchor="middle" style="font-size:12px; font-weight:700; fill:#4AA8E0;">1.5/5.0</text>
+            
+            <text x="332.2" y="127.0" text-anchor="start" style="font-size:15px; font-weight:700; fill:#1A1A1A;">宜人性</text>
+            <text x="332.2" y="143.0" text-anchor="start" style="font-size:10px; fill:#9A9A9A; letter-spacing:1px;">Agreeableness</text>
+            <text x="332.2" y="159.0" text-anchor="start" style="font-size:12px; font-weight:700; fill:#4AA8E0;">2/5.0</text>
+            
+            <text x="281.7" y="282.5" text-anchor="start" style="font-size:15px; font-weight:700; fill:#1A1A1A;">责任心</text>
+            <text x="281.7" y="298.5" text-anchor="start" style="font-size:10px; fill:#9A9A9A; letter-spacing:1px;">Conscientiousness</text>
+            <text x="281.7" y="314.5" text-anchor="start" style="font-size:12px; font-weight:700; fill:#4AA8E0;">1/5.0</text>
+            
+            <text x="118.3" y="282.5" text-anchor="end" style="font-size:15px; font-weight:700; fill:#1A1A1A;">外倾性</text>
+            <text x="118.3" y="298.5" text-anchor="end" style="font-size:10px; fill:#9A9A9A; letter-spacing:1px;">Extraversion</text>
+            <text x="118.3" y="314.5" text-anchor="end" style="font-size:12px; font-weight:700; fill:#4AA8E0;">2.5/5.0</text>
+            
+            <text x="67.8" y="127.0" text-anchor="end" style="font-size:15px; font-weight:700; fill:#1A1A1A;">神经质</text>
+            <text x="67.8" y="143.0" text-anchor="end" style="font-size:10px; fill:#9A9A9A; letter-spacing:1px;">Neuroticism</text>
+            <text x="67.8" y="159.0" text-anchor="end" style="font-size:12px; font-weight:700; fill:#4AA8E0;">1/5.0</text>
+            
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= P9 精力 分隔页 ================= -->
+<div class="page divider dv-jing">
+  <div class="wrap">
+    <div class="title-row">
+      <div class="ic"><svg><use href="#ic-jing"/></svg></div>
+      <div class="name">精力</div>
+    </div>
+    <div class="sub">精力管理与身体健康系统</div>
+    <div class="rule"></div>
+    <div class="en">Vitality &amp; Physical Wellbeing System</div>
+    <div class="pill">成长不仅发生在心理和认知层面，也建立在身体提供的能量基础之上。</div>
+    <div class="para">一个学生可能拥有很强的认知能力和明确的目标，但如果长期睡眠不足、运动不足、饮食失衡或身体状态欠佳，TA所拥有的能力就可能无法稳定表现出来。</div>
+    <div class="para" style="margin-top:4mm;">精力系统的核心问题：</div>
+    <ul>
+      <li><b>这个学生是否</b>拥有持续前进所需要的身体能量和生活节律；</li>
+      <li><b>TA的饮食、睡眠和运动习惯</b>，是否在支撑而不是消耗TA；</li>
+      <li><b>TA是否</b>具备基本的身体管理意识和能力。</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ================= P10 体质健康 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-jing);">精力<span class="sep">|</span>精力管理与身体健康系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-jing);"></div>
+  <div class="pbody">
+    <div class="ptitle">体质健康</div>
+    <div class="ptitle-en">Physical Health Assessment</div>
+    <div class="bmi-banner">
+      <div class="l">
+        <div class="t">体质健康测评结果</div>
+        <div class="en">BMI Result</div>
+      </div>
+      <div class="r">
+        <div>
+          <div class="big">29.8</div>
+          <div class="cap">BMI</div>
+        </div>
+        <div>
+          <div class="big">肥胖</div>
+          <div class="cap">Level</div>
+        </div>
+      </div>
+    </div>
+    <div class="body-panel">
+      <div class="t">身体形态等级图</div>
+      <div class="stat-chips">
+        <div class="stat-chip"><span class="k">身高</span><span class="v">155</span><span class="u">CM</span></div>
+        <div class="stat-chip"><span class="k">体重</span><span class="v">43</span><span class="u">KG</span></div>
+        <div class="stat-chip"><span class="k">BMI</span><span class="v">29.8</span><span class="u">KG/M²</span></div>
+      </div>
+      <div class="shape-row">
+        
+        <div class="shape-cell ">
+          
+          <div class="fig">
+            <svg viewBox="0 0 60 100" style="height:26mm; fill:#D8D8D8;">
+              <g transform="translate(30,0) scale(0.88,1) translate(-30,0)"><use href="#ic-person"/></g>
+            </svg>
+          </div>
+          <div class="zh">偏瘦</div>
+          <div class="en">LOW</div>
+        </div>
+        
+        <div class="shape-cell ">
+          
+          <div class="fig">
+            <svg viewBox="0 0 60 100" style="height:26mm; fill:#D8D8D8;">
+              <g transform="translate(30,0) scale(1.0,1) translate(-30,0)"><use href="#ic-person"/></g>
+            </svg>
+          </div>
+          <div class="zh">正常</div>
+          <div class="en">NORMAL</div>
+        </div>
+        
+        <div class="shape-cell ">
+          
+          <div class="fig">
+            <svg viewBox="0 0 60 100" style="height:26mm; fill:#D8D8D8;">
+              <g transform="translate(30,0) scale(1.14,1) translate(-30,0)"><use href="#ic-person"/></g>
+            </svg>
+          </div>
+          <div class="zh">超重</div>
+          <div class="en">OVERWEIGHT</div>
+        </div>
+        
+        <div class="shape-cell active">
+          <div class="cur">当前</div>
+          <div class="fig">
+            <svg viewBox="0 0 60 100" style="height:26mm; fill:#F8A600;">
+              <g transform="translate(30,0) scale(1.3,1) translate(-30,0)"><use href="#ic-person"/></g>
+            </svg>
+          </div>
+          <div class="zh">肥胖</div>
+          <div class="en">OBESITY</div>
+        </div>
+        
+      </div>
+    </div>
+    <div class="habit-title">影响体质健康的生活习惯</div>
+    <div class="habit-cards">
+      
+      <div class="habit-card">
+        <div class="top">
+          <div>
+            <div class="zh">饮食习惯</div>
+            <div class="en">Diet</div>
+          </div>
+          <div class="habit-badge" style="background:#D93025;">差</div>
+        </div>
+        
+      </div>
+      
+      <div class="habit-card">
+        <div class="top">
+          <div>
+            <div class="zh">睡眠习惯</div>
+            <div class="en">Sleep</div>
+          </div>
+          <div class="habit-badge" style="background:#D93025;">差</div>
+        </div>
+        
+        <div class="val">5<small> 小时/天</small></div>
+        
+      </div>
+      
+      <div class="habit-card">
+        <div class="top">
+          <div>
+            <div class="zh">运动习惯</div>
+            <div class="en">Exercise</div>
+          </div>
+          <div class="habit-badge" style="background:#D93025;">差</div>
+        </div>
+        
+        <div class="val">0.5<small> 小时/周</small></div>
+        
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- ================= P11 学习力 分隔页 ================= -->
+<div class="page divider dv-xue">
+  <div class="wrap">
+    <div class="title-row">
+      <div class="ic"><svg><use href="#ic-xue"/></svg></div>
+      <div class="name">学习力</div>
+    </div>
+    <div class="sub">学习系统</div>
+    <div class="rule"></div>
+    <div class="en">Learning Power System</div>
+    <div class="pill">学习力不等于考试成绩，也不等于一个学生聪不聪明。</div>
+    <div class="para">它是学生将认知资源、执行功能、学习动力和学习策略整合起来，持续理解、完成和迁移学习任务的能力。</div>
+    <div class="para" style="margin-top:4mm;">学习力系统的核心问题：</div>
+    <ul>
+      <li><b>这个学生</b>在认知层面是否具备稳定而多样的信息处理能力；</li>
+      <li><b>TA</b>在学习过程中能否有效地管理自己的注意力、记忆和思维方式；</li>
+      <li><b>TA学习的</b>动力来自哪里，是出于兴趣还是外部压力；</li>
+      <li><b>TA是否</b>掌握了有效和可迁移的学习策略。</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ================= P12 认知资源 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-xue);">学习力<span class="sep">|</span>学习系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-xue);"></div>
+  <div class="pbody">
+    <div class="ptitle">认知资源</div>
+    <div class="ptitle-en">Cognitive Resource Overview</div>
+    <div class="desc">认知能力是大脑加工、处理信息，认知客观事物内部逻辑，并运用知识、经验等解决问题的能力。认知的过程包括感知、记忆、想象、思考、判断等。它被重视的原因是人类所有的学习活动都离不开认知能力的运用。</div>
+    <div class="cog-banner">
+      <div class="l">
+        <div class="t">认知能力<br>测评结果 <svg style="width:8mm; height:8mm;"><use href="#ic-bulb"/></svg></div>
+        <div class="en">Results Summary</div>
+      </div>
+      <div class="stat">
+        <div class="v">80</div>
+        <div class="uline"></div>
+        <div class="cap">总得分<span class="en">Total Score</span></div>
+      </div>
+      <div class="stat">
+        <div class="v">3<span class="pct">%</span></div>
+        <div class="uline"></div>
+        <div class="cap">百分位<span class="en">Percentile</span></div>
+      </div>
+    </div>
+    <div class="dist-title">正态分布图 <span class="en">| TOTAL SCORE</span></div>
+    <div class="dist-text">
+      <div>以下为您在同龄群体分数分布上的位置</div>
+      <div>您在认知能力上的总分超过了 <b>3%</b> 的同龄人</div>
+    </div>
+    <div class="dist-bar-wrap">
+      <div class="dist-bar"></div>
+      <div class="dist-dot" style="left:6%"></div>
+      <div class="dist-marker" style="left:6%">
+        <div class="v">3%</div>
+        <div class="arrow"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= P13 认知子指标 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-xue);">学习力<span class="sep">|</span>学习系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-xue);"></div>
+  <div class="pbody">
+    <div class="ptitle">认知能力 · 六项子指标</div>
+    <div class="ptitle-en">Six Cognitive Sub-Indices Percentile</div>
+    <div class="subidx-grid">
+      
+      <div class="subidx-card">
+        <div class="head">
+          <div>
+            <div class="zh">感知觉</div>
+            <div class="en">Perception</div>
+          </div>
+          <div class="pct">5%</div>
+        </div>
+        <div class="bar"><div class="fill" style="width:5%"></div></div>
+        <div class="txt">感知是认知、理解的基础。感知觉是大脑对作用于大脑的外部信息的整体看法和理解，整个加工过程包括获取信息、理解信息、选择信息和组织信息。</div>
+      </div>
+      
+      <div class="subidx-card">
+        <div class="head">
+          <div>
+            <div class="zh">注意力</div>
+            <div class="en">Attention</div>
+          </div>
+          <div class="pct">12%</div>
+        </div>
+        <div class="bar"><div class="fill" style="width:12%"></div></div>
+        <div class="txt">心理活动对一定对象的指向和集中。一般理解为对客观事物持续注意的能力，如做事专注，还是易分心。神经生理因素、兴趣/动机、精神状态等均会影响一个人的注意力水平。</div>
+      </div>
+      
+      <div class="subidx-card">
+        <div class="head">
+          <div>
+            <div class="zh">记忆力</div>
+            <div class="en">Memory</div>
+          </div>
+          <div class="pct">8%</div>
+        </div>
+        <div class="bar"><div class="fill" style="width:8%"></div></div>
+        <div class="txt">记忆力是神经系统存储过往经验的能力，是学习的基础，一般包括识记、保持、再认和重现。记忆力的个体差异影响学习效率，如有的同学看3遍就记住了一个单词，而有的同学可能要7-8遍。</div>
+      </div>
+      
+      <div class="subidx-card">
+        <div class="head">
+          <div>
+            <div class="zh">推理能力</div>
+            <div class="en">Reasoning</div>
+          </div>
+          <div class="pct">3%</div>
+        </div>
+        <div class="bar"><div class="fill" style="width:3%"></div></div>
+        <div class="txt">推理能力是智力的核心成分，是一个人通过已有知识和经验，通过综合分析做出新判断的过程。推理能力的差异往往反应一个人洞悉事物本质，事物联系能力的高低。</div>
+      </div>
+      
+      <div class="subidx-card">
+        <div class="head">
+          <div>
+            <div class="zh">空间能力</div>
+            <div class="en">Spatial Ability</div>
+          </div>
+          <div class="pct">25%</div>
+        </div>
+        <div class="bar"><div class="fill" style="width:25%"></div></div>
+        <div class="txt">空间能力是大脑通过观察、触摸及想象对物体形状、位置判断的能力。它是大脑对外部信息的抽象表征和推理，是数学、自然科学、工程等重要学科领域用到的重要心理能力。</div>
+      </div>
+      
+      <div class="subidx-card">
+        <div class="head">
+          <div>
+            <div class="zh">加工速度</div>
+            <div class="en">Processing Speed</div>
+          </div>
+          <div class="pct">10%</div>
+        </div>
+        <div class="bar"><div class="fill" style="width:10%"></div></div>
+        <div class="txt">加工速度是大脑处理内部或外部信息的速度，和网速、手机使用流畅性一样，大脑的信息加工速度直接影响学习、思考和人际沟通的效率。</div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- ================= P14 执行功能 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-xue);">学习力<span class="sep">|</span>学习系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-xue);"></div>
+  <div class="pbody">
+    <div class="ptitle">执行功能</div>
+    <div class="ptitle-en">Executive Functions Overview</div>
+    <div class="desc">执行功能是个体调控思维与行为、完成目标导向任务的一组高级认知能力。它决定了学生能否把"知道"变成"做到"——管住冲动、记住目标、灵活应变，是学习表现与自我管理的重要基础。</div>
+    <div class="exec-cards">
+      
+      <div class="exec-card">
+        <div class="zh">抑制控制</div>
+        <div class="en">Inhibitory Control</div>
+        <div class="pct">15%</div>
+      </div>
+      
+      <div class="exec-card">
+        <div class="zh">工作记忆</div>
+        <div class="en">Working Memory</div>
+        <div class="pct">22%</div>
+      </div>
+      
+      <div class="exec-card">
+        <div class="zh">认知灵活性</div>
+        <div class="en">Cognitive Flexibility</div>
+        <div class="pct">10%</div>
+      </div>
+      
+    </div>
+    <div class="exec-descs">
+      
+      <div class="exec-desc">
+        <div class="n">1</div>
+        <div>
+          <div class="t">抑制控制<span class="en">Inhibitory Control</span></div>
+          <div class="txt">抑制控制是指个体在行动之前控制冲动、理性思考、排除干扰完成任务的能力。即抑制住自己的本能、欲望，使自己做出符合预期目标的行为。它和孩子的专注力、情绪调节和冲动控制等有关。</div>
+        </div>
+      </div>
+      
+      <div class="exec-desc">
+        <div class="n">2</div>
+        <div>
+          <div class="t">工作记忆<span class="en">Working Memory</span></div>
+          <div class="txt">工作记忆是有意识地在头脑中保存和操纵信息的能力。我们依靠记忆信息预测未来，信息是周全还是片面直接影响预测的准确性。我们依靠记忆制定目标、安排计划、执行任务，而目标是否清晰，计划是否详细，执行是否到位均与记忆力有关。</div>
+        </div>
+      </div>
+      
+      <div class="exec-desc">
+        <div class="n">3</div>
+        <div>
+          <div class="t">认知灵活性<span class="en">Cognitive Flexibility</span></div>
+          <div class="txt">认知灵活性是指个体大脑适应新的、变化的或计划以外事件的能力。比如当情况有变，原计划被打破或最初的方案行不通时，认知灵活性高的人能根据变化从不同角度看问题，及时调整心态，改变思路，快速找到解决问题的新方案。认知灵活性影响孩子的自我调节能力和心理韧性。</div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- ================= P15 学习动机与策略 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-xue);">学习力<span class="sep">|</span>学习系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-xue);"></div>
+  <div class="pbody">
+    <div class="ptitle">学习动机与策略</div>
+    <div class="ptitle-en">Learning Motivation and Strategies</div>
+    
+    <div class="lm-group">
+      <div class="group-t">学习动机<span class="en">Learning Motivation</span></div>
+      
+      <div class="lm-row">
+        <div class="head">
+          <div class="zh">深层动机<span class="en">Deep Motivation</span></div>
+          <div class="vals">
+            <span class="v">2<small> /10.0</small></span>
+            <span class="avg">同龄 7.4</span>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="fill" style="width:20.0%"></div>
+          <div class="avg-tick" style="left:74.0%"></div>
+        </div>
+        <div class="txt">深层动机是对学习本身感兴趣，学习本身使个体感到满足和兴奋的内部动机。深层动机得分高的个体一般学习动力足，主动学习、不需要外部监督和督促。</div>
+      </div>
+      
+      <div class="lm-row">
+        <div class="head">
+          <div class="zh">表面动机<span class="en">Surface Motivation</span></div>
+          <div class="vals">
+            <span class="v">1.5<small> /10.0</small></span>
+            <span class="avg">同龄 4.7</span>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="fill" style="width:15.0%"></div>
+          <div class="avg-tick" style="left:47.0%"></div>
+        </div>
+        <div class="txt">表面动机是对学习不感兴趣，为了通过考试、得到奖励或避免惩罚而学习的外部动机。表面动机难以维持长期学习，一旦外部奖励或惩罚退去，个体可能不再学习。</div>
+      </div>
+      
+      <div class="lm-row">
+        <div class="head">
+          <div class="zh">自我效能感<span class="en">Self-Efficacy</span></div>
+          <div class="vals">
+            <span class="v">2<small> /10.0</small></span>
+            <span class="avg">同龄 8.1</span>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="fill" style="width:20.0%"></div>
+          <div class="avg-tick" style="left:81.0%"></div>
+        </div>
+        <div class="txt">自我效能感是个体对自己能否成功完成某事的主观判断。个体的自我效能感源于过往的成功经验以及对自己的准确的评估。</div>
+      </div>
+      
+    </div>
+    
+    <div class="lm-group">
+      <div class="group-t">学习方法与策略<span class="en">Learning Methods</span></div>
+      
+      <div class="lm-row">
+        <div class="head">
+          <div class="zh">学习深层方法与策略<span class="en">Deep Methods and Strategies</span></div>
+          <div class="vals">
+            <span class="v">1<small> /10.0</small></span>
+            <span class="avg">同龄 7.8</span>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="fill" style="width:10.0%"></div>
+          <div class="avg-tick" style="left:78.0%"></div>
+        </div>
+        <div class="txt">学习深层方法与策略是为了深入理解知识本身而采取的学习方法和策略，是一种建立在理解和应用基础之上的深度学习。这种学习方法使学习记忆更牢、理解更深刻。</div>
+      </div>
+      
+      <div class="lm-row">
+        <div class="head">
+          <div class="zh">学习表面方法与策略<span class="en">Surface Methods and Strategies</span></div>
+          <div class="vals">
+            <span class="v">2<small> /10.0</small></span>
+            <span class="avg">同龄 4.7</span>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="fill" style="width:20.0%"></div>
+          <div class="avg-tick" style="left:47.0%"></div>
+        </div>
+        <div class="txt">学习表面方法与策略是为了记住某具体内容或为了某次考试通过而学习的方法与策略，这种方法策略可以在短期内看到效果，对长期发展非常不利。因为这种不求甚解的学习方法记得快，忘得也快。</div>
+      </div>
+      
+      <div class="lm-row">
+        <div class="head">
+          <div class="zh">学习自我调节<span class="en">Self-Regulation</span></div>
+          <div class="vals">
+            <span class="v">1.5<small> /10.0</small></span>
+            <span class="avg">同龄 6.3</span>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="fill" style="width:15.0%"></div>
+          <div class="avg-tick" style="left:63.0%"></div>
+        </div>
+        <div class="txt">学习自我调节是学习过程中遇到困难或挫折时采取的自我调节的方法。比如即使遇到了自己不喜欢的老师或科目，但为了取得好成绩也会进行自我调节、努力学习。</div>
+      </div>
+      
+    </div>
+    
+  </div>
+</div>
+
+<!-- ================= P16 生涯力 分隔页 ================= -->
+<div class="page divider dv-sheng">
+  <div class="wrap">
+    <div class="title-row">
+      <div class="ic"><svg><use href="#ic-sheng"/></svg></div>
+      <div class="name">生涯力</div>
+    </div>
+    <div class="sub">专业与职业发展系统</div>
+    <div class="rule"></div>
+    <div class="en">Major &amp; Career Development System</div>
+    <div class="para" style="margin-top:10mm;">生涯力不是要求青少年过早确定一个终身不变的职业，而是帮助学生逐渐理解：</div>
+    <ul>
+      <li><b>我</b>会被什么问题吸引；</li>
+      <li><b>我</b>擅长做什么；</li>
+      <li><b>我</b>希望通过未来的学习和工作获得什么；</li>
+      <li><b>哪些方向</b>能够同时承载我的兴趣、能力和价值追求。</li>
+    </ul>
+    <div class="para" style="margin-top:8mm;">生涯力系统的核心问题：</div>
+    <div class="para" style="margin-top:3mm; font-weight:700;">这个学生的兴趣、能力和价值观可以在哪里形成交汇，并逐渐发展为适合自己的专业与职业方向？</div>
+  </div>
+</div>
+
+<!-- ================= P17 职业兴趣 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-sheng);">生涯力<span class="sep">|</span>专业与职业发展系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-sheng);"></div>
+  <div class="pbody">
+    <div class="ptitle">职业兴趣</div>
+    <div class="ptitle-en">Holland Vocational Interest Types</div>
+    <div class="desc">职业兴趣（Vocational Interest）是兴趣在职业选择方面的表现，背后是人格的一种体现。你可以理解为显性的或隐性的从事某种工作的偏好和愿望。职业兴趣代码（Holland Code）是将你职业兴趣的测评结果按得分从高到低的顺序依次排序，得分最高的三个代码即为你的职业兴趣代码。</div>
+    <div class="holland-panel">
+      <div class="holland-head">
+        <div class="t">YOUR HOLLAND CODE</div>
+        <div class="rule"></div>
+        <div class="code">RIA</div>
+      </div>
+      
+      <div class="holland-row top">
+        <div class="badge">R</div>
+        <div class="info">
+          <div class="zh">现实型<span class="en">Realistic</span></div>
+          <div class="txt">喜欢具体的、可操作性的工作，比如修理、组装或建造东西；喜欢动手操作、操作设备、工具或机器；偏好具体任务，而不是抽象思考，或与人讨论；不善言辞，更喜欢独立工作。</div>
+        </div>
+        <div class="score"><div class="v">3<small> /10</small></div></div>
+      </div>
+      
+      <div class="holland-row top">
+        <div class="badge">I</div>
+        <div class="info">
+          <div class="zh">研究型<span class="en">Investigative</span></div>
+          <div class="txt">喜欢研究抽象问题，善于逻辑分析，喜欢探索未知；喜欢观察、学习、思考、调查和实验研究；善于提出问题和解决问题；个性独立，为人谨慎。</div>
+        </div>
+        <div class="score"><div class="v">5<small> /10</small></div></div>
+      </div>
+      
+      <div class="holland-row top">
+        <div class="badge">A</div>
+        <div class="info">
+          <div class="zh">艺术型<span class="en">Artistic</span></div>
+          <div class="txt">文艺青年；用文字、艺术、音乐或戏剧来交流、表演或表达自己，创造和设计事物；想象力丰富，喜欢创造与表达；喜欢无拘无束的自由生活，喜欢新鲜刺激的生活，讨厌一成不变的生活。</div>
+        </div>
+        <div class="score"><div class="v">4<small> /10</small></div></div>
+      </div>
+      
+      <div class="holland-row ">
+        <div class="badge">S</div>
+        <div class="info">
+          <div class="zh">社会型<span class="en">Social</span></div>
+          <div class="txt">温暖、和善；乐于帮助他人；关心社会问题，喜欢与人一起帮助和服务他人；关心他人的幸福和福利。</div>
+        </div>
+        <div class="score"><div class="v">2<small> /10</small></div></div>
+      </div>
+      
+      <div class="holland-row ">
+        <div class="badge">E</div>
+        <div class="info">
+          <div class="zh">事业型<span class="en">Enterprising</span></div>
+          <div class="txt">追求权利、利益；喜欢竞争，有野心和抱负；喜欢影响他人、领导他人完成目标；精力充沛，掌控大局。</div>
+        </div>
+        <div class="score"><div class="v">1<small> /10</small></div></div>
+      </div>
+      
+      <div class="holland-row ">
+        <div class="badge">C</div>
+        <div class="info">
+          <div class="zh">常规型<span class="en">Conventional</span></div>
+          <div class="txt">遵循规章制度办事；喜欢重复的事务性工作，不喜欢变动；个性谨慎，工作认真，注重细节；喜欢配合和服从，不喜欢领导他人。</div>
+        </div>
+        <div class="score"><div class="v">2<small> /10</small></div></div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- ================= P18 能力优势 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-sheng);">生涯力<span class="sep">|</span>专业与职业发展系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-sheng);"></div>
+  <div class="pbody">
+    <div class="ptitle">能力优势</div>
+    <div class="ptitle-en">Gardner's Multiple Intelligences</div>
+    <div class="desc">每个人都有自己的天赋和能力优势。当你运用自身优势学习或工作时，往往能更高效、更专注，也更容易获得成就感与愉悦感。心理学家霍华德·加德纳提出人的能力可以划分八大类。</div>
+    <div class="mi-list">
+      
+      <div class="mi-row top">
+        <div class="rank">1</div>
+        <div class="lab">
+          <div class="zh">身体运动能力</div>
+          <div class="en">Bodily-Kinesthetic</div>
+        </div>
+        <div class="bar-wrap"><div class="bar"><div class="fill" style="width:40.0%"></div></div></div>
+        <div class="v">4</div>
+      </div>
+      
+      <div class="mi-row top">
+        <div class="rank">2</div>
+        <div class="lab">
+          <div class="zh">逻辑数学能力</div>
+          <div class="en">Logical-Mathematical</div>
+        </div>
+        <div class="bar-wrap"><div class="bar"><div class="fill" style="width:30.0%"></div></div></div>
+        <div class="v">3</div>
+      </div>
+      
+      <div class="mi-row top">
+        <div class="rank">3</div>
+        <div class="lab">
+          <div class="zh">内省能力</div>
+          <div class="en">Intrapersonal</div>
+        </div>
+        <div class="bar-wrap"><div class="bar"><div class="fill" style="width:30.0%"></div></div></div>
+        <div class="v">3</div>
+      </div>
+      
+      <div class="mi-row ">
+        <div class="rank">4</div>
+        <div class="lab">
+          <div class="zh">语言能力</div>
+          <div class="en">Linguistic</div>
+        </div>
+        <div class="bar-wrap"><div class="bar"><div class="fill" style="width:20.0%"></div></div></div>
+        <div class="v">2</div>
+      </div>
+      
+      <div class="mi-row ">
+        <div class="rank">5</div>
+        <div class="lab">
+          <div class="zh">空间能力</div>
+          <div class="en">Spatial</div>
+        </div>
+        <div class="bar-wrap"><div class="bar"><div class="fill" style="width:20.0%"></div></div></div>
+        <div class="v">2</div>
+      </div>
+      
+      <div class="mi-row ">
+        <div class="rank">6</div>
+        <div class="lab">
+          <div class="zh">人际关系能力</div>
+          <div class="en">Interpersonal</div>
+        </div>
+        <div class="bar-wrap"><div class="bar"><div class="fill" style="width:20.0%"></div></div></div>
+        <div class="v">2</div>
+      </div>
+      
+      <div class="mi-row ">
+        <div class="rank">7</div>
+        <div class="lab">
+          <div class="zh">音乐能力</div>
+          <div class="en">Musical</div>
+        </div>
+        <div class="bar-wrap"><div class="bar"><div class="fill" style="width:10.0%"></div></div></div>
+        <div class="v">1</div>
+      </div>
+      
+      <div class="mi-row ">
+        <div class="rank">8</div>
+        <div class="lab">
+          <div class="zh">自然能力</div>
+          <div class="en">Naturalist</div>
+        </div>
+        <div class="bar-wrap"><div class="bar"><div class="fill" style="width:10.0%"></div></div></div>
+        <div class="v">1</div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- ================= P19 职业价值观 ================= -->
+<div class="page">
+  <div class="phead">
+    <div class="crumb" style="color:var(--c-sheng);">生涯力<span class="sep">|</span>专业与职业发展系统</div>
+    <img src="branding/logo_inline.png">
+  </div>
+  <div class="phead-rule" style="background:var(--c-sheng);"></div>
+  <div class="pbody">
+    <div class="ptitle">职业价值观</div>
+    <div class="ptitle-en">Top Work Values &amp; Priorities</div>
+    <div class="desc">职业价值观是个体在职业选择中最看重的因素，反映了"什么样的工作对我有意义"。以下为本次测评中 15 项职业价值观的优先级排序，排名越靠前，代表该因素对这位学生当前的职业想象越重要。</div>
+    <div class="val-grid">
+      
+      <div class="val-card top">
+        <div class="rank">1</div>
+        <div class="zh">上司关系</div>
+        <div class="en">Supervisor Relations</div>
+        <div class="txt">有一个开明的、民主的、公正的好领导</div>
+        <div class="quote">有一个好领导</div>
+      </div>
+      
+      <div class="val-card top">
+        <div class="rank">2</div>
+        <div class="zh">成就感</div>
+        <div class="en">Achievement</div>
+        <div class="txt">不断取得新的成就，得到认可或实现自己想做的事</div>
+        <div class="quote">能给我带来成就感</div>
+      </div>
+      
+      <div class="val-card top">
+        <div class="rank">3</div>
+        <div class="zh">生活方式</div>
+        <div class="en">Lifestyle</div>
+        <div class="txt">可以选择过自己想过的生活，安逸、简单、快乐或充实</div>
+        <div class="quote">有选择生活方式的权利</div>
+      </div>
+      
+      <div class="val-card top">
+        <div class="rank">4</div>
+        <div class="zh">同事关系</div>
+        <div class="en">Colleague Relations</div>
+        <div class="txt">一起工作的大多数同事，人品较好，相处愉快</div>
+        <div class="quote">与喜欢的人共事</div>
+      </div>
+      
+      <div class="val-card top">
+        <div class="rank">5</div>
+        <div class="zh">安全稳定</div>
+        <div class="en">Security</div>
+        <div class="txt">工作稳定，收入有保障，不会失业</div>
+        <div class="quote">安稳，不会失业</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">6</div>
+        <div class="zh">工作环境</div>
+        <div class="en">Work Environment</div>
+        <div class="txt">追求比较舒适、轻松、自由的工作环境</div>
+        <div class="quote">工作环境舒适，轻松自由</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">7</div>
+        <div class="zh">声望地位</div>
+        <div class="en">Social Status</div>
+        <div class="txt">所从事的工作在人们的心目中有较高的社会地位</div>
+        <div class="quote">社会地位高，受人敬仰</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">8</div>
+        <div class="zh">经济报酬</div>
+        <div class="en">Economic Reward</div>
+        <div class="txt">较高的报酬，生活过得较为富足</div>
+        <div class="quote">薪酬高，福利好</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">9</div>
+        <div class="zh">美的追求</div>
+        <div class="en">Aesthetic Pursuit</div>
+        <div class="txt">不断地追求美的东西，得到美的享受</div>
+        <div class="quote">能体验和感受美</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">10</div>
+        <div class="zh">独立自主</div>
+        <div class="en">Independence</div>
+        <div class="txt">可以按自己的方式或想法工作，不受他人的影响</div>
+        <div class="quote">能按自己想法和节奏做事</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">11</div>
+        <div class="zh">管理权力</div>
+        <div class="en">Management Power</div>
+        <div class="txt">管理和指挥他人做事</div>
+        <div class="quote">影响和领导别人一起</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">12</div>
+        <div class="zh">创造发明</div>
+        <div class="en">Creativity</div>
+        <div class="txt">发明创造新的事物，可能是新产品，也可能是新观念或新方法</div>
+        <div class="quote">发明创造新的事物</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">13</div>
+        <div class="zh">利他助人</div>
+        <div class="en">Altruism</div>
+        <div class="txt">为他人的幸福、利益尽一份力</div>
+        <div class="quote">能帮助到他人</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">14</div>
+        <div class="zh">多样变化</div>
+        <div class="en">Variety</div>
+        <div class="txt">讨厌简单重复的工作，喜欢有挑战、丰富多彩的工作</div>
+        <div class="quote">尝试不同的工作</div>
+      </div>
+      
+      <div class="val-card ">
+        <div class="rank">15</div>
+        <div class="zh">智力激发</div>
+        <div class="en">Intellectual Stimulation</div>
+        <div class="txt">必须动脑筋思考、学习和探索新事物，解决新问题</div>
+        <div class="quote">有挑战性</div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- ================= P20 阅读与说明 ================= -->
+<div class="page">
+  <div class="notes-head"><img src="branding/logo_inline.png"></div>
+  <div class="notes-body">
+    <div class="notes-title">Y4 测评报告 · 阅读与说明</div>
+    <div class="notes-list">
+      <div class="notes-item">
+        <div class="t">测评不定义，亦不归类</div>
+        <div class="txt">本报告旨在呈现特质，而非给学生贴上固定的"标签"或将其局限于某一类模型中。</div>
+      </div>
+      <div class="notes-item">
+        <div class="t">状态具有时效性</div>
+        <div class="txt">报告所记录的是测试人在当下的即时状态，该状态会受到环境、情绪及多种潜在因素的综合影响。</div>
+      </div>
+      <div class="notes-item">
+        <div class="t">理解需结合情境 (Context)</div>
+        <div class="txt">对报告数据的理解与解读，绝不能脱离具体的成长背景与专业情境，切忌断章取义。</div>
+      </div>
+      <div class="notes-item">
+        <div class="t">请务必咨询专业测评师</div>
+        <div class="txt">为了确保您准确理解报告内涵，请在阅读时务必咨询凭远专业老师的意见，以获得客观、全面的深度解析。</div>
+      </div>
+    </div>
+  </div>
+  <div class="notes-foot">本报告为凭远内部资料，所有权归凭远所有。未经凭远测评师及相关家庭的双重授权，严禁任何形式的转发或公开。</div>
+</div>
+
+</body>
+</html>

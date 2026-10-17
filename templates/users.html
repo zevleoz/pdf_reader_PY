@@ -1,83 +1,79 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <title>用户管理 — Y4</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css" />
-  <link rel="stylesheet" href="/app_shell.css" />
-  <style>
-    .um-grid { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 20px; align-items: start; }
-    .um-form .field { margin-bottom: 12px; }
-    .um-form label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-    .um-form input, .um-form select { width: 100%; }
-    .um-role-hint { font-size: 12px; color: var(--muted); margin: -6px 0 12px; line-height: 1.5; }
-    .um-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
-    .um-table-wrap table { min-width: 720px; }
-    .um-role-select { min-width: 96px; }
-    .um-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-    .um-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-    .um-badge.on { background: #E8F5E9; color: #2E7D32; }
-    .um-badge.off { background: var(--paper-2); color: var(--muted); }
-    .um-msg { font-size: 13px; min-height: 18px; margin-top: 8px; }
-    .um-msg.err { color: var(--red); }
-    @media (max-width: 900px) {
-      .um-grid { grid-template-columns: 1fr; }
-    }
-  </style>
-</head>
-<body>
-  <div data-app-shell></div>
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
 
-  <div class="container">
-    <div class="page-header">
-      <h1 class="page-title">用户管理</h1>
-      <p class="page-subtitle">创建账号、分配角色与绑定顾问。仅管理员可见。</p>
-    </div>
+{% block title %}用户管理{% endblock %}
+{% block page_title %}用户管理{% endblock %}
 
-    <div class="um-grid">
-      <div class="card um-form">
-        <h2 class="card-title">新增用户</h2>
-        <div class="field">
-          <label for="nu">账号</label>
-          <input type="text" id="nu" placeholder="登录账号" autocomplete="off" />
-        </div>
-        <div class="field">
-          <label for="np">初始密码</label>
-          <input type="password" id="np" placeholder="初始密码" autocomplete="new-password" />
-        </div>
-        <div class="field">
-          <label for="nr">角色</label>
-          <select id="nr" onchange="onRoleChange()">
-            <option value="viewer">查阅者（只读）</option>
-            <option value="advisor">顾问</option>
-            <option value="admin">管理员</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="na">绑定顾问（顾问角色必填，用于数据隔离）</label>
-          <input type="text" id="na" placeholder="顾问姓名" autocomplete="off" />
-        </div>
-        <div class="field">
-          <label for="nd">显示名（可选）</label>
-          <input type="text" id="nd" placeholder="显示名" autocomplete="off" />
-        </div>
-        <button class="btn btn-primary" style="width:100%;" onclick="createUser()">添加</button>
-        <div class="um-msg" id="createMsg"></div>
-        <p class="um-role-hint">角色说明：管理员拥有全部权限；顾问仅可见名下学生的档案与报告；查阅者全站只读，无任何写操作。</p>
-      </div>
+{% block head_extra %}
+<style>
+  .um-grid { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 16px; align-items: start; }
+  .um-role-hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; line-height: 1.5; }
+  .um-table-wrap { overflow-x: auto; }
+  .um-table-wrap table { min-width: 640px; }
+  .um-role-select { min-width: 96px; height: 28px; padding: 0 8px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 12.5px; }
+  .um-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .um-msg { font-size: 13px; min-height: 18px; margin-top: 8px; color: var(--ink-2); }
+  .um-msg.err { color: var(--danger); }
+  @media (max-width: 900px) { .um-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
 
-      <div class="card">
-        <h2 class="card-title">用户列表</h2>
-        <div id="userList"><div class="empty">加载中…</div></div>
-        <div class="um-msg" id="listMsg"></div>
-      </div>
-    </div>
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-title">用户管理</div>
+    <div class="page-sub">创建账号、分配角色与绑定顾问。仅管理员可见。</div>
   </div>
+</div>
 
+<div class="um-grid">
+  <section class="surface um-form" style="margin-bottom:0">
+    <div class="surface-head"><span class="surface-title">新增用户</span></div>
+    <div style="padding:16px">
+      <div class="field">
+        <label for="nu">账号</label>
+        <input class="input" type="text" id="nu" placeholder="登录账号" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="np">初始密码</label>
+        <input class="input" type="password" id="np" placeholder="初始密码" autocomplete="new-password" />
+      </div>
+      <div class="field">
+        <label for="nr">角色</label>
+        <select class="select" id="nr" onchange="onRoleChange()">
+          <option value="viewer">查阅者（只读）</option>
+          <option value="advisor">顾问</option>
+          <option value="admin">管理员</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="na">绑定顾问（顾问角色必填，用于数据隔离）</label>
+        <input class="input" type="text" id="na" placeholder="顾问姓名" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="nd">显示名（可选）</label>
+        <input class="input" type="text" id="nd" placeholder="显示名" autocomplete="off" />
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="createUser()">添加</button>
+      <div class="um-msg" id="createMsg"></div>
+      <p class="um-role-hint">角色说明：管理员拥有全部权限；顾问仅可见名下学生的档案与报告；查阅者全站只读，无任何写操作。</p>
+    </div>
+  </section>
+
+  <section class="surface" style="margin-bottom:0">
+    <div class="surface-head">
+      <span class="surface-title">用户列表</span>
+      <span class="spacer"></span>
+      <button class="btn btn-sec btn-sm" onclick="loadUsers()">{{ icon('refresh', 12) }} 刷新</button>
+    </div>
+    <div id="userList"><div class="sk" style="height:44px; margin:12px 16px"></div></div>
+    <div class="um-msg" id="listMsg" style="padding:0 16px 12px"></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
   <script>
     var ROLE_LABEL = { admin: '管理员', advisor: '顾问', viewer: '查阅者' };
     var me = null;
@@ -103,20 +99,24 @@
 
     async function loadUsers() {
       var el = document.getElementById('userList');
+      el.innerHTML = '<div class="sk" style="height:44px; margin:12px 16px"></div>';
       try {
         var r = await fetch('/api/users');
         var d = await r.json();
-        if (!d.ok) { el.innerHTML = '<div class="empty">' + esc(d.error || '加载失败') + '</div>'; return; }
+        if (!d.ok) { el.innerHTML = '<div class="empty"><div class="t">' + esc(d.error || '加载失败') + '</div></div>'; return; }
         renderUsers(d.users || []);
       } catch (e) {
-        el.innerHTML = '<div class="empty">网络错误</div>';
+        el.innerHTML = '<div class="empty"><div class="t">网络错误</div></div>';
       }
     }
 
     function renderUsers(users) {
       var el = document.getElementById('userList');
-      if (!users.length) { el.innerHTML = '<div class="empty">暂无用户</div>'; return; }
-      var html = '<div class="um-table-wrap"><table><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>绑定顾问</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+      if (!users.length) {
+        el.innerHTML = '<div class="empty"><div class="ic">' + iconSvg('users') + '</div><div class="t">暂无用户</div></div>';
+        return;
+      }
+      var html = '<div class="um-table-wrap"><table class="table"><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>绑定顾问</th><th>状态</th><th>操作</th></tr></thead><tbody>';
       users.forEach(function (u) {
         var isSelf = me && u.id === me.user_id;
         var roleSel = '<select class="um-role-select" onchange="changeRole(' + u.id + ', this.value)">' +
@@ -124,28 +124,34 @@
             return '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>';
           }).join('') + '</select>';
         var stateBadge = u.is_active
-          ? '<span class="um-badge on">启用</span>'
-          : '<span class="um-badge off">停用</span>';
+          ? '<span class="badge badge-ok"><span class="dot"></span>启用</span>'
+          : '<span class="badge badge-neutral"><span class="dot"></span>停用</span>';
         var toggleBtn = u.is_active
-          ? '<button class="btn btn-sm btn-secondary" onclick="toggleActive(' + u.id + ', 0)">停用</button>'
-          : '<button class="btn btn-sm btn-secondary" onclick="toggleActive(' + u.id + ', 1)">启用</button>';
+          ? '<button class="btn btn-sm btn-sec" onclick="toggleActive(' + u.id + ', 0)">停用</button>'
+          : '<button class="btn btn-sm btn-sec" onclick="toggleActive(' + u.id + ', 1)">启用</button>';
         var actions = '<div class="um-actions">' +
-          '<button class="btn btn-sm btn-secondary" onclick="resetPassword(' + u.id + ')">重置密码</button>' +
+          '<button class="btn btn-sm btn-sec" onclick="resetPassword(' + u.id + ')">重置密码</button>' +
           toggleBtn +
-          '<button class="btn btn-sm btn-secondary" onclick="editAdvisor(' + u.id + ', \'' + esc(u.advisor_name) + '\')">顾问</button>' +
-          (isSelf ? '' : '<button class="btn btn-sm btn-secondary" onclick="deleteUser(' + u.id + ')">删除</button>') +
+          '<button class="btn btn-sm btn-sec" onclick="editAdvisor(' + u.id + ', \'' + esc(u.advisor_name) + '\')">顾问</button>' +
+          (isSelf ? '' : '<button class="btn btn-sm btn-ghost-danger" onclick="deleteUser(' + u.id + ')">删除</button>') +
           '</div>';
         html += '<tr>' +
-          '<td><span class="student-name">' + esc(u.username) + '</span></td>' +
+          '<td><b>' + esc(u.username) + '</b></td>' +
           '<td>' + esc(u.display_name || '-') + '</td>' +
           '<td>' + roleSel + '</td>' +
-          '<td class="advisor-cell">' + esc(u.advisor_name || '-') + '</td>' +
+          '<td>' + esc(u.advisor_name || '-') + '</td>' +
           '<td>' + stateBadge + '</td>' +
           '<td>' + actions + '</td>' +
           '</tr>';
       });
       html += '</tbody></table></div>';
       el.innerHTML = html;
+    }
+
+    // 与壳的 icon() 同源的极简 SVG（供 JS 动态插入的空态使用）
+    function iconSvg(name) {
+      var P = { users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' };
+      return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (P[name] || '') + '</svg>';
     }
 
     function setMsg(id, text, isErr) {
@@ -238,5 +244,4 @@
       await loadUsers();
     })();
   </script>
-</body>
-</html>
+{% endblock %}

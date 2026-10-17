@@ -1,38 +1,84 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <title>预约管理 — Y4</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css" />
-  <link rel="stylesheet" href="/app_shell.css" />
-  <style>
-    .login-panel { max-width: 380px; margin: 60px auto; background: var(--white); border: 1px solid var(--line-soft); border-radius: 12px; padding: 40px 32px; }
-    .login-panel h2 { font-family: "Noto Serif SC", serif; font-size: 20px; font-weight: 600; margin-bottom: 8px; text-align: center; }
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% block title %}预约管理{% endblock %}
+{% block page_title %}预约管理{% endblock %}
+
+{% block head_extra %}
+<style>
+    /* ── 旧壳色令牌桥（页面脚本/样式引用旧名，不动业务逻辑） ── */
+    :root {
+      --paper: var(--surface);
+      --paper-2: var(--line-soft);
+      --white: var(--surface);
+      --red: var(--brand);
+      --red-deep: var(--brand-deep);
+      --line-strong: #D4D4D8;
+    }
+
+    /* ── 原 style.css 提供的基础类，随旧壳退役收编本页（v2 令牌值） ── */
+    .container { max-width: 1180px; margin: 0 auto; }
+    .container-narrow { max-width: 640px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 18px 20px;
+    }
+    .card-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .card-subtitle { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+    .field input {
+      display: block; width: 100%;
+      height: 34px; padding: 0 11px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      font-size: 13px; color: var(--ink);
+      transition: border-color .15s, box-shadow .15s;
+      font-family: inherit;
+    }
+    .field input:focus {
+      outline: none; border-color: var(--brand);
+      box-shadow: 0 0 0 4px var(--brand-ring);
+    }
+    .btn-lg { padding: 11px 28px; font-size: 14px; }
+    .btn-secondary {
+      background: var(--surface); border: 1px solid var(--line); color: var(--ink-2);
+      box-shadow: 0 1px 1px rgba(24,24,27,.05);
+      transition: border-color .15s, color .15s;
+    }
+    .btn-secondary:hover { border-color: #D4D4D8; color: var(--ink); }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: var(--r-sm); font-size: 11px; font-weight: 600; }
+    .badge-pending { background: var(--warn-soft); color: var(--warn); }
+    .badge-completed { background: var(--ok-soft); color: var(--ok); }
+    .badge-cancelled { background: var(--bg); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+    /* 本页 JS 切换 .tab.active（v2 组件为 .tab.on，同特异性页内覆写） */
+    .tabs .tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--brand); }
+
+    /* ── 登录面板 ── */
+    .login-panel { max-width: 380px; margin: 60px auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 40px 32px; }
+    .login-panel h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; text-align: center; }
     .login-panel p { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 24px; }
-    .badge-y4-done { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; }
-    .badge-y4-pending { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--paper-2); color: var(--muted); }
+    .badge-y4-done { display: inline-block; padding: 3px 10px; border-radius: var(--r-sm); font-size: 11px; font-weight: 600; background: var(--ok-soft); color: var(--ok); }
+    .badge-y4-pending { display: inline-block; padding: 3px 10px; border-radius: var(--r-sm); font-size: 11px; font-weight: 500; background: var(--bg); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
     .avail-day { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
     .avail-day:last-child { border-bottom: none; }
     .avail-day-header { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 10px; letter-spacing: .06em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
     .avail-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; }
-    .avail-slot { padding: 8px 6px; border: 1.5px solid var(--line); border-radius: 6px; text-align: center; cursor: pointer; transition: all .2s var(--ease); font-family: "Inter", sans-serif; font-size: 13px; font-weight: 500; background: var(--white); position: relative; }
-    .avail-slot.on { border-color: var(--red); color: var(--red); background: #FEF2F2; }
-    .avail-slot.off { opacity: .35; text-decoration: line-through; background: var(--paper-2); }
-    .avail-slot .slot-booked { display: block; font-size: 10px; font-weight: 700; margin-top: 2px; color: var(--red); }
+    .avail-slot { padding: 8px 6px; border: 1px solid var(--line); border-radius: var(--r-sm); text-align: center; cursor: pointer; transition: border-color .15s, background .15s, color .15s; font-size: 13px; font-weight: 500; background: var(--surface); position: relative; }
+    .avail-slot.on { border-color: var(--brand); color: var(--brand-deep); background: var(--brand-soft); }
+    .avail-slot.off { opacity: .35; text-decoration: line-through; background: var(--line-soft); border-color: var(--line-soft); }
+    .avail-slot .slot-booked { display: block; font-size: 10px; font-weight: 700; margin-top: 2px; color: var(--brand-deep); }
     .avail-slot.off .slot-booked { color: var(--muted); }
     .avail-toolbar { display: flex; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; align-items: center; }
     .avail-legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); }
     .legend-item { display: flex; align-items: center; gap: 4px; }
     .legend-dot { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid; }
-    .legend-dot.on { border-color: var(--red); background: #FEF2F2; }
-    .legend-dot.off { border-color: var(--line); background: var(--paper-2); opacity: .35; }
+    .legend-dot.on { border-color: var(--brand); background: var(--brand-soft); }
+    .legend-dot.off { border-color: var(--line); background: var(--line-soft); opacity: .55; }
 
     /* Responsive booking table */
-    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
+    .table-wrap { overflow-x: auto; border-radius: var(--r); border: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
     .table-wrap table { min-width: 720px; }
     .booking-actions { display: flex; gap: 6px; flex-wrap: wrap; }
     .booking-actions .btn-sm { padding: 4px 10px; font-size: 11px; }
@@ -43,13 +89,12 @@
     @media (max-width: 768px) {
       .avail-slots { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 6px; }
       .avail-slot { padding: 6px 4px; font-size: 12px; }
-      .container { padding: 20px 16px; }
       .login-panel { margin: 30px 16px; padding: 28px 20px; }
     }
   </style>
-</head>
-<body>
-  <div data-app-shell></div>
+{% endblock %}
+
+{% block content %}
 
   <!-- 登录页 -->
   <div class="container container-narrow" id="loginView">
@@ -69,11 +114,12 @@
 
   <!-- 管理界面 -->
   <div class="container" id="adminView" style="display:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
-      <div class="page-header" style="margin-bottom:0;">
-        <h1 class="page-title" style="margin-bottom:4px;">预约管理</h1>
-        <p class="page-subtitle" style="margin:0;">管理预约与可用时间。默认全部开放，点击关闭特定时段。</p>
+    <div class="page-head">
+      <div>
+        <div class="page-title">预约管理</div>
+        <div class="page-sub">管理预约与可用时间。默认全部开放，点击关闭特定时段。</div>
       </div>
+      <div style="flex:1"></div>
       <button class="btn btn-sm btn-secondary" onclick="doLogout()">退出登录</button>
     </div>
 
@@ -98,7 +144,9 @@
       </div>
     </div>
   </div>
+{% endblock %}
 
+{% block scripts %}
   <script>
     let currentStatus = '';
 
@@ -336,6 +384,4 @@
     // ─── 初始化 ───
     checkLogin();
   </script>
-  <script src="/app_shell.js" defer></script>
-</body>
-</html>
+{% endblock %}

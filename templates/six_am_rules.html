@@ -1,0 +1,676 @@
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% block title %}6AM 规则与参数{% endblock %}
+{% block page_title %}6AM 规则与参数{% endblock %}
+
+{% block head_extra %}
+<style>
+    /* ── 设计令牌（本页作用域，对齐 v2 语汇值；中性黑灰，无彩色编码）── */
+    .sr-root, .sr-root * { box-sizing: border-box; }
+    .sr-root {
+      --bg: #F7F8FA;
+      --card: #FFFFFF;
+      --border: #E5E7EB;
+      --border-strong: #D4D4D8;
+      --ink: #18181B;
+      --ink-2: #3F3F46;
+      --muted: #A1A1AA;
+      --muted-2: #71717A;
+      --soft: #F7F8FA;
+      --soft-2: #FAFAFB;
+      --radius: 8px;
+      --shadow: 0 1px 2px rgba(24, 24, 27, .04);
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .sr-wrap {
+      display: flex; flex-direction: column; gap: 16px; min-width: 0;
+    }
+    .sr-sub { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+    .sr-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    select.sr-select, input.sr-input, textarea.sr-input {
+      height: 34px; padding: 0 11px; background: var(--card); color: var(--ink-2);
+      border: 1px solid var(--border); border-radius: 6px; font-size: 13px;
+      transition: border-color .15s, box-shadow .15s; font-family: inherit;
+    }
+    select.sr-select:focus, input.sr-input:focus, textarea.sr-input:focus { outline: none; border-color: #D24949; box-shadow: 0 0 0 4px rgba(210,73,73,.32); }
+    textarea.sr-input { height: auto; min-height: 58px; padding: 8px 11px; resize: vertical; line-height: 1.5; }
+    textarea.sr-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; min-height: 150px; width: 100%; }
+    .sr-btn {
+      display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+      background: var(--card); color: var(--ink-2); border: 1px solid var(--border);
+      border-radius: 6px; font-size: 12.5px; font-weight: 500; cursor: pointer;
+      transition: border-color .15s, background .15s; white-space: nowrap; text-decoration: none;
+      box-shadow: 0 1px 1px rgba(24,24,27,.05);
+    }
+    .sr-btn:hover { border-color: var(--border-strong); background: var(--soft-2); }
+    .sr-btn.primary { background: #D24949; color: #fff; border-color: #D24949; box-shadow: 0 1px 2px rgba(179,58,58,.28); }
+    .sr-btn.primary:hover { background: #B33A3A; }
+    .sr-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .sr-btn.mini { height: 28px; padding: 0 9px; font-size: 12px; }
+    .sr-status { font-size: 13px; color: var(--muted-2); min-height: 18px; }
+    .sr-status.err { color: var(--danger); }
+
+    .sr-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+    .sr-panel h2 { margin: 0 0 10px; font-size: 15px; font-weight: 700; }
+    .sr-note { font-size: 12px; color: var(--muted-2); margin: 4px 0 10px; }
+    .sr-inline { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .sr-inline .sr-grow { flex: 1; min-width: 200px; }
+    .sr-empty { color: var(--muted-2); font-size: 13px; padding: 8px 0; }
+
+    /* ── 版本列表（卡片语言对齐问卷规则页 templates/questionnaires/rules.html）── */
+    .sr-ver-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+    .sr-ver-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; transition: border-color .15s, background .15s; }
+    .sr-ver-item:hover { background: var(--soft-2); }
+    .sr-ver-info { min-width: 0; }
+    .sr-ver-head { display: flex; align-items: center; gap: 8px; }
+    .sr-ver-id { font-size: 13px; font-weight: 600; }
+    .sr-ver-note { font-size: 12px; color: var(--muted-2); margin-top: 2px; }
+    .sr-ver-date { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+    .sr-ver-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* ── 参数编辑 ── */
+    .sr-group { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+    .sr-group-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+    .sr-group-name { font-size: 13px; font-weight: 600; }
+    .sr-param-row { display: grid; grid-template-columns: minmax(180px, 300px) minmax(160px, 320px) 1fr; gap: 6px 14px; align-items: center; padding: 3px 0; }
+    .sr-param-label { font-size: 12.5px; color: var(--ink-2); }
+    .sr-param-row .sr-input { width: 100%; height: 30px; font-size: 12.5px; }
+    .sr-hint { color: var(--muted-2); font-size: 11.5px; margin-left: 6px; }
+    .sr-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--muted); margin-left: 6px; }
+    .sr-param-hint { font-size: 11.5px; color: var(--muted-2); }
+
+    /* ── 表格 ── */
+    table.sr-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    table.sr-tbl th { text-align: left; font-weight: 600; color: var(--muted-2); border-bottom: 1px solid var(--border-strong); padding: 10px 8px; white-space: nowrap; }
+    table.sr-tbl td { border-bottom: 1px solid var(--border); padding: 10px 8px; vertical-align: top; }
+    table.sr-tbl tr:last-child td { border-bottom: none; }
+    .sr-rule-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; }
+    .sr-cond { color: var(--ink-2); font-size: 12px; }
+    .sr-details { margin-top: 3px; }
+    .sr-details summary { cursor: pointer; font-size: 11.5px; color: var(--muted); }
+    .sr-details pre { margin: 4px 0 0; padding: 6px 8px; background: var(--soft-2); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; color: var(--ink-2); white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; }
+
+    /* ── 状态色阶（monochrome ladder）── */
+    .sr-chip { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11.5px; font-weight: 600; }
+    .st-secure  { background: var(--soft);  color: var(--muted-2); box-shadow: inset 0 0 0 1px var(--border); }
+    .st-watch   { background: #E4E4E7;      color: var(--ink-2); }
+    .st-atrisk  { background: #52525B;      color: #FAFAFA; }
+    .st-blocked { background: #18181B;      color: #ffffff; }
+    .sr-chip.draft     { background: var(--soft);  color: var(--muted-2); box-shadow: inset 0 0 0 1px var(--border); }
+    .sr-chip.published { background: #18181B;      color: #ffffff; }
+    .sr-chip.archived  { background: #F1F2F4;      color: var(--muted); }
+    .sr-arrow { color: var(--muted-2); font-size: 12px; margin: 0 2px; }
+    .sr-det { font-size: 11.5px; color: var(--muted-2); margin: 2px 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .sr-changed { font-weight: 600; }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="sr-root">
+  <div class="sr-wrap">
+    <div class="page-head">
+      <div>
+        <div class="page-title">6AM 规则与参数</div>
+        <div class="sr-sub">6 A.M. 规则版本（草稿 / 已发布）与参数覆盖编辑；沙盒以指定版本只读重跑并对比已存档案，不写入学生档案。</div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="sr-controls">
+        <a class="sr-btn" href="/insights/six-am">返回 6AM 档案</a>
+        <button id="sr-save" class="sr-btn primary">保存为草稿</button>
+      </div>
+    </div>
+    <div id="sr-status" class="sr-status"></div>
+
+    <div class="sr-panel">
+      <h2>参数（params）</h2>
+      <div class="sr-note">以默认值为底编辑；保存时仅记录与默认不同的项（留空 = 用默认）。载入某版本可回填编辑区。</div>
+      <div class="sr-inline" style="margin-bottom:10px">
+        <input id="sr-label" class="sr-input sr-grow" placeholder="版本标签（留空自动生成 draft-时间戳）">
+        <button id="sr-reset" class="sr-btn">重置为默认值</button>
+      </div>
+      <div id="sr-params"></div>
+    </div>
+
+    <div class="sr-panel">
+      <h2>规则覆盖（rule_overrides）</h2>
+      <div class="sr-note">JSON 对象；键为规则 ID，仅可覆盖 when / then / questions 三个字段（id / dim / text 不可改）。示例：{"R4.3": {"then": {"state": "Watch"}}}</div>
+      <textarea id="sr-overrides" class="sr-input sr-code" spellcheck="false">{}</textarea>
+      <div class="sr-inline" style="margin-top:8px">
+        <button id="sr-check-json" class="sr-btn mini">校验 JSON</button>
+        <span id="sr-json-status" class="sr-status"></span>
+      </div>
+    </div>
+
+    <div class="sr-panel">
+      <h2>规则声明</h2>
+      <div class="sr-inline" style="margin-bottom:8px">
+        <select id="sr-dim-filter" class="sr-select">
+          <option value="">全部维度</option>
+          <option value="A1">A1 Autonomy</option>
+          <option value="A2">A2 Alignment</option>
+          <option value="A3">A3 Availability</option>
+          <option value="A4">A4 Assurance</option>
+          <option value="A5">A5 Accessibility</option>
+          <option value="A6">A6 Activation Support</option>
+          <option value="X">X 跨维度</option>
+        </select>
+        <input id="sr-rule-search" class="sr-input sr-grow" placeholder="搜索规则 ID / 标题 / 条件关键字">
+        <span id="sr-rule-count" class="sr-status"></span>
+      </div>
+      <div id="sr-rules"></div>
+    </div>
+
+    <div class="sr-panel">
+      <h2>规则版本</h2>
+      <div id="sr-versions"></div>
+    </div>
+
+    <div class="sr-panel">
+      <h2>沙盒对比</h2>
+      <div class="sr-note">以所选规则版本对目标报告只读重跑，展示 state 变化与触发规则差异；结果不落库。</div>
+      <div class="sr-inline" style="margin-bottom:8px">
+        <select id="sr-sandbox-version" class="sr-select"><option value="">选择规则版本</option></select>
+        <label style="font-size:12.5px"><input type="checkbox" id="sr-sandbox-all" checked> 全部报告</label>
+        <select id="sr-sandbox-targets" class="sr-select" multiple size="4" style="min-width:260px;height:auto;padding:4px 6px"></select>
+        <button id="sr-sandbox-run" class="sr-btn">运行沙盒（只读）</button>
+      </div>
+      <div id="sr-sandbox-result"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var CATALOG = null;       // GET /api/six-am/rule-versions
+  var DEFAULTS = {};        // 服务端默认参数（全量）
+  var VERSIONS = [];
+  var TARGETS = [];
+  var RULE_SPECS = [];
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function setStatus(msg, isErr) {
+    var el = $('sr-status');
+    el.textContent = msg || '';
+    el.className = 'sr-status' + (isErr ? ' err' : '');
+  }
+  function api(url, opts) {
+    return fetch(url, opts).then(function (r) {
+      if (r.status === 403 || r.status === 401) { location.href = '/login?next=/six-am/rules'; throw new Error('未登录'); }
+      return r.json();
+    });
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function stateClass(st) {
+    return { Secure: 'st-secure', Watch: 'st-watch', 'At-Risk': 'st-atrisk', Blocked: 'st-blocked' }[st] || 'st-secure';
+  }
+  function deepGet(obj, path) {
+    var cur = obj, parts = String(path).split('.');
+    for (var i = 0; i < parts.length; i++) {
+      if (cur == null || typeof cur !== 'object') return undefined;
+      cur = cur[parts[i]];
+    }
+    return cur;
+  }
+  function deepSet(obj, path, val) {
+    var parts = String(path).split('.'), cur = obj;
+    for (var i = 0; i < parts.length - 1; i++) {
+      if (cur[parts[i]] == null || typeof cur[parts[i]] !== 'object') cur[parts[i]] = {};
+      cur = cur[parts[i]];
+    }
+    cur[parts[parts.length - 1]] = val;
+  }
+
+  // ── 参数元数据（标签与提示；未列出的键直接显示键名）──
+  var SR_META = {
+    order_top_n: { label: '排序前 N 位', hint: 'R1.3 / R1.8 / R2.5 / R6.4 的 ORDER 条件' },
+    mindset_fixed_threshold: { label: '固定型思维阈值', hint: 'R4.3 · v0.2 暂定' },
+    severity: { label: '严重度分（state → 基数）' },
+    confidence_factor: { label: '置信系数（confidence → 系数）' },
+    r45_neuroticism: { label: 'R4.5 神经质叠加' },
+    'r45_neuroticism.mode': { label: 'mode' },
+    'r45_neuroticism.value': { label: 'value（增幅）' },
+    'r45_neuroticism.cap': { label: 'cap（封顶）' },
+    x1_multiplier: { label: 'X.1 乘数', hint: 'A1 命中时的放大系数' },
+    x3_multiplier: { label: 'X.3 乘数' },
+    x7_multiplier: { label: 'X.7 乘数' },
+    high_priority_min_score: { label: '高优先阈值', hint: 'ObstacleScore ≥ 此值标记高优先' },
+    confidence_order: { label: '置信度次序', hint: 'JSON 数组或逗号分隔' },
+    questionnaire: { label: '追问选择参数' },
+    'questionnaire.top_n': { label: 'top_n（总题量）' },
+    'questionnaire.a6_slots': { label: 'a6_slots（A6 槽位）' },
+    'questionnaire.hypothesis_dim_limit': { label: 'hypothesis_dim_limit（Hypothesis 维上限）' },
+    schedule_free_hours_max: { label: '自由时间极少阈值（小时/周）', hint: '排期缺口判定 · v0.2 暂定' },
+    value_link_defaults: { label: '任务可连接价值默认列表', hint: 'v0.2 待定 · 默认空数组' },
+    a6_base_score: { label: 'A6 基础分' },
+    a6_effectiveness: { label: 'A6 有效性分档' }
+  };
+
+  // ── 加载目录 ──
+  function loadCatalog() {
+    setStatus('加载规则版本与参数…');
+    api('/api/six-am/rule-versions').then(function (j) {
+      if (!j.ok) { setStatus(j.error || '加载失败', true); return; }
+      CATALOG = j;
+      DEFAULTS = j.defaults || {};
+      VERSIONS = j.versions || [];
+      TARGETS = j.targets || [];
+      RULE_SPECS = j.rule_specs || [];
+      renderParams();
+      renderVersions();
+      renderRules();
+      renderSandboxPicker();
+      setStatus('默认参数 ' + Object.keys(DEFAULTS).length + ' 组 · 规则 ' + RULE_SPECS.length + ' 条 · 规则版本 ' + VERSIONS.length + ' 个');
+    }).catch(function (e) { setStatus(String(e.message || e), true); });
+  }
+
+  // ── 参数编辑区 ──
+  function flattenParams(obj, prefix, out) {
+    Object.keys(obj || {}).forEach(function (k) {
+      var path = prefix ? prefix + '.' + k : k;
+      var v = obj[k];
+      if (v && typeof v === 'object' && !Array.isArray(v)) flattenParams(v, path, out);
+      else out.push({ path: path, value: v });
+    });
+  }
+  function inputFor(path, v) {
+    var attrs = 'class="sr-input" data-path="' + esc(path) + '"';
+    if (typeof v === 'number') {
+      return '<input type="number" step="any" ' + attrs + ' value="' + esc(v) + '">';
+    }
+    if (Array.isArray(v)) {
+      return '<input type="text" ' + attrs + ' data-list="1" value="' + esc(JSON.stringify(v)) + '">';
+    }
+    if (typeof v === 'boolean') {
+      return '<select ' + attrs + '><option value="true"' + (v ? ' selected' : '') + '>true</option><option value="false"' + (!v ? ' selected' : '') + '>false</option></select>';
+    }
+    return '<input type="text" ' + attrs + ' value="' + esc(v == null ? '' : v) + '">';
+  }
+  function renderParams() {
+    var rows = [];
+    flattenParams(DEFAULTS, '', rows);
+    var groups = {}, order = [];
+    rows.forEach(function (r) {
+      var top = r.path.split('.')[0];
+      if (!groups[top]) { groups[top] = []; order.push(top); }
+      groups[top].push(r);
+    });
+    var html = '';
+    order.forEach(function (g) {
+      var gm = SR_META[g] || {};
+      var single = groups[g].length === 1 && groups[g][0].path === g;
+      html += '<div class="sr-group">';
+      html += '<div class="sr-group-head"><span class="sr-group-name">' + esc(gm.label || g) + '</span>' +
+              '<span class="sr-path">' + esc(g) + '</span>' +
+              (gm.hint ? '<span class="sr-hint">' + esc(gm.hint) + '</span>' : '') + '</div>';
+      groups[g].forEach(function (r) {
+        var m = SR_META[r.path] || {};
+        var sub = r.path === g ? '' : r.path.split('.').slice(1).join('.');
+        var label = single ? r.path : (m.label || sub);
+        html += '<div class="sr-param-row">';
+        html += '<div class="sr-param-label">' + esc(label) +
+                (m.hint ? '<span class="sr-hint">' + esc(m.hint) + '</span>' : '') + '</div>';
+        html += '<div>' + inputFor(r.path, r.value) + '</div>';
+        html += '<div class="sr-param-hint">' + esc(r.path) + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    $('sr-params').innerHTML = html;
+  }
+  function setInputValue(el, v) {
+    if (v === undefined) v = '';
+    el.value = (typeof v === 'object' && v !== null) ? JSON.stringify(v) : String(v);
+  }
+  function applyOverlayToForm(overlay) {
+    Array.prototype.forEach.call(document.querySelectorAll('#sr-params [data-path]'), function (el) {
+      var path = el.getAttribute('data-path');
+      var v = overlay ? deepGet(overlay, path) : undefined;
+      if (v === undefined) v = deepGet(DEFAULTS, path);
+      setInputValue(el, v);
+    });
+  }
+  function collectParams() {
+    var out = {}, bad = [];
+    Array.prototype.forEach.call(document.querySelectorAll('#sr-params [data-path]'), function (el) {
+      var path = el.getAttribute('data-path');
+      var raw = el.value.trim();
+      if (raw === '') return;   // 留空 = 沿用默认
+      if (el.getAttribute('data-list') === '1') {
+        var arr = null;
+        try { arr = JSON.parse(raw); } catch (e) { arr = null; }
+        if (!Array.isArray(arr)) {
+          arr = raw.split(/[,，、]/).map(function (s) { return s.trim(); }).filter(Boolean);
+        }
+        deepSet(out, path, arr);
+        return;
+      }
+      if (el.tagName === 'SELECT') { deepSet(out, path, el.value === 'true'); return; }
+      if (el.type === 'number') {
+        var n = Number(raw);
+        if (isNaN(n)) { bad.push(path); return; }
+        deepSet(out, path, n);
+        return;
+      }
+      deepSet(out, path, el.value);
+    });
+    if (bad.length) throw new Error('数值项无效（须为数字）：' + bad.join('、'));
+    return out;
+  }
+
+  // ── 版本列表（卡片语言对齐问卷规则页 templates/questionnaires/rules.html）──
+  var STATUS_LABEL = { draft: '草稿', published: '已发布', archived: '已归档' };
+  function statusBadgeClass(st) {
+    return st === 'published' ? 'badge badge-ok'
+         : st === 'draft' ? 'badge badge-warn'
+         : 'badge badge-neutral';
+  }
+  function renderVersions() {
+    var html = '';
+    if (!VERSIONS.length) {
+      html = '<div class="sr-empty">尚无规则版本，保存草稿后会出现在此处。</div>';
+    } else {
+      html += '<ul class="sr-ver-list">';
+      VERSIONS.forEach(function (v) {
+        var st = v.status || 'draft';
+        html += '<li><div class="sr-ver-item">';
+        html += '<div class="sr-ver-info">';
+        html += '<div class="sr-ver-head"><span class="sr-ver-id">#' + esc(v.id) + '</span>' +
+                '<span class="' + statusBadgeClass(st) + '">' + esc(STATUS_LABEL[st] || st) + '</span></div>';
+        html += '<div class="sr-ver-note">' + esc(v.label || '（无标签）') + '</div>';
+        html += '<div class="sr-ver-date">创建 ' + esc(y4FmtDT(v.created_at)) + ' · ' +
+                esc(v.published_at ? ('发布于 ' + y4FmtDT(v.published_at)) : '未发布') + '</div>';
+        html += '</div>';
+        html += '<div class="sr-ver-actions">' +
+          '<button class="sr-btn mini sr-load" data-id="' + esc(v.id) + '" type="button">载入编辑</button>' +
+          (st === 'draft' ? '<button class="sr-btn mini sr-publish" data-id="' + esc(v.id) + '" type="button">发布</button>' : '') +
+          '<button class="sr-btn mini sr-use" data-id="' + esc(v.id) + '" type="button">沙盒</button>' +
+          '</div>';
+        html += '</div></li>';
+      });
+      html += '</ul>';
+    }
+    $('sr-versions').innerHTML = html;
+    Array.prototype.forEach.call(document.querySelectorAll('.sr-load'), function (b) {
+      b.addEventListener('click', function () { loadVersionIntoForm(Number(b.getAttribute('data-id'))); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.sr-publish'), function (b) {
+      b.addEventListener('click', function () { publishVersion(Number(b.getAttribute('data-id'))); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.sr-use'), function (b) {
+      b.addEventListener('click', function () {
+        $('sr-sandbox-version').value = String(b.getAttribute('data-id'));
+        document.getElementById('sr-sandbox-version').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  }
+  function versionById(vid) {
+    for (var i = 0; i < VERSIONS.length; i++) if (Number(VERSIONS[i].id) === Number(vid)) return VERSIONS[i];
+    return null;
+  }
+  function parseVersionPayload(v) {
+    try { return JSON.parse(v.params_json || '{}'); } catch (e) { return {}; }
+  }
+  function loadVersionIntoForm(vid) {
+    var v = versionById(vid);
+    if (!v) return;
+    var payload = parseVersionPayload(v);
+    applyOverlayToForm(payload.params || {});
+    $('sr-overrides').value = JSON.stringify(payload.rule_overrides || {}, null, 2);
+    $('sr-label').value = v.label || '';
+    setStatus('已载入版本 ' + v.id + '（' + (v.label || '') + '）到编辑区，保存将新建草稿。');
+  }
+  function publishVersion(vid) {
+    api('/api/six-am/rule-versions/' + vid + '/publish', { method: 'POST' }).then(function (j) {
+      if (!j.ok) { setStatus(j.error || '发布失败', true); return; }
+      VERSIONS = j.versions || [];
+      renderVersions(); renderSandboxPicker();
+      setStatus('已发布版本 ' + vid + '（原 published 已归档）。');
+    }).catch(function (e) { setStatus(String(e.message || e), true); });
+  }
+
+  // ── 保存草稿 ──
+  function parseOverrides() {
+    var raw = $('sr-overrides').value.trim();
+    if (raw === '') return {};
+    var data = JSON.parse(raw);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('rule_overrides 须为 JSON 对象');
+    return data;
+  }
+  function checkJson() {
+    try {
+      parseOverrides();
+      $('sr-json-status').textContent = 'JSON 合法';
+      $('sr-json-status').className = 'sr-status';
+    } catch (e) {
+      $('sr-json-status').textContent = 'JSON 无效：' + e.message;
+      $('sr-json-status').className = 'sr-status err';
+    }
+  }
+  function saveDraft() {
+    var params, overrides;
+    try { params = collectParams(); } catch (e) { setStatus(String(e.message), true); return; }
+    try { overrides = parseOverrides(); } catch (e) { setStatus('规则覆盖 JSON 无效：' + e.message, true); return; }
+    var btn = $('sr-save');
+    btn.disabled = true; setStatus('保存中…');
+    api('/api/six-am/rule-versions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: $('sr-label').value.trim(), params: params, rule_overrides: overrides })
+    }).then(function (j) {
+      btn.disabled = false;
+      if (!j.ok) { setStatus(j.error || '保存失败', true); return; }
+      VERSIONS = j.versions || [];
+      renderVersions(); renderSandboxPicker();
+      setStatus('已保存草稿 id=' + j.version_id + '（参数覆盖 ' + Object.keys(params).length + ' 组，规则覆盖 ' + Object.keys(overrides).length + ' 条）。发布后对重跑生效。');
+    }).catch(function (e) { btn.disabled = false; setStatus(String(e.message || e), true); });
+  }
+
+  // ── 规则声明 ──
+  function condText(c) {
+    if (c == null) return '';
+    if (typeof c === 'string') return c;
+    if (Array.isArray(c)) return c.map(condText).join(' 且 ');
+    if (typeof c !== 'object') return String(c);
+    if (c.any) return '任一（' + (c.any || []).map(condText).join(' / ') + '）';
+    if (c.not) return '非（' + condText(c.not) + '）';
+    if (c.point != null) {
+      if (c.is) return c.point + ' ∈ {' + [].concat(c.is).join(' | ') + '}';
+      if (c.num_lt != null) return c.point + ' < ' + c.num_lt;
+      if (c.num_gt != null) return c.point + ' > ' + c.num_gt;
+      return String(c.point);
+    }
+    if (c.order_top != null) return '「' + c.order_top + '」进入排序前 N 位';
+    if (c.rule) return '命中 ' + c.rule;
+    if (c.evidence) return '证据 ' + c.evidence + (c.is_true ? ' 为真' : (c.is_false ? ' 为假' : ''));
+    if (c.predicate) return '谓词 ' + c.predicate;
+    if (c.dim_state) return (c.dim_state.dim || '') + ' state = ' + (c.dim_state.is || '');
+    if (c.subtype) return '亚型 ' + c.subtype;
+    return JSON.stringify(c);
+  }
+  function thenText(then) {
+    if (!then || typeof then !== 'object' || !Object.keys(then).length) return '';
+    var parts = [];
+    if (then.state) parts.push('state → ' + then.state);
+    if (then.state_add) parts.push('升级 +' + then.state_add);
+    if (then.escalate_if_rule) parts.push('命中 ' + then.escalate_if_rule + ' 时升级');
+    if (then.escalate_if_dim) parts.push('当 ' + then.escalate_if_dim + ' 触发时升级');
+    if (then.subtype) parts.push('亚型 ' + then.subtype);
+    if (then.subtype_if) parts.push('条件亚型 ' + ((then.subtype_if || {}).subtype || ''));
+    if (then.deescalate) parts.push('降一级' + (then.floor ? '（下限 ' + then.floor + '）' : ''));
+    if (then.confidence_to) parts.push('置信 → ' + then.confidence_to + (then.confidence_if ? '（' + then.confidence_if + '）' : ''));
+    if (then.confirmed_secure) parts.push('确认 Secure');
+    if (then.noop) parts.push('不改变 state');
+    (then.flags || []).forEach(function (f) { parts.push('标记 ' + f); });
+    (then.support_ops || []).forEach(function (op) {
+      parts.push(op.direction + ' ' + (op.delta >= 0 ? '+' : '') + op.delta + (op.kind ? '（' + op.kind + '）' : ''));
+    });
+    (then.effects || []).forEach(function (eff) {
+      var s = [];
+      if (eff.if_predicate) s.push('若 ' + eff.if_predicate);
+      if (eff.state) s.push('state → ' + eff.state);
+      if (eff.state_add) s.push('升级 +' + eff.state_add);
+      if (eff.subtype) s.push(eff.subtype);
+      if (eff.confidence_to) s.push('置信 → ' + eff.confidence_to);
+      parts.push('分支：' + s.join('，'));
+    });
+    return parts.join('；');
+  }
+  function renderRules() {
+    var dim = $('sr-dim-filter').value;
+    var q = $('sr-rule-search').value.trim().toLowerCase();
+    var html = '';
+    var shown = 0;
+    html += '<table class="sr-tbl"><thead><tr><th>规则</th><th>维度</th><th>标题</th><th>条件 / 动作</th><th>结论</th><th>追问题</th></tr></thead><tbody>';
+    RULE_SPECS.forEach(function (r) {
+      if (dim && (r.dim || '') !== dim) return;
+      var hay = [r.id, r.title, r.text, JSON.stringify(r.when), JSON.stringify(r.then)].join(' ').toLowerCase();
+      if (q && hay.indexOf(q) < 0) return;
+      shown++;
+      var cond;
+      if (r.cross) {
+        cond = '<div class="sr-cond">' + esc(r.text || '') + '</div>';
+      } else {
+        var list = Array.isArray(r.when) ? r.when : [r.when];
+        cond = '<div class="sr-cond">' + (list.length ? list.map(function (c) { return esc(condText(c)); }).join('<br>') : '—') + '</div>';
+        cond += '<details class="sr-details"><summary>原始 JSON</summary><pre>' + esc(JSON.stringify(r.when, null, 2)) + '</pre></details>';
+      }
+      var concl = r.cross ? '' : thenText(r.then);
+      html += '<tr>';
+      html += '<td><span class="sr-rule-id">' + esc(r.id) + '</span></td>';
+      html += '<td>' + esc(r.dim) + '</td>';
+      html += '<td>' + esc(r.title || '') + '</td>';
+      html += '<td>' + cond + '</td>';
+      html += '<td class="sr-cond">' + esc(concl || '—') +
+              (r.cross || !r.then || !Object.keys(r.then).length ? '' :
+                '<details class="sr-details"><summary>原始 JSON</summary><pre>' + esc(JSON.stringify(r.then, null, 2)) + '</pre></details>') + '</td>';
+      html += '<td>' + esc((r.questions || []).join('、') || '—') + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    if (!shown) html = '<div class="sr-empty">没有匹配的规则。</div>';
+    $('sr-rules').innerHTML = html;
+    $('sr-rule-count').textContent = '显示 ' + shown + ' / ' + RULE_SPECS.length + ' 条';
+  }
+
+  // ── 沙盒 ──
+  function renderSandboxPicker() {
+    var sel = $('sr-sandbox-version');
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">选择规则版本</option>';
+    var publishedId = null;
+    VERSIONS.forEach(function (v) {
+      if (v.status === 'published' && publishedId == null) publishedId = v.id;
+      var o = document.createElement('option');
+      o.value = v.id;
+      o.textContent = '#' + v.id + ' · ' + (v.label || '') + '（' + (STATUS_LABEL[v.status] || v.status || '') + '）';
+      sel.appendChild(o);
+    });
+    if (cur && versionById(cur)) sel.value = cur;
+    else if (publishedId != null) sel.value = String(publishedId);
+    else if (VERSIONS.length) sel.value = String(VERSIONS[0].id);
+
+    var tsel = $('sr-sandbox-targets');
+    tsel.innerHTML = '';
+    TARGETS.forEach(function (t) {
+      var o = document.createElement('option');
+      o.value = t.report_id;
+      o.textContent = (t.student_name || '未命名') + ' · #' + t.report_id + '（v' + (t.version == null ? '' : t.version) + '）';
+      tsel.appendChild(o);
+    });
+    syncSandboxTargets();
+  }
+  function syncSandboxTargets() {
+    var all = $('sr-sandbox-all').checked;
+    $('sr-sandbox-targets').disabled = all;
+  }
+  function runSandbox() {
+    var vid = $('sr-sandbox-version').value;
+    if (!vid) { setStatus('请先选择规则版本（沙盒需要已保存的版本）', true); return; }
+    var reportIds = 'all';
+    if (!$('sr-sandbox-all').checked) {
+      reportIds = Array.prototype.map.call($('sr-sandbox-targets').selectedOptions || [], function (o) { return Number(o.value); });
+      if (!reportIds.length) { setStatus('请选择至少一份目标报告，或勾选"全部报告"', true); return; }
+    }
+    var btn = $('sr-sandbox-run');
+    btn.disabled = true;
+    $('sr-sandbox-result').innerHTML = '<div class="sr-empty">沙盒重跑中…</div>';
+    api('/api/six-am/sandbox', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rule_version_id: Number(vid), report_ids: reportIds })
+    }).then(function (j) {
+      btn.disabled = false;
+      if (!j.ok) { $('sr-sandbox-result').innerHTML = '<div class="sr-empty">' + esc(j.error || '沙盒运行失败') + '</div>'; return; }
+      renderSandboxResult(j);
+      setStatus('沙盒完成：' + (j.results || []).length + ' 份报告（未落库）。');
+    }).catch(function (e) {
+      btn.disabled = false;
+      $('sr-sandbox-result').innerHTML = '<div class="sr-empty">' + esc(String(e.message || e)) + '</div>';
+    });
+  }
+  function renderSandboxResult(j) {
+    var rv = j.rule_version || {};
+    var html = '<div class="sr-note">规则版本：#' + esc(rv.id) + ' · ' + esc(rv.label || '') + '（' + esc(STATUS_LABEL[rv.status] || rv.status || '') + '）</div>';
+    var results = j.results || [];
+    if (!results.length) {
+      html += '<div class="sr-empty">无目标报告（数据库中暂无 6AM 档案）。</div>';
+    } else {
+      var dims = ['A1', 'A2', 'A3', 'A4', 'A5'];
+      html += '<table class="sr-tbl"><thead><tr><th>学生</th><th>报告</th>';
+      dims.forEach(function (d) { html += '<th>' + d + '</th>'; });
+      html += '<th>触发规则差异</th></tr></thead><tbody>';
+      results.forEach(function (r) {
+        if (r.error) {
+          html += '<tr><td colspan="8">报告 #' + esc(r.report_id) + '：' + esc(r.error) + '</td></tr>';
+          return;
+        }
+        html += '<tr>';
+        html += '<td>' + esc(r.student_name || '—') + '</td><td>#' + esc(r.report_id) + '</td>';
+        dims.forEach(function (d) {
+          var os = r.old_states ? r.old_states[d] : '';
+          var ns = r.new_states ? r.new_states[d] : '';
+          var changed = (r.changed_dims || []).indexOf(d) >= 0;
+          if (changed) {
+            html += '<td class="sr-changed"><span class="sr-chip ' + stateClass(os) + '">' + esc(os) + '</span><span class="sr-arrow">→</span><span class="sr-chip ' + stateClass(ns) + '">' + esc(ns) + '</span></td>';
+          } else {
+            html += '<td><span class="sr-chip ' + stateClass(ns) + '">' + esc(ns) + '</span></td>';
+          }
+        });
+        var det = '';
+        Object.keys(r.details || {}).forEach(function (d) {
+          var dd = r.details[d] || {};
+          det += '<div class="sr-det">' + esc(d) + '：' + esc((dd.old_rules || []).join(',') || '—') + ' → ' + esc((dd.new_rules || []).join(',') || '—') + '</div>';
+        });
+        html += '<td>' + (det || '<span class="sr-hint">无变化</span>') + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+    }
+    $('sr-sandbox-result').innerHTML = html;
+  }
+
+  // ── 事件 ──
+  $('sr-save').addEventListener('click', saveDraft);
+  $('sr-reset').addEventListener('click', function () {
+    applyOverlayToForm(null);
+    $('sr-label').value = '';
+    setStatus('已重置为默认参数（未保存）。');
+  });
+  $('sr-check-json').addEventListener('click', checkJson);
+  $('sr-dim-filter').addEventListener('change', renderRules);
+  $('sr-rule-search').addEventListener('input', renderRules);
+  $('sr-sandbox-all').addEventListener('change', syncSandboxTargets);
+  $('sr-sandbox-run').addEventListener('click', runSandbox);
+
+  loadCatalog();
+})();
+</script>
+{% endblock %}

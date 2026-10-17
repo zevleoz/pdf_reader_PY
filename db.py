@@ -156,8 +156,20 @@ class User(Base):
 
 def init_db() -> None:
     """Create tables if they don't exist, and run migrations."""
+    # 2.0 问卷子系统（Agent C）的 7 张表定义在 questionnaire_store，
+    # 需在 create_all 之前 import 以完成 ORM 注册（SQLite 与 PG 通用，
+    # 不使用 _migrate_schema 那种 SQLite-only 的原生 DDL）。
+    try:
+        import questionnaire_store  # noqa: F401
+    except Exception as e:  # 问卷子系统导入失败不应阻断既有功能
+        print(f"[DB] 问卷子系统模型注册失败 (非致命): {e}")
     Base.metadata.create_all(engine)
     _migrate_schema()
+    try:
+        import questionnaire_store as _qstore
+        _qstore.ensure_indexes()
+    except Exception as e:
+        print(f"[DB] 问卷部分唯一索引创建失败 (非致命): {e}")
 
 
 def _migrate_schema() -> None:
@@ -428,7 +440,8 @@ def find_or_create_student(name: str, gender: str = "", birthday: str = "",
             student = row[0]
             # Update booking-related fields if provided
             update_values = {}
-            if advisor_name:
+            # 顾问：仅当现值为空时才回填（预约/手动填过的不被 OCR 覆盖）
+            if advisor_name and not (student.advisor_name or "").strip():
                 update_values["advisor_name"] = advisor_name
             if school:
                 update_values["school"] = school
@@ -506,6 +519,50 @@ def get_student(student_id: int) -> Optional[Dict[str, Any]]:
             "name": s.name,
             "advisor_name": s.advisor_name or "",
             "school": s.school or "",
+        }
+
+
+def get_student_by_code(code: str) -> Optional[Dict[str, Any]]:
+    """按 student_code 取学生完整档案（360° 档案页页头用）。不存在返回 None。"""
+    with Session(engine) as sess:
+        row = sess.execute(
+            select(Student).where(Student.student_code == str(code))).first()
+        if not row:
+            return None
+        s = row[0]
+        return {
+            "id": s.id,
+            "student_code": s.student_code or "",
+            "name": s.name,
+            "gender": s.gender or "",
+            "birthday": s.birthday or "",
+            "grade": s.grade or "",
+            "email": s.email or "",
+            "phone": s.phone or "",
+            "advisor_name": s.advisor_name or "",
+            "school": s.school or "",
+            "single_parent": s.single_parent or "false",
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+
+
+def get_latest_report_raw(student_id: int) -> Optional[Dict[str, Any]]:
+    """最新一条报告的 data_json（360° 档案页「画像」tab 分组渲染用）；无报告返回 None。"""
+    with Session(engine) as sess:
+        stmt = (select(Report).where(Report.student_id == int(student_id))
+                .order_by(Report.created_at.desc(), Report.id.desc()).limit(1))
+        row = sess.execute(stmt).first()
+        if not row:
+            return None
+        r = row[0]
+        try:
+            raw = json.loads(r.data_json) if r.data_json else {}
+        except Exception:
+            raw = {}
+        return {
+            "report_id": r.id,
+            "report_date": r.report_date.isoformat() if r.report_date else None,
+            "data": raw,
         }
 
 

@@ -47,15 +47,9 @@ if not LAB_PROMPT_PATH.exists() and PROD_PROMPT_PATH.exists():
     LAB_PROMPT_PATH.write_text(PROD_PROMPT_PATH.read_text(encoding="utf-8"), encoding="utf-8")
 
 # ---------------------------------------------------------------------------
-# DashScope 配置（复用 extract.py 的默认 key）
+# DashScope 配置（key 从环境变量读取）
 # ---------------------------------------------------------------------------
-try:
-    import extract as _extract  # type: ignore
-    DEFAULT_DASHSCOPE_KEY = getattr(_extract, "DEFAULT_DASHSCOPE_KEY", "")
-except Exception:
-    DEFAULT_DASHSCOPE_KEY = ""
-
-DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", DEFAULT_DASHSCOPE_KEY).strip()
+DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", "").strip()
 AI_MODEL = os.environ.get("AI_TEXT_MODEL", "qwen-plus")
 ITERATION_MODEL = os.environ.get("AI_ITERATION_MODEL", "qwen-turbo")
 AI_TEMPERATURE = float(os.environ.get("AI_TEMPERATURE", "0.5"))
@@ -100,7 +94,7 @@ def _call_dashscope(messages, temperature=None, max_tokens=8192, timeout=120, mo
     Raises TruncatedResponseError if the reply was cut off by max_tokens.
     """
     if not DASHSCOPE_KEY:
-        raise RuntimeError("未配置 DASHSCOPE_API_KEY（环境变量或 extract.DEFAULT_DASHSCOPE_KEY）")
+        raise RuntimeError("未配置 DASHSCOPE_API_KEY（环境变量）")
 
     effective_model = model or AI_MODEL
     payload = json.dumps({

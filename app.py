@@ -22,7 +22,8 @@ import sys
 import traceback
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, send_from_directory, abort
+from flask import (Flask, abort, jsonify, render_template, request,
+                   send_from_directory, session)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import db as _db
@@ -67,15 +68,22 @@ def create_app() -> Flask:
         """Serve shared design-system CSS from templates/style.css."""
         return send_from_directory(str(TEMPLATE_DIR), "style.css", mimetype="text/css")
 
-    @app.route("/app_shell.css")
-    def serve_app_shell_css():
-        """Serve shared app-shell CSS (sidebar navigation)."""
-        return send_from_directory(str(TEMPLATE_DIR), "app_shell.css", mimetype="text/css")
+    @app.route("/admin_v2.css")
+    def serve_admin_v2_css():
+        """语汇 v2 样式（static/admin_v2.css，v2 壳页面共用）。"""
+        return send_from_directory(str(BASE_DIR / "static"), "admin_v2.css", mimetype="text/css")
 
-    @app.route("/app_shell.js")
-    def serve_app_shell_js():
-        """Serve shared app-shell JS (sidebar navigation, command palette)."""
-        return send_from_directory(str(TEMPLATE_DIR), "app_shell.js", mimetype="application/javascript")
+    @app.route("/command-palette.js")
+    def serve_command_palette_js():
+        """Serve the ⌘K command palette script (Agent H: static/command-palette.js)."""
+        return send_from_directory(str(BASE_DIR / "static"), "command-palette.js",
+                                   mimetype="text/javascript")
+
+    @app.route("/favicon.ico")
+    def favicon():
+        """站点图标（浏览器默认请求 /favicon.ico）：静态品牌 logo 缩图。"""
+        return send_from_directory(str(BASE_DIR / "static"), "favicon.png",
+                                   mimetype="image/png")
 
     @app.route("/branding/<path:filename>")
     def branding(filename):
@@ -93,9 +101,64 @@ def create_app() -> Flask:
     def request_entity_too_large(error):
         return jsonify({"ok": False, "error": "文件太大，单文件不超过 50MB"}), 413
 
+    # 品牌化错误页：页面路由渲染纸感错误模板，API 路由保持 JSON 信封。
+    def _render_error(code: int, title: str, message: str):
+        if request.path.startswith("/api/"):
+            return jsonify({"ok": False, "error": f"{code} {title}"}), code
+        return render_template("error.html", code=code, title=title,
+                               message=message), code
+
+    @app.errorhandler(403)
+    def _forbidden(error):
+        return _render_error(403, "无权访问", "你没有权限访问该页面，或登录状态已失效。")
+
+    @app.errorhandler(404)
+    def _not_found(error):
+        return _render_error(404, "页面不存在", "你访问的页面不存在或已被移除。")
+
+    @app.errorhandler(500)
+    def _server_error(error):
+        return _render_error(500, "服务异常", "服务器处理请求时出错了，请稍后重试。")
+
     @app.route("/")
     def landing():
         return render_template("landing.html")
+
+    # --- 管理端模板上下文（Layout 契约，所有蓝图模板共享；须在注册蓝图前） ---
+    from app_utils import register_admin_context, get_csrf_token, dt_short
+    register_admin_context(app)
+    # CSRF token 注入：所有模板可调用 {{ csrf_token() }}（5.4 最小实现）
+    app.context_processor(lambda: {"csrf_token": get_csrf_token})
+    # 时间戳过滤器：模板用 {{ iso|dt_short }} 统一到分钟（面板/学生端共用）
+    app.add_template_filter(dt_short, "dt_short")
+
+    # --- CSRF 全局校验（session 认证面；before_request 比逐路由装饰器更难漏） ---
+    import hmac as _hmac
+    CSRF_EXEMPT_PREFIXES = (
+        "/api/v1/",       # Bearer token 面，无 cookie，豁免
+        "/q/",            # 一次性 token 端点（/q/<token>/submit），靠不可枚举 token 防 CSRF
+    )
+    CSRF_EXEMPT_PATHS = {
+        "/api/booking",      # 公开预约，无 session 可劫持
+        "/student/login",    # pre-auth 提交端点（由登录限流保护）；管理端登录态下同一浏览器
+                             # 提交学生登录也不应被 CSRF 误拒
+    }
+
+    @app.before_request
+    def _csrf_protect():
+        if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+            return
+        path = request.path
+        if any(path.startswith(p) for p in CSRF_EXEMPT_PREFIXES) or path in CSRF_EXEMPT_PATHS:
+            return
+        if not (session.get("user_id") or session.get("student_account_id")):
+            # 未登录的公开端点（登录、公开预约等）不走 CSRF；登录面由限流保护
+            return
+        sent = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token", "")
+        if not sent or not _hmac.compare_digest(sent, session.get("_csrf_token", "")):
+            if path.startswith("/api/"):
+                return jsonify({"ok": False, "error": "CSRF 校验失败，请刷新页面重试"}), 403
+            abort(403)
 
     # --- 注册蓝图（导入放在 create_app 内，避免与 app_utils 形成导入环） ---
     from blueprints.api_v1 import bp as api_v1_bp

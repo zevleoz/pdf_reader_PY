@@ -1,15 +1,128 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <title>解读会会议纪要生成 — Y4</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css" />
-  <link rel="stylesheet" href="/app_shell.css" />
-  <style>
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% block title %}解读会纪要{% endblock %}
+{% block page_title %}解读会纪要{% endblock %}
+
+{% block head_extra %}
+<style>
+    /* ===== 旧壳色令牌桥（v2 壳不再加载暖纸主题样式表，旧名全部桥接到 v2 令牌） ===== */
+    :root {
+      --paper: var(--surface);
+      --paper-2: var(--line-soft);
+      --white: var(--surface);
+      --red: var(--brand);
+      --red-deep: var(--brand-deep);
+      --line-strong: #D4D4D8;
+    }
+    /* ── 密度归一（08/11 令牌，仅排版；宽度/内边距由壳 .content 承担） ── */
+    .container { margin: 0 auto; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: none;
+    }
+    .section-label {
+      font-size: 12px; font-weight: 600; letter-spacing: .06em;
+      color: var(--muted);
+    }
+    .result { border-radius: var(--r); padding: 20px; }
+    .history-item { border-radius: var(--r); padding: 12px 16px; margin-bottom: 8px; }
+    /* mutating 按钮 loading 钩子（08 §5.3，仅视觉；v2 为内联 spinner，此处保留旧结构） */
+    .btn.is-loading {
+      position: relative; padding-left: 34px; opacity: .6; pointer-events: none;
+    }
+    .btn.is-loading::after {
+      content: ''; position: absolute; left: 12px; top: 50%;
+      width: 14px; height: 14px; margin-top: -7px;
+      border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%;
+      animation: tr-spin .7s linear infinite;
+    }
+    @keyframes tr-spin { to { transform: rotate(360deg); } }
+    /* v2 壳自带 .btn.is-loading::before 内联 spinner，本页改用左侧绝对定位版，去掉壳版避免双转圈 */
+    .btn.is-loading::before { content: none; }
+    /* 骨架行高度（v2 仅有 .sk 基类） */
+    .sk-row { height: 44px; }
+    /* 次级按钮兜底（v2 为 .btn-sec，本页旧类名 .btn-secondary 收编为同款样式） */
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--ink-2);
+      border: 1px solid var(--line);
+      box-shadow: 0 1px 1px rgba(24, 24, 27, .05);
+    }
+    .btn-secondary:hover:not(:disabled) { border-color: #D4D4D8; color: var(--ink); }
+    .btn-danger { color: var(--danger); }
+    /* 说明框兜底（旧壳 .hint） */
+    .hint {
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      color: var(--ink-2);
+      padding: 14px 16px;
+      border-radius: var(--r);
+      font-size: 12px;
+      line-height: 1.8;
+      margin-bottom: 20px;
+    }
+    .hint strong { color: var(--brand); font-weight: 600; }
+    /* 状态条兜底（旧壳 .status + .spinner） */
+    .status {
+      display: none;
+      padding: 12px 14px;
+      border-radius: var(--r-sm);
+      font-size: 12px;
+      line-height: 1.6;
+      margin-top: 16px;
+    }
+    .status.loading {
+      display: block;
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      color: var(--ink-2);
+    }
+    .status.error {
+      display: block;
+      background: var(--danger-soft);
+      border: 1px solid #F5C8C8;
+      color: var(--brand);
+    }
+    .status.ok {
+      display: block;
+      background: var(--ok-soft);
+      border: 1px solid #BBF7D0;
+      color: var(--ok);
+    }
+    .spinner {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      margin-right: 6px;
+      vertical-align: -2px;
+      border: 2px solid var(--line);
+      border-top-color: var(--brand);
+      border-radius: 50%;
+      animation: tr-spin .7s linear infinite;
+    }
+    /* 原生输入收编（v2 .input/.select 类未挂到本页裸元素上，按 v2 令牌补样式） */
+    .field input[type="text"], .field select {
+      width: 100%;
+      height: 34px;
+      padding: 0 11px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      font-size: 13px;
+      color: var(--ink);
+      outline: none;
+      transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+    }
+    .field input[type="text"]:focus, .field select:focus,
+    textarea:focus {
+      border-color: #D24949;
+      box-shadow: 0 0 0 4px rgba(210, 73, 73, .32);
+    }
     textarea {
       width: 100%;
       min-height: 300px;
@@ -21,19 +134,18 @@
       resize: vertical;
       outline: none;
       line-height: 1.8;
-      background: var(--white);
+      background: var(--surface);
       color: var(--ink);
-      transition: border-color .2s var(--ease);
+      transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
     }
-    textarea:focus { border-color: var(--red); }
     .file-input-row {
       display: flex; align-items: center; gap: 12px; margin-top: 12px;
     }
     .btn-row { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; align-items: center; }
     .result {
-      background: var(--white);
+      background: var(--surface);
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: var(--r);
       padding: 32px 36px;
       margin-top: 20px;
       font-size: 14px;
@@ -42,7 +154,7 @@
     }
     /* ATX headings */
     .result h1.mm-h1 {
-      font-family: "Noto Serif SC", serif;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, Arial, sans-serif;
       font-size: 22px;
       font-weight: 700;
       color: var(--red);
@@ -51,14 +163,14 @@
       border-bottom: 1px dashed var(--line-soft);
     }
     .result h2.mm-h2 {
-      font-family: "Noto Serif SC", serif;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, Arial, sans-serif;
       font-size: 17px;
       font-weight: 600;
       color: var(--red);
       margin: 18px 0 8px;
     }
     .result h3.mm-h3 {
-      font-family: "Noto Serif SC", serif;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, Arial, sans-serif;
       font-size: 14.5px;
       font-weight: 600;
       color: var(--ink);
@@ -89,15 +201,15 @@
 
     /* Linked-student banner */
     .link-banner {
-      background: linear-gradient(135deg, #FFF5F5 0%, #FFFFFF 60%);
-      border: 1px solid #FBCFCF;
+      background: var(--brand-soft);
+      border: 1px solid #F5C8C8;
       border-left: 4px solid var(--red);
-      border-radius: 10px;
+      border-radius: var(--r);
       padding: 14px 18px;
       margin-bottom: 18px;
       display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
     }
-    .link-banner .lb-title { font-family: "Noto Serif SC", serif; font-size: 14px; font-weight: 600; color: var(--red); }
+    .link-banner .lb-title { font-size: 14px; font-weight: 600; color: var(--red); }
     .link-banner .lb-meta  { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
     .link-banner .lb-actions { display: flex; gap: 8px; }
 
@@ -127,7 +239,7 @@
       border: none;
       border-top: 1px dashed var(--line-soft);
       font-size: 12px;
-      background: #FAFAF7;
+      background: var(--bg);
     }
 
     /* Save notice */
@@ -148,7 +260,7 @@
       margin-top: 22px;
     }
     .history-title {
-      font-family: "Noto Serif SC", serif;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, Arial, sans-serif;
       font-size: 15px;
       font-weight: 600;
       color: var(--ink);
@@ -163,9 +275,9 @@
       text-align: center;
     }
     .history-item {
-      background: var(--white);
+      background: var(--surface);
       border: 1px solid var(--line-soft);
-      border-radius: 10px;
+      border-radius: var(--r);
       padding: 14px 16px;
       margin-bottom: 10px;
     }
@@ -185,14 +297,16 @@
       .result { padding: 20px 18px; }
     }
   </style>
-</head>
-<body>
-  <div data-app-shell></div>
+{% endblock %}
+
+{% block content %}
 
   <div class="container">
-    <div class="page-header">
-      <h1 class="page-title">解读会会议纪要生成</h1>
-      <p class="page-subtitle">上传解读会逐字稿，AI 将根据会议内容自动生成结构化的专业会议记录。</p>
+    <div class="page-head">
+      <div>
+        <div class="page-title">解读会纪要</div>
+        <div class="page-sub">上传解读会逐字稿，AI 将根据会议内容自动生成结构化的专业会议记录。</div>
+      </div>
     </div>
 
     <div class="hint">
@@ -288,7 +402,9 @@
       <div id="historyList"></div>
     </div>
   </div>
+{% endblock %}
 
+{% block scripts %}
   <script>
     // ---------- State ----------
     const transcriptEl = document.getElementById('transcript');
@@ -598,6 +714,9 @@
     async function loadHistory() {
       const wrap = document.getElementById('historyWrap');
       const list = document.getElementById('historyList');
+      // 首次渲染先铺骨架行（08 §5.3）
+      wrap.style.display = 'block';
+      list.innerHTML = '<div class="sk sk-row" style="margin-bottom:8px"></div>'.repeat(3);
       try {
         const resp = await fetch(`/api/students/${LINKED_STUDENT_ID}/minutes`);
         const data = await resp.json();
@@ -609,7 +728,7 @@
         wrap.style.display = 'block';
         let html = '';
         for (const m of data.minutes) {
-          const created = m.created_at ? new Date(m.created_at).toLocaleString('zh-CN') : '—';
+          const created = m.created_at ? y4FmtDT(m.created_at) : '—';
           const reportTag = m.report_date ? `关联报告：${m.report_date}` : '未绑定报告';
           html += `<div class="history-item" data-id="${m.id}">
             <div class="hi-head">
@@ -621,7 +740,7 @@
               <button class="btn btn-sm btn-secondary" onclick="loadMinutes(${m.id})">加载详情</button>
               <button class="btn btn-sm btn-primary" onclick="downloadDocxById(${m.id})">下载 DOCX</button>
               <button class="btn btn-sm btn-danger" style="background:var(--white);color:var(--red);border:1.5px solid var(--line);"
-                onclick="deleteMinutes(${m.id})">删除</button>
+                onclick="deleteMinutes(${m.id}, this)">删除</button>
             </div>
           </div>`;
         }
@@ -659,14 +778,16 @@
       } catch (e) { alert('加载失败：' + e.message); }
     }
 
-    async function deleteMinutes(id) {
+    async function deleteMinutes(id, btn) {
       if (!confirm('确认删除这条纪要？此操作不可撤销。')) return;
+      if (btn) btn.classList.add('is-loading');
       try {
         const resp = await fetch(`/api/minutes/${id}`, { method: 'DELETE' });
         const data = await resp.json();
         if (data.ok) loadHistory();
         else alert(data.error || '删除失败');
       } catch (e) { alert('删除失败：' + e.message); }
+      finally { if (btn) btn.classList.remove('is-loading'); }
     }
 
     function gotoArchive() {
@@ -716,6 +837,7 @@
       if (!text || text.length < 50) return;
 
       generateBtn.disabled = true;
+      generateBtn.classList.add('is-loading');
       setStatus('<span class="spinner"></span>正在撰写会议纪要，请稍候（约 15–30 秒）...', 'loading');
       resultEl.style.display = 'none';
       resultToolbar.style.display = 'none';
@@ -771,6 +893,7 @@
         setStatus('生成失败：' + e.message, 'error');
       } finally {
         generateBtn.disabled = false;
+        generateBtn.classList.remove('is-loading');
       }
     }
 
@@ -834,6 +957,7 @@
 
       const oldText = downloadDocxBtn.textContent;
       downloadDocxBtn.disabled = true;
+      downloadDocxBtn.classList.add('is-loading');
       downloadDocxBtn.textContent = '生成中…';
       try {
         // 有编辑且已入库：先把修改写回档案，保证档案与下载件一致
@@ -884,6 +1008,7 @@
         alert('下载 DOCX 失败：' + e.message);
       } finally {
         downloadDocxBtn.disabled = false;
+        downloadDocxBtn.classList.remove('is-loading');
         downloadDocxBtn.textContent = oldText;
       }
     }
@@ -893,6 +1018,4 @@
     // Final fallback for generateBtn state (in case init didn't restore session)
     if (transcriptEl.value.trim().length >= 50) generateBtn.disabled = false;
   </script>
-  <script src="/app_shell.js" defer></script>
-</body>
-</html>
+{% endblock %}

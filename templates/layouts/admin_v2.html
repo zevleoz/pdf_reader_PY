@@ -1,0 +1,170 @@
+{# =========================================================================
+   管理端壳 v2 —— Linear 系语汇
+   不加载 Tailwind；仅 static/admin_v2.css + Alpine（增强交互）。
+   上下文依赖：nav_groups / current_role_label /
+   current_display_name / nav_active / csrf_token()。
+   ========================================================================= #}
+{% from "layouts/_icons.html" import icon %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{% block title %}Y4 平台{% endblock %} · 凭远</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="/admin_v2.css">
+<script>
+  // CSRF（与旧壳 admin.html 同契约）：同源 mutating 请求自动带 X-CSRF-Token 头。
+  // 旧壳页面脚本普遍依赖此包装（不在页面里显式传 token），迁移时不改页面 JS，
+  // 由壳统一注入；页面也可显式传 token（不冲突）。
+  (function () {
+    var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var origFetch = window.fetch;
+    window.fetch = function (url, opts) {
+      opts = opts || {};
+      var method = (opts.method || 'GET').toUpperCase();
+      if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
+        var isSameOrigin = typeof url !== 'string' || url.charAt(0) === '/' ||
+                           url.indexOf(location.origin) === 0;
+        if (isSameOrigin) {
+          opts.headers = Object.assign({}, opts.headers, { 'X-CSRF-Token': token });
+        }
+      }
+      return origFetch.call(this, url, opts);
+    };
+    window.y4CsrfToken = token;
+  })();
+</script>
+{# 命令面板脚本必须排在 Alpine 之前：defer 按文档顺序执行，Alpine 初始化
+   x-data="commandPalette()" 时该函数必须已定义，否则报 not defined。 #}
+<script src="/command-palette.js" defer></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+{% block head_extra %}{% endblock %}
+</head>
+<body x-data="{ drawer: false }">
+{% set active_key = nav_active|default('') %}
+{% set _initial = (current_display_name or 'Y')[:1] %}
+<div class="shell">
+
+  <aside class="side" :class="{ 'open': drawer }" aria-label="主导航">
+    <a class="side-brand" href="{{ '/students' if current_role == 'viewer' else '/workspace' }}">
+      <img src="/branding/logo_red.png" alt="凭远教育盾徽">
+      <span class="txt">
+        <div class="name">凭远教育</div>
+        <div class="sub">Y4 · 综合测评</div>
+      </span>
+    </a>
+
+    <nav class="side-nav">
+      {% for group in nav_groups %}
+        {% set g_open = (group.links | selectattr('key', 'equalto', active_key) | list | length) > 0
+                        or active_key.startswith(group.key ~ '.') %}
+        {% set multi = (group.links | length) > 1 %}
+        <div class="side-group"{% if multi %} x-data="{ open: {{ 'true' if g_open else 'false' }} }"{% endif %}>
+          {% if multi %}
+          <button type="button" class="side-group-label" @click="open = !open"
+                  :aria-expanded="open.toString()">
+            <span>{{ group.title }}</span>
+            <span :style="open ? '' : 'transform:rotate(-90deg)'" style="transition:transform .16s">{{ icon('chevron-down', 12) }}</span>
+          </button>
+          {% endif %}
+          <div x-show="{{ 'open' if multi else 'true' }}" x-cloak>
+            {% for item in group.links %}
+            {% set is_active = item.key == active_key %}
+            <a class="side-item{{ ' is-active' if is_active else '' }}" href="{{ item.href }}"
+               {%- if item.blank %} target="_blank" rel="noopener noreferrer"{% endif %}
+               {%- if is_active %} aria-current="page"{% endif %}>
+              {{ icon(item.icon, 16) }}
+              <span>{{ item.label }}</span>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </nav>
+
+    <div class="side-foot">
+      <div class="side-motto">WORK HARD · DREAM BIG</div>
+      <div class="side-user">
+        <span class="side-avatar" aria-hidden="true">{{ _initial }}</span>
+        <span class="who">
+          <span class="n">{{ current_display_name or '未命名用户' }}</span><br>
+          <span class="r">{{ current_role_label }}</span>
+        </span>
+        <button type="button" onclick="v2Logout()" title="退出登录" aria-label="退出登录">
+          {{ icon('logout', 15) }}
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button type="button" class="menu-btn" @click="drawer = true" aria-label="打开导航">
+        {{ icon('menu', 17) }}
+      </button>
+      <div class="crumb">
+        <span class="up">凭远 Y4</span>
+        <span class="sep">/</span>
+        <span class="here">{% block page_title %}{% endblock %}</span>
+      </div>
+      <div class="spacer"></div>
+      {% block page_actions %}{% endblock %}
+      <button type="button" class="search-trigger" onclick="y4OpenCmdk()" aria-label="打开命令面板（⌘K）">
+        {{ icon('search', 14) }}
+        <span>搜索或跳转…</span>
+        <kbd>⌘K</kbd>
+      </button>
+      <span class="role-pill">{{ current_role_label }}</span>
+      <span class="who">{{ current_display_name }}</span>
+    </header>
+
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<div class="toasts" id="v2toasts" aria-live="polite"></div>
+
+{% include "layouts/_command_palette.html" %}
+<script>
+function v2Logout() {
+  fetch('/api/admin/logout', { method: 'POST', headers: { 'X-CSRF-Token': '{{ csrf_token() }}' } })
+    .finally(function () { window.location.href = '/login'; });
+}
+var V2_ICON_OK = '{{ icon("check-circle", 15) }}';
+var V2_ICON_ERR = '{{ icon("x-circle", 15) }}';
+var V2_ICON_INFO = '{{ icon("info", 15) }}';
+window.v2Toast = function (msg, type) {
+  var box = document.getElementById('v2toasts');
+  if (!box) return;
+  while (box.children.length >= 3) { box.removeChild(box.firstChild); }
+  var el = document.createElement('div');
+  el.className = 'toast ' + (type === 'error' ? 'err' : type === 'success' ? 'ok' : '');
+  el.innerHTML = (type === 'error' ? V2_ICON_ERR : type === 'success' ? V2_ICON_OK : V2_ICON_INFO) +
+                 '<span></span>';
+  el.querySelector('span').textContent = msg;
+  box.appendChild(el);
+  setTimeout(function () {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .2s';
+    setTimeout(function () { el.remove(); }, 220);
+  }, 4000);
+};
+// 时间戳统一到分钟（与旧壳 admin.html 的 y4FmtDT 同契约）：YYYY-MM-DD HH:MM
+window.y4FmtDT = function (iso) {
+  if (!iso) { return '—'; }
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) { return String(iso).slice(0, 16).replace('T', ' '); }
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+         ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+};
+// 旧壳页面脚本通用的 y4Toast：在 v2 壳下代理到 v2Toast
+window.y4Toast = function (msg, type) { window.v2Toast(msg, type); };
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,25 +1,42 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Y4 Prompt Lab — AI 解读迭代测试台</title>
-  <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="/app_shell.css">
-  <style>
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% block title %}Prompt Lab{% endblock %}
+{% block page_title %}Prompt Lab{% endblock %}
+
+{% block head_extra %}
+<style>
+    /* ===== 旧壳色令牌桥（v2 壳不再加载暖纸主题样式表，旧名全部桥接到 v2 令牌） ===== */
+    :root {
+      --paper: var(--bg);
+      --paper-2: var(--line-soft);
+      --white: var(--surface);
+      --red: var(--brand);
+      --red-deep: var(--brand-deep);
+    }
+    /* mutating 按钮 loading 钩子（08 §5.3，仅视觉） */
+    .btn-sm.is-loading, .eval-dl-btn.is-loading, .picker-reset.is-loading {
+      position: relative; padding-left: 30px; opacity: .6; pointer-events: none;
+    }
+    .btn-sm.is-loading::after, .eval-dl-btn.is-loading::after, .picker-reset.is-loading::after {
+      content: ''; position: absolute; left: 10px; top: 50%;
+      width: 13px; height: 13px; margin-top: -6.5px;
+      border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%;
+      animation: lab-btn-spin .7s linear infinite;
+    }
+    @keyframes lab-btn-spin { to { transform: rotate(360deg); } }
+    /* 三栏布局（宽度/内边距由壳 .content 承担） */
     .lab-layout {
       display: grid;
       grid-template-columns: 1fr 1.2fr 1fr;
       gap: 16px;
-      height: calc(100vh - 60px);
-      padding: 16px;
-      max-width: 1600px;
-      margin: 0 auto;
+      height: calc(100vh - 160px);
+      padding: 0 0 16px;
     }
     .lab-col {
-      background: var(--white);
+      background: var(--surface);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: var(--r);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -56,7 +73,7 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 12px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 12px;
       line-height: 1.6;
       resize: none;
@@ -64,8 +81,9 @@
       color: var(--ink);
     }
     .prompt-textarea:focus {
-      outline: 2px solid var(--red);
-      outline-offset: -1px;
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px var(--brand-ring);
     }
     .output-content {
       font-size: 14px;
@@ -119,15 +137,16 @@
       font-family: inherit;
     }
     .feedback-textarea:focus {
-      outline: 2px solid var(--red);
-      outline-offset: -1px;
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px var(--brand-ring);
     }
     .diff-box {
       background: var(--paper);
       border: 1px solid var(--line-soft);
       border-radius: 8px;
       padding: 10px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 11px;
       line-height: 1.5;
       color: var(--ink-2);
@@ -169,27 +188,6 @@
       color: var(--muted);
       font-size: 14px;
     }
-    .lab-topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 16px;
-      height: 52px;
-      background: var(--white);
-      border-bottom: 1px solid var(--line);
-      flex-shrink: 0;
-    }
-    .lab-topbar-left {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    .lab-title {
-      font-family: 'Noto Serif SC', serif;
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--ink);
-    }
     .lab-version {
       font-size: 12px;
       color: var(--muted);
@@ -216,24 +214,27 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
     }
+    /* 页作用域覆写：页面自带 .btn-sm（旧壳基础类已移除），按 v2 语汇收编 */
     .btn-sm {
-      padding: 6px 14px;
-      border-radius: 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 28px; padding: 0 12px;
+      border-radius: var(--r-sm);
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       border: 1px solid var(--line);
-      background: var(--white);
+      background: var(--surface);
       color: var(--ink);
       transition: all 0.2s;
     }
-    .btn-sm:hover { border-color: var(--red); color: var(--red); }
+    .btn-sm:hover { border-color: var(--brand); color: var(--brand); }
     .btn-sm.primary {
-      background: var(--red);
+      background: var(--brand);
       color: var(--white);
-      border-color: var(--red);
+      border-color: var(--brand);
+      box-shadow: 0 1px 2px rgba(179, 58, 58, .28);
     }
-    .btn-sm.primary:hover { background: var(--red-deep); }
+    .btn-sm.primary:hover:not(:disabled) { background: var(--brand-deep); border-color: var(--brand-deep); }
     .btn-sm:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -249,8 +250,9 @@
       margin-bottom: 8px;
     }
     .prompt-input:focus {
-      outline: 2px solid var(--red);
-      outline-offset: -1px;
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px var(--brand-ring);
     }
     .label-sm {
       font-size: 11px;
@@ -264,7 +266,7 @@
     .loading-overlay {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(250, 247, 242, 0.8);
+      background: rgba(247, 248, 250, .82);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -365,7 +367,7 @@
     .eval-card.bias-high { border-left-color: #f59e0b; }
     .eval-card.bias-low { border-left-color: #6366f1; }
     .eval-card-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
-    .eval-card-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); background: var(--paper-2); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+    .eval-card-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: var(--muted); background: var(--paper-2); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
     .eval-card-label { font-size: 13px; color: var(--ink); font-weight: 500; line-height: 1.3; flex: 1; }
     .eval-card-e4tag { font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 600; flex-shrink: 0; }
     .eval-card-e4tag.E1 { background: #fef3c7; color: #92400e; }
@@ -373,7 +375,7 @@
     .eval-card-e4tag.E3 { background: #dbeafe; color: #1e40af; }
     .eval-card-e4tag.E4 { background: #e0e7ff; color: #3730a3; }
     .eval-card-body { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .eval-card-raw { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--ink); font-weight: 600; }
+    .eval-card-raw { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--ink); font-weight: 600; }
     .eval-card-eval { font-size: 13px; padding: 3px 10px; border-radius: 6px; font-weight: 600; }
     .eval-card-eval.高 { background: #d1fae5; color: #065f46; }
     .eval-card-eval.较好 { background: #d1fae5; color: #065f46; }
@@ -430,7 +432,7 @@
     .act-btn.bias-low.active { background: #eff6ff; color: #1d4ed8; border-color: #6366f1; }
     .act-btn.bias-normal.active { background: #f0fdf4; color: #15803d; border-color: #22c55e; }
     .act-btn.observation { background: #fef3c7; color: #92400e; border-color: #f59e0b; }
-    .act-btn.problem-confirmed { background: transparent; color: var(--muted); border-color: var(--border); }
+    .act-btn.problem-confirmed { background: transparent; color: var(--muted); border-color: var(--line); }
     .eval-note-row {
       margin-top: 8px; display: flex; gap: 8px;
       animation: noteSlide 0.2s var(--ease);
@@ -527,9 +529,9 @@
       border: 1px solid var(--line-soft); border-radius: 10px; background: var(--white);
       transition: border 0.15s var(--ease); flex-wrap: wrap;
     }
-    .map-row.unmapped { border-style: dashed; background: #fffdf6; }
+    .map-row.unmapped { border-style: dashed; background: var(--bg); }
     .map-row:hover { border-color: var(--line); }
-    .map-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); background: var(--paper-2); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+    .map-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: var(--muted); background: var(--paper-2); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
     .map-label { flex: 1; min-width: 140px; font-size: 12.5px; color: var(--ink); font-weight: 500; }
     .map-dim-chips { display: flex; gap: 4px; flex-shrink: 0; }
     .map-dim-chip {
@@ -603,23 +605,19 @@
       }
       .lab-col { min-height: 300px; }
     }
-    /* 侧边栏抽屉模式（<1024px）：左上角悬浮汉堡按钮，工具栏左移让位 */
-    @media (max-width: 1023px) {
-      .lab-topbar { padding-left: 64px; }
-    }
   </style>
-</head>
-<body>
+{% endblock %}
 
-<div data-app-shell></div>
+{% block content %}
 
-<div class="lab-topbar">
-  <div class="lab-topbar-left">
-    <a href="/" style="font-size: 13px; color: var(--muted); text-decoration: none;">← 返回</a>
-    <span class="lab-title">Y4 Prompt Lab</span>
-    <span class="lab-version" id="versionLabel">v1</span>
+<div class="page-head">
+  <div>
+    <div class="page-title">Prompt Lab</div>
+    <div class="page-sub">编辑 Prompt → 运行解读 → 反馈迭代</div>
   </div>
+  <div style="flex:1"></div>
   <div style="display: flex; align-items: center; gap: 12px;">
+    <span class="lab-version" id="versionLabel">v1</span>
     <span class="lab-status idle" id="statusBar"><span class="dot"></span><span id="statusText">就绪</span></span>
     <button class="btn-sm primary" id="runBtn" onclick="runInterpretation()">运行解读</button>
   </div>
@@ -631,7 +629,7 @@
   <div class="lab-col">
     <div class="lab-col-header">
       <h3>Prompt（可编辑）</h3>
-      <button class="btn-sm" onclick="savePrompt()">保存</button>
+      <button class="btn-sm" onclick="savePrompt(this)">保存</button>
     </div>
     <div class="lab-col-body" style="padding: 0; flex: 1; display: flex;">
       <textarea class="prompt-textarea" id="promptEditor" spellcheck="false" placeholder="加载中..."></textarea>
@@ -798,7 +796,9 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
   let currentRating = 0;
   let lastOutput = '';
@@ -860,6 +860,8 @@
 
   // ── 有效评价视图 ──────────────────────────────────────────────
   async function loadEvaluation() {
+    document.getElementById('evalArea').innerHTML =
+      '<div class="sk sk-row" style="margin-bottom:6px;height:56px"></div>'.repeat(4);
     try {
       const resp = await fetch('/api/prompt-lab/evaluation');
       const data = await resp.json();
@@ -883,10 +885,10 @@
         renderEvalList();
       } else {
         document.getElementById('evalCounts').textContent = '';
-        document.getElementById('evalArea').innerHTML = '<div class="empty-state" style="color:var(--red);">' + (data.error||'加载失败') + '</div>';
+        document.getElementById('evalArea').innerHTML = '<div class="alert">' + (data.error||'加载失败') + '</div>';
       }
     } catch (e) {
-      document.getElementById('evalArea').innerHTML = '<div class="empty-state" style="color:var(--red);">网络错误: ' + e.message + '</div>';
+      document.getElementById('evalArea').innerHTML = '<div class="alert">网络错误: ' + e.message + '</div>';
     }
   }
 
@@ -1228,7 +1230,7 @@
     const entries = evalItems
       .filter(it => getMapDims(it).length > 0)
       .map(it => ({ code: it.code, e4_dims: getMapDims(it) }));
-    btn.disabled = true; btn.textContent = '保存中…';
+    btn.disabled = true; btn.classList.add('is-loading'); btn.textContent = '保存中…';
     try {
       const resp = await fetch('/api/prompt-lab/e4-mapping', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1249,15 +1251,18 @@
         renderEvalList();
         setTimeout(() => {
           btn.textContent = '保存映射'; btn.disabled = false;
+          btn.classList.remove('is-loading');
           closeModal('mappingModal');
         }, 600);
       } else {
         alert(data.error || '保存失败');
         btn.disabled = false; btn.textContent = '保存映射';
+        btn.classList.remove('is-loading');
       }
     } catch (e) {
       alert('网络错误: ' + e.message);
       btn.disabled = false; btn.textContent = '保存映射';
+      btn.classList.remove('is-loading');
     }
   }
 
@@ -1285,7 +1290,7 @@
   async function downloadEvalMd() {
     const btn = document.getElementById('evalDownloadBtn');
     const includeRaw = document.getElementById('includeRaw').checked;
-    btn.disabled = true; btn.textContent = '生成中…';
+    btn.disabled = true; btn.classList.add('is-loading'); btn.textContent = '生成中…';
     try {
       const resp = await fetch('/api/prompt-lab/evaluation/download', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1294,7 +1299,7 @@
           include_raw: includeRaw, interpretation: lastOutput || '',
         }),
       });
-      if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert(e.error||'下载失败'); return; }
+      if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert(e.error||'下载失败'); btn.disabled = false; btn.classList.remove('is-loading'); btn.textContent = '下载 Y4 报告 (MD)'; return; }
       const blob = await resp.blob();
       const cd = resp.headers.get('Content-Disposition') || '';
       let fname = 'Y4报告.md';
@@ -1302,13 +1307,13 @@
       if (m) fname = m[1];
       downloadBlob(await blob.text(), fname);
     } catch (e) { alert('网络错误: ' + e.message); }
-    btn.disabled = false; btn.textContent = '下载 Y4 报告 (MD)';
+    btn.disabled = false; btn.classList.remove('is-loading'); btn.textContent = '下载 Y4 报告 (MD)';
   }
 
   // Generalized Y4 JSON 导出（所有数据点 + AI 解读，非 E4）
   async function downloadY4Json() {
     const btn = document.getElementById('evalDownloadJsonBtn');
-    btn.disabled = true; btn.textContent = '生成中…';
+    btn.disabled = true; btn.classList.add('is-loading'); btn.textContent = '生成中…';
     try {
       const resp = await fetch('/api/prompt-lab/y4-export/json', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1318,7 +1323,7 @@
         }),
       });
       const data = await resp.json();
-      if (!data.ok) { alert(data.error || '导出失败'); return; }
+      if (!data.ok) { alert(data.error || '导出失败'); btn.disabled = false; btn.classList.remove('is-loading'); btn.textContent = '下载 Y4 数据 (JSON)'; return; }
       const blob = new Blob([JSON.stringify(data.json, null, 2)], { type: 'application/json;charset=utf-8' });
       const u = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1326,7 +1331,7 @@
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(u);
     } catch (e) { alert('网络错误: ' + e.message); }
-    btn.disabled = false; btn.textContent = '下载 Y4 数据 (JSON)';
+    btn.disabled = false; btn.classList.remove('is-loading'); btn.textContent = '下载 Y4 数据 (JSON)';
   }
 
   // ── E4 三步工作流（每次现生成，不落库） ──────────────────────
@@ -1356,7 +1361,7 @@
     e4State = { phase: 'running', content_md: '', fname: 'E4评估_protocol.md' };
     const includeRaw = document.getElementById('includeRaw').checked;
     const btn = document.getElementById('evalDownloadE4Btn');
-    btn.disabled = true; btn.textContent = '生成中…';
+    btn.disabled = true; btn.classList.add('is-loading'); btn.textContent = '生成中…';
     document.getElementById('e4OverviewWrap').style.display = 'none';
     document.getElementById('e4DownloadFinalBtn').style.display = 'none';
     document.getElementById('e4FootNote').textContent = '';
@@ -1438,7 +1443,7 @@
       e4Detail(`<span class="err">失败：${e.message}</span>`);
       document.getElementById('e4FootNote').textContent = '可关闭弹层检查网络/映射后重试';
     }
-    btn.disabled = false; btn.textContent = '下载 E4 协议';
+    btn.disabled = false; btn.classList.remove('is-loading'); btn.textContent = '下载 E4 协议';
   }
 
   function downloadE4Content() {
@@ -1497,6 +1502,7 @@
     if (isRunning) return;
     isRunning = true;
     document.getElementById('runBtn').disabled = true;
+    document.getElementById('runBtn').classList.add('is-loading');
     setStatus('running', 'AI 解读中...');
     document.getElementById('outputArea').innerHTML = '<div class="empty-state">等待 AI 响应...</div>';
     document.getElementById('outputMetaBar').style.display = 'none';
@@ -1542,6 +1548,7 @@
 
     isRunning = false;
     document.getElementById('runBtn').disabled = false;
+    document.getElementById('runBtn').classList.remove('is-loading');
   }
 
   async function submitFeedback() {
@@ -1550,6 +1557,7 @@
 
     const btn = document.getElementById('iterateBtn');
     btn.disabled = true;
+    btn.classList.add('is-loading');
     btn.textContent = 'AI 迭代 prompt 中...';
     setStatus('running', '迭代 prompt...');
     document.getElementById('diffArea').style.display = 'none';
@@ -1591,13 +1599,15 @@
     }
 
     btn.disabled = false;
+    btn.classList.remove('is-loading');
     btn.textContent = '提交反馈并自动迭代';
   }
 
-  async function savePrompt() {
+  async function savePrompt(btn) {
     const promptText = document.getElementById('promptEditor').value.trim();
     if (!promptText) return;
 
+    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
     try {
       const resp = await fetch('/api/prompt-lab/save', {
         method: 'POST',
@@ -1614,6 +1624,7 @@
     } catch (e) {
       alert('网络错误: ' + e.message);
     }
+    if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
   }
 
   function updateHistoryTabs() {
@@ -1636,8 +1647,4 @@
     });
   }
 </script>
-
-<script src="/app_shell.js" defer></script>
-
-</body>
-</html>
+{% endblock %}

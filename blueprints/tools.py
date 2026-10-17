@@ -27,10 +27,11 @@ bp = Blueprint("tools", __name__)
 
 
 @bp.route("/transcript")
+@bp.route("/tools/transcript")
 @role_required('admin', 'advisor')
 def transcript_page():
     """Render the transcript upload / summary generation page."""
-    return render_template("transcript.html")
+    return render_template("transcript.html", nav_active="tools.transcript")
 
 
 @bp.route("/api/transcript", methods=["POST"])
@@ -691,9 +692,10 @@ def api_booking():
 
 
 @bp.route("/admin/bookings")
+@bp.route("/tools/bookings")
 @role_required('admin', 'advisor')
 def admin_bookings_page():
-    return render_template("admin_bookings.html")
+    return render_template("admin_bookings.html", nav_active="tools.bookings")
 
 
 @bp.route("/api/bookings")
@@ -820,17 +822,21 @@ def _get_next_prompt_version() -> int:
 
 
 @bp.route("/prompt-lab")
+@bp.route("/tools/prompt-lab")
 @role_required('admin')
 def prompt_lab_page():
     """Prompt iteration test bench."""
-    return render_template("prompt_lab.html")
+    return render_template("prompt_lab.html", nav_active="tools.prompt-lab")
 
 
 @bp.route("/internal")
+@bp.route("/tools/internal")
 @role_required('admin', 'advisor')
 def internal_download_page():
     """内部下载页：有效评价 qualification + 协议下载（生产版，不含 prompt 迭代工具）。"""
-    return render_template("internal.html")
+    return render_template("internal.html", nav_active="tools.internal")
+
+
 @bp.route("/api/prompt-lab/run", methods=["POST"])
 @role_required('admin')
 def prompt_lab_run():

@@ -1,114 +1,152 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <title>登录 — Y4</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>登录 · 凭远 Y4</title>
+  <!-- 独立页（不套管理壳），使用语汇 v2（/admin_v2.css：冷中性 + 盾徽红） -->
+  <link rel="stylesheet" href="/admin_v2.css" />
   <style>
-    /* --- 2026 refresh: viewport-centered gate card + modern focus ring --- */
-    body { display: flex; flex-direction: column; min-height: 100dvh; }
-    main.container-narrow {
-      flex: 1;
+    body { min-height: 100dvh; display: flex; }
+    .lg-shell {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+    }
+    .lg-card {
+      width: 100%;
+      max-width: 392px;
+      padding: 36px 32px 26px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: 0 1px 2px rgba(24, 24, 27, .04);
+    }
+    .lg-brand { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .lg-brand img { height: 56px; width: auto; }
+    .lg-title { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; text-align: center; margin: 0; }
+    .lg-hint { margin: 6px 0 24px; text-align: center; font-size: 12.5px; color: var(--muted); }
+    .lg-alert {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0 12px;
+      padding: 9px 12px;
+      border: 1px solid #F5C8C8;
+      border-radius: var(--r-sm);
+      background: var(--danger-soft);
+      color: var(--danger);
+      font-size: 12.5px;
+    }
+    .lg-alert[hidden] { display: none; }
+    .lg-btn {
+      width: 100%;
+      height: 40px;
+      margin-top: 6px;
+      border: 0;
+      border-radius: var(--r-sm);
+      background: var(--brand);
+      color: #fff;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+    }
+    .lg-btn:hover:not(:disabled) { background: var(--brand-deep); }
+    .lg-btn:disabled { opacity: .55; cursor: default; }
+    .lg-foot {
       display: flex;
       justify-content: center;
-      padding: 24px;
+      gap: 8px;
+      margin-top: 22px;
+      font-size: 12.5px;
+      color: var(--muted);
     }
-    .login-panel {
-      max-width: 380px;
-      width: 100%;
-      margin: auto 0;
-      background: var(--white);
-      border: 1px solid var(--line-soft);
-      border-radius: 12px;
-      padding: 40px 32px;
-      box-shadow: 0 1px 2px rgba(20, 20, 20, .04), 0 8px 24px rgba(20, 20, 20, .05);
-    }
-    .login-panel h2 { font-family: "Noto Serif SC", serif; font-size: 22px; font-weight: 600; margin-bottom: 6px; text-align: center; color: var(--ink); }
-    .login-panel p { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 26px; }
-    .login-panel .field input {
-      border-radius: 8px;
-      padding: 12px 14px;
-    }
-    .login-panel .field input:focus {
-      border-color: var(--red);
-      box-shadow: 0 0 0 3px rgba(179, 58, 58, .12);
-    }
-    .login-panel .btn-primary:hover:not(:disabled) {
-      box-shadow: 0 4px 12px rgba(140, 40, 40, .22);
-    }
-    a:focus-visible,
-    button:focus-visible {
-      outline: 2px solid var(--red);
-      outline-offset: 2px;
-    }
-    @media (max-width: 480px) {
-      main.container-narrow { padding: 16px; }
-      .login-panel { padding: 28px 20px; }
-    }
+    .lg-foot a:hover { color: var(--brand-deep); }
+    @media (max-width: 480px) { .lg-card { padding: 28px 20px 22px; } }
   </style>
 </head>
 <body>
-  <div class="brand-stripe"></div>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-name">凭远教育</span>
-      <span class="brand-name" style="font-size:13px;font-weight:500;">Y4<span style="color:var(--red)">测评</span></span>
-    </div>
-    <nav class="topbar-nav">
-      <a href="/">← 主页</a>
-      <a href="/booking">预约</a>
-    </nav>
-  </header>
+  <div class="lg-shell">
+    <div class="lg-card">
+      <div class="lg-brand">
+        <img src="/branding/logo_red.png" alt="凭远教育盾徽" onerror="this.style.display='none'" />
+        <h1 class="lg-title">登录</h1>
+      </div>
+      <p class="lg-hint">凭远教育 · Y4 综合测评系统</p>
 
-  <main class="container container-narrow">
-    <div class="login-panel">
-      <h2>登录</h2>
-      <p>使用账号密码登录</p>
-      <div class="field">
-        <input type="text" id="user" placeholder="账号" style="width:100%;margin-bottom:10px;"
-               autocomplete="username" autofocus />
+      <form id="loginForm" onsubmit="return false">
+        <label class="field">
+          <span class="field-label">账号</span>
+          <input id="user" class="input" type="text" placeholder="请输入账号"
+                 autocomplete="username" autofocus />
+        </label>
+        <label class="field">
+          <span class="field-label">密码</span>
+          <input id="pwd" class="input" type="password" placeholder="请输入密码"
+                 autocomplete="current-password"
+                 onkeydown="if (event.key === 'Enter') { doLogin(); }" />
+        </label>
+        <div id="err" class="lg-alert" hidden></div>
+        <button id="submitBtn" type="button" class="lg-btn" onclick="doLogin()">登录</button>
+      </form>
+
+      <div class="lg-foot">
+        <a href="/">返回主页</a>
+        <span>·</span>
+        <a href="/booking">预约测评</a>
       </div>
-      <div class="field">
-        <input type="password" id="pwd" placeholder="密码" style="width:100%;"
-               onkeydown="if(event.key==='Enter')doLogin()" autocomplete="current-password" />
-      </div>
-      <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px;" onclick="doLogin()">登录</button>
-      <div id="err" style="color:var(--red);text-align:center;font-size:13px;margin-top:12px;display:none;"></div>
     </div>
-  </main>
+  </div>
 
   <script>
+    function showError(text) {
+      var el = document.getElementById('err');
+      el.textContent = text;
+      el.hidden = !text;
+    }
+
     async function doLogin() {
-      const username = document.getElementById('user').value.trim();
-      const pwd = document.getElementById('pwd').value;
-      const errEl = document.getElementById('err');
-      errEl.style.display = 'none';
-      if (!username) {
-        errEl.textContent = '请输入账号';
-        errEl.style.display = 'block';
-        return;
-      }
+      var username = document.getElementById('user').value.trim();
+      var pwd = document.getElementById('pwd').value;
+      var btn = document.getElementById('submitBtn');
+      showError('');
+      if (!username) { showError('请输入账号'); return; }
+      if (!pwd) { showError('请输入密码'); return; }
+
+      btn.disabled = true;
+      var originalText = btn.textContent;
+      btn.textContent = '登录中…';
       try {
-        const resp = await fetch('/api/admin/login', {
+        var resp = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: username, password: pwd }),
+          credentials: 'same-origin',
+          body: JSON.stringify({ username: username, password: pwd })
         });
-        const data = await resp.json();
-        if (data.ok) {
-          const next = new URLSearchParams(window.location.search).get('next') || '/students';
+        var data = {};
+        try { data = await resp.json(); } catch (e) { data = {}; }
+
+        if (resp.ok && data.ok) {
+          // 保留 ?next= 跳转逻辑；无 next 时按角色落到默认首页
+          // （viewer 看不到工作台，落到 /students 避免落到 403 页）
+          var next = new URLSearchParams(window.location.search).get('next');
+          if (!next) { next = (data.role === 'viewer') ? '/students' : '/workspace'; }
           window.location.href = next;
+          return;
+        }
+        if (resp.status === 429) {
+          showError(data.error || '尝试次数过多，请稍后再试');
         } else {
-          errEl.textContent = data.error || '登录失败';
-          errEl.style.display = 'block';
+          showError(data.error || '登录失败');
         }
       } catch (e) {
-        errEl.textContent = '网络错误';
-        errEl.style.display = 'block';
+        showError('网络错误，请检查网络后重试');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     }
   </script>

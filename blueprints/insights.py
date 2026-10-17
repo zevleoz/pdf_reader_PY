@@ -17,9 +17,10 @@ bp = Blueprint("insights", __name__)
 
 
 @bp.route("/dashboard")
+@bp.route("/insights/dashboard")
 @page_login_required
 def dashboard_page():
-    return render_template("dashboard.html")
+    return render_template("dashboard.html", nav_active="insights.dashboard")
 
 
 @bp.route("/api/dashboard/stats")
@@ -212,10 +213,11 @@ type 取值:
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)})
 @bp.route("/y4-signals")
+@bp.route("/insights/y4-signals")
 @page_login_required
 def y4_signals_page():
     """Y4 原生问题研判页（潜能/干预四名单，与 E4 平行的独立系统）。"""
-    return render_template("y4_signals.html")
+    return render_template("y4_signals.html", nav_active="insights.y4-signals")
 import six_am as _six_am
 from six_am.export_json import build_six_am_json as _build_six_am_json
 from six_am.render_docx import build_six_am_docx as _build_six_am_docx
@@ -274,15 +276,17 @@ def _six_am_rule_specs() -> List[Dict]:
 
 
 @bp.route("/six-am")
+@bp.route("/insights/six-am")
 @page_login_required
 def six_am_page():
-    return render_template("six_am.html")
+    return render_template("six_am.html", nav_active="insights.six-am")
 
 
 @bp.route("/six-am/rules")
+@bp.route("/insights/six-am/rules")
 @role_required('admin')
 def six_am_rules_page():
-    return render_template("six_am_rules.html")
+    return render_template("six_am_rules.html", nav_active="insights.six-am")
 
 
 @bp.route("/api/reports/<int:report_id>/six-am")

@@ -5,7 +5,7 @@ import os
 import sys
 
 # 使用环境变量中的 key
-DASHSCOPE_KEY = os.environ.get('DASHSCOPE_API_KEY', 'sk-ws-H.RYLDEIE.E3Vt.MEUCIQDhlaQEMxHpnz09zmIpQONyI6aUfqP61xHF6ek9bKwGTwIgMxoi1LjUk0j7Lmc5piivXxONI52as5Zx_Dlj9mFt2Qs')
+DASHSCOPE_KEY = os.environ.get('DASHSCOPE_API_KEY', '')
 dashscope.api_key = DASHSCOPE_KEY
 
 print(f'API Key: {DASHSCOPE_KEY[:20]}...', file=sys.stderr)

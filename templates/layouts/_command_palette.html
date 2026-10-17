@@ -1,0 +1,57 @@
+{# =========================================================================
+   ⌘K 命令面板（Agent H：08-global-interaction-layer.md 5.4）
+   include 进 admin.html 的 body 末尾（与 Toast 容器同级），避免被 content block
+   的 stacking context 困住。
+   本模板只注入全局常量（角色 / 图标），交互逻辑在 static/command-palette.js。
+   注：<template x-if> 内容在 Alpine 缺席时不会被渲染，故面板不可用但页面完整。
+   ========================================================================= #}
+{% from "layouts/_icons.html" import icon %}
+<script>
+  window.Y4_CMDK_ROLE = '{{ current_role }}';
+  window.Y4_CMDK_ICONS = {
+    {%- set _names = ['file', 'grid', 'users', 'clipboard', 'book', 'sliders',
+                      'chart', 'radar', 'target', 'calendar', 'mic', 'shield',
+                      'search', 'dot'] -%}
+    {%- for n in _names %}
+    '{{ n }}': '{{ icon(n, 16) }}'{{ ',' if not loop.last else '' }}
+    {%- endfor %}
+  };
+</script>
+
+<div x-data="commandPalette()" x-cloak>
+  <template x-if="open">
+    <div class="y4a-cmdk-backdrop" :class="{ 'is-in': ready }" @click.self="close()">
+      <div class="y4a-cmdk-card" role="dialog" aria-modal="true" aria-label="命令面板"
+           @keydown.arrow-down.prevent="move(1)"
+           @keydown.arrow-up.prevent="move(-1)"
+           @keydown.enter.prevent="runSelected()"
+           @keydown.escape.stop.prevent="close()">
+        <div class="y4a-cmdk-search">
+          {{ icon('search', 16) }}
+          <input x-ref="cmdkInput" type="text" x-model="q" autocomplete="off"
+                 spellcheck="false" placeholder="搜索页面或学生…" aria-label="搜索页面或学生"
+                 @input.debounce.250ms="searchStudents()" />
+          <span class="y4a-kbd">Esc</span>
+        </div>
+        <div class="y4a-cmdk-body">
+          <template x-for="g in groups" :key="g.title">
+            <div>
+              <div class="y4a-cmdk-group" x-text="g.title"></div>
+              <template x-for="it in g.items" :key="it.type + ':' + (it.href || it.code)">
+                <button type="button" class="y4a-cmdk-row"
+                        :class="{ 'is-sel': it.idx === selected }"
+                        @click="run(it)" @mousemove="selected = it.idx">
+                  <span class="y4a-cmdk-row-icon" x-html="rowIcon(it)"></span>
+                  <span class="y4a-cmdk-row-label" x-text="it.label"></span>
+                  <span class="y4a-cmdk-row-hint" x-show="it.hint" x-text="it.hint"></span>
+                </button>
+              </template>
+            </div>
+          </template>
+          <div class="y4a-cmdk-empty" x-show="!total"
+               x-text="q ? (loading ? '搜索中…' : '无匹配结果') : '无可用命令'"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>

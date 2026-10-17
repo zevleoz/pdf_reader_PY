@@ -1,0 +1,27 @@
+{% extends "student/base.html" %}
+{% block title %}登录{% endblock %}
+{% block content %}
+<div class="s-card" style="margin-top:32px">
+  <div class="s-h1">学生登录</div>
+  <p class="s-muted" style="font-size:13px; margin-top:6px">
+    使用顾问发放的临时账号登录，登录后在待办中作答问卷。
+  </p>
+  {% if error %}
+  <div class="s-alert" style="margin-top:14px">{{ error }}</div>
+  {% endif %}
+  <form method="post" action="/student/login" style="margin-top:16px" class="space-y-3">
+    <input type="hidden" name="next" value="{{ next }}" />
+    <label class="block">
+      <span class="s-muted" style="font-size:12.5px">账号</span>
+      <input class="s-input" name="username" autocomplete="username" required
+             style="margin-top:6px" />
+    </label>
+    <label class="block">
+      <span class="s-muted" style="font-size:12.5px">密码</span>
+      <input class="s-input" name="password" type="password" autocomplete="current-password" required
+             style="margin-top:6px" />
+    </label>
+    <button type="submit" class="s-btn s-btn-primary" style="width:100%; margin-top:6px">登录</button>
+  </form>
+</div>
+{% endblock %}

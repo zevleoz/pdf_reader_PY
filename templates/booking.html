@@ -8,8 +8,34 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
-  <link rel="stylesheet" href="/app_shell.css" />
   <style>
+    /* 公开页头（与 landing.html 一致的轻量顶栏） */
+    .pub-nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 40px;
+      background: rgba(250, 247, 242, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .pub-nav-brand { display: flex; align-items: center; gap: 11px; }
+    .pub-nav-brand img { height: 28px; width: auto; }
+    .pub-nav-brand span {
+      font-family: "Noto Serif SC", serif; font-weight: 600;
+      font-size: 15px; color: var(--ink); letter-spacing: 0.04em;
+    }
+    .pub-nav-links { display: flex; align-items: center; gap: 4px; }
+    .pub-nav-links a {
+      padding: 9px 16px; font-size: 13.5px; font-weight: 500;
+      color: var(--ink-2); border-radius: 4px; transition: color 0.2s var(--ease);
+    }
+    .pub-nav-links a:hover { color: var(--ink); }
+    .pub-nav-links a.is-active { color: var(--red); }
+    @media (max-width: 720px) {
+      .pub-nav { padding: 12px 16px; }
+      .pub-nav-links a { padding: 8px 10px; font-size: 13px; }
+    }
     .calendly-layout { display: grid; grid-template-columns: 5fr 7fr; gap: 40px; align-items: start; }
     .calendly-panel { background: var(--white); border: 1px solid var(--line-soft); border-radius: 14px; padding: 32px; }
     .calendly-panel h3 { font-family: "Noto Serif SC", serif; font-size: 17px; font-weight: 600; margin-bottom: 20px; color: var(--ink); }
@@ -76,7 +102,16 @@
   </style>
 </head>
 <body>
-  <div data-app-shell></div>
+  <nav class="pub-nav">
+    <a href="/" class="pub-nav-brand">
+      <img src="/branding/logo_inline.png" alt="凭远教育" onerror="this.style.display='none'" />
+      <span>凭远教育 · Y4</span>
+    </a>
+    <div class="pub-nav-links">
+      <a href="/booking" class="is-active">预约测评</a>
+      <a href="/">返回主页</a>
+    </div>
+  </nav>
 
   <main class="container">
     <div id="bookingView">
@@ -404,6 +439,5 @@
 
     renderCalendar();
   </script>
-  <script src="/app_shell.js" defer></script>
 </body>
 </html>

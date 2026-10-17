@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import time
 from collections import deque
 from functools import wraps
@@ -63,6 +64,58 @@ def rate_check(limit: int, scope: str = "default") -> bool:
         return False
     win.append(now)
     return True
+
+
+def rate_fail_check(limit: int, scope: str = "default") -> bool:
+    """失败计数限流的检查侧：窗口内失败次数已达 ``limit`` 返回 False（应 429）。
+
+    与 :func:`rate_fail_record` 配合：仅在认证**失败**时记账，成功登录不计入。
+    """
+    if limit <= 0:
+        return True
+    key = (request.remote_addr or "") + "|" + scope
+    win = _RATE_BUCKETS.setdefault(key, deque())
+    now = time.time()
+    while win and win[0] < now - 60:
+        win.popleft()
+    return len(win) < limit
+
+
+def rate_fail_record(scope: str = "default") -> None:
+    """记录一次失败尝试（滑动窗口 60 秒）。"""
+    key = (request.remote_addr or "") + "|" + scope
+    _RATE_BUCKETS.setdefault(key, deque()).append(time.time())
+
+
+def rate_fail_clear(scope: str = "default") -> None:
+    """成功登录后清空该 IP 的失败窗口。"""
+    _RATE_BUCKETS.pop((request.remote_addr or "") + "|" + scope, None)
+
+
+# ---------------------------------------------------------------------------
+# CSRF token（session 认证面；/api/v1/* Bearer 面豁免，见 app.py 的 _csrf_protect）
+# ---------------------------------------------------------------------------
+def get_csrf_token() -> str:
+    """取（或生成）当前 session 的 CSRF token。模板经 context_processor 调用。"""
+    if "_csrf_token" not in session:
+        session["_csrf_token"] = secrets.token_urlsafe(32)
+    return session["_csrf_token"]
+
+
+def dt_short(value) -> str:
+    """模板过滤器 ``dt_short``：把 ISO 时间戳压到分钟（YYYY-MM-DD HH:MM）。
+
+    列表类页面统一到分钟展示，避免秒级时间戳干扰扫读；无法解析时退回原值的
+    前 16 字符（``T`` 替换为空格）。
+    """
+    if not value:
+        return ""
+    s = str(value)
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(s.replace("Z", "")).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return s[:16].replace("T", " ")
 
 
 # ---------------------------------------------------------------------------
@@ -237,3 +290,83 @@ def minutes_scoped(f):
             return denied
         return f(*args, **kwargs)
     return wrapper
+
+
+# ---------------------------------------------------------------------------
+# 管理端导航与模板上下文（Agent B Layout 契约：02-admin-ui-framework.md 5.3/5.4）
+# ---------------------------------------------------------------------------
+ROLE_LABELS = {"admin": "管理员", "advisor": "顾问", "viewer": "只读"}
+
+# 七组导航严格按 spec 5.1。key 即 ``nav_active`` 取值；子项 ``roles`` 缺省表示
+# 所有已登录角色可见，显式声明时按角色过滤（过滤后无可见项的分组整组隐藏）。
+ADMIN_NAV = [
+    {"key": "workspace", "title": "工作台", "links": [
+        {"key": "workspace", "label": "工作台", "href": "/workspace", "icon": "grid"},
+    ]},
+    {"key": "students", "title": "学生", "links": [
+        {"key": "students", "label": "学生档案", "href": "/students", "icon": "users"},
+    ]},
+    {"key": "generate", "title": "报告生成", "links": [
+        {"key": "generate", "label": "报告生成", "href": "/generate", "icon": "file",
+         "roles": ("admin", "advisor")},
+    ]},
+    {"key": "insights", "title": "洞察", "links": [
+        {"key": "insights.dashboard", "label": "数据总览", "href": "/insights/dashboard", "icon": "chart"},
+        {"key": "insights.y4-signals", "label": "Y4 研判", "href": "/insights/y4-signals", "icon": "radar"},
+        {"key": "insights.six-am", "label": "6AM 启动模型", "href": "/insights/six-am", "icon": "target"},
+    ]},
+    {"key": "tools", "title": "工具", "links": [
+        {"key": "tools.bank", "label": "问卷题库", "href": "/questionnaires/bank",
+         "icon": "book", "roles": ("admin", "advisor")},
+        {"key": "tools.bookings", "label": "预约管理", "href": "/tools/bookings", "icon": "calendar",
+         "roles": ("admin", "advisor")},
+        {"key": "tools.transcript", "label": "解读会纪要", "href": "/tools/transcript", "icon": "mic",
+         "roles": ("admin", "advisor")},
+        {"key": "tools.internal", "label": "内部下载", "href": "/tools/internal", "icon": "download",
+         "roles": ("admin", "advisor")},
+        {"key": "tools.prompt-lab", "label": "Prompt Lab", "href": "/tools/prompt-lab", "icon": "flask",
+         "roles": ("admin",)},
+    ]},
+    {"key": "system", "title": "系统", "links": [
+        {"key": "system.users", "label": "用户管理", "href": "/system/users", "icon": "shield",
+         "roles": ("admin",)},
+        {"key": "system.settings", "label": "设置", "href": "/system/settings", "icon": "settings",
+         "roles": ("admin",)},
+        {"key": "system.docs", "label": "API 文档", "href": "/api/docs", "icon": "book",
+         "roles": ("admin",), "blank": True},
+    ]},
+]
+
+
+def nav_for_role(role: str) -> List[dict]:
+    """按角色过滤管理端导航；过滤后无可见项的分组整组隐藏。
+
+    当前页高亮与分组展开由模板依据 ``nav_active`` 计算，本函数不感知请求视图。
+    """
+    groups = []
+    for group in ADMIN_NAV:
+        links = [dict(it) for it in group["links"]
+                 if not it.get("roles") or role in it["roles"]]
+        if not links:
+            continue
+        g = dict(group)
+        g["links"] = links
+        groups.append(g)
+    return groups
+
+
+def register_admin_context(app) -> None:
+    """注册管理端模板上下文（在 create_app 内调用一次，所有蓝图共享）。
+
+    注入 ``current_role`` / ``current_role_label`` / ``current_display_name`` /
+    ``nav_groups``；页面模板另需传入 ``nav_active``（缺省空串）。
+    """
+    @app.context_processor
+    def _inject_admin_context():
+        role = session.get("role") or ""
+        return {
+            "current_role": role,
+            "current_role_label": ROLE_LABELS.get(role, role),
+            "current_display_name": session.get("display_name") or "",
+            "nav_groups": nav_for_role(role),
+        }

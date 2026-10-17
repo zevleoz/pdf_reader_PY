@@ -1,0 +1,52 @@
+{% extends "student/base.html" %}
+{% block title %}我的问卷{% endblock %}
+{% block top_right %}
+<form method="post" action="/student/logout">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <button type="submit" class="s-btn s-btn-secondary" style="padding:6px 12px; font-size:13px">退出</button>
+</form>
+{% endblock %}
+{% block content %}
+<div style="margin-top:20px">
+  <div class="s-h1">{{ student.name or student.username }}</div>
+  <div class="s-muted" style="font-size:13px">登录账号：{{ student.username }}</div>
+</div>
+
+<div class="s-card" style="margin-top:16px">
+  <div style="font-size:14px; font-weight:600">待完成问卷</div>
+  {% if todos %}
+  <ul style="margin-top:10px">
+    {% for t in todos %}
+    <li style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #E4DED3">
+      <span style="min-width:0; flex:1">
+        <span style="display:block; font-size:14px; font-weight:600">{{ t.questionnaire_title }}</span>
+        <span class="s-muted" style="font-size:12.5px">共 {{ t.question_count }} 题 · 编号 {{ t.questionnaire_code }}</span>
+      </span>
+      <a class="s-btn s-btn-primary" style="padding:8px 14px; font-size:13px"
+         href="/student/q/{{ t.id }}">开始作答</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="s-muted" style="margin-top:10px; font-size:13.5px">当前没有待完成的问卷。</p>
+  {% endif %}
+</div>
+
+<div class="s-card" style="margin-top:16px">
+  <div style="font-size:14px; font-weight:600">已完成</div>
+  {% if done %}
+  <ul style="margin-top:8px">
+    {% for d in done %}
+    <li style="padding:10px 0; border-bottom:1px solid #E4DED3; font-size:13.5px">
+      <span style="font-weight:500">{{ d.questionnaire_title }}</span>
+      <span class="s-muted" style="margin-left:8px">
+        {{ d.submitted_at|dt_short if d.submitted_at else '' }}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="s-muted" style="margin-top:10px; font-size:13.5px">暂无已提交记录。</p>
+  {% endif %}
+</div>
+{% endblock %}

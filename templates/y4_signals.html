@@ -1,72 +1,68 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Y4 研判 — Y4 综合测评系统</title>
-  <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="/app_shell.css">
-  <style>
-    /* ── ShadCN 风格设计令牌（本页作用域） ── */
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% block title %}Y4 研判{% endblock %}
+{% block page_title %}Y4 研判{% endblock %}
+
+{% block head_extra %}
+<style>
+    /* ── 页作用域令牌：对齐 v2 语汇（值即 admin_v2.css 的令牌） ── */
     .ys-root, .ys-root * { box-sizing: border-box; }
     .ys-root {
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --border: #e2e8f0;
-      --border-strong: #cbd5e1;
-      --ink: #0f172a;
-      --ink-2: #334155;
-      --muted: #94a3b8;
-      --muted-2: #64748b;
-      --soft: #f1f5f9;
-      --soft-2: #f8fafc;
-      --radius: 10px;
-      --shadow: 0 1px 2px rgba(15, 23, 42, .04);
+      --bg: #F7F8FA;
+      --card: #FFFFFF;
+      --border: #E5E7EB;
+      --border-strong: #D4D4D8;
+      --ink: #18181B;
+      --ink-2: #3F3F46;
+      --muted: #A1A1AA;
+      --muted-2: #71717A;
+      --soft: #F7F8FA;
+      --soft-2: #FAFAFB;
+      --radius: 8px;
+      --shadow: 0 1px 2px rgba(24, 24, 27, .04);
       color: var(--ink);
-      font-size: 14px;
+      font-size: 13px;
       line-height: 1.6;
     }
 
     .ys-wrap {
-      max-width: 1240px;
-      margin: 0 auto;
-      padding: 22px 24px 48px;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 16px;
       min-width: 0;
     }
 
     /* ── 页头 ── */
     .ys-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-    .ys-title { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
-    .ys-sub { margin: 4px 0 0; font-size: 13px; color: var(--muted-2); }
+    .ys-sub { margin: 0; font-size: 13px; color: var(--muted-2); }
 
     .ys-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
     .ys-btn {
       display: inline-flex; align-items: center; gap: 6px;
-      height: 34px; padding: 0 13px;
+      height: 30px; padding: 0 12px;
       background: var(--card); color: var(--ink-2);
-      border: 1px solid var(--border); border-radius: 8px;
-      font-size: 13px; font-weight: 500; cursor: pointer;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: 12.5px; font-weight: 500; cursor: pointer;
       transition: border-color .15s, background .15s;
       white-space: nowrap;
     }
     .ys-btn:hover { border-color: var(--border-strong); background: var(--soft-2); }
-    .ys-btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
-    .ys-btn.primary:hover { background: #1e293b; }
+    .ys-btn.primary { background: #D24949; color: #fff; border-color: #D24949; }
+    .ys-btn.primary:hover { background: #B33A3A; }
     .ys-btn:disabled { opacity: .5; cursor: not-allowed; }
 
     select.ys-select {
-      height: 34px; padding: 0 28px 0 12px;
-      background: var(--card) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") no-repeat right 9px center;
-      border: 1px solid var(--border); border-radius: 8px;
+      height: 30px; padding: 0 28px 0 11px;
+      background: var(--card) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") no-repeat right 9px center;
+      border: 1px solid var(--border); border-radius: 6px;
       color: var(--ink-2); font-size: 13px;
       appearance: none; -webkit-appearance: none; cursor: pointer;
       max-width: 200px;
     }
-    select.ys-select:focus { outline: 2px solid rgba(15,23,42,.15); outline-offset: 1px; }
+    select.ys-select:focus { outline: none; border-color: #D24949; box-shadow: 0 0 0 4px rgba(210,73,73,.32); }
+    select.ys-select:disabled { background-color: var(--bg); color: var(--muted); cursor: not-allowed; }
 
     /* 学生 combobox */
     .ys-combo { position: relative; }
@@ -74,7 +70,7 @@
       position: absolute; z-index: 40; top: calc(100% + 6px); right: 0;
       width: 280px; background: var(--card);
       border: 1px solid var(--border); border-radius: var(--radius);
-      box-shadow: 0 12px 32px rgba(15,23,42,.12), 0 2px 6px rgba(15,23,42,.06);
+      box-shadow: 0 6px 20px rgba(24,24,27,.12);
       padding: 8px; display: none;
     }
     .ys-combo-panel.open { display: block; }
@@ -83,7 +79,7 @@
       border: 1px solid var(--border); border-radius: 7px;
       font-size: 13px; color: var(--ink); background: var(--soft-2);
     }
-    .ys-combo-search:focus { outline: 2px solid rgba(15,23,42,.12); border-color: var(--border-strong); }
+    .ys-combo-search:focus { outline: none; border-color: #D24949; box-shadow: 0 0 0 4px rgba(210,73,73,.32); }
     .ys-combo-list { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
     .ys-combo-item {
       display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
@@ -113,9 +109,9 @@
       font-size: 13px; color: var(--ink-2);
     }
     .ys-scope-tag {
-      flex: none; font-size: 11.5px; font-weight: 600;
-      padding: 2px 9px; border-radius: 999px;
-      background: var(--ink); color: #fff;
+      flex: none; font-size: 11px; font-weight: 550;
+      padding: 4px 9px; border-radius: 999px;
+      background: #FAEEEE; color: #B33A3A;
       margin-top: 1px;
     }
 
@@ -132,8 +128,8 @@
       transition: border-color .15s, box-shadow .15s, transform .15s;
       font: inherit; color: inherit; width: 100%;
     }
-    .ys-list-card:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15,23,42,.07); }
-    .ys-list-card.active { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+    .ys-list-card:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(24,24,27,.07); }
+    .ys-list-card.active { border-color: #D24949; box-shadow: 0 0 0 3px #FAEEEE; }
     .ys-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .ys-list-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
     .ys-list-count { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
@@ -159,13 +155,14 @@
     .ys-q-title { font-size: 14.5px; font-weight: 600; color: var(--ink); line-height: 1.5; }
     .ys-badges { display: flex; gap: 6px; flex: none; flex-wrap: wrap; }
     .ys-badge {
-      display: inline-flex; align-items: center; height: 22px; padding: 0 9px;
-      font-size: 11.5px; font-weight: 500; border-radius: 999px;
-      background: var(--soft); color: var(--ink-2);
-      border: 1px solid transparent; white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px;
+      font-size: 11px; font-weight: 550; border-radius: 999px;
+      background: var(--soft); color: var(--muted-2);
+      white-space: nowrap; line-height: 1;
     }
-    .ys-badge.outline { background: transparent; border-color: var(--border-strong); color: var(--muted-2); }
-    .ys-badge.solid { background: var(--ink); color: #fff; }
+    .ys-badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+    .ys-badge.outline { background: var(--bg); color: var(--muted-2); box-shadow: inset 0 0 0 1px var(--border); }
+    .ys-badge.solid { background: #FAEEEE; color: #B33A3A; }
     .ys-q-summary { font-size: 13.5px; color: var(--ink-2); line-height: 1.7; }
     .ys-tags { display: flex; gap: 6px; flex-wrap: wrap; }
     .ys-tag {
@@ -219,25 +216,24 @@
     /* ── 响应式 ── */
     @media (max-width: 1080px) { .ys-lists { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 640px) {
-      .ys-wrap { padding: 16px 14px 40px; }
       .ys-lists { grid-template-columns: 1fr; }
       .ys-row { grid-template-columns: 1fr; gap: 3px; }
       .ys-combo-panel { right: -8px; width: calc(100vw - 44px); max-width: 300px; }
     }
   </style>
-</head>
-<body>
+{% endblock %}
 
-<div data-app-shell></div>
+{% block content %}
 
 <div class="ys-root">
   <div class="ys-wrap">
 
-    <header class="ys-header">
+    <div class="page-head">
       <div>
-        <h1 class="ys-title">Y4 原生问题研判</h1>
-        <p class="ys-sub">潜能 / 干预双轴研判，四个名单与五维问题明细。与 E4 平行的独立问题系统。</p>
+        <div class="page-title">Y4 研判</div>
+        <div class="page-sub">潜能 / 干预双轴研判，四个名单与五维问题明细。与 E4 平行的独立问题系统。</div>
       </div>
+      <div style="flex:1"></div>
       <div class="ys-controls">
         <div class="ys-combo" id="stuCombo">
           <button type="button" class="ys-btn" id="stuBtn" style="min-width:168px;justify-content:space-between;">
@@ -251,7 +247,7 @@
         </div>
         <select class="ys-select" id="reportSelect" disabled></select>
       </div>
-    </header>
+    </div>
 
     <div id="content">
       <div class="ys-state"><strong>开始研判</strong>选择一位学生，系统将自动读取其最新报告。</div>
@@ -259,8 +255,9 @@
 
   </div>
 </div>
+{% endblock %}
 
-<script src="/app_shell.js" defer></script>
+{% block scripts %}
 <script>
 (function () {
   'use strict';
@@ -509,6 +506,4 @@
   loadStudents();
 })();
 </script>
-
-</body>
-</html>
+{% endblock %}

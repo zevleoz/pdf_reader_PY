@@ -1,0 +1,741 @@
+{% extends "student/base.html" %}
+{% block title %}{{ questionnaire.title }}{% endblock %}
+
+{# 品牌头：顶部居中盾徽（15 指令包 §6）——仅作答页覆盖，login/home 沿用默认壳头 #}
+{% block header %}
+<header class="q-head">
+  <img class="q-shield" src="/branding/logo_red.png" alt="凭远教育"
+       onerror="this.style.display='none'" />
+  <div class="q-head-name">凭远教育 · Y4 综合测评</div>
+</header>
+{% endblock %}
+
+{% block content %}
+{# 向导数据源：schema 步进序列 + 两源草稿（本机 localStorage 与服务端 response_drafts）
+   的「较新者」判定材料。题干来自 seed（可信源），JS 侧一律 x-text 渲染，不拼 innerHTML #}
+<script>window.Y4Q = {{ wizard | tojson }};</script>
+
+<div class="q-wrap" x-data="wizard()" x-init="init()" x-cloak
+     @keydown.window="onKey($event)">
+
+  {# 提交失败 / 断网横幅（顶部固定细条，非 alert） #}
+  <div class="q-banner" x-show="banner" x-cloak>
+    <span x-text="banner"></span>
+    <button type="button" class="q-btn q-btn-mini" x-show="canRetry" @click="retry()">重试</button>
+  </div>
+  <div class="q-banner is-warn" x-show="!banner && netOffline" x-cloak>
+    网络连接已断开，答案会继续保存在本机
+  </div>
+  <div class="q-progress" x-show="state === 'form'">
+    <span :style="'width:' + pct + '%'"></span>
+  </div>
+
+  {# 同步状态指示器（右上角常驻小字） #}
+  <div class="q-bar">
+    <span class="q-sync" :class="'is-' + sync">
+      <span class="q-dot"></span><span x-text="syncText"></span>
+    </span>
+  </div>
+
+  <div class="q-note" x-show="restoreNote" x-cloak x-text="restoreNote"></div>
+  <div class="q-sr" aria-live="polite" x-text="announce"></div>
+
+  {# 终态：提交成功 / 业务拒绝（已提交、链接失效等） #}
+  <template x-if="state !== 'form'">
+    <div class="q-card q-center" style="margin-top:12px">
+      <img class="q-shield" src="/branding/logo_red.png" alt=""
+           onerror="this.style.display='none'" />
+      <h1 class="q-qtitle q-serif" style="margin-top:14px"
+          x-text="state === 'done' ? '提交成功' : '无法提交'"></h1>
+      <p class="q-muted" style="margin-top:10px"
+         x-text="state === 'done' ? '问卷已收到，感谢作答。你可以关闭本页了。' : blockedMsg"></p>
+      <a class="q-btn q-btn-ghost" style="margin-top:18px"
+         x-show="state === 'blocked' && blockedLogin" href="/student/login">前往登录</a>
+    </div>
+  </template>
+
+  <template x-if="state === 'form' && step">
+    <div class="q-card" style="margin-top:12px" :class="anim">
+
+      {# ── 分区说明过渡页 ─────────────────────────────────── #}
+      <template x-if="step.kind === 'intro'">
+        <div>
+          <div class="q-qnum">开始之前</div>
+          <h1 class="q-qtitle q-serif" tabindex="-1" x-ref="head" x-text="step.title"></h1>
+          <p class="q-muted" style="margin-top:12px; white-space:pre-line"
+             x-text="step.intro"></p>
+          <div class="q-nav">
+            <button type="button" class="q-btn q-btn-ghost" x-show="i > 0"
+                    @click="prev()">上一步</button>
+            <div class="q-spacer"></div>
+            <button type="button" class="q-btn q-btn-primary" @click="next()">开始作答</button>
+          </div>
+        </div>
+      </template>
+
+      {# ── 单题页 ─────────────────────────────────────────── #}
+      <template x-if="step.kind === 'q'">
+        <div>
+          <div class="q-qnum" x-text="'第 ' + step.n + ' 题 · 共 ' + total + ' 题'"></div>
+          <h1 class="q-qtitle q-serif" tabindex="-1" x-ref="head" x-text="step.title"></h1>
+          <div class="q-req" x-show="step.required">必答</div>
+          <div class="q-err" x-show="errors[step.id]" x-text="errors[step.id]"></div>
+
+          <template x-if="step.type === 'single'">
+            <div class="q-opts">
+              <template x-for="o in step.options" :key="o.value">
+                <label class="q-opt">
+                  <input type="radio" :name="'wz-' + step.id" :value="o.value"
+                         :checked="answers[step.id] === o.value"
+                         @change="pick(step, $event.target.value)" />
+                  <span class="q-opt-label" x-text="o.label"></span>
+                  <span class="q-mark"></span>
+                </label>
+              </template>
+            </div>
+          </template>
+
+          <template x-if="step.type === 'multi'">
+            <div class="q-opts">
+              <template x-for="o in step.options" :key="o.value">
+                <label class="q-opt is-multi">
+                  <input type="checkbox" :value="o.value"
+                         :checked="isPickedMulti(step, o.value)"
+                         @change="pickMulti(step, $event.target.value, $event.target.checked)" />
+                  <span class="q-opt-label" x-text="o.label"></span>
+                  <span class="q-mark"></span>
+                </label>
+              </template>
+            </div>
+          </template>
+
+          <template x-if="step.type === 'scale'">
+            <div>
+              <div class="q-scale">
+                <template x-for="v in scaleValues(step)" :key="v">
+                  <label>
+                    <input type="radio" :name="'wz-' + step.id" :value="String(v)"
+                           :checked="answers[step.id] === String(v)"
+                           @change="pick(step, $event.target.value)" />
+                    <span x-text="v"></span>
+                  </label>
+                </template>
+              </div>
+              <div class="q-scale-ends">
+                <span x-text="(step.scale && step.scale.min_label) || ''"></span>
+                <span x-text="(step.scale && step.scale.max_label) || ''"></span>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="step.type === 'text'">
+            <textarea class="q-textarea" rows="5" :maxlength="step.max_length || null"
+                      x-model="answers[step.id]" @input="onChange()"></textarea>
+          </template>
+
+          <div class="q-nav">
+            <button type="button" class="q-btn q-btn-ghost" x-show="i > 0"
+                    @click="prev()">上一步</button>
+            <div class="q-spacer"></div>
+            <button type="button" class="q-linkbtn" x-show="i > 0"
+                    @click="goTo(steps.length - 1, 1)">查看汇总</button>
+            <button type="button" class="q-btn q-btn-primary" @click="next()">下一步</button>
+          </div>
+        </div>
+      </template>
+
+      {# ── 检查与提交页 ───────────────────────────────────── #}
+      <template x-if="step.kind === 'check'">
+        <div>
+          <div class="q-qnum">检查与提交</div>
+          <h1 class="q-qtitle q-serif" tabindex="-1" x-ref="head">确认你的作答</h1>
+          <p class="q-muted" style="margin-top:12px"
+             x-text="'已完成 ' + answeredCount + ' / ' + total + ' 题'"></p>
+          <div class="q-alert" x-show="missing.length" x-cloak>
+            <span x-text="'还有 ' + missing.length + ' 题未完成'"></span>
+            <div class="q-missing">
+              <template x-for="m in missing" :key="m.n">
+                <button type="button" @click="goTo(m.index, -1)" x-text="'第 ' + m.n + ' 题'"></button>
+              </template>
+            </div>
+          </div>
+          <button type="button" class="q-btn q-btn-primary q-btn-wide" @click="submit()"
+                  :disabled="busy" x-text="busy ? '提交中…' : '提交问卷'"></button>
+          <p class="q-hint">提交后不可修改</p>
+          <div class="q-nav">
+            <button type="button" class="q-btn q-btn-ghost" @click="prev()">上一步</button>
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </template>
+</div>
+
+{# ── 无 JS 降级：整页表单原生提交路径（06/07 包既有行为，原样保留） ──────
+    JS 可用时由 wizard.init() 隐藏；Alpine 加载失败时它仍是可用兜底路径。 #}
+<div id="q-fallback" class="q-wrap">
+  <noscript>
+    <div class="q-alert" style="margin-top:12px">
+      当前浏览器未启用脚本增强，已为你显示完整表单（功能完全可用）。
+    </div>
+  </noscript>
+
+  <div class="s-card" style="margin-top:12px">
+    <div class="s-h1">{{ questionnaire.title }}</div>
+    {% if student %}
+    <p class="s-muted" style="font-size:12.5px; margin-top:6px">
+      学生：{{ student.name }}（{{ student.student_code or '—' }}）
+    </p>
+    {% endif %}
+    {% if questionnaire.description %}
+    <p class="s-muted" style="font-size:13px; margin-top:8px">{{ questionnaire.description }}</p>
+    {% endif %}
+    <p class="s-muted" style="font-size:12.5px; margin-top:8px">
+      共 {{ question_count }} 题{% if token %} · 一次性链接作答{% endif %}
+    </p>
+  </div>
+
+  {% if error %}
+  <div class="s-alert" style="margin-top:14px">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="{{ form_action }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    {% set ns = namespace(idx=0) %}
+    {% for section, questions in groups %}
+      {% if section %}
+      <div class="s-sec">
+        <div class="s-sec-title">{{ section.title }}</div>
+        {% if section.intro %}<div class="s-sec-intro">{{ section.intro }}</div>{% endif %}
+      </div>
+      {% endif %}
+      <div class="s-card" style="margin-top:10px">
+        {% for q in questions %}
+        {% set ns.idx = ns.idx + 1 %}
+        {% set dv = draft.get(q.id) %}
+        <div class="s-q">
+          <div class="s-q-title">
+            <span class="s-q-idx">{{ ns.idx }}.</span>{{ q.title }}
+            {% if q.required %}<span style="color:#D25454">*</span>{% endif %}
+          </div>
+
+          {% if q.type == 'single' %}
+          {% for o in q.options %}
+          <label class="s-opt">
+            <input type="radio" name="{{ q.id }}" value="{{ o.value }}"
+                   {% if dv is not none and (dv|string) == (o.value|string) %}checked{% endif %} />
+            <span class="s-opt-label">{{ o.label }}</span>
+          </label>
+          {% endfor %}
+
+          {% elif q.type == 'multi' %}
+          {% for o in q.options %}
+          <label class="s-opt">
+            <input type="checkbox" name="{{ q.id }}" value="{{ o.value }}"
+                   {% if dv and (o.value|string) in (dv | map('string') | list) %}checked{% endif %} />
+            <span class="s-opt-label">{{ o.label }}</span>
+          </label>
+          {% endfor %}
+
+          {% elif q.type == 'scale' %}
+          {% set sc = q.scale or {} %}
+          <div class="s-muted" style="font-size:12.5px; margin-top:6px">
+            {{ sc.min_label or sc.min }} —— {{ sc.max_label or sc.max }}
+          </div>
+          <input class="s-input" type="number" name="{{ q.id }}" style="margin-top:6px"
+                 min="{{ sc.min }}" max="{{ sc.max }}"
+                 value="{{ dv if dv is not none else '' }}" />
+
+          {% else %}
+          <textarea class="s-input" name="{{ q.id }}" rows="3" style="margin-top:8px"
+                    {% if q.max_length %}maxlength="{{ q.max_length }}"{% endif %}
+          >{{ dv if dv is not none else '' }}</textarea>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+
+    <div class="s-actions">
+      <button type="submit" class="s-btn s-btn-primary" style="width:100%">提交问卷</button>
+      <div class="s-muted" style="font-size:12px; text-align:center; margin-top:8px">
+        提交后不可修改
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function wizard() {
+  var CFG = window.Y4Q || {};
+  var BACKOFF = [1000, 2000, 5000, 15000];
+
+  function hhmm(ms) {
+    var d = ms ? new Date(ms) : new Date();
+    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
+
+  return {
+    cfg: CFG,
+    steps: [],
+    i: 0,
+    answers: {},
+    errors: {},
+    sync: 'local',
+    savedAt: '',
+    anim: '',
+    announce: '',
+    banner: '',
+    canRetry: false,
+    autoRetried: false,
+    busy: false,
+    netOffline: false,
+    restoreNote: '',
+    state: 'form',          /* form | done | blocked */
+    blockedMsg: '',
+    blockedLogin: false,
+    lsOk: true,
+    lsKey: '',
+    _timer: null, _advance: null, _retry: null, _cloud: null,
+    _retryIdx: 0, _queued: false, _sending: false,
+
+    /* ── 派生状态 ─────────────────────────────────────── */
+    get total() {
+      var n = 0;
+      for (var k = 0; k < this.steps.length; k++) { if (this.steps[k].kind === 'q') n++; }
+      return n;
+    },
+    get step() { return this.steps[this.i] || null; },
+    get answeredCount() {
+      var n = 0;
+      for (var k = 0; k < this.steps.length; k++) {
+        var s = this.steps[k];
+        if (s.kind === 'q' && this.hasAnswer(s)) n++;
+      }
+      return n;
+    },
+    get pct() { return this.total ? Math.round(this.answeredCount * 100 / this.total) : 0; },
+    get missing() {
+      var out = [];
+      for (var k = 0; k < this.steps.length; k++) {
+        var s = this.steps[k];
+        if (s.kind === 'q' && s.required && !this.hasAnswer(s)) out.push({ n: s.n, index: k });
+      }
+      return out;
+    },
+    get syncText() {
+      if (this.sync === 'offline') return '离线 · 将自动重试';
+      if (this.sync === 'cloud' || !this.lsOk) return '已同步云端';
+      return this.savedAt ? '已保存本机 ' + this.savedAt : '已保存本机';
+    },
+
+    /* ── 初始化：两源草稿取较新者回填 ─────────────────── */
+    init() {
+      var self = this;
+      var steps = this.cfg.steps || [];
+      this.steps = steps;
+      for (var k = 0; k < steps.length; k++) {
+        if (steps[k].kind === 'q') {
+          this.answers[steps[k].id] = (steps[k].type === 'multi') ? [] : '';
+        }
+      }
+      this.lsKey = 'y4q:' + (this.cfg.mode || 'account') + ':' + (this.cfg.aid || 0);
+      this.netOffline = !navigator.onLine;
+      if (this.netOffline) { this.sync = 'offline'; }
+
+      var local = this.readLocal();
+      var serverRaw = this.cfg.draft || {};
+      var serverAt = this.cfg.serverAt ? Date.parse(this.cfg.serverAt + 'Z') : 0;
+      if (!serverAt || isNaN(serverAt)) { serverAt = 0; }
+      var serverHas = false;
+      for (var key in serverRaw) { if (Object.prototype.hasOwnProperty.call(serverRaw, key)) { serverHas = true; break; } }
+
+      if (local && local.savedAt && (!serverAt || local.savedAt >= serverAt)) {
+        this.mergeAnswers(local.answers);
+        this.restoreNote = '已恢复你上次的作答（' + hhmm(local.savedAt) + '）';
+      } else if (serverHas) {
+        this.mergeAnswers(serverRaw);
+        this.restoreNote = '已恢复你上次的作答（' + (serverAt ? hhmm(serverAt) : '云端草稿') + '）';
+      }
+      if (this.restoreNote) {
+        this.persist();
+        this.i = this.firstOpenIndex();   /* 续答：跳到第一道未完成题 */
+      }
+
+      if (this.cfg.error) { this.applyServerErrors([this.cfg.error]); }
+
+      var fb = document.getElementById('q-fallback');
+      if (fb) { fb.style.display = 'none'; }
+
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && self._queued) {
+          self._retryIdx = 0; clearTimeout(self._retry); self.flush();
+        }
+      });
+      window.addEventListener('online', function () {
+        self.netOffline = false;
+        clearTimeout(self._retry);
+        if (self.sync === 'offline' && !self._sending) { self.sync = self.lsOk ? 'local' : 'cloud'; }
+        if (self._queued) { self._retryIdx = 0; self.flush(); }
+        /* 提交失败后恢复在线：自动重试一次，失败即交还用户手动重试 */
+        if (self.canRetry && !self.autoRetried) { self.autoRetried = true; self.submit(); }
+      });
+      window.addEventListener('offline', function () {
+        self.netOffline = true; self.sync = 'offline';
+      });
+    },
+
+    /* ── 本机持久化（一级存储，同步写入） ─────────────── */
+    readLocal() {
+      try {
+        var raw = localStorage.getItem(this.lsKey + ':answers');
+        var meta = localStorage.getItem(this.lsKey + ':meta');
+        if (!raw) { return null; }
+        var a = JSON.parse(raw);
+        var m = meta ? (JSON.parse(meta) || {}) : {};
+        if (!a || typeof a !== 'object') { return null; }
+        return { answers: a, savedAt: Number(m.savedAt) || 0 };
+      } catch (e) { this.lsOk = false; return null; }
+    },
+    persist() {
+      if (!this.lsOk || !this.lsKey) { return; }
+      try {
+        localStorage.setItem(this.lsKey + ':answers', JSON.stringify(this.collect()));
+        localStorage.setItem(this.lsKey + ':meta',
+          JSON.stringify({ savedAt: Date.now(), submitted: false }));
+        this.savedAt = hhmm();
+        if (this.sync !== 'offline') { this.sync = 'local'; }
+      } catch (e) { this.lsOk = false; }
+    },
+    clearLocal() {
+      try {
+        localStorage.removeItem(this.lsKey + ':answers');
+        localStorage.removeItem(this.lsKey + ':meta');
+      } catch (e) { /* 隐私模式下静默 */ }
+    },
+
+    /* ── 云端草稿（二级存储，800ms 防抖 + 指数退避重发） ── */
+    queueDraft() {
+      if (!this.cfg.draftUrl) { return; }
+      var self = this;
+      clearTimeout(this._timer);
+      this._timer = setTimeout(function () { self.flush(); }, 800);
+    },
+    flush() {
+      if (!this.cfg.draftUrl) { return; }
+      if (document.hidden) { this._queued = true; return; }
+      var self = this;
+      this._queued = false;
+      this._sending = true;
+      fetch(this.cfg.draftUrl, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: this.collect() })
+      }).then(function (r) {
+        if (!r.ok) { throw new Error('draft ' + r.status); }
+        self._sending = false;
+        self._retryIdx = 0;
+        self.cloudOk();
+      }).catch(function () {
+        self._sending = false;
+        self._queued = true;
+        self.sync = 'offline';
+        self.scheduleRetry();
+      });
+    },
+    scheduleRetry() {
+      var self = this;
+      var wait = BACKOFF[Math.min(this._retryIdx, BACKOFF.length - 1)];
+      this._retryIdx++;
+      clearTimeout(this._retry);
+      this._retry = setTimeout(function () { if (self._queued) { self.flush(); } }, wait);
+    },
+    cloudOk() {
+      var self = this;
+      this.sync = 'cloud';
+      clearTimeout(this._cloud);
+      this._cloud = setTimeout(function () {
+        if (self._sending) { return; }
+        self.sync = self.lsOk ? 'local' : 'cloud';
+      }, 1600);
+    },
+
+    /* ── 作答变更 ─────────────────────────────────────── */
+    hasAnswer(s) {
+      var v = this.answers[s.id];
+      if (s.type === 'multi') { return !!(v && v.length); }
+      return v !== undefined && v !== null && String(v).trim() !== '';
+    },
+    stepByQid(qid) {
+      for (var k = 0; k < this.steps.length; k++) {
+        var s = this.steps[k];
+        if (s.kind === 'q' && s.id === qid) { return s; }
+      }
+      return null;
+    },
+    mergeAnswers(src) {
+      for (var k in src) {
+        if (!Object.prototype.hasOwnProperty.call(src, k)) { continue; }
+        var s = this.stepByQid(k);
+        if (!s) { continue; }
+        var v = src[k];
+        if (s.type === 'multi') {
+          this.answers[k] = Array.isArray(v) ? v.map(String)
+            : ((v === '' || v === null || v === undefined) ? [] : [String(v)]);
+        } else {
+          this.answers[k] = (v === null || v === undefined) ? '' : String(v);
+        }
+      }
+    },
+    collect() {
+      var out = {};
+      for (var k = 0; k < this.steps.length; k++) {
+        var s = this.steps[k];
+        if (s.kind !== 'q') { continue; }
+        var v = this.answers[s.id];
+        if (s.type === 'multi') {
+          if (v && v.length) { out[s.id] = v.slice(); }
+        } else if (v !== undefined && v !== null && String(v).trim() !== '') {
+          out[s.id] = v;
+        }
+      }
+      return out;
+    },
+    isPickedMulti(step, value) {
+      var arr = this.answers[step.id];
+      return !!(arr && arr.indexOf(value) !== -1);
+    },
+    scaleValues(step) {
+      var sc = step.scale || {};
+      var lo = Number(sc.min), hi = Number(sc.max), out = [];
+      if (!isFinite(lo) || !isFinite(hi) || hi < lo || (hi - lo) > 10) { return out; }
+      for (var v = lo; v <= hi; v++) { out.push(v); }
+      return out;
+    },
+    afterChange(step) {
+      this.errors[step.id] = '';
+      this.persist();
+      this.queueDraft();
+    },
+    pick(step, value) {
+      this.answers[step.id] = value;
+      this.afterChange(step);
+      if (step.type === 'single') { this.scheduleAdvance(step); }
+    },
+    pickMulti(step, value, checked) {
+      var arr = this.answers[step.id];
+      if (!Array.isArray(arr)) { arr = []; }
+      var idx = arr.indexOf(value);
+      if (checked && idx === -1) { arr.push(value); }
+      if (!checked && idx !== -1) { arr.splice(idx, 1); }
+      this.answers[step.id] = arr.slice();
+      this.afterChange(step);
+    },
+    onChange() {
+      var s = this.step;
+      if (s && s.kind === 'q') { this.errors[s.id] = ''; }
+      this.persist();
+      this.queueDraft();
+    },
+    /* 单选选中后 250ms 自动前进；期间再点别的选项，以最后一次为准 */
+    scheduleAdvance(step) {
+      var self = this;
+      clearTimeout(this._advance);
+      this._advance = setTimeout(function () {
+        if (self.state === 'form' && self.step === step) { self.next(); }
+      }, 250);
+    },
+
+    /* ── 步进 ─────────────────────────────────────────── */
+    firstOpenIndex() {
+      for (var k = 0; k < this.steps.length; k++) {
+        var s = this.steps[k];
+        if (s.kind === 'q' && s.required && !this.hasAnswer(s)) { return k; }
+      }
+      return Math.max(this.steps.length - 1, 0);
+    },
+    indexOfN(n) {
+      for (var k = 0; k < this.steps.length; k++) {
+        var s = this.steps[k];
+        if (s.kind === 'q' && s.n === n) { return k; }
+      }
+      return -1;
+    },
+    next() {
+      var s = this.step;
+      if (!s || this.state !== 'form') { return; }
+      clearTimeout(this._advance);
+      if (s.kind === 'q' && s.required && !this.hasAnswer(s)) {
+        this.errors[s.id] = '需要作答';
+        this.shakeCard();
+        this.focusFirstOption();
+        return;
+      }
+      this.goTo(this.i + 1, 1);
+    },
+    prev() {
+      clearTimeout(this._advance);
+      this.goTo(this.i - 1, -1);
+    },
+    goTo(j, dir) {
+      if (j < 0 || j >= this.steps.length) { return; }
+      var self = this;
+      this.i = j;
+      this.anim = '';
+      this.$nextTick(function () {
+        requestAnimationFrame(function () {
+          if (self.i !== j) { return; }
+          self.anim = dir > 0 ? 'q-in-next' : 'q-in-prev';
+          self.afterStep();
+        });
+      });
+    },
+    afterStep() {
+      var s = this.step;
+      if (!s) { return; }
+      if (s.kind === 'q') { this.announce = '第 ' + s.n + ' 题，共 ' + this.total + ' 题'; }
+      else if (s.kind === 'check') { this.announce = '检查与提交'; }
+      else { this.announce = s.title || '分区说明'; }
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+      var self = this;
+      this.$nextTick(function () {
+        var h = self.$refs.head;
+        if (h && h.focus) {
+          try { h.focus({ preventScroll: true }); } catch (e) { h.focus(); }
+        }
+      });
+    },
+    shakeCard() {
+      var card = this.$el.querySelector('.q-card');
+      if (!card) { return; }
+      card.classList.add('q-shake');
+      setTimeout(function () { card.classList.remove('q-shake'); }, 400);
+    },
+    focusFirstOption() {
+      var el = this.$el.querySelector('.q-opt input');
+      if (el && el.focus) { el.focus(); }
+    },
+
+    /* ── 键盘：Enter 下一步 / 1-9 选项 / ← 上一步 ───────── */
+    onKey(e) {
+      if (this.state !== 'form' || this.busy) { return; }
+      var t = e.target || {};
+      var tag = (t.tagName || '').toLowerCase();
+      var isText = tag === 'textarea' ||
+        (tag === 'input' && ['text', 'number', 'email', 'tel', 'search', 'password'].indexOf(t.type || '') !== -1);
+      if (e.key === 'Enter') {
+        if (isText || tag === 'button' || tag === 'a') { return; }
+        e.preventDefault();
+        this.next();
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        if (isText || tag === 'input') { return; }
+        this.prev();
+        return;
+      }
+      if (/^[1-9]$/.test(e.key) && !isText) {
+        var s = this.step;
+        if (s && s.kind === 'q' && s.type === 'single') {
+          var idx = parseInt(e.key, 10) - 1;
+          if (idx < s.options.length) {
+            e.preventDefault();
+            this.pick(s, s.options[idx].value);
+          }
+        }
+      }
+    },
+
+    /* ── 提交 ─────────────────────────────────────────── */
+    applyServerErrors(errs) {
+      var map = {}, other = [];
+      for (var k = 0; k < errs.length; k++) {
+        var text = String(errs[k] || '');
+        var m = /第\s*(\d+)\s*题/.exec(text);
+        if (m) {
+          var n = parseInt(m[1], 10);
+          if (!map[n]) { map[n] = text; }
+        } else if (text) { other.push(text); }
+      }
+      this.errors = {};
+      var first = -1;
+      for (var key in map) {
+        var idx = this.indexOfN(parseInt(key, 10));
+        if (idx >= 0) {
+          this.errors[this.steps[idx].id] = map[key];
+          if (first < 0 || idx < first) { first = idx; }
+        }
+      }
+      this.banner = other.length ? other.join('；') : '还有题目需要完成，请检查后再次提交。';
+      if (first >= 0) { this.goTo(first, -1); }
+    },
+    submit() {
+      if (this.busy || this.state !== 'form') { return; }
+      var self = this;
+      this.busy = true;
+      this.banner = '';
+      this.persist();
+      fetch(this.cfg.formAction, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: this.collect() })
+      }).then(function (r) {
+        return r.text().then(function (t) {
+          var d = {};
+          try { d = JSON.parse(t) || {}; } catch (e) { /* 非 JSON（如网关页） */ }
+          return { status: r.status, ok: r.ok, d: d };
+        });
+      }).then(function (res) {
+        if (res.ok && res.d && res.d.ok) { self.onSuccess(); return; }
+        self.busy = false;
+        var errs = (res.d && res.d.errors) || [];
+        if (errs.length) { self.applyServerErrors(errs); return; }
+        var msg = (res.d && res.d.error) || '';
+        if (res.status >= 400 && res.status < 500) { self.blocked(msg); return; }
+        self.netFail();
+      }).catch(function () {
+        self.busy = false;
+        self.netFail();
+      });
+    },
+    retry() {
+      this.autoRetried = true;
+      this.submit();
+    },
+    netFail() {
+      this.canRetry = true;
+      this.sync = 'offline';
+      this.banner = '提交未成功，可能是网络问题。你的答案已保存在本机，不会丢失。';
+      this.persist();
+    },
+    onSuccess() {
+      this.busy = false;
+      clearTimeout(this._advance);
+      clearTimeout(this._timer);
+      clearTimeout(this._retry);
+      this.clearLocal();
+      this.banner = '';
+      this.canRetry = false;
+      this.autoRetried = true;
+      this.state = 'done';
+      window.scrollTo({ top: 0 });
+    },
+    blocked(msg) {
+      this.state = 'blocked';
+      this.blockedMsg = msg || '该问卷当前无法提交，请联系顾问。';
+      this.blockedLogin = /链接|无效|过期/.test(this.blockedMsg);
+      clearTimeout(this._advance);
+      clearTimeout(this._timer);
+      clearTimeout(this._retry);
+      this.clearLocal();
+      window.scrollTo({ top: 0 });
+    }
+  };
+}
+</script>
+{% endblock %}
