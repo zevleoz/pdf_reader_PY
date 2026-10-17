@@ -252,6 +252,18 @@ def _student_progress_context(student_id):
         }
     # ready → 不显示下一步建议卡
 
+    # 「发起问卷任务」只在没有活动问卷（pending/sent）或学生已就绪时，作为次要操作出现，
+    # 避免与当前阶段主按钮重复。
+    has_active_assignment = False
+    try:
+        import questionnaire_store as _qs
+        has_active_assignment = any(
+            a.get("status") in ("pending", "sent")
+            for a in _qs.list_assignments_for_student(student_id)
+        )
+    except Exception:
+        has_active_assignment = False
+
     return {
         "stage": key,
         "label": meta["label"],
@@ -259,6 +271,7 @@ def _student_progress_context(student_id):
         "since_label": info.get("since_label") or "",
         "suggestion": suggestion,
         "six_am": info.get("six_am"),
+        "show_create_task": key == "ready" or not has_active_assignment,
     }
 
 

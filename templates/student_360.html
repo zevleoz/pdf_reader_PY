@@ -47,12 +47,21 @@
   .step.is-current .step-dot { background: var(--brand); border-color: var(--brand); color: #fff; }
   .step.is-current .step-label { color: var(--brand-deep); font-weight: 600; }
 
-  /* 头部卡 meta 行 */
-  .stu-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-top: 16px; }
-  .stu-meta .k { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
-  .stu-meta .v { font-size: 13.5px; color: var(--ink); word-break: break-all; }
+  /* 头部卡 meta 行：紧凑 chips（标签：值），空值 muted「未填写」 */
+  .stu-meta { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-top: 16px; }
+  .stu-meta .meta-chip {
+    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+    padding: 4px 10px; max-width: 100%;
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 999px; font-size: 12.5px;
+  }
+  .stu-meta .meta-chip .k { color: var(--muted); flex: none; }
+  .stu-meta .meta-chip .v { color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stu-meta .meta-chip .v.empty { color: var(--faint); }
+  .stu-meta .meta-chip:has(.meta-input) { padding: 3px 8px; }
   .stu-meta .meta-val { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .stu-meta .meta-val span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stu-meta .meta-val span.empty { color: var(--faint); }
   .meta-pencil {
     flex: none; display: inline-flex; align-items: center; justify-content: center;
     width: 20px; height: 20px; padding: 0;
@@ -177,28 +186,45 @@
           </div>
         </div>
         <div style="flex:1"></div>
-        <div style="display:flex; gap:8px" x-show="canWrite">
-          <button type="button" class="btn btn-sec"
-                  :class="{ 'is-loading': regenBusy }"
-                  :disabled="!profile || !profile.report || regenBusy"
-                  @click="regenLatest()">
-            {{ icon('refresh', 14) }} 重生成 PDF
-          </button>
-          <button type="button" class="btn btn-primary" @click="openTask()">
-            {{ icon('clipboard', 14) }} 发起问卷任务
-          </button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">
+          <!-- 上下文主按钮：随生命周期阶段变化，全页只出现一次 -->
+          <template x-if="stage.suggestion && stage.suggestion.action_kind === 'link'">
+            <a class="btn btn-primary stage-primary" :href="stage.suggestion.action_href"
+               x-text="stage.suggestion.action_label"></a>
+          </template>
+          <div style="display:flex; gap:8px; flex-wrap:wrap" x-show="canWrite">
+            <template x-if="stage.suggestion && stage.suggestion.action_kind === 'package'">
+              <button type="button" class="btn btn-primary stage-primary"
+                      @click="showStagePackage()" x-text="stage.suggestion.action_label"></button>
+            </template>
+            <template x-if="stage.suggestion && stage.suggestion.action_kind === 'create'">
+              <button type="button" class="btn btn-primary stage-primary"
+                      @click="openTask()" x-text="stage.suggestion.action_label"></button>
+            </template>
+            <button type="button" class="btn btn-sec"
+                    :class="{ 'is-loading': regenBusy }"
+                    :disabled="!profile || !profile.report || regenBusy"
+                    @click="regenLatest()">
+              {{ icon('refresh', 14) }} 重生成 PDF
+            </button>
+            <template x-if="stage.show_create_task">
+              <button type="button" class="btn btn-sec" @click="openTask()">
+                {{ icon('clipboard', 14) }} 发起问卷任务
+              </button>
+            </template>
+          </div>
         </div>
       </div>
 
       <div class="stu-meta">
-        <div>
-          <div class="k">顾问</div>
+        <div class="meta-chip">
+          <span class="k">顾问：</span>
           <template x-if="metaEdit !== 'advisor_name'">
-            <div class="v meta-val">
-              <span x-text="metaVal('advisor_name')"></span>
+            <span class="meta-val">
+              <span :class="{ 'empty': metaEmpty('advisor_name') }" x-text="metaVal('advisor_name')"></span>
               <button type="button" class="meta-pencil" x-show="canWrite" title="编辑顾问"
                       @click="startMetaEdit('advisor_name')">{{ icon('pencil', 12) }}</button>
-            </div>
+            </span>
           </template>
           <template x-if="metaEdit === 'advisor_name'">
             <input type="text" class="meta-input" x-ref="metaInput"
@@ -208,14 +234,14 @@
                    @blur="saveMeta()" />
           </template>
         </div>
-        <div>
-          <div class="k">学校</div>
+        <div class="meta-chip">
+          <span class="k">学校：</span>
           <template x-if="metaEdit !== 'school'">
-            <div class="v meta-val">
-              <span x-text="metaVal('school')"></span>
+            <span class="meta-val">
+              <span :class="{ 'empty': metaEmpty('school') }" x-text="metaVal('school')"></span>
               <button type="button" class="meta-pencil" x-show="canWrite" title="编辑学校"
                       @click="startMetaEdit('school')">{{ icon('pencil', 12) }}</button>
-            </div>
+            </span>
           </template>
           <template x-if="metaEdit === 'school'">
             <input type="text" class="meta-input" x-ref="metaInput"
@@ -225,8 +251,14 @@
                    @blur="saveMeta()" />
           </template>
         </div>
-        <div><div class="k">邮箱</div><div class="v truncate">{{ profile.email or '—' }}</div></div>
-        <div><div class="k">电话</div><div class="v mono">{{ profile.phone or '—' }}</div></div>
+        <div class="meta-chip">
+          <span class="k">邮箱：</span>
+          <span class="v{{ ' empty' if not profile.email else '' }}">{{ profile.email or '未填写' }}</span>
+        </div>
+        <div class="meta-chip">
+          <span class="k">电话：</span>
+          <span class="v mono{{ ' empty' if not profile.phone else '' }}">{{ profile.phone or '未填写' }}</span>
+        </div>
       </div>
 
       <!-- 阶段 stepper + 下一步建议 -->
@@ -259,23 +291,9 @@
             <div class="next-card">
               <div class="lab">下一步建议</div>
               <div class="txt" x-text="stage.suggestion.text"></div>
-              <div class="acts">
-                <template x-if="stage.suggestion.action_kind === 'link'">
-                  <a class="btn btn-primary" :href="stage.suggestion.action_href"
-                     x-text="stage.suggestion.action_label"></a>
-                </template>
-                <template x-if="stage.suggestion.action_kind === 'create'">
-                  <button type="button" class="btn btn-primary" x-show="canWrite"
-                          @click="openTask()" x-text="stage.suggestion.action_label"></button>
-                </template>
-                <template x-if="stage.suggestion.action_kind === 'package'">
-                  <button type="button" class="btn btn-primary"
-                          @click="showStagePackage()" x-text="stage.suggestion.action_label"></button>
-                </template>
-                <template x-if="stage.suggestion.expired">
-                  <button type="button" class="btn btn-sec"
-                          @click="reissueStage()">重新生成链接</button>
-                </template>
+              <div class="acts" x-show="stage.suggestion.expired" x-cloak>
+                <button type="button" class="btn btn-sec"
+                        @click="reissueStage()">重新生成链接</button>
               </div>
             </div>
           </template>
@@ -640,7 +658,14 @@ function pageStudent360(ctx) {
     },
 
     // ---- 页头 meta 行内编辑（顾问 / 学校，PUT /api/students/<id>）----
-    metaVal(field) { return this.fmt(this.meta ? this.meta[field] : ''); },
+    metaVal(field) {
+      var v = this.meta ? this.meta[field] : '';
+      return (v === null || v === undefined || v === '') ? '未填写' : v;
+    },
+    metaEmpty(field) {
+      var v = this.meta ? this.meta[field] : '';
+      return v === null || v === undefined || v === '';
+    },
     startMetaEdit(field) {
       if (!this.canWrite || this.metaSaving) return;
       this.metaEdit = field;

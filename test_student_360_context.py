@@ -52,3 +52,15 @@ def test_student_progress_context_exposes_six_am_state(monkeypatch):
 def test_student_360_route_uses_progress_stage_meta():
     src = open("blueprints/students.py", encoding="utf-8").read()
     assert "stage_meta=PROGRESS_STAGES" in src
+
+
+def test_student_360_template_uses_contextual_primary_action():
+    text = open("templates/student_360.html", encoding="utf-8").read()
+    assert "stage.suggestion.action_label" in text
+    assert "重生成 PDF" in text
+    assert "stage-primary" in text
+
+
+def test_students_page_names_stage_rail_as_todo_view():
+    text = open("templates/students.html", encoding="utf-8").read()
+    assert "待办视图" in text
