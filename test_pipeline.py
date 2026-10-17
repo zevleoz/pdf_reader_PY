@@ -213,3 +213,12 @@ def test_compute_progress_six_am_is_none_without_report():
     result = pipeline.compute_progress(1)
     assert result["six_am"] is None
     assert result["stage"] == "booked"
+
+
+# ─── Task 5：列表阶段栏兼容 awaiting_report ────────────────────
+
+def test_students_template_supports_awaiting_report_badge():
+    text = Path("templates/students.html").read_text(encoding="utf-8")
+    assert "awaiting_report" in text
+    # 阶段名由服务端注入的 stage_meta 渲染，标签源头在 pipeline.STAGES
+    assert pipeline.stage_meta("awaiting_report")["label"] == "待生成报告"

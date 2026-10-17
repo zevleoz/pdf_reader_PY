@@ -1,446 +1,289 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <title>学生档案 — Y4</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css" />
-  <link rel="stylesheet" href="/app_shell.css" />
-  <style>
-    .btn-danger {
-      background: var(--white);
-      color: var(--red);
-      border: 1.5px solid var(--line);
-    }
-    .btn-danger:hover:not(:disabled) {
-      border-color: var(--red);
-      background: #FEF2F2;
-    }
-    .action-cell { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .action-link {
-      color: var(--red);
-      font-weight: 600;
-      font-size: 12px;
-      cursor: pointer;
-      text-decoration: none;
-      transition: color .2s var(--ease);
-    }
-    .action-link:hover { color: var(--red-deep); }
-    .btn-minutes {
-      background: var(--white);
-      color: var(--red);
-      border: 1px solid var(--red);
-      font-weight: 500;
-    }
-    .btn-minutes:hover:not(:disabled) {
-      background: #FEF2F2;
-    }
-    .btn-minutes:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-    .toolbar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-    .report-list { margin-top: 24px; }
-    .report-list h3 {
-      font-family: "Noto Serif SC", serif;
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--ink);
-    }
-    .y4-done { display: inline-flex; align-items: center; white-space: nowrap; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; }
-    .yd-date {
-      font-weight: 400;
-      margin-left: 7px;
-      padding-left: 7px;
-      border-left: 1px solid rgba(46, 125, 50, .28);
-      opacity: .82;
-      font-variant-numeric: tabular-nums;
-    }
-    .y4-pending { display: inline-flex; align-items: center; white-space: nowrap; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--paper-2); color: var(--muted); }
-    .minutes-count {
-      display: inline-flex; align-items: center; white-space: nowrap; padding: 2px 9px; border-radius: 999px;
-      font-size: 11px; font-weight: 600;
-      background: #FFF4E5; color: #B45309;
-      border: 1px solid #FBD38D;
-    }
-    .interp-card {
-      background: var(--white);
-      border: 1px solid var(--line-soft);
-      border-radius: 12px;
-      padding: 24px 28px;
-      margin-top: 8px;
-    }
-    .interp-content { line-height: 1.75; font-size: 14px; color: var(--ink); }
-    .interp-content h1, .interp-content h2, .interp-content h3 {
-      font-family: "Noto Serif SC", serif;
-      color: var(--ink);
-      margin: 14px 0 6px;
-    }
-    .interp-content ul { margin: 6px 0; padding-left: 20px; }
-    .interp-loading { text-align: center; color: var(--muted); padding: 40px 0; font-size: 13px; }
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
 
-    /* Minutes history block */
-    .minutes-history {
-      margin-top: 24px;
-    }
-    .minutes-history h3 {
-      font-family: "Noto Serif SC", serif;
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--ink);
-    }
-    .minutes-item {
-      background: var(--white);
-      border: 1px solid var(--line-soft);
-      border-radius: 10px;
-      padding: 14px 18px;
-      margin-bottom: 10px;
-      transition: border-color .2s;
-    }
-    .minutes-item:hover { border-color: var(--red); }
-    .minutes-item .mi-head {
-      display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;
-    }
-    .minutes-item .mi-date {
-      font-family: "Noto Serif SC", serif;
-      font-size: 14px; font-weight: 600; color: var(--ink);
-    }
-    .minutes-item .mi-report {
-      font-size: 12px; color: var(--muted);
-    }
-    .minutes-item .mi-preview {
-      margin-top: 6px;
-      font-size: 13px;
-      color: var(--ink-2);
-      line-height: 1.6;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-    }
-    .minutes-item .mi-actions {
-      margin-top: 10px;
-      display: flex; gap: 8px; flex-wrap: wrap;
-    }
-    .minutes-empty {
-      text-align: center;
-      font-size: 13px;
-      color: var(--muted);
-      background: var(--paper-2);
-      border: 1px dashed var(--line-soft);
-      border-radius: 10px;
-      padding: 20px;
-    }
+{% block title %}学生档案{% endblock %}
+{% block page_title %}学生档案{% endblock %}
 
-    /* 学生列表 — 对齐列 */
-    .stu-table-head, .student-card {
-      display: grid;
-      grid-template-columns: minmax(140px, 1.05fr) minmax(0, 1.25fr) minmax(110px, .7fr) minmax(196px, 224px) 264px;
-      gap: 14px;
-      align-items: center;
-    }
-    .stu-table-head {
-      height: 30px;
-      margin-bottom: 6px;
-      padding: 0 16px;
-      border: 1px solid transparent;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--muted);
-      letter-spacing: .4px;
-    }
-    .stu-table-head span:last-child { text-align: right; }
-    .student-card {
-      background: var(--white);
-      border: 1px solid var(--line-soft);
-      border-radius: 10px;
-      padding: 12px 16px;
-      margin-bottom: 6px;
-      min-height: 62px;
-      transition: background .15s var(--ease), border-color .2s var(--ease);
-    }
-    .student-card:hover {
-      background: var(--paper-2);
-      border-color: var(--line);
-    }
-    .sc-name-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .sc-code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; white-space: nowrap; }
-    .sc-name {
-      font-family: "Noto Serif SC", serif;
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--ink);
-      line-height: 1.4;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .sc-grade-tag {
-      font-size: 11px;
-      color: var(--muted);
-      background: var(--paper-2);
-      border: 1px solid var(--line-soft);
-      border-radius: 5px;
-      padding: 1px 6px;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .sc-school, .sc-advisor {
-      font-size: 13px;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .sc-school { color: var(--ink); }
-    .sc-advisor { color: var(--ink-2); cursor: context-menu; }
-    .sc-school.is-empty, .sc-advisor.is-empty { color: var(--muted); }
-    .advisor-edit-input {
-      width: 100%;
-      font-size: 13px;
-      padding: 2px 6px;
-      border: 1px solid var(--accent, #3b82f6);
-      border-radius: 4px;
-      outline: none;
-      color: var(--ink);
-      background: #fff;
-    }
-    .sc-badges { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
-    .sc-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      justify-content: flex-end;
-      flex-shrink: 0;
-    }
-    .sc-actions .btn-sm {
-      padding: 5px 10px;
-      font-size: 12px;
-    }
-    .sc-actions .btn-minutes { min-width: 70px; justify-content: center; }
-    .sc-actions .sc-ghost {
-      background: transparent;
-      border: 1px solid transparent;
-      color: var(--muted);
-    }
-    .sc-actions .sc-ghost:hover {
-      color: var(--ink);
-      background: var(--white);
-      border-color: var(--line);
-    }
-    .sc-actions .sc-ghost.sc-danger:hover {
-      color: var(--red);
-      border-color: var(--red);
-      background: #FEF2F2;
-    }
-    .sc-rename {
-      grid-column: 1 / -1;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 0 4px;
-      border-top: 1px dashed var(--line-soft);
-      margin-top: 4px;
-    }
-    .rename-input {
-      flex: 1;
-      min-width: 180px;
-      padding: 7px 12px;
-      border: 1.5px solid var(--line);
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: "Inter", "Noto Serif SC", sans-serif;
-      color: var(--ink);
-      background: var(--white);
-      outline: none;
-      transition: border-color .2s var(--ease);
-    }
-    .rename-input:focus { border-color: var(--red); }
-    @media (max-width: 860px) {
-      .stu-table-head { display: none; }
-      .student-card { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
-      .sc-name-cell { flex: 1 1 auto; }
-      .sc-badges { margin-left: auto; }
-      .sc-school, .sc-advisor { flex-basis: 100%; }
-      .sc-school { order: 3; }
-      .sc-advisor { order: 4; }
-      .sc-actions { order: 5; flex-basis: 100%; justify-content: flex-start; }
-    }
-    /* 学生列表搜索与筛选 */
-    .toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 14px;
-      flex-wrap: wrap;
-    }
-    .st-filter-group {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex: 1;
-      min-width: 320px;
-      flex-wrap: wrap;
-    }
-    .st-search-wrap {
-      position: relative;
-      flex: 1;
-      max-width: 380px;
-      min-width: 200px;
-    }
-    .st-search-icon {
-      position: absolute;
-      left: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--muted);
-      pointer-events: none;
-      display: flex;
-      transition: color .2s var(--ease);
-    }
-    .st-search-wrap:focus-within .st-search-icon { color: var(--red); }
-    .st-search {
-      width: 100%;
-      padding: 9px 14px 9px 36px;
-      border: 1.5px solid transparent;
-      border-radius: 10px;
-      font-size: 13px;
-      color: var(--ink);
-      background: var(--paper-2);
-      outline: none;
-      transition: background .2s var(--ease), border-color .2s var(--ease);
-      font-family: inherit;
-    }
-    .st-search:focus {
-      background: var(--white);
-      border-color: var(--red);
-    }
-    .st-search::placeholder { color: var(--muted); }
-    .st-seg {
-      display: flex;
-      align-items: center;
-      background: var(--paper-2);
-      border: 1px solid var(--line-soft);
-      border-radius: 10px;
-      padding: 3px;
-      gap: 2px;
-    }
-    .st-seg-item {
-      padding: 6px 12px;
-      border: none;
-      border-radius: 7px;
-      font-size: 12.5px;
-      font-family: inherit;
-      color: var(--muted);
-      background: transparent;
-      cursor: pointer;
-      user-select: none;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      white-space: nowrap;
-      transition: color .18s var(--ease), background .18s var(--ease);
-    }
-    .st-seg-item:hover:not(.active) { color: var(--ink); }
-    .st-seg-item.active {
-      background: var(--ink);
-      color: var(--white);
-      font-weight: 500;
-    }
-    .st-seg-item .seg-count {
-      font-size: 10.5px;
-      font-weight: 600;
-      opacity: .6;
-    }
-    .st-result-count {
-      font-size: 12px;
-      color: var(--muted);
-      white-space: nowrap;
-    }
-    .st-actions { display: flex; gap: 8px; align-items: center; }
+{% block page_actions %}
+<a class="btn btn-sec" href="/api/export">{{ icon('download', 13) }} 导出 CSV</a>
+<button type="button" class="btn btn-sec" onclick="loadStudents()">{{ icon('refresh', 13) }} 刷新</button>
+{% endblock %}
 
-    /* ---------- 行内报告展开面板 ---------- */
-    .student-row { margin-bottom: 6px; }
-    .student-row .student-card { margin-bottom: 0; }
-    .report-panel {
-      overflow: hidden;
-      max-height: 0;
+{% block head_extra %}
+<style>
+  [x-cloak] { display: none !important; }
+
+  /* ---------- 管线阶段条：五卡（大号数字 + 小标签），彩色下划线只给激活卡 ---------- */
+  .stage-rail { overflow: hidden; }
+  .stage-segs { display: flex; }
+  .stage-seg {
+    flex: 1 1 0; min-width: 0; text-align: left;
+    padding: 12px 14px 10px;
+    border-left: 1px solid var(--line-soft);
+    border-bottom: 3px solid transparent;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .stage-seg:first-child { border-left: 0; }
+  .stage-seg:hover { background: #FAFAFB; }
+  .stage-seg.on { background: var(--brand-soft); border-bottom-color: var(--seg-color, var(--brand)); }
+  .stage-lab {
+    display: block; font-size: 11px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .stage-n {
+    display: block; margin-top: 3px;
+    font-size: 22px; font-weight: 650; line-height: 1.2;
+    font-variant-numeric: tabular-nums; color: var(--ink);
+  }
+  .stage-seg.on .stage-lab, .stage-seg.on .stage-n { color: var(--brand-deep); }
+
+  /* 阶段栏标题：明确这里是「待办视图」，生命周期进度见 360° 档案页 */
+  .stage-rail-head {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+    padding: 12px 14px 0;
+  }
+  .stage-rail-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .stage-rail-note { font-size: 12px; color: var(--muted); }
+
+  /* ---------- 工具条：搜索 + pill + 计数 ---------- */
+  .toolbar {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .search-box { position: relative; flex: 1; min-width: 200px; max-width: 340px; }
+  .search-box .ic {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    display: flex; color: var(--muted); pointer-events: none;
+    transition: color var(--dur) var(--ease);
+  }
+  .search-box .input { padding-left: 32px; }
+  .search-box:focus-within .ic { color: var(--brand); }
+  .st-result-count {
+    margin-left: auto; font-size: 12px; color: var(--muted);
+    white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- 学生行（.qrow 语言，本页 6 列栅格） ----------
+     末两列必须是固定值：表头与每行是各自独立的 grid 容器，
+     auto 列按内容定宽（表头「操作」是文字、行内是按钮组），两边不一致会让
+     左侧所有 fr 列起点错开。 */
+  .stu-rows .qrow-head, .stu-rows .qrow {
+    grid-template-columns:
+      minmax(210px, 1.5fr) minmax(110px, 1fr) minmax(110px, 1fr)
+      minmax(110px, .9fr) 160px 190px;
+  }
+  .stu-rows .c-student { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .stu-rows .c-student .n {
+    font-weight: 550; font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sc-grade-tag {
+    flex: none; font-size: 11px; color: var(--muted);
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 6px; white-space: nowrap;
+  }
+  .stu-rows .c-code {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .stu-rows .c-studentwrap { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .stu-rows .sc-school, .stu-rows .sc-advisor {
+    font-size: 13px; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .stu-rows .sc-school { color: var(--ink-2); }
+  .stu-rows .sc-advisor {
+    color: var(--ink-2); position: relative;
+    display: flex; align-items: center; gap: 4px; min-width: 0;
+  }
+  .stu-rows .sc-advisor .txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .advisor-pencil {
+    flex: none; display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; padding: 0;
+    border: 1px solid var(--line); border-radius: 4px;
+    background: var(--surface); color: var(--muted); cursor: pointer;
+    opacity: 0; transition: opacity var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .advisor-pencil:hover { color: var(--brand-deep); border-color: var(--brand); }
+  @media (hover: hover) and (min-width: 1024px) {
+    .stu-rows .qrow:hover .advisor-pencil,
+    .stu-rows .qwrap:focus-within .advisor-pencil { opacity: 1; }
+  }
+  @media (hover: none), (max-width: 1023px) { .advisor-pencil { opacity: 1; } }
+  .stu-rows .is-empty { color: var(--faint); }
+  .stu-rows .c-status, .stu-rows .c-stage {
+    display: flex; align-items: center; gap: 6px; min-width: 0;
+    white-space: nowrap;
+  }
+  .stu-rows .stage-days { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .stu-rows .stage-days.warn { color: var(--warn); }
+  .stu-rows .acts { gap: 6px; }
+
+  /* 操作列 hover 浮现（触屏/键盘始终可见） */
+  @media (hover: hover) and (min-width: 1024px) {
+    .stu-rows .acts {
       opacity: 0;
-      transition: max-height .35s var(--ease), opacity .25s var(--ease), margin .35s var(--ease);
-      margin-top: 0;
+      transition: opacity var(--dur) var(--ease);
     }
-    .report-panel.expanded {
-      max-height: 5000px;
-      opacity: 1;
-      margin-top: 6px;
+    .stu-rows .qrow:hover .acts,
+    .stu-rows .qwrap:focus-within .acts { opacity: 1; }
+  }
+
+  /* 行内编辑条 */
+  .rename-row {
+    display: none; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 10px 16px;
+    border-top: 1px dashed var(--line-soft);
+    background: #FAFAFB;
+  }
+  .rename-input {
+    flex: 1; min-width: 150px; height: 32px; padding: 0 10px;
+    background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--r-sm);
+    font-size: 13px; color: var(--ink);
+    transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  }
+  .rename-input:focus {
+    outline: none; border-color: var(--brand);
+    box-shadow: 0 0 0 4px var(--brand-ring);
+  }
+  .advisor-edit-input {
+    width: 100%; font-size: 13px; padding: 3px 7px;
+    border: 1px solid var(--brand); border-radius: 4px;
+    outline: none; color: var(--ink); background: var(--surface);
+  }
+
+  /* ---------- 行内报告展开面板 ---------- */
+  .student-row { margin-bottom: 0; }
+  .report-panel {
+    overflow: hidden; max-height: 0; opacity: 0;
+    transition: max-height .35s var(--ease), opacity .25s var(--ease);
+  }
+  .report-panel.expanded { max-height: 5000px; opacity: 1; }
+  .report-panel-inner {
+    background: #FAFAFB;
+    border-top: 1px solid var(--line-soft);
+    padding: 16px 16px 18px;
+  }
+  .report-panel-inner h3 {
+    font-size: 14px; font-weight: 600; margin: 0 0 12px; color: var(--ink);
+  }
+  .report-panel-inner > h3 + p { margin-top: 0; }
+  .sc-expand-loading, .interp-loading {
+    text-align: center; color: var(--muted);
+    padding: 36px 0; font-size: 13px;
+  }
+  .page-subtitle { font-size: 12.5px; color: var(--muted); margin: 6px 0 10px; }
+
+  /* 展开面板内的卡片 */
+  .interp-card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 18px 20px; margin-top: 4px;
+  }
+  .interp-content { line-height: 1.75; font-size: 14px; color: var(--ink); }
+  .interp-content h1, .interp-content h2, .interp-content h3 {
+    color: var(--ink); margin: 14px 0 6px;
+  }
+  .interp-content h1 { font-size: 17px; } .interp-content h2 { font-size: 15.5px; } .interp-content h3 { font-size: 14px; }
+  .interp-content ul { margin: 6px 0; padding-left: 20px; }
+
+  .minutes-history { margin-top: 22px; }
+  .minutes-item {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 12px 14px; margin-bottom: 10px;
+    transition: border-color var(--dur) var(--ease);
+  }
+  .minutes-item:hover { border-color: #D4D4D8; }
+  .minutes-item .mi-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px; flex-wrap: wrap;
+  }
+  .minutes-item .mi-date { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .minutes-item .mi-report { font-size: 12px; color: var(--muted); }
+  .minutes-item .mi-preview {
+    margin-top: 6px; font-size: 13px; color: var(--ink-2); line-height: 1.6;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .minutes-item .mi-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .minutes-empty {
+    text-align: center; font-size: 13px; color: var(--muted);
+    background: var(--surface); border: 1px dashed var(--line);
+    border-radius: var(--r); padding: 18px;
+  }
+  .minutes-empty a { color: var(--brand-deep); font-weight: 600; }
+
+  /* 骨架屏行高 */
+  .sk-row { height: 44px; margin-bottom: 6px; }
+
+  /* ---------- 窄屏：列降级（820px 不崩，无页面横向滚动） ---------- */
+  @media (max-width: 1023px) {
+    .stu-rows .qrow {
+      grid-template-columns: 1fr auto;
+      row-gap: 6px;
     }
-    .report-panel-inner {
-      background: var(--white);
-      border: 1px solid var(--line-soft);
-      border-radius: 10px;
-      padding: 20px 24px;
-    }
-    .report-panel-inner h3 {
-      font-family: "Noto Serif SC", serif;
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--ink);
-    }
-    .sc-expand-loading {
-      text-align: center;
-      color: var(--muted);
-      padding: 40px 0;
-      font-size: 13px;
-    }
-    .expand-chevron {
-      display: inline-block;
-      transition: transform .2s var(--ease);
-      font-size: 10px;
-      margin-left: 3px;
-    }
-    .student-row.expanded .expand-chevron { transform: rotate(180deg); }
-    .student-row.expanded .student-card {
-      border-color: var(--red);
-      background: var(--paper-2);
-    }
-    .report-panel table { margin-bottom: 0; }
-    .report-panel .minutes-history { margin-top: 20px; }
-    .report-panel .minutes-history h3 { margin-bottom: 12px; }
-  </style>
-</head>
-<body>
-  <div data-app-shell></div>
-  <div class="container">
-    <div class="page-header">
-      <h1 class="page-title">学生档案</h1>
-      <p class="page-subtitle">所有已生成报告的学生记录。点击学生查看历史报告，或直接「新建议程」开始撰写解读会会议记录。</p>
-    </div>
-    <div class="toolbar">
-      <div class="st-filter-group">
-        <div class="st-search-wrap">
-          <span class="st-search-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </span>
-          <input class="st-search" id="studentSearch" placeholder="搜索姓名、年级、学校、顾问…" oninput="filterStudents()">
-        </div>
-        <div class="st-seg" id="statusSeg">
-          <button type="button" class="st-seg-item active" data-status="all" onclick="setStatusFilter('all')">全部 <span class="seg-count" id="cntAll"></span></button>
-          <button type="button" class="st-seg-item" data-status="done" onclick="setStatusFilter('done')">已完成 Y4 <span class="seg-count" id="cntDone"></span></button>
-          <button type="button" class="st-seg-item" data-status="pending" onclick="setStatusFilter('pending')">未测评 <span class="seg-count" id="cntPending"></span></button>
-        </div>
-      </div>
-      <div class="st-actions">
-        <span class="st-result-count" id="resultCount"></span>
-        <button class="btn btn-secondary" onclick="window.location.href='/api/export'">导出 CSV</button>
-        <button class="btn btn-secondary" onclick="loadStudents()">刷新</button>
-      </div>
-    </div>
-    <div id="studentList"></div>
+    .stu-rows .sc-school, .stu-rows .sc-advisor { display: none; }
+    .stu-rows .c-status, .stu-rows .c-stage { grid-column: 1 / -1; }
+    .stu-rows .acts { grid-column: 1 / -1; justify-content: flex-start; opacity: 1; }
+    .stage-segs { flex-wrap: wrap; }
+    .stage-seg { flex: 1 1 40%; border-left: 0; border-top: 1px solid var(--line-soft); }
+    .search-box { max-width: none; flex: 1 1 100%; }
+    .st-result-count { margin-left: 0; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-title">学生档案</div>
+    <div class="page-sub">所有已生成报告的学生记录。点击学生进入档案，或直接「新建议程」开始撰写解读会会议记录。</div>
   </div>
-  <script>
+</div>
+
+<section class="surface stage-rail" id="stageRail" aria-label="待办视图"
+         data-initial-stage="{{ initial_stage }}" data-total="{{ stage_total }}"
+         data-meta='{{ stage_meta | tojson }}'>
+  <div class="stage-rail-head">
+    <span class="stage-rail-title">待办视图</span>
+    <span class="stage-rail-note">按当前需要处理的事项排序；学生生命周期进度见 360° 档案页。</span>
+  </div>
+  <div class="stage-segs">
+    {% for s in stage_meta %}
+    {% set count = stage_counts.get(s.key, 0) %}
+    <button type="button" class="stage-seg" data-stage="{{ s.key }}"
+            style="--seg-color: {{ s.color }}" onclick="setStageFilter('{{ s.key }}')">
+      <span class="stage-lab">{{ s.label }}</span>
+      <span class="stage-n">{{ count }}</span>
+    </button>
+    {% endfor %}
+  </div>
+</section>
+
+<div class="toolbar">
+  <div class="search-box">
+    <span class="ic">{{ icon('search', 15) }}</span>
+    <input class="input" id="studentSearch" placeholder="搜索姓名、编号、学校、顾问…"
+           oninput="filterStudents()" autocomplete="off">
+  </div>
+  <div class="pills" id="statusSeg">
+    <button type="button" class="pill on" data-status="all" onclick="setStatusFilter('all')">全部 <span class="n" id="cntAll"></span></button>
+    <button type="button" class="pill" data-status="done" onclick="setStatusFilter('done')">已完成 Y4 <span class="n" id="cntDone"></span></button>
+    <button type="button" class="pill" data-status="pending" onclick="setStatusFilter('pending')">未测评 <span class="n" id="cntPending"></span></button>
+  </div>
+  <span class="st-result-count" id="resultCount"></span>
+</div>
+
+<div class="surface stu-rows" style="margin-bottom:0">
+  <div class="qrow-head">
+    <span>学生</span><span>学校</span><span>顾问</span><span>测评状态</span><span>当前阶段</span><span class="r">操作</span>
+  </div>
+  <div id="studentList"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
     let currentReports = [];
     let currentStudentId = null;
     let currentStudentName = '';
@@ -448,20 +291,88 @@
 
     let allStudents = [];
     let currentStatus = 'all';
+    let currentStage = '';
+
+    const IC = {
+      users: '{{ icon("users", 16) }}',
+      search: '{{ icon("search", 16) }}',
+      inbox: '{{ icon("inbox", 16) }}'
+    };
+    const PENCIL_ICON = '{{ icon("pencil", 12) }}';
+
+    const STAGE_META = JSON.parse(
+      (document.getElementById('stageRail') || {}).dataset?.meta || '[]');
+    function stageMeta(key) {
+      return STAGE_META.find(s => s.key === key) || { label: key || '—' };
+    }
+    function stageBadge(key) {
+      return ({
+        pending_approval: 'badge-warn',
+        awaiting_student: 'badge-brand',
+        awaiting_report: 'badge-brand',
+        booked: 'badge-neutral',
+        reported: 'badge-ok',
+        ready: 'badge-neutral'
+      })[key] || 'badge-neutral';
+    }
 
     function setStatusFilter(v) {
       currentStatus = v;
-      document.querySelectorAll('#statusSeg .st-seg-item').forEach(b => {
-        b.classList.toggle('active', b.dataset.status === v);
+      document.querySelectorAll('#statusSeg .pill').forEach(b => {
+        b.classList.toggle('on', b.dataset.status === v);
       });
       filterStudents();
     }
 
-    async function loadStudents() {
-      const resp = await fetch('/api/students');
-      const data = await resp.json();
-      allStudents = data.students || [];
+    function setStageFilter(key) {
+      currentStage = (currentStage === key) ? '' : key;
+      document.querySelectorAll('#stageRail [data-stage]').forEach(b => {
+        b.classList.toggle('on', b.dataset.stage === currentStage);
+      });
+      syncStageUrl();
       filterStudents();
+    }
+
+    function syncStageUrl() {
+      const url = new URL(window.location.href);
+      if (currentStage) url.searchParams.set('stage', currentStage);
+      else url.searchParams.delete('stage');
+      history.replaceState(null, '', url.toString());
+    }
+
+    function clearFilters() {
+      const si = document.getElementById('studentSearch');
+      if (si) si.value = '';
+      currentStatus = 'all';
+      document.querySelectorAll('#statusSeg .pill').forEach(b => {
+        b.classList.toggle('on', b.dataset.status === 'all');
+      });
+      currentStage = '';
+      document.querySelectorAll('#stageRail [data-stage]').forEach(b => b.classList.remove('on'));
+      syncStageUrl();
+      filterStudents();
+    }
+
+    async function loadStudents() {
+      const el = document.getElementById('studentList');
+      if (el) {
+        el.innerHTML = Array.from({ length: 4 }).map(() =>
+          '<div class="sk sk-row"></div>').join('');
+      }
+      try {
+        const resp = await fetch('/api/students');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        allStudents = data.students || [];
+        filterStudents();
+      } catch (e) {
+        if (el) {
+          el.innerHTML = '<div class="empty"><div class="ic">' + IC.search + '</div>' +
+            '<div class="t">加载失败，点击重试</div>' +
+            '<div class="d"><a href="#" onclick="loadStudents();return false;" ' +
+            'style="color:var(--brand-deep);font-weight:600">重新加载</a></div></div>';
+        }
+      }
     }
 
     function filterStudents() {
@@ -470,6 +381,7 @@
       if (q) {
         list = list.filter(s => {
           return (s.name || '').toLowerCase().includes(q) ||
+                 (s.student_code || '').toLowerCase().includes(q) ||
                  (s.grade || '').toLowerCase().includes(q) ||
                  (s.school || '').toLowerCase().includes(q) ||
                  (s.advisor_name || '').toLowerCase().includes(q);
@@ -477,11 +389,27 @@
       }
       if (currentStatus === 'done') list = list.filter(s => s.report_count > 0);
       else if (currentStatus === 'pending') list = list.filter(s => s.report_count === 0);
+      if (currentStage) list = list.filter(s => s.stage === currentStage);
       renderStudents(list);
+    }
+
+    // 行点击：有编号进档案页；无编号（历史数据）展开报告面板。行内控件不触发。
+    function rowActivate(ev, id, code, name) {
+      if (ev.target.closest('button, a, input, .menu-wrap')) return;
+      if (code) { window.location.href = '/students/' + encodeURIComponent(code); }
+      else { showReports(id, name); }
+    }
+
+    function emptyState(ic, t, d) {
+      return '<div class="empty"><div class="ic">' + ic + '</div>' +
+             '<div class="t">' + t + '</div>' +
+             (d ? '<div class="d">' + d + '</div>' : '') + '</div>';
     }
 
     function renderStudents(students) {
       const el = document.getElementById('studentList');
+      if (!el) return;
+      el.innerHTML = '';   // 清空骨架/旧行，避免重复追加
       const doneCount = allStudents.filter(s => s.report_count > 0).length;
       document.getElementById('cntAll').textContent = allStudents.length;
       document.getElementById('cntDone').textContent = doneCount;
@@ -490,42 +418,77 @@
         ? '共 ' + students.length + ' 位学生'
         : students.length + ' / ' + allStudents.length + ' 位学生';
       if (!students || students.length === 0) {
-        el.innerHTML = '<div class="empty">暂无匹配的学生记录</div>';
+        if (allStudents.length === 0) {
+          el.innerHTML = emptyState(IC.users, '还没有学生', '生成第一份报告后，学生会出现在这里。');
+        } else if (currentStage) {
+          el.innerHTML = emptyState(IC.inbox, '这个阶段目前没有学生',
+            '<a href="#" onclick="clearFilters();return false;" style="color:var(--brand-deep);font-weight:600">清除筛选</a>');
+        } else {
+          el.innerHTML = emptyState(IC.search, '暂无匹配的学生记录', '换个关键词或清除筛选试试。');
+        }
         return;
       }
-      let html = '<div class="stu-table-head"><span>学生</span><span>学校</span><span>顾问</span><span>状态</span><span>操作</span></div>';
       for (const s of students) {
         const y4Status = s.report_count > 0
-          ? '<span class="y4-done">已完成' + (s.latest_report_date ? '<span class="yd-date">' + s.latest_report_date + '</span>' : '') + '</span>'
-          : '<span class="y4-pending">未测评</span>';
-        const minutesBadge = s.minutes_count > 0 ? `<span class="minutes-count" title="该学生已有解读会纪要条数">纪要 ${s.minutes_count}</span>` : '';
+          ? '<span class="badge badge-ok"><span class="dot"></span>已完成</span>' +
+            (s.latest_report_date ? '<span class="c-code">' + s.latest_report_date + '</span>' : '')
+          : '<span class="badge badge-neutral"><span class="dot"></span>未测评</span>';
         const canMinutes = s.report_count > 0;
         const nameJson = JSON.stringify(s.name).replace(/"/g, '&quot;');
-        const created = s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : '-';
+        const codeJson = JSON.stringify(s.student_code || '').replace(/"/g, '&quot;');
+        const created = s.created_at ? y4FmtDT(s.created_at) : '—';
         const gradeTag = s.grade ? '<span class="sc-grade-tag">' + escapeHtml(s.grade) + '</span>' : '';
-        const schoolHtml = s.school
-          ? escapeHtml(s.school)
+        const schoolHtml = s.school ? escapeHtml(s.school) : '<span class="is-empty">—</span>';
+        const advisorHtml = s.advisor_name ? escapeHtml(s.advisor_name) : '<span class="is-empty">—</span>';
+        const sm = stageMeta(s.stage);
+        const stageCell = s.stage
+          ? '<span class="badge ' + stageBadge(s.stage) + '"><span class="dot"></span>' +
+            escapeHtml(sm.label) + '</span>' +
+            (s.stage_days >= 1
+              ? '<span class="stage-days' + (s.stage_days >= 5 ? ' warn' : '') + '">' + s.stage_days + ' 天</span>'
+              : '')
           : '<span class="is-empty">—</span>';
-        const advisorHtml = s.advisor_name
-          ? escapeHtml(s.advisor_name)
-          : '<span class="is-empty">—</span>';
-        html += `<div class="student-row" data-id="${s.id}">
-          <div class="student-card" data-id="${s.id}" title="创建于 ${created}">
-          <div class="sc-name-cell">
-            ${s.student_code ? '<span class="sc-code">' + escapeHtml(s.student_code) + '</span>' : ''}
-            <span class="sc-name" id="name-${s.id}">${escapeHtml(s.name)}</span>
-            ${gradeTag}
+
+        let acts = '';
+        if (s.student_code) {
+          acts += '<a class="btn btn-sm btn-sec" href="/students/' + escapeHtml(s.student_code) +
+                  '" onclick="event.stopPropagation()">查看档案</a>';
+        } else {
+          acts += '<button class="btn btn-sm btn-sec" onclick="event.stopPropagation();showReports(' +
+                  s.id + ', ' + nameJson + ')">查看报告</button>';
+        }
+        acts += '<button class="btn btn-sm btn-sec" ' +
+                (canMinutes ? '' : 'disabled title="先生成测评报告后再做解读会纪要" ') +
+                'onclick="event.stopPropagation();newMinutesForStudent(' + s.id + ')">' +
+                (canMinutes ? '新建议程' : '无报告') + '</button>';
+        acts += '<span class="menu-wrap" x-data="{ m: false }" @click.stop>' +
+                '<button type="button" class="btn btn-sm btn-sec" @click="m = !m" aria-label="更多操作">⋯</button>' +
+                '<div class="menu" x-cloak x-show="m" @click.outside="m = false">' +
+                '<button type="button" class="menu-item" @click="m = false; window.startEditStudent(' + s.id + ')">编辑</button>' +
+                '<div class="menu-sep"></div>' +
+                '<button type="button" class="menu-item danger" @click="m = false; window.deleteStudent(' + s.id + ', ' + nameJson + ')">删除</button>' +
+                '</div></span>';
+
+        const rowHtml = `<div class="qwrap student-row" data-id="${s.id}">
+          <div class="qrow" title="创建于 ${created}"
+               onclick="rowActivate(event, ${s.id}, ${codeJson}, ${nameJson})">
+            <div class="c-studentwrap">
+              <div class="c-student">
+                <span class="n">${escapeHtml(s.name)}</span>${gradeTag}
+              </div>
+              <div class="c-code">${s.student_code ? escapeHtml(s.student_code) : '—'}</div>
+            </div>
+            <div class="sc-school" title="${escapeHtml(s.school || '')}">${schoolHtml}</div>
+            <div class="sc-advisor" title="${escapeHtml(s.advisor_name || '')}">
+              <span class="txt">${advisorHtml}</span>
+              <button type="button" class="advisor-pencil" title="编辑顾问"
+                      onclick="event.stopPropagation();editAdvisorStart(${s.id}, event)">${PENCIL_ICON}</button>
+            </div>
+            <div class="c-status">${y4Status}</div>
+            <div class="c-stage">${stageCell}</div>
+            <div class="acts">${acts}</div>
           </div>
-          <div class="sc-school" title="${escapeHtml(s.school || '')}">${schoolHtml}</div>
-          <div class="sc-advisor" title="${escapeHtml(s.advisor_name || '')}　右键编辑顾问" oncontextmenu="return editAdvisorStart(${s.id}, event)">${advisorHtml}</div>
-          <div class="sc-badges">${y4Status}${minutesBadge}</div>
-          <div class="sc-actions">
-            <a class="action-link" href="#" onclick="showReports(${s.id}, ${nameJson});return false;">查看报告 <span class="expand-chevron">▼</span></a>
-            <button class="btn btn-sm btn-minutes" onclick="newMinutesForStudent(${s.id})" ${canMinutes ? '' : 'disabled title="先生成测评报告后再做解读会纪要"'}>${canMinutes ? '新建议程' : '无报告'}</button>
-            <button class="btn btn-sm sc-ghost" onclick="startEditStudent(${s.id})">编辑</button>
-            <button class="btn btn-sm sc-ghost sc-danger" onclick="deleteStudent(${s.id}, ${nameJson})">删除</button>
-          </div>
-          <div class="sc-rename" id="rename-${s.id}" style="display:none">
+          <div class="rename-row" id="rename-${s.id}">
             <input type="text" class="rename-input" id="rename-input-${s.id}" value="${escapeHtml(s.name)}"
                    placeholder="姓名" title="姓名"
                    onkeydown="if(event.key==='Enter'){event.preventDefault();confirmEditStudent(${s.id})}else if(event.key==='Escape'){cancelEditStudent(${s.id})}" />
@@ -536,15 +499,14 @@
                    placeholder="顾问" title="顾问"
                    onkeydown="if(event.key==='Enter'){event.preventDefault();confirmEditStudent(${s.id})}else if(event.key==='Escape'){cancelEditStudent(${s.id})}" />
             <button class="btn btn-sm btn-primary" onclick="confirmEditStudent(${s.id})">确认</button>
-            <button class="btn btn-sm btn-secondary" onclick="cancelEditStudent(${s.id})">取消</button>
-          </div>
+            <button class="btn btn-sm btn-sec" onclick="cancelEditStudent(${s.id})">取消</button>
           </div>
           <div class="report-panel" id="panel-${s.id}">
             <div class="report-panel-inner" id="panel-inner-${s.id}"></div>
           </div>
         </div>`;
+        el.insertAdjacentHTML('beforeend', rowHtml);
       }
-      el.innerHTML = html;
       // 重新渲染后恢复展开状态
       if (expandedStudentId) {
         const row = document.querySelector('.student-row[data-id="' + expandedStudentId + '"]');
@@ -559,11 +521,11 @@
     }
 
     function newMinutesForStudent(studentId) {
-      window.open(`/transcript?student_id=${studentId}`, '_blank');
+      window.open(`/tools/transcript?student_id=${studentId}`, '_blank');
     }
 
     function newMinutesForReport(studentId, reportId) {
-      window.open(`/transcript?student_id=${studentId}&report_id=${reportId}`, '_blank');
+      window.open(`/tools/transcript?student_id=${studentId}&report_id=${reportId}`, '_blank');
     }
 
     function getPanelInner(studentId) {
@@ -616,24 +578,24 @@
       if (currentReports.length === 0) {
         html += '<p style="color:var(--muted);font-size:13px;margin-bottom:0">该学生暂无报告</p>';
       } else {
-        html += '<table><thead><tr><th>日期</th><th>PDF 文件</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+        html += '<table class="table"><thead><tr><th>日期</th><th>PDF 文件</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
         for (const r of currentReports) {
           const interpLabel = r.interpretation ? 'AI 解读 ✓' : 'AI 解读';
-          const minutesUrl = `/transcript?student_id=${studentId}&report_id=${r.id}`;
+          const minutesUrl = `/tools/transcript?student_id=${studentId}&report_id=${r.id}`;
           html += `<tr>
             <td>${r.report_date || '-'}</td>
             <td>
               <button class="btn btn-sm btn-primary" onclick="regeneratePdf(${r.id}, this)">生成 PDF</button>
-              <a class="btn btn-sm btn-secondary" id="v1link-${r.id}" style="display:none" href="#" target="_blank">旧版</a>
+              <a class="btn btn-sm btn-sec" id="v1link-${r.id}" style="display:none" href="#" target="_blank">旧版</a>
             </td>
-            <td>${r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-'}</td>
+            <td>${r.created_at ? y4FmtDT(r.created_at) : '-'}</td>
             <td>
-              <button class="btn btn-sm btn-secondary" onclick="showInterpretation(${r.id})">${interpLabel}</button>
-              <button class="btn btn-sm btn-minutes" onclick="window.open('${minutesUrl}', '_blank')">✎ 解读会纪要</button>
-              <button class="btn btn-sm btn-secondary" onclick="showRawData(${r.id})">原始数据</button>
-              <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/raw?download=1" download>下载 JSON</a>
-              <a class="btn btn-sm btn-secondary" href="/api/reports/${r.id}/evaluation" download>下载 有效评价</a>
-              <button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">删除</button>
+              <button class="btn btn-sm btn-sec" onclick="showInterpretation(${r.id})">${interpLabel}</button>
+              <button class="btn btn-sm btn-sec" onclick="window.open('${minutesUrl}', '_blank')">解读会纪要</button>
+              <button class="btn btn-sm btn-sec" onclick="showRawData(${r.id})">原始数据</button>
+              <a class="btn btn-sm btn-sec" href="/api/reports/${r.id}/raw?download=1" download>下载 JSON</a>
+              <a class="btn btn-sm btn-sec" href="/api/reports/${r.id}/evaluation" download>下载 有效评价</a>
+              <button class="btn btn-sm btn-ghost-danger" onclick="deleteReport(${r.id})">删除</button>
             </td>
           </tr>`;
         }
@@ -646,7 +608,7 @@
       // 从 DB 数据快照重生成（不调 OCR）：默认下载新版，旧版作为备用链接
       const orig = btn.textContent;
       btn.disabled = true;
-      btn.textContent = '生成中…';
+      btn.classList.add('is-loading');
       try {
         const resp = await fetch(`/api/reports/${reportId}/regenerate`, { method: 'POST' });
         if (!resp.ok) {
@@ -677,6 +639,7 @@
         alert(err.message || ('网络错误: ' + err));
       } finally {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.textContent = orig;
       }
     }
@@ -691,12 +654,12 @@
       const student = data.raw.student || {};
       let html = `<h3>原始数据 — ${data.student_name || ''}（报告 #${data.report_id}）</h3>`;
       html += `<p class="page-subtitle">学生：${student.name || '-'} ｜ 年级：${student.grade || '-'} ｜ 学校：${student.school || '-'} ｜ 测评日期：${student.test_date || '-'} ｜ 共 ${schemaItems.length} 个数据点</p>`;
-      html += '<div style="max-height:480px;overflow-y:auto;border:1px solid var(--line-soft);border-radius:10px;"><table><thead><tr><th>编号</th><th>指标</th><th>数值</th><th>来源</th></tr></thead><tbody>';
+      html += '<div style="max-height:480px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;"><table class="table"><thead><tr><th>编号</th><th>指标</th><th>数值</th><th>来源</th></tr></thead><tbody>';
       for (const it of schemaItems) {
         html += `<tr><td>${it.code || '-'}</td><td>${it.label || '-'}</td><td><b>${it.value ?? '—'}</b></td><td>${it.source_pdf || '-'}</td></tr>`;
       }
       html += '</tbody></table></div>';
-      html += `<div style="margin-top:12px;"><button class="btn btn-sm btn-secondary" onclick="showReportsFromCache()">← 返回报告列表</button></div>`;
+      html += `<div style="margin-top:12px;"><button class="btn btn-sm btn-sec" onclick="showReportsFromCache()">← 返回报告列表</button></div>`;
       panelInner.innerHTML = html;
     }
 
@@ -731,8 +694,8 @@
       }
       html += `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-sm btn-primary" id="reInterpBtn" onclick="runInterpret(${r.id})">重新解读</button>
-        <button class="btn btn-sm btn-minutes" onclick="window.open('/transcript?student_id=${currentStudentId}&report_id=${r.id}', '_blank')">✎ 撰写解读会纪要</button>
-        <button class="btn btn-sm btn-secondary" onclick="showReportsFromCache()">← 返回报告列表</button>
+        <button class="btn btn-sm btn-sec" onclick="window.open('/tools/transcript?student_id=${currentStudentId}&report_id=${r.id}', '_blank')">撰写解读会纪要</button>
+        <button class="btn btn-sm btn-sec" onclick="showReportsFromCache()">← 返回报告列表</button>
       </div>`;
       panelInner.innerHTML = html;
     }
@@ -798,7 +761,7 @@
         if (data.ok && data.minutes && data.minutes.length > 0) {
           html += `<h3 style="margin-top:24px">历史解读会纪要（共 ${data.minutes.length} 条）</h3>`;
           for (const m of data.minutes) {
-            const created = m.created_at ? new Date(m.created_at).toLocaleString('zh-CN') : '—';
+            const created = m.created_at ? y4FmtDT(m.created_at) : '—';
             const reportTag = m.report_date ? `关联报告：${m.report_date}` : '未绑定报告';
             html += `<div class="minutes-item" data-id="${m.id}">
               <div class="mi-head">
@@ -807,10 +770,9 @@
               </div>
               <div class="mi-preview">${escapeHtml(m.preview || '（无预览）')}</div>
               <div class="mi-actions">
-                <a class="btn btn-sm btn-secondary" href="/transcript?student_id=${studentId}#m${m.id}" target="_blank">查看完整内容</a>
+                <a class="btn btn-sm btn-sec" href="/tools/transcript?student_id=${studentId}#m${m.id}" target="_blank">查看完整内容</a>
                 <button class="btn btn-sm btn-primary" onclick="downloadMinutesDocx(${m.id})">下载 DOCX</button>
-                <button class="btn btn-sm btn-danger" style="background:var(--white);color:var(--red);border:1.5px solid var(--line);"
-                  onclick="deleteMinutes(${m.id})">删除</button>
+                <button class="btn btn-sm btn-ghost-danger" onclick="deleteMinutes(${m.id})">删除</button>
               </div>
             </div>`;
           }
@@ -818,8 +780,7 @@
           html += `<h3 style="margin-top:24px">历史解读会纪要</h3>
             <div class="minutes-empty">
               该学生暂无历史解读会纪要。&nbsp;&nbsp;
-              <a href="/transcript?student_id=${studentId}" target="_blank"
-                 style="color:var(--red);font-weight:600;">立即新建第一条 →</a>
+              <a href="/tools/transcript?student_id=${studentId}" target="_blank">立即新建第一条 →</a>
             </div>`;
         }
         panelInner.insertAdjacentHTML('beforeend', html);
@@ -889,12 +850,14 @@
       }
     }
 
-    // --- 顾问右键编辑 ---
+    // --- 顾问行内编辑（hover 铅笔进入；Enter 保存，Esc/失焦取消） ---
     let _advisorSaving = false;
 
     function editAdvisorStart(studentId, e) {
-      e.preventDefault();
-      const cell = e.currentTarget;
+      if (e && e.preventDefault) e.preventDefault();
+      const btn = e && e.currentTarget;
+      const cell = btn ? btn.closest('.sc-advisor') : null;
+      if (!cell) return false;
       const s = (allStudents || []).find(x => x.id === studentId);
       if (!s) return false;
       const cur = (s.advisor_name || '').replace(/"/g, '&quot;');
@@ -962,6 +925,7 @@
       // 还原为列表中的当前值（data 缓存于 renderStudents）
       const s = (allStudents || []).find(x => x.id === studentId);
       if (s) {
+        if (input) input.value = s.name || '';
         if (schoolInput) schoolInput.value = s.school || '';
         if (advisorInput) advisorInput.value = s.advisor_name || '';
       }
@@ -1006,8 +970,16 @@
       }
     }
 
+    // URL ?stage= 可分享：首屏按初始阶段高亮并筛选
+    (function initStageFromUrl() {
+      const rail = document.getElementById('stageRail');
+      const initial = (rail && rail.dataset.initialStage) || '';
+      if (!initial) return;
+      currentStage = initial;
+      rail.querySelectorAll('[data-stage]').forEach(b => {
+        if (b.dataset.stage === currentStage) b.classList.add('on');
+      });
+    })();
     loadStudents();
   </script>
-  <script src="/app_shell.js" defer></script>
-</body>
-</html>
+{% endblock %}
