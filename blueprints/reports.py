@@ -37,7 +37,7 @@ bp = Blueprint("reports", __name__)
 @bp.route("/generate")
 @role_required('admin', 'advisor')
 def index():
-    return render_template("index.html")
+    return render_template("index.html", nav_active="generate")
 
 
 @bp.route("/preview")
@@ -143,10 +143,26 @@ def _clean_y4(v: str) -> str:
     return "" if v in ("", "—", "-") else v
 
 
+def _run_six_am_hook(report_id: Optional[int]) -> None:
+    """报告落库后的后台 6AM 档案更新（非致命）。
+
+    Six A.M. 不占学生生命周期节点，只在「报告已生成」后作为后台更新；
+    失败只记录日志，不改动 job 状态。
+    """
+    if not report_id:
+        return
+    try:
+        import six_am
+        six_am.run_for_report(int(report_id))
+    except Exception as e:
+        print(f"[6AM] 生成失败 (非致命): {e}")
+
+
 def _save_report_to_db(pdf_path: Path, selected_sid: str, manual_name: str) -> Optional[int]:
     """归档生成的报告到数据库（尽力而为，失败不影响主流程）。
 
-    返回 report id（无学生时 None）；归档成功后尽力而为触发 6AM 档案生成（非致命）。
+    返回 report id（无学生时 None）；归档成功后触发问卷识别钩子（非致命）。
+    6AM 档案更新不在此处执行 —— 由调用方在报告任务完成后走 ``_run_six_am_hook()``。
     """
     report_id = None
     try:
@@ -159,8 +175,8 @@ def _save_report_to_db(pdf_path: Path, selected_sid: str, manual_name: str) -> O
         selected_sid = (selected_sid or "").strip()
         manual_name = (manual_name or "").strip()
 
-        # 学校/顾问以 Y4 input 读取结果为准（预约时可能未填写），
-        # 覆盖 students 表中的旧值；提取失败（空或"—"）时保留原值。
+        # 学校：OCR 值非空 → 以最新报告为准覆盖；空或「—」→ 保留旧值。
+        # 顾问：仅当现有值为空时才用 OCR teacher 回填；预约/手动填过的顾问不被覆盖。
         y4_school = _clean_y4(student_info.get("school", ""))
         y4_advisor = _clean_y4(student_info.get("teacher", ""))
 
@@ -168,12 +184,14 @@ def _save_report_to_db(pdf_path: Path, selected_sid: str, manual_name: str) -> O
             sid = int(selected_sid)
             sname = sname or manual_name or f"学生#{sid}"
             if student_info:
+                existing = _db.get_student(sid) or {}
+                advisor_empty = not (existing.get("advisor_name") or "").strip()
                 _db.update_student(sid, **{k: v for k, v in {
                     "gender": student_info.get("gender", ""),
                     "birthday": student_info.get("birthday", ""),
                     "grade": student_info.get("grade", ""),
                     "school": y4_school,
-                    "advisor_name": y4_advisor,
+                    "advisor_name": y4_advisor if advisor_empty else "",
                 }.items() if v})
             print(f"[DB] 关联到预约学生: {sname} (id={sid})")
         elif manual_name:
@@ -207,11 +225,14 @@ def _save_report_to_db(pdf_path: Path, selected_sid: str, manual_name: str) -> O
     except Exception as e:
         print(f"[DB] 保存报告失败 (非致命): {e}")
     if report_id:
+        # 问卷识别钩子（Agent C）：published 规则命中即建 pending 任务。
+        # 本函数在 genjob 子进程中执行，无 Flask 请求上下文；失败不影响退出码。
         try:
-            import six_am
-            six_am.run_for_report(report_id)
+            import questionnaire_store as _qstore
+            _recog = _qstore.recognize_for_report(report_id)
+            print(f"[问卷] 识别结果: {_recog}")
         except Exception as e:
-            print(f"[6AM] 生成失败 (非致命): {e}")
+            print(f"[问卷] 识别失败 (非致命): {e}")
     return report_id
 
 
@@ -220,7 +241,9 @@ def _find_generated_pdf() -> Optional[Path]:
     pdf_files = sorted(OUTPUT_DIR.glob("*.pdf"))
     if not pdf_files:
         return None
-    # 排除并行产出的 v2 新版，主报告永远是 v1
+    # 干净文件名（凭远Y4评测报告_X.pdf）= 旧版设计；新版设计文件名为 ..._v2_X.pdf。
+    # 这里取旧版文件名作 job.filename（新版文件名由下方 filename_v2 记录；
+    # 对外默认下载的是新版——见 api_generate_result）。
     named = [f for f in pdf_files if "凭远Y4评测报告" in f.name and "_v2_" not in f.name]
     return named[0] if named else pdf_files[0]
 
@@ -267,7 +290,7 @@ def _run_pipeline_job(job: dict) -> int:
         if not pdf_path or not pdf_path.exists():
             raise RuntimeError("生成流程完成，但未在 output/ 下找到 PDF。请检查 Chrome 是否可用。")
 
-        # 并行产出的 v2 新版（可选，不存在的场合不阻塞）
+        # 并行产出的新版设计（原 v2；对外默认下载即此版；缺失时回落旧版）
         filename_v2 = ""
         m = re.match(r"^凭远Y4评测报告_(.+)\.pdf$", pdf_path.name)
         if m:
@@ -275,14 +298,16 @@ def _run_pipeline_job(job: dict) -> int:
             if v2_candidate.exists():
                 filename_v2 = v2_candidate.name
 
-        _save_report_to_db(pdf_path, job.get("student_id", ""),
-                           job.get("manual_student_name", ""))
+        report_id = _save_report_to_db(pdf_path, job.get("student_id", ""),
+                                       job.get("manual_student_name", ""))
 
         _write_job(status="done", percent=100, message="报告已生成",
                    filename=pdf_path.name, pdf_path=str(pdf_path),
                    filename_v2=filename_v2,
                    applied=apply_result.get("applied", 0),
                    total=apply_result.get("total_items", 0), error="")
+        # 报告任务已完成后，才把 Six A.M. 作为后台更新跑（失败不影响 job 状态）
+        _run_six_am_hook(report_id)
         return 0
     except Exception as exc:
         tb = traceback.format_exc()
@@ -429,13 +454,16 @@ def api_generate_result():
         return jsonify({"ok": False,
                         "error": job.get("error") or "报告尚未生成完成"}), 409
 
-    name = job.get("filename") or ""
-    download_name = name
-    if request.args.get("v") == "2":
-        name = job.get("filename_v2") or ""
-        if not name:
-            return jsonify({"ok": False, "error": "本次生成没有 v2 新版报告"}), 404
-        # 新版为默认下载：对外用不带 _v2_ 的文件名
+    name = ""
+    download_name = ""
+    if request.args.get("v") == "1" or request.args.get("legacy") == "1":
+        # 旧版设计（原 v1）：仅显式要求时提供，下载文件名带「旧版」
+        name = job.get("filename") or ""
+        base = job.get("filename") or "凭远Y4评测报告.pdf"
+        download_name = base.replace(".pdf", "_旧版.pdf") if base.endswith(".pdf") else base + "_旧版"
+    else:
+        # 默认 = 新版设计（原 v2，含 ?v=2 的兼容调用）；本次未产出新版时回落旧版文件
+        name = job.get("filename_v2") or job.get("filename") or ""
         download_name = job.get("filename") or name
     pdf_path = OUTPUT_DIR / name
     if not name or not pdf_path.exists():
@@ -621,9 +649,11 @@ def api_generate():
             }), 500
 
         # 8) Save to database (non-blocking, best-effort)
-        _save_report_to_db(pdf_path,
-                           request.form.get("student_id", ""),
-                           request.form.get("manual_student_name", ""))
+        report_id = _save_report_to_db(
+            pdf_path, request.form.get("student_id", ""),
+            request.form.get("manual_student_name", ""))
+        # 报告归档完成后触发 Six A.M. 后台更新（非致命）
+        _run_six_am_hook(report_id)
 
         # 9) 返回 PDF 作为附件
         download_filename = pdf_path.name
