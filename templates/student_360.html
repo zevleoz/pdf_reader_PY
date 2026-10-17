@@ -1,0 +1,855 @@
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% set ctx = {"id": profile.id, "code": profile.student_code, "canWrite": can_write, "stage": stage, "stageMeta": stage_meta, "meta": {"advisor_name": profile.advisor_name, "school": profile.school}} %}
+
+{% block title %}{{ profile.name }} · 学生档案{% endblock %}
+{% block page_title %}学生 360° 档案{% endblock %}
+
+{% block head_extra %}
+<style>
+  [x-cloak] { display: none !important; }
+
+  /* ---------- 阶段 stepper（CSS 绘制：圆点 + 连线，无图片） ---------- */
+  .stepper { display: flex; align-items: flex-start; }
+  .step {
+    position: relative; flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding-top: 2px;
+  }
+  .step-dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+    background: var(--surface); color: var(--faint);
+    border: 1.5px solid var(--line);
+    z-index: 1;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .step-label {
+    font-size: 11.5px; color: var(--faint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    text-align: center;
+  }
+  /* 连线：占满步骤间空隙，画在圆点后面 */
+  .step::before {
+    content: ""; position: absolute; top: 12px; left: 0; right: 50%;
+    height: 1.5px; background: var(--line);
+  }
+  .step::after {
+    content: ""; position: absolute; top: 12px; left: 50%; right: 0;
+    height: 1.5px; background: var(--line);
+  }
+  .step:first-child::before, .step:last-child::after { content: none; }
+  .step.is-done .step-dot { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+  .step.is-done .step-label { color: var(--ok); }
+  .step.is-done::before, .step.is-done::after { background: var(--ok); }
+  .step.is-current .step-dot { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .step.is-current .step-label { color: var(--brand-deep); font-weight: 600; }
+
+  /* 头部卡 meta 行 */
+  .stu-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-top: 16px; }
+  .stu-meta .k { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  .stu-meta .v { font-size: 13.5px; color: var(--ink); word-break: break-all; }
+  .stu-meta .meta-val { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .stu-meta .meta-val span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta-pencil {
+    flex: none; display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; padding: 0;
+    border: 1px solid var(--line); border-radius: 4px;
+    background: var(--surface); color: var(--muted); cursor: pointer;
+    opacity: 0; transition: opacity var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .meta-val:hover .meta-pencil { opacity: 1; }
+  @media (hover: none) { .meta-pencil { opacity: 1; } }
+  .meta-pencil:hover { color: var(--brand-deep); border-color: var(--brand); }
+  .meta-input {
+    width: 100%; height: 26px; padding: 0 8px;
+    font-size: 13.5px; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--brand); border-radius: 4px;
+    outline: none; box-shadow: 0 0 0 3px var(--brand-ring);
+  }
+
+  .stage-current { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+  .stage-current b { color: var(--ink); font-weight: 600; }
+
+  /* 可选进度节点（会议纪要）小 badge */
+  .step-badge {
+    display: inline-block; margin-left: 4px; padding: 0 5px;
+    font-size: 10px; line-height: 15px; color: var(--muted);
+    background: var(--surface-2, var(--bg)); border: 1px solid var(--line);
+    border-radius: 999px; vertical-align: 1px;
+  }
+
+  /* 当前阶段行下方的 Six A.M. 后台更新状态 chip */
+  .sixam-chip {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+    font-size: 12px; color: var(--muted);
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .sixam-chip .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--warn);
+  }
+  .sixam-chip .dot.ok { background: var(--ok); }
+
+  /* 下一步建议卡 */
+  .next-card {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: var(--r-sm); padding: 12px 14px;
+    min-width: 260px; max-width: 380px;
+  }
+  .next-card .lab { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .next-card .txt { font-size: 13.5px; font-weight: 550; color: var(--ink); line-height: 1.5; }
+  .next-card .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .stage-head-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-top: 18px; }
+  .stage-head-row > .stepper-wrap { flex: 1 1 320px; min-width: 0; }
+
+  /* ---------- tab 内容 ---------- */
+  .tab-pane { margin-top: 14px; }
+  .tab-pane .surface:last-child { margin-bottom: 0; }
+  .loading-note { text-align: center; color: var(--muted); font-size: 13px; padding: 34px 0; }
+
+  .value-cell { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+  .mini-bar {
+    display: inline-block; width: 60px; height: 4px;
+    background: var(--line-soft); border-radius: 999px; overflow: hidden;
+  }
+  .mini-bar > i { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
+
+  /* 问卷答案行内展开（.qpanel 语法） */
+  .answers { margin-top: 10px; }
+  .answer-row {
+    display: flex; gap: 8px; font-size: 12.5px;
+    padding: 7px 0; border-bottom: 1px solid var(--line-soft);
+  }
+  .answer-row:last-child { border-bottom: 0; }
+  .answer-row .k { color: var(--muted); flex: 0 0 auto; font-family: var(--mono); font-size: 11.5px; }
+
+  .qa-box {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: var(--r-sm); padding: 12px 14px; margin-top: 8px;
+    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+    max-height: 240px; overflow: auto; line-height: 1.7;
+  }
+  .pre-box {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: var(--r-sm); padding: 12px 14px; margin-top: 8px;
+    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+    max-height: 420px; overflow: auto; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  .card-title-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Markdown 渲染 */
+  .md-render { line-height: 1.75; font-size: 14px; }
+  .md-render h1 { font-size: 18px; font-weight: 600; margin: 16px 0 8px; }
+  .md-render h2 { font-size: 16px; font-weight: 600; margin: 14px 0 6px; }
+  .md-render h3 { font-size: 15px; font-weight: 600; margin: 12px 0 6px; }
+  .md-render ul { margin: 6px 0; padding-left: 20px; list-style: disc; }
+  .md-render li { margin: 2px 0; }
+
+  .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dialog .pre-box { max-height: 50vh; white-space: pre-wrap; }
+
+  @media (max-width: 1023px) {
+    .next-card { min-width: 0; max-width: none; width: 100%; }
+    .step-label { font-size: 10.5px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data='pageStudent360({{ ctx | tojson }})' x-init="init()">
+
+  <!-- 页头：学生基本信息 + 操作区 -->
+  <section class="surface">
+    <div style="padding:16px 18px">
+      <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start">
+        <div style="min-width:0">
+          <div class="mono">{{ profile.student_code or '—' }}</div>
+          <div style="font-size:20px; font-weight:650; letter-spacing:-.02em; line-height:1.3">{{ profile.name }}</div>
+          <div class="page-sub" style="margin-top:3px">
+            {{ profile.grade or '未填年级' }}
+            {%- if profile.gender %} · {{ profile.gender }}{% endif %}
+            {%- if profile.birthday %} · 生日 <span class="mono">{{ profile.birthday }}</span>{% endif %}
+          </div>
+        </div>
+        <div style="flex:1"></div>
+        <div style="display:flex; gap:8px" x-show="canWrite">
+          <button type="button" class="btn btn-sec"
+                  :class="{ 'is-loading': regenBusy }"
+                  :disabled="!profile || !profile.report || regenBusy"
+                  @click="regenLatest()">
+            {{ icon('refresh', 14) }} 重生成 PDF
+          </button>
+          <button type="button" class="btn btn-primary" @click="openTask()">
+            {{ icon('clipboard', 14) }} 发起问卷任务
+          </button>
+        </div>
+      </div>
+
+      <div class="stu-meta">
+        <div>
+          <div class="k">顾问</div>
+          <template x-if="metaEdit !== 'advisor_name'">
+            <div class="v meta-val">
+              <span x-text="metaVal('advisor_name')"></span>
+              <button type="button" class="meta-pencil" x-show="canWrite" title="编辑顾问"
+                      @click="startMetaEdit('advisor_name')">{{ icon('pencil', 12) }}</button>
+            </div>
+          </template>
+          <template x-if="metaEdit === 'advisor_name'">
+            <input type="text" class="meta-input" x-ref="metaInput"
+                   x-model="metaDraft" placeholder="顾问姓名"
+                   @keydown.enter.prevent="saveMeta()"
+                   @keydown.escape.prevent="metaEdit = ''"
+                   @blur="saveMeta()" />
+          </template>
+        </div>
+        <div>
+          <div class="k">学校</div>
+          <template x-if="metaEdit !== 'school'">
+            <div class="v meta-val">
+              <span x-text="metaVal('school')"></span>
+              <button type="button" class="meta-pencil" x-show="canWrite" title="编辑学校"
+                      @click="startMetaEdit('school')">{{ icon('pencil', 12) }}</button>
+            </div>
+          </template>
+          <template x-if="metaEdit === 'school'">
+            <input type="text" class="meta-input" x-ref="metaInput"
+                   x-model="metaDraft" placeholder="学校"
+                   @keydown.enter.prevent="saveMeta()"
+                   @keydown.escape.prevent="metaEdit = ''"
+                   @blur="saveMeta()" />
+          </template>
+        </div>
+        <div><div class="k">邮箱</div><div class="v truncate">{{ profile.email or '—' }}</div></div>
+        <div><div class="k">电话</div><div class="v mono">{{ profile.phone or '—' }}</div></div>
+      </div>
+
+      <!-- 阶段 stepper + 下一步建议 -->
+      <div style="border-top:1px solid var(--line-soft); margin-top:16px; padding-top:4px">
+        <div class="stage-head-row">
+          <div class="stepper-wrap">
+            <div class="stepper">
+              <template x-for="(s, i) in stageMeta" :key="s.key">
+                <div class="step" :class="stepState(i)">
+                  <span class="step-dot" x-text="stepMark(i)"></span>
+                  <span class="step-label">
+                    <span x-text="s.label"></span><span class="step-badge" x-show="s.optional" x-cloak>可选</span>
+                  </span>
+                </div>
+              </template>
+            </div>
+            <div class="stage-current">
+              当前：<b x-text="stageIdx >= 0 ? stage.label : '—'"></b>
+              <span x-show="stageIdx >= 0 && stage.since_label"> · </span>
+              <span x-show="stageIdx >= 0" x-text="stage.since_label"></span>
+            </div>
+            <div class="sixam-chip" x-show="stage.six_am" x-cloak>
+              <span class="dot" :class="{ 'ok': stage.six_am && stage.six_am.status === 'ready' }"></span>
+              <span x-text="stage.six_am && stage.six_am.status === 'ready'
+                            ? ('Six A.M. 已更新 · v' + stage.six_am.version)
+                            : 'Six A.M. 后台更新中'"></span>
+            </div>
+          </div>
+          <template x-if="stage.suggestion">
+            <div class="next-card">
+              <div class="lab">下一步建议</div>
+              <div class="txt" x-text="stage.suggestion.text"></div>
+              <div class="acts">
+                <template x-if="stage.suggestion.action_kind === 'link'">
+                  <a class="btn btn-primary" :href="stage.suggestion.action_href"
+                     x-text="stage.suggestion.action_label"></a>
+                </template>
+                <template x-if="stage.suggestion.action_kind === 'create'">
+                  <button type="button" class="btn btn-primary" x-show="canWrite"
+                          @click="openTask()" x-text="stage.suggestion.action_label"></button>
+                </template>
+                <template x-if="stage.suggestion.action_kind === 'package'">
+                  <button type="button" class="btn btn-primary"
+                          @click="showStagePackage()" x-text="stage.suggestion.action_label"></button>
+                </template>
+                <template x-if="stage.suggestion.expired">
+                  <button type="button" class="btn btn-sec"
+                          @click="reissueStage()">重新生成链接</button>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab 栏（下划线式） -->
+  <div class="tabs" role="tablist">
+    <template x-for="t in tabs" :key="t.key">
+      <button type="button" class="tab" :class="{ 'on': tab === t.key }"
+              role="tab" :aria-selected="tab === t.key"
+              @click="setTab(t.key)" x-text="t.label"></button>
+    </template>
+  </div>
+
+  <!-- 画像 -->
+  <div x-show="tab === 'profile'" x-cloak class="tab-pane">
+    <div x-show="loading.profile" class="loading-note">加载中…</div>
+    <div x-show="!loading.profile">
+      <div class="empty" x-show="!profile || !profile.report">
+        <div class="ic">{{ icon('chart', 16) }}</div>
+        <div class="t">暂无画像数据</div>
+        <div class="d">该学生尚无 Y4 报告，生成报告后画像指标会在此按组展示。</div>
+      </div>
+      <template x-if="profile && profile.report">
+        <div>
+          <div class="page-sub" style="margin-bottom:12px">
+            最新报告：<span x-text="profile.report.report_date || '—'" class="mono"></span>
+            · 共 <b x-text="profile.total"></b> 个数据点，按 <b x-text="profile.groups.length"></b> 组展示
+          </div>
+          <template x-for="g in profile.groups" :key="g.name">
+            <section class="surface">
+              <div class="surface-head">
+                <span class="surface-title" x-text="g.name"></span>
+                <span class="count-pill" x-text="g.items.length + ' 项'"></span>
+              </div>
+              <div style="overflow-x:auto">
+                <table class="table">
+                  <thead><tr><th>编号</th><th>指标</th><th class="num">数值</th></tr></thead>
+                  <tbody>
+                    <template x-for="it in g.items" :key="it.code">
+                      <tr>
+                        <td class="mono" x-text="it.code"></td>
+                        <td x-text="it.label"></td>
+                        <td class="num">
+                          <span class="value-cell">
+                            <span class="mini-bar" x-show="isPct(it)"><i :style="'width:' + pctWidth(it) + '%'"></i></span>
+                            <span style="font-weight:550" x-text="fmt(it.value)"></span>
+                          </span>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </template>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- 报告 -->
+  <div x-show="tab === 'reports'" x-cloak class="tab-pane">
+    <div x-show="loading.reports" class="loading-note">加载中…</div>
+    <div x-show="!loading.reports">
+      <div class="empty" x-show="!reports.length">
+        <div class="ic">{{ icon('file', 16) }}</div>
+        <div class="t">该学生暂无报告</div>
+      </div>
+      <section class="surface" x-show="reports.length">
+        <div style="overflow-x:auto">
+          <table class="table">
+            <thead><tr><th>报告日期</th><th>创建时间</th><th class="r" style="text-align:right">操作</th></tr></thead>
+            <tbody>
+              <template x-for="r in reports" :key="r.id">
+                <tr>
+                  <td class="mono" x-text="r.report_date || '—'"></td>
+                  <td class="mono" x-text="fmtDate(r.created_at)"></td>
+                  <td style="text-align:right; white-space:nowrap">
+                    <span style="display:inline-flex; gap:6px; justify-content:flex-end; flex-wrap:wrap">
+                      <button type="button" class="btn btn-sm btn-primary" x-show="canWrite"
+                              :class="{ 'is-loading': regenBusy }"
+                              :disabled="regenBusy" @click="regenerate(r)">生成 PDF</button>
+                      <a class="btn btn-sm btn-sec" :id="'v1-' + r.id"
+                         :href="v1Href[r.id] || '#'" style="display:none" target="_blank">旧版</a>
+                      <a class="btn btn-sm btn-sec" :href="'/api/reports/' + r.id + '/raw?download=1'" download>JSON</a>
+                      <a class="btn btn-sm btn-sec" :href="'/api/reports/' + r.id + '/evaluation'" download>有效评价</a>
+                      <button type="button" class="btn btn-sm btn-ghost-danger" x-show="canWrite"
+                              @click="delReport(r)">删除</button>
+                    </span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 问卷 -->
+  <div x-show="tab === 'questionnaires'" x-cloak class="tab-pane">
+    <div x-show="loading.questionnaires" class="loading-note">加载中…</div>
+    <div x-show="!loading.questionnaires">
+      <div class="empty" x-show="questionnaires && !questionnaires.enabled">
+        <div class="ic">{{ icon('clipboard', 16) }}</div>
+        <div class="t">问卷模块未启用</div>
+        <div class="d">工作台上线后，该学生的问卷任务与作答记录会显示在这里。</div>
+      </div>
+      <div class="empty" x-show="questionnaires && questionnaires.enabled && !questionnaires.assignments.length">
+        <div class="ic">{{ icon('check-circle', 16) }}</div>
+        <div class="t">暂无问卷任务</div>
+        <div class="d">报告命中识别规则或人工创建后，任务会出现在这里。</div>
+      </div>
+      <template x-for="a in (questionnaires && questionnaires.assignments) || []" :key="a.id">
+        <section class="surface">
+          <div class="surface-head">
+            <div style="min-width:0">
+              <div class="surface-title" x-text="a.questionnaire_title"></div>
+              <div class="card-title-sub"><span class="mono" x-text="a.questionnaire_code"></span> · 创建 <span x-text="fmtDate(a.created_at)"></span></div>
+            </div>
+            <span class="spacer"></span>
+            <span class="badge" :class="qBadge(a.status)"><span class="dot"></span><span x-text="qLabel(a.status)"></span></span>
+          </div>
+          <div style="padding:12px 16px 14px">
+            <div class="page-sub" x-show="a.source === 'auto'" style="margin-top:0">
+              来源：识别规则 · <span x-text="a.reason || '—'"></span>
+            </div>
+            <div class="page-sub" x-show="a.submitted_at" style="margin-top:4px">
+              提交时间：<span class="mono" x-text="fmtDate(a.submitted_at)"></span>
+            </div>
+            <template x-if="a.answers">
+              <div style="margin-top:10px">
+                <button type="button" class="btn btn-sm btn-sec" @click="toggle('ans', a.id)"
+                        x-text="showAnswers[a.id] ? '收起原始答案' : '展开原始答案'"></button>
+                <div class="qpanel answers" x-show="showAnswers[a.id]" x-cloak
+                     style="padding:10px 12px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--bg)">
+                  <template x-for="(v, k) in a.answers" :key="k">
+                    <div class="answer-row"><span class="k" x-text="k"></span><span x-text="fmtAns(v)"></span></div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </section>
+      </template>
+    </div>
+  </div>
+
+  <!-- 预约 -->
+  <div x-show="tab === 'bookings'" x-cloak class="tab-pane">
+    <div x-show="loading.bookings" class="loading-note">加载中…</div>
+    <div x-show="!loading.bookings">
+      <div class="empty" x-show="!bookings.length">
+        <div class="ic">{{ icon('calendar', 16) }}</div>
+        <div class="t">暂无预约记录</div>
+      </div>
+      <section class="surface" x-show="bookings.length">
+        <div style="overflow-x:auto">
+          <table class="table">
+            <thead><tr><th>预约时间</th><th>状态</th><th>顾问</th><th>备注</th></tr></thead>
+            <tbody>
+              <template x-for="b in bookings" :key="b.id">
+                <tr>
+                  <td class="mono" x-text="fmtDate(b.appointment_time)"></td>
+                  <td><span class="badge" :class="bBadge(b.status)"><span class="dot"></span><span x-text="b.status || '—'"></span></span></td>
+                  <td x-text="b.advisor_name || '—'"></td>
+                  <td style="font-size:12.5px; color:var(--muted); max-width:320px" x-text="b.notes || '—'"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 纪要 -->
+  <div x-show="tab === 'minutes'" x-cloak class="tab-pane">
+    <div x-show="loading.minutes" class="loading-note">加载中…</div>
+    <div x-show="!loading.minutes">
+      <div class="empty" x-show="!minutes.length">
+        <div class="ic">{{ icon('mic', 16) }}</div>
+        <div class="t">暂无解读会纪要</div>
+      </div>
+      <template x-for="m in minutes" :key="m.id">
+        <section class="surface">
+          <div class="surface-head">
+            <div style="min-width:0">
+              <div class="surface-title mono" x-text="fmtDate(m.created_at)"></div>
+              <div class="card-title-sub" x-text="m.report_date ? ('关联报告：' + m.report_date) : '未绑定报告'"></div>
+            </div>
+            <span class="spacer"></span>
+            <div style="display:flex; gap:8px">
+              <a class="btn btn-sm btn-sec" :href="'/tools/transcript?student_id=' + id + '#m' + m.id" target="_blank">前往</a>
+              <button type="button" class="btn btn-sm btn-sec" @click="toggle('min', m.id)"
+                      x-text="openMinutes[m.id] ? '收起' : '查看'"></button>
+            </div>
+          </div>
+          <div style="padding:12px 16px 14px">
+            <div x-show="!openMinutes[m.id]" style="font-size:13px; color:var(--muted)" x-text="m.preview || '（无预览）'"></div>
+            <div class="qa-box md-render" x-show="openMinutes[m.id]" x-cloak x-html="renderMd(m.minutes_text || '（无内容）')"></div>
+          </div>
+        </section>
+      </template>
+    </div>
+  </div>
+
+  <!-- 6AM -->
+  <div x-show="tab === 'sixam'" x-cloak class="tab-pane">
+    <div x-show="loading.sixam" class="loading-note">加载中…</div>
+    <div x-show="!loading.sixam">
+      <div class="empty" x-show="!sixam.length">
+        <div class="ic">{{ icon('target', 16) }}</div>
+        <div class="t">暂无 6AM 档案</div>
+        <div class="d">在 6AM 启动模型中生成后，档案版本会显示在这里。</div>
+      </div>
+      <template x-for="p in sixam" :key="p.id">
+        <section class="surface">
+          <div class="surface-head">
+            <div>
+              <div class="surface-title">版本 v<span x-text="p.version"></span></div>
+              <div class="card-title-sub">报告 <span class="mono">#<span x-text="p.report_id"></span></span> · <span x-text="fmtDate(p.created_at)"></span></div>
+            </div>
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-sm btn-sec" @click="toggle('six', p.id)"
+                    x-text="openSixam[p.id] ? '收起' : '查看'"></button>
+          </div>
+          <div style="padding:12px 16px 14px" x-show="openSixam[p.id]" x-cloak>
+            <pre class="pre-box" x-text="pretty(p.profile)"></pre>
+          </div>
+        </section>
+      </template>
+    </div>
+  </div>
+
+  <!-- 发起问卷任务对话框 -->
+  <div class="dialog-backdrop" x-cloak x-show="createOpen" @click.self="createOpen = false" style="z-index:110">
+    <div class="dialog" role="dialog" aria-modal="true">
+      <div class="dialog-title">发起问卷任务</div>
+      <div class="dialog-body">
+        <div style="margin-bottom:12px">学生：<b style="color:var(--ink)">{{ profile.name }}</b></div>
+        <label class="field">
+          <span class="field-label">问卷</span>
+          <select class="select" x-model="createForm.questionnaire_id">
+            <option value="">请选择问卷</option>
+            <template x-for="q in bank" :key="q.id">
+              <option :value="q.id" x-text="q.title"></option>
+            </template>
+          </select>
+        </label>
+        <label class="field" style="margin-bottom:0">
+          <span class="field-label">原因（可选）</span>
+          <textarea class="textarea" rows="2" x-model="createForm.reason"
+                    placeholder="例如：顾问建议补充主观反馈问卷"></textarea>
+        </label>
+        <div x-show="!bank.length" style="font-size:12.5px; color:var(--muted); margin-top:8px">
+          无可选问卷（问卷模块未启用或题库为空）。
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-sec" @click="createOpen = false">取消</button>
+        <button type="button" class="btn btn-primary" :class="{ 'is-loading': busy }"
+                :disabled="busy || !createForm.questionnaire_id"
+                @click="doCreate()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分发信息对话框（阶段建议卡触发） -->
+  <div class="dialog-backdrop" x-cloak x-show="pkgOpen" @click.self="pkgOpen=false" style="z-index:110">
+    <div class="dialog" role="dialog" aria-modal="true">
+      <div class="dialog-title" x-text="pkgTitle"></div>
+      <div class="dialog-body">
+        <div x-show="pkgNote" style="font-size:12.5px; color:var(--muted); margin-bottom:8px" x-text="pkgNote"></div>
+        <pre class="pre-box" x-text="pkgText" style="margin-top:0"></pre>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-sec" @click="copyText(pkgText)">复制</button>
+        <button type="button" class="btn btn-primary" @click="pkgOpen=false">关闭</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function pageStudent360(ctx) {
+  return {
+    id: ctx.id, code: ctx.code, canWrite: ctx.canWrite,
+    stage: ctx.stage || { stage: 'ready', label: '—', since_label: '', suggestion: null },
+    stageMeta: ctx.stageMeta || [],
+    stageIdx: 0,
+    tab: 'profile',
+    tabs: [
+      { key: 'profile', label: '画像' }, { key: 'reports', label: '报告' },
+      { key: 'questionnaires', label: '问卷' }, { key: 'bookings', label: '预约' },
+      { key: 'minutes', label: '纪要' }, { key: 'sixam', label: '6AM' }
+    ],
+    loaded: {}, loading: {}, profile: null,
+    reports: [], questionnaires: null, bookings: [], minutes: [], sixam: [],
+    showAnswers: {}, openMinutes: {}, openSixam: {}, v1Href: {},
+    regenBusy: false, busy: false,
+    meta: ctx.meta || {}, metaEdit: '', metaDraft: '', metaSaving: false,
+    createOpen: false, bank: [], createForm: { questionnaire_id: '', reason: '' },
+    pkgOpen: false, pkgTitle: '', pkgText: '', pkgNote: '', pkgNoteType: '',
+
+    init() {
+      // arrow function 保持 this 指向（旧版 function 写法导致 stageIdx 恒为 0）
+      // 生命周期进度顺序来自 PROGRESS_STAGES；找不到 key 时保持 -1，不默认点亮第一步
+      this.stageIdx = this.stageMeta.findIndex((s) => s.key === this.stage.stage);
+      this.loadTab('profile');
+    },
+
+    stepState(i) {
+      if (this.stageIdx < 0) { return ''; }
+      return i < this.stageIdx ? 'is-done' : (i === this.stageIdx ? 'is-current' : '');
+    },
+    stepMark(i) { return i < this.stageIdx ? '✓' : (i + 1); },
+
+    api(path) { return '/students/' + encodeURIComponent(this.code) + '/api/' + path; },
+    async get(path) {
+      var r = await fetch(this.api(path), { credentials: 'same-origin' });
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok || d.ok === false) { throw new Error(d.error || ('HTTP ' + r.status)); }
+      return d;
+    },
+
+    async loadTab(t) {
+      if (this.loaded[t] || this.loading[t]) { return; }
+      this.loading[t] = true;
+      try {
+        if (t === 'profile') { this.profile = await this.get('profile'); }
+        else if (t === 'reports') { this.reports = (await this.get('reports')).reports || []; }
+        else if (t === 'questionnaires') { this.questionnaires = await this.get('questionnaires'); }
+        else if (t === 'bookings') { this.bookings = (await this.get('bookings')).bookings || []; }
+        else if (t === 'minutes') { this.minutes = (await this.get('minutes')).minutes || []; }
+        else if (t === 'sixam') { this.sixam = (await this.get('sixam')).profiles || []; }
+        this.loaded[t] = true;
+      } catch (e) {
+        y4Toast(e.message, 'error');
+      } finally {
+        this.loading[t] = false;
+      }
+    },
+    setTab(t) { this.tab = t; this.loadTab(t); },
+
+    reload(t) { this.loaded[t] = false; this.loadTab(t); },
+    toggle(group, id) {
+      var map = group === 'ans' ? this.showAnswers : (group === 'min' ? this.openMinutes : this.openSixam);
+      map[id] = !map[id];
+    },
+
+    fmt(v) {
+      if (v === null || v === undefined || v === '') { return '—'; }
+      return v;
+    },
+
+    // ---- 页头 meta 行内编辑（顾问 / 学校，PUT /api/students/<id>）----
+    metaVal(field) { return this.fmt(this.meta ? this.meta[field] : ''); },
+    startMetaEdit(field) {
+      if (!this.canWrite || this.metaSaving) return;
+      this.metaEdit = field;
+      this.metaDraft = (this.meta && this.meta[field]) || '';
+      this.$nextTick(() => {
+        var el = this.$refs.metaInput;
+        if (el) { el.focus(); el.select(); }
+      });
+    },
+    async saveMeta() {
+      var field = this.metaEdit;
+      if (!field || this.metaSaving) return;   // Enter 后 blur 二次触发时直接跳过
+      this.metaSaving = true;
+      try {
+        var val = (this.metaDraft || '').trim();
+        var r = await fetch('/api/students/' + this.id, {
+          method: 'PUT', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.y4CsrfToken || '' },
+          body: JSON.stringify({ [field]: val })
+        });
+        var d = await r.json();
+        if (!d.ok) { throw new Error(d.error || '保存失败'); }
+        this.meta[field] = val;
+        y4Toast('已保存', 'success');
+      } catch (e) {
+        y4Toast(e.message, 'error');
+      } finally {
+        this.metaSaving = false;
+        this.metaEdit = '';
+      }
+    },
+    // 百分位类指标（指标名含「百分位」且数值 0-100）在数值旁给一条轻量视觉条；
+    // 文本档位（如「较低」）保持纯文本样式。
+    isPct(it) {
+      if (!it || !it.label) { return false; }
+      if (String(it.label).indexOf('百分位') === -1) { return false; }
+      var n = Number(it.value);
+      return isFinite(n) && n >= 0 && n <= 100;
+    },
+    pctWidth(it) {
+      var n = Number(it.value);
+      if (!isFinite(n)) { return 0; }
+      return Math.max(0, Math.min(100, n));
+    },
+    fmtAns(v) {
+      if (Array.isArray(v)) { return v.join('、'); }
+      if (v && typeof v === 'object') { return JSON.stringify(v); }
+      return (v === null || v === undefined || v === '') ? '（未作答）' : String(v);
+    },
+    fmtDate(iso) {
+      if (!iso) { return '—'; }
+      return window.y4FmtDT ? window.y4FmtDT(iso) : String(iso);
+    },
+    pretty(obj) {
+      try { return JSON.stringify(obj, null, 2); } catch (e) { return String(obj); }
+    },
+    renderMd(text) {
+      var html = String(text || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+      html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+      html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/^[-•] (.+)$/gm, '<li>$1</li>');
+      html = html.replace(/(<li>.+<\/li>\n?)+/g, '<ul>$&</ul>');
+      html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+      html = html.replace(/\n/g, '<br>');
+      return html;
+    },
+
+    qLabel(s) {
+      return ({ pending: '待确认', sent: '已发送', submitted: '已提交',
+                expired: '已过期', rejected: '已驳回' })[s] || s || '—';
+    },
+    qBadge(s) {
+      return ({ submitted: 'badge-ok', rejected: 'badge-danger',
+                expired: 'badge-warn', sent: 'badge-brand' })[s] || 'badge-neutral';
+    },
+    bBadge(s) {
+      return ({ confirmed: 'badge-ok', pending: 'badge-warn',
+                cancelled: 'badge-danger', completed: 'badge-ok' })[s] || 'badge-neutral';
+    },
+
+    async regenerate(r) {
+      if (!r) { return; }
+      this.regenBusy = true;
+      try {
+        var resp = await fetch('/api/reports/' + r.id + '/regenerate',
+                               { method: 'POST', credentials: 'same-origin' });
+        if (!resp.ok) {
+          var msg = '生成失败 (HTTP ' + resp.status + ')';
+          try { var e = await resp.json(); if (e && e.error) { msg = e.error; } } catch (_) {}
+          throw new Error(msg);
+        }
+        var blob = await resp.blob();
+        var filename = '凭远Y4评测报告.pdf';
+        var disp = resp.headers.get('Content-Disposition') || '';
+        var star = disp.match(/filename\*=UTF-8''([^;\n]+)/i);
+        if (star) { filename = decodeURIComponent(star[1]); }
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+        var v1name = resp.headers.get('X-V1-Filename');
+        if (v1name) {
+          this.v1Href[r.id] = '/output/' + v1name;
+          var link = document.getElementById('v1-' + r.id);
+          if (link) { link.style.display = ''; }
+        }
+        y4Toast('PDF 已生成并下载', 'success');
+      } catch (err) {
+        y4Toast(err.message || '生成失败', 'error');
+      } finally {
+        this.regenBusy = false;
+      }
+    },
+    async regenLatest() {
+      if (!this.profile || !this.profile.report) { return; }
+      await this.regenerate({ id: this.profile.report.id });
+    },
+    async delReport(r) {
+      if (!confirm('确认删除此报告？此操作不可撤销。')) { return; }
+      try {
+        var resp = await fetch('/api/reports/' + r.id, { method: 'DELETE', credentials: 'same-origin' });
+        var d = await resp.json();
+        if (!d.ok) { throw new Error(d.error || '删除失败'); }
+        y4Toast('已删除', 'success');
+        this.reload('reports');
+      } catch (e) { y4Toast(e.message, 'error'); }
+    },
+
+    async openTask() {
+      this.createOpen = true;
+      this.createForm = { questionnaire_id: '', reason: '' };
+      try {
+        var r = await fetch('/api/questionnaires/bank', { credentials: 'same-origin' });
+        var d = await r.json();
+        this.bank = ((d && d.questionnaires) || []).filter(function (q) { return q.is_active; });
+      } catch (e) {
+        this.bank = [];
+      }
+    },
+    async doCreate() {
+      if (!this.createForm.questionnaire_id) { return; }
+      this.busy = true;
+      try {
+        var r = await fetch('/api/questionnaires/assignments', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            student_id: this.id,
+            questionnaire_id: parseInt(this.createForm.questionnaire_id, 10),
+            reason: this.createForm.reason
+          })
+        });
+        var d = await r.json();
+        if (!d.ok) { throw new Error(d.error || '创建失败'); }
+        this.createOpen = false;
+        y4Toast(d.created ? '任务已创建' : '已有同名活动任务，已复用', 'success');
+        this.reload('questionnaires');
+      } catch (e) {
+        y4Toast(e.message, 'error');
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    async showStagePackage() {
+      var s = this.stage.suggestion;
+      if (!s || !s.assignment_id) { y4Toast('无关联问卷任务', 'info'); return; }
+      try {
+        var r = await fetch('/api/questionnaires/assignments/' + s.assignment_id + '/package',
+                            { credentials: 'same-origin' });
+        var d = await r.json();
+        if (!d.ok) { throw new Error(d.error || '操作失败'); }
+        this.pkgTitle = '分发信息';
+        this.pkgText = '学生：' + (d.student_name || '') + '（' + (d.student_code || '—') + '）\n' +
+                       '问卷：' + (d.questionnaire_title || '') + '\n' +
+                       (d.account ? '账号：' + d.account.username + '\n' : '') +
+                       '登录地址：' + d.login_url;
+        this.pkgNote = d.note || '链接仅本次显示，关闭后无法再次查看';
+        this.pkgOpen = true;
+      } catch (e) { y4Toast(e.message, 'error'); }
+    },
+    async reissueStage() {
+      var s = this.stage.suggestion;
+      if (!s || !s.assignment_id) { return; }
+      try {
+        var r = await fetch('/api/questionnaires/assignments/' + s.assignment_id + '/reissue',
+                            { method: 'POST', credentials: 'same-origin' });
+        var d = await r.json();
+        if (!d.ok) { throw new Error(d.error || '重新生成失败'); }
+        this.pkgTitle = '新的作答链接';
+        this.pkgText = d.text || '';
+        this.pkgNote = '旧链接已作废，仅本次显示新链接';
+        this.pkgOpen = true;
+        s.expired = false;
+        y4Toast('已重新生成链接', 'success');
+      } catch (e) { y4Toast(e.message, 'error'); }
+    },
+    copyText(t) {
+      if (!t) { return; }
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(t).then(function () { y4Toast('已复制', 'success'); },
+          function () { y4Toast('复制失败，请手动选择', 'error'); });
+      } else { y4Toast('请手动选择文本复制', 'info'); }
+    }
+  };
+}
+</script>
+{% endblock %}
