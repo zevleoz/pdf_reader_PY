@@ -1,18 +1,20 @@
-"""6 A.M. 追问选择（v0.2 §8.2 选择算法）
+"""6 A.M. 追问选择（新版 §7 追问选择规则）
 
 纯函数：不导入 Flask、不访问数据库。
 
-五步：
-1. 收集所有 state ≥ Watch 的维度，按 ObstacleScore 降序；
-2. 前 N 个维度（hypothesis_dim_limit，默认 3）中 confidence = Hypothesis 的优先；
-3. 每个被标记维度至少保留 1 题（逐轮轮询，避免高分维度挤占全部名额）；
-4. A6 固定保留 1–2 题（a6_slots，默认 2）；
-5. 去重、输出 Top-N（top_n，默认 8）。题目文本与验证目标取自 rules.QUESTIONS。
+选择规则（§7）：
+1. 维度顺序取自 priority.compute 的 priority_order（规则优先级，不再读分数）；
+   deferred 维度（如 X.7 长期目标的 A1）不进入本轮选题池；
+2. 优先仅线索维度（前 hypothesis_dim_limit 个关注维度中 confidence = Hypothesis 的优先）；
+3. 维度内优先 verify 跨 ≥2 条规则、能区分解释的题；
+4. 每个关注维度至少保留 1 题（逐轮轮询，避免高优先维度挤占全部名额）；
+5. A6 支持偏好固定保留 1–2 题（a6_slots，默认 2）；
+6. 去重、输出 Top-N（top_n，默认 8）。题目文本与验证目标取自 rules.QUESTIONS。
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from . import rules as R
 
@@ -35,7 +37,8 @@ A6_RULE_QUESTIONS: Dict[str, List[str]] = {
 
 
 def select(dims: Dict[str, Any], hits: Dict[str, List[Dict[str, Any]]],
-           params: Dict[str, Any]) -> List[Dict[str, Any]]:
+           params: Dict[str, Any],
+           priority_order: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     qcfg = params.get("questionnaire") or {}
     top_n = int(qcfg.get("top_n", 8))
     a6_slots = int(qcfg.get("a6_slots", 2))
@@ -46,21 +49,25 @@ def select(dims: Dict[str, Any], hits: Dict[str, List[Dict[str, Any]]],
         pools[dim] = _dim_queue(hits.get(dim) or [])
     pools["A6"] = _a6_queue(hits.get("A6") or [], a6_slots)
 
-    # 步骤 1：state ≥ Watch；步骤 2：前 N 维中 Hypothesis 优先
-    def _score_of(dim: str) -> float:
-        rec = dims.get(dim) or {}
-        return float(((rec.get("score") or {}).get("total")) or 0.0)
+    # 步骤 1：维度顺序取 priority_order（缺省时退化为 A1–A5 中 state ≥ Watch 的固定顺序）；
+    # deferred 维度（如 X.7 长期目标的 A1）不进入本轮选题池，fallback 也不补回
+    def _deferred(dim: str) -> bool:
+        return bool((dims.get(dim) or {}).get("deferred"))
 
-    cands = [d for d in DIM_ORDER
-             if SEV.get(str((dims.get(d) or {}).get("state") or "Secure"), 0) >= 1]
-    ranked = sorted(cands, key=lambda d: (-_score_of(d), DIM_ORDER.index(d)))
-    top_n_dims = ranked[:h_limit]
+    cands = [d for d in (priority_order or []) if d in DIM_ORDER and not _deferred(d)]
+    for d in DIM_ORDER:
+        if d not in cands and not _deferred(d) and \
+                SEV.get(str((dims.get(d) or {}).get("state") or "Secure"), 0) >= 1:
+            cands.append(d)
+
+    # 步骤 2：前 N 个关注维度中仅线索（Hypothesis）维度优先
+    top_n_dims = cands[:h_limit]
     pri = [d for d in top_n_dims
            if str((dims.get(d) or {}).get("confidence") or "") == "Hypothesis"]
-    rest = [d for d in top_n_dims if d not in pri] + ranked[h_limit:]
+    rest = [d for d in top_n_dims if d not in pri] + cands[h_limit:]
     dim_order = pri + rest + ["A6"]
 
-    # 步骤 3–5：逐轮轮询（每维每轮 1 题），A6 上限 a6_slots，去重后取 Top-N
+    # 步骤 4–6：逐轮轮询（每维每轮 1 题），A6 上限 a6_slots，去重后取 Top-N
     selected: List[Dict[str, Any]] = []
     a6_taken = 0
     while len(selected) < top_n:
@@ -84,13 +91,21 @@ def select(dims: Dict[str, Any], hits: Dict[str, List[Dict[str, Any]]],
 
 
 def _dim_queue(dhits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """维度内：规则按效果严重级降序、再按规则 ID 升序；问题去重并记录依据规则。"""
+    """维度内：规则按效果严重级降序、再按规则 ID 升序；问题去重并记录依据规则；
+    最后把 verify 跨 ≥2 条规则、能区分解释的题稳定提前（§7）。"""
     ordered = sorted(dhits, key=lambda h: (-_rule_sev(h), _rule_idx(h.get("id"))))
     by_q: Dict[str, List[str]] = {}
     for h in ordered:
         for q in h.get("questions") or []:
             by_q.setdefault(str(q), []).append(str(h.get("id")))
-    return [{"q": q, "basis": basis} for q, basis in by_q.items()]
+    recs = [{"q": q, "basis": basis} for q, basis in by_q.items()]
+    recs.sort(key=lambda r: 0 if _verify_span(r["q"]) >= 2 else 1)
+    return recs
+
+
+def _verify_span(qid: str) -> int:
+    q = R.QUESTIONS.get(str(qid)) or {}
+    return len(q.get("verify") or [])
 
 
 def _a6_queue(a6_hits: List[Dict[str, Any]], slots: int) -> List[Dict[str, Any]]:

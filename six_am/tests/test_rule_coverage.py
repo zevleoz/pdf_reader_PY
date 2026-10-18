@@ -288,7 +288,9 @@ class CrossRuleCoverage(unittest.TestCase):
         p = self._run(b)
         mods = _cross_mod_ids(p)
         self.assertIn("X.1", mods)
-        self.assertAlmostEqual(p["dimensions"]["A1"]["score"]["amplifier"], 1.5, places=2)
+        # X.1：处理顺序固定为先 A1 后 A2
+        order = p["priority_order"]
+        self.assertLess(order.index("A1"), order.index("A2"))
 
     def test_x2_signal_pollution(self):
         def b(fx):
@@ -304,8 +306,8 @@ class CrossRuleCoverage(unittest.TestCase):
             fx.add_point("学习动机-自我效能感", "偏低")  # A4 At-Risk
         p = self._run(b)
         self.assertIn("X.3", _cross_mod_ids(p))
-        self.assertAlmostEqual(p["dimensions"]["A4"]["score"]["amplifier"], 0.7, places=2)
-        self.assertAlmostEqual(p["dimensions"]["A5"]["score"]["amplifier"], 0.7, places=2)
+        # X.3：A3 强制置顶
+        self.assertEqual(p["priority_order"][0], "A3")
 
     def test_x4_constrains_a5(self):
         def b(fx):
@@ -335,7 +337,10 @@ class CrossRuleCoverage(unittest.TestCase):
             fx.add_evidence("parent.cannot_relinquish", True)
         p = self._run(b)
         self.assertIn("X.7", _cross_mod_ids(p))
-        self.assertAlmostEqual(p["dimensions"]["A1"]["score"]["amplifier"], 0.5, places=2)
+        # X.7：A1 不进入常规障碍排序，写入 deferred（长期目标）
+        self.assertNotIn("A1", p["priority_order"])
+        deferred = {d["dim"] for d in p["deferred"]}
+        self.assertIn("A1", deferred)
 
 
 class QuestionCoverage(unittest.TestCase):

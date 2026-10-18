@@ -1,4 +1,4 @@
-"""6 A.M. 跨维度修正规则 X.1–X.7（v0.2 §5）
+"""6 A.M. 跨维度修正规则 X.1–X.7（新版 §5 联动）
 
 纯函数：不导入 Flask、不访问数据库。
 engine 在单维判定（A1–A6）完成后调用 apply()，返回：
@@ -6,10 +6,10 @@ engine 在单维判定（A1–A6）完成后调用 apply()，返回：
     {
       "mods":        {dim: [{"id": "X.2", "action": "..."}]},   # 写入该维 cross_mods
       "notes":       {dim: ["..."]},                             # 追加到该维 notes
-      "multipliers": {dim: float},                               # scoring 的 Amplifier
       "constraints": {"x1": bool, "x3_top": bool, "x6": bool, "x7": bool, ...}
     }
 
+constraints 供 priority.compute 做规则优先级排序（不使用数值权重）。
 X.5 按实施计划在 A6 选择器（engine R6.5–R6.7）内兼容性处理；此处只在
 "R6.6 慎用 × R6.7 Structure" 真冲突时补一条裁决记录。
 """
@@ -18,14 +18,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-DIMS5 = ["A1", "A2", "A3", "A4", "A5"]
 SEV = {"Secure": 0, "Watch": 1, "At-Risk": 2, "Blocked": 3}
 
 
 def apply(dims: Dict[str, Any], ctx, params: Dict[str, Any]) -> Dict[str, Any]:
     mods: Dict[str, List[Dict[str, str]]] = {}
     notes: Dict[str, List[str]] = {}
-    multipliers: Dict[str, float] = {d: 1.0 for d in DIMS5}
     constraints: Dict[str, bool] = {
         "x1": False, "x2": False, "x3": False, "x3_top": False,
         "x4": False, "x5": False, "x6": False, "x7": False,
@@ -42,11 +40,8 @@ def apply(dims: Dict[str, Any], ctx, params: Dict[str, Any]) -> Dict[str, Any]:
 
     # ── X.1 Double-Lock 双锁 ──────────────────────────────────
     if _sev("A1") >= 2 and _sev("A2") >= 2:
-        x1 = float(params.get("x1_multiplier", 1.5))
-        multipliers["A1"] *= x1
-        multipliers["A2"] *= x1
         constraints["x1"] = True
-        action = (f"Double-Lock 双锁：A1×A2 均 ≥ At-Risk，两维 obstacle score ×{x1}；"
+        action = ("Double-Lock 双锁：A1×A2 均 ≥ At-Risk；"
                   "处理顺序固定为先 A1 后 A2（没有所有权时谈意义会被当成新一轮说教）")
         _add_mod("A1", "X.1", action)
         _add_mod("A2", "X.1", action)
@@ -73,15 +68,12 @@ def apply(dims: Dict[str, Any], ctx, params: Dict[str, Any]) -> Dict[str, Any]:
 
     # ── X.3 A3 优先排除 ───────────────────────────────────────
     if _sev("A3") >= 2:
-        x3 = float(params.get("x3_multiplier", 0.7))
-        multipliers["A4"] *= x3
-        multipliers["A5"] *= x3
         constraints["x3"] = True
         constraints["x3_top"] = True
         for dim in ("A4", "A5"):
             _add_mod(dim, "X.3",
-                     f"A3 优先排除：疲劳与过载会伪装成低自信、低规划；obstacle 排序中 A3 强制置顶，"
-                     f"{dim} score ×{x3}（其分数让位于 A3）")
+                     "A3 优先排除：疲劳与过载会伪装成低自信、低规划；"
+                     f"障碍排序中 A3 强制置顶，{dim} 让位于 A3，先处理容量问题再复评")
             if str((dims.get(dim) or {}).get("confidence") or "") == "Hypothesis" \
                     and SEV.get(str((dims.get(dim) or {}).get("state") or "Secure"), 0) >= 1:
                 _add_note(dim, "待 A3 处理后复测")
@@ -113,11 +105,9 @@ def apply(dims: Dict[str, Any], ctx, params: Dict[str, Any]) -> Dict[str, Any]:
 
     # ── X.7 家长无法让渡主导权 ────────────────────────────────
     if bool(ctx.ev("parent.cannot_relinquish")):
-        x7 = float(params.get("x7_multiplier", 0.5))
-        multipliers["A1"] *= x7
         constraints["x7"] = True
         _add_mod("A1", "X.7",
-                 f"家长无法让渡主导权：A1 obstacle score ×{x7}，A1 干预降级为长期目标；"
+                 "家长无法让渡主导权：A1 干预降级为长期目标，不进入常规障碍排序；"
                  "干预重心转向 A2 意义匹配（在家长划定的边界内帮学生找到'这件事跟我有关'的理由）")
 
-    return {"mods": mods, "notes": notes, "multipliers": multipliers, "constraints": constraints}
+    return {"mods": mods, "notes": notes, "constraints": constraints}

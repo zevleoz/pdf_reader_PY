@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """v0.2 §10 三个 worked example 的断言测试（实施计划 §9 验收项 1）。
 
-运行：/opt/homebrew/bin/python3.11 -m unittest six_am.tests.test_worked_examples -v
-数值断言用容差比较（浮点）。
+新版优先级（不使用数值权重）：断言状态、亚型、跨维规则、priority_order 与追问覆盖，
+不再断言 ObstacleScore 数值。
+
+运行：python3.11 -m unittest six_am.tests.test_worked_examples -v
 """
 
 import os
@@ -63,7 +65,7 @@ class WorkedExample1(unittest.TestCase):
         self.assertEqual(a1["subtype"], "A1-S2")
         self.assertEqual(a1["confidence"], "Hypothesis")
         self.assertIn("高叛逆风险人群", a1["flags"])
-        self.assertAlmostEqual(a1["score"]["total"], 2.1, places=2)
+        self.assertNotIn("score", a1)
 
     def test_a2_watch_with_x2(self):
         a2 = self.dims["A2"]
@@ -75,18 +77,27 @@ class WorkedExample1(unittest.TestCase):
         for dim in ("A3", "A4", "A5"):
             self.assertEqual(self.dims[dim]["state"], "Secure", dim)
 
-    def test_obstacle_a1_high_priority(self):
+    def test_obstacle_a1_first(self):
         obs = {o["dim"]: o for o in self.p["obstacles"]}
         self.assertIn("A1", obs)
-        self.assertTrue(obs["A1"]["high_priority"])
         self.assertEqual(obs["A1"]["sequence"], 1)
+        self.assertEqual(self.p["priority_order"][0], "A1")
+        self.assertTrue(obs["A1"]["priority_reason"])
         for o in self.p["obstacles"]:
-            if o["dim"] != "A1":
-                self.assertLessEqual(o["score"], 1.0)
+            self.assertNotIn("score", o)
+            self.assertNotIn("high_priority", o)
 
     def test_a6_authority_and_parent_caution(self):
         plan = self.p["support_plan"]
         self.assertEqual(plan["ranked"][0]["direction"], "同伴协作")
+        by_dir = {r["direction"]: r for r in plan["ranked"]}
+        # 定性适配：R6.6 命中 → 成人方向慎用；同伴协作有正向规则支持 → 优先
+        self.assertEqual(by_dir["权威施压"]["fit_label"], "慎用")
+        self.assertEqual(by_dir["家长陪同"]["fit_label"], "慎用")
+        self.assertEqual(by_dir["同伴协作"]["fit_label"], "优先")
+        for r in plan["ranked"]:
+            self.assertNotIn("score", r)
+            self.assertNotIn("predicted_effectiveness", r)
         avoid = {(a["direction"], a["kind"]) for a in plan["avoid"]}
         self.assertIn(("权威施压", "慎用"), avoid)
         self.assertIn(("家长陪同", "慎用"), avoid)
@@ -119,22 +130,22 @@ class WorkedExample2(unittest.TestCase):
         self.assertEqual(a3["state"], "Blocked")
         self.assertEqual(a3["subtype"], "A3-S1")
         self.assertEqual(a3["confidence"], "Supported")
-        self.assertAlmostEqual(a3["score"]["total"], 3.0, places=2)
+        self.assertNotIn("score", a3)
 
     def test_a4_a5_x3_annotated(self):
         for dim in ("A4", "A5"):
             rec = self.dims[dim]
             self.assertEqual(rec["state"], "At-Risk", dim)
             self.assertEqual(rec["confidence"], "Hypothesis", dim)
-            self.assertAlmostEqual(rec["score"]["total"], 0.98, places=2)
-            self.assertAlmostEqual(rec["score"]["amplifier"], 0.7, places=2)
+            self.assertNotIn("score", rec, dim)
             self.assertIn("X.3", _ids(rec["cross_mods"]))
             self.assertTrue(any("待 A3 处理后复测" in n for n in rec["notes"]))
 
     def test_a3_sequence_first(self):
         obs = {o["dim"]: o for o in self.p["obstacles"]}
-        self.assertTrue(obs["A3"]["high_priority"])
         self.assertEqual(obs["A3"]["sequence"], 1)
+        # X.3 置顶后，A4 与 A5 同级并列时 A4 在前
+        self.assertEqual(self.p["priority_order"], ["A3", "A4", "A5"])
         self.assertIn("X.3", self.p["sequence_note"])
 
     def test_questions_contain(self):
@@ -179,7 +190,7 @@ class WorkedExample3(unittest.TestCase):
         self.assertEqual(a5["state"], "At-Risk")
         self.assertEqual(a5["subtype"], "A5-S3")
         self.assertEqual(a5["confidence"], "Supported")
-        self.assertAlmostEqual(a5["score"]["total"], 2.0, places=2)
+        self.assertNotIn("score", a5)
 
     def test_a1_a4_secure(self):
         for dim in ("A1", "A2", "A3", "A4"):
@@ -190,13 +201,18 @@ class WorkedExample3(unittest.TestCase):
         top2 = [r["direction"] for r in plan["ranked"][:2]]
         self.assertIn("同伴协作", top2)
         self.assertIn("权威施压", top2)
-        authority = [r for r in plan["ranked"] if r["direction"] == "权威施压"][0]
+        by_dir = {r["direction"]: r for r in plan["ranked"]}
+        authority = by_dir["权威施压"]
         self.assertIn("Structure", authority["sub_mechanisms"])
+        # R6.1 团队行为经观察佐证 → 同伴协作 优先
+        self.assertEqual(by_dir["同伴协作"]["fit_label"], "优先")
+        self.assertIn("R6.1", by_dir["同伴协作"]["basis_rules"])
 
-    def test_obstacle_single_high_priority(self):
+    def test_obstacle_single_entry(self):
         obs = {o["dim"]: o for o in self.p["obstacles"]}
         self.assertEqual(list(obs.keys()), ["A5"])
-        self.assertTrue(obs["A5"]["high_priority"])
+        self.assertEqual(obs["A5"]["sequence"], 1)
+        self.assertEqual(self.p["priority_order"], ["A5"])
 
     def test_questions_contain(self):
         qs = {q["id"] for q in self.p["questions"]}
