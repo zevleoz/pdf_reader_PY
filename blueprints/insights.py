@@ -221,11 +221,12 @@ def y4_signals_page():
 import six_am as _six_am
 from six_am.export_json import build_six_am_json as _build_six_am_json
 from six_am.render_docx import build_six_am_docx as _build_six_am_docx
+from six_am import presentation as _six_am_presentation
 from six_am import rules as _six_am_rules
 
 
 def _six_am_profile_payload(rec: Dict) -> Dict:
-    """DB 行 → 前端 payload（解析 profile_json，附该报告的版本列表）。"""
+    """DB 行 → 前端 payload（解析 profile_json，附该报告的版本列表与视图模型）。"""
     try:
         prof = json.loads(rec.get("profile_json") or "{}")
     except Exception:
@@ -246,6 +247,7 @@ def _six_am_profile_payload(rec: Dict) -> Dict:
         "student_id": rec.get("student_id"),
         "profile": prof,
         "versions": versions,
+        "view_model": _six_am_presentation.build_view_model(prof),
     }
 
 
@@ -353,11 +355,77 @@ def api_report_six_am_answers(report_id):
     return jsonify({"ok": True, **_six_am_profile_payload(rec)})
 
 
+# ── 人工行动修订（不新增版本，就地更新当前档案）───────────────────
+_OVERRIDE_DIMS = ("A1", "A2", "A3", "A4", "A5", "A6")
+_OVERRIDE_MAX_ITEMS = 8
+_OVERRIDE_MAX_LEN = 300
+
+
+def _validate_action_list(value, field: str):
+    """校验行动数组：None → []；≤8 条、每条为 ≤300 字的非空字符串。
+
+    返回 (items, error)；error 非 None 时 items 为 None。
+    """
+    if value is None:
+        return [], None
+    if not isinstance(value, list):
+        return None, f"{field} 必须是字符串数组"
+    if len(value) > _OVERRIDE_MAX_ITEMS:
+        return None, f"{field} 最多 {_OVERRIDE_MAX_ITEMS} 条"
+    items = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            return None, f"{field} 含空或非字符串条目"
+        if len(item) > _OVERRIDE_MAX_LEN:
+            return None, f"{field} 单条最多 {_OVERRIDE_MAX_LEN} 字"
+        items.append(item.strip())
+    return items, None
+
+
+@bp.route("/api/reports/<int:report_id>/six-am/action-overrides", methods=["POST"])
+@admin_required
+@report_scoped
+def api_report_six_am_action_overrides(report_id):
+    """保存某维度的人工行动修订：就地更新当前档案，版本号不变，不写修订日志。"""
+    data = request.get_json(silent=True) or {}
+    try:
+        profile_id = int(data.get("profile_id"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "profile_id 必填"}), 400
+    rec = _db.get_six_am_profile(profile_id)
+    if not rec or rec.get("report_id") != report_id:
+        return jsonify({"ok": False, "error": "档案不存在或不属于该报告"}), 404
+    dim = str(data.get("dim") or "").strip()
+    if dim not in _OVERRIDE_DIMS:
+        return jsonify({"ok": False, "error": "dim 必须是 A1–A6 之一"}), 400
+    next_actions, err = _validate_action_list(data.get("next_actions"), "next_actions")
+    if err:
+        return jsonify({"ok": False, "error": err}), 400
+    avoid_actions, err = _validate_action_list(data.get("avoid_actions"), "avoid_actions")
+    if err:
+        return jsonify({"ok": False, "error": err}), 400
+    try:
+        prof = json.loads(rec.get("profile_json") or "{}")
+    except Exception:
+        prof = {}
+    overrides = prof.get("action_overrides")
+    if not isinstance(overrides, dict):
+        overrides = {}
+    # 空数组保留为空 override：展示层回退到生成结果（Task 3 既定语义）
+    overrides[dim] = {"next_actions": next_actions, "avoid_actions": avoid_actions}
+    prof["action_overrides"] = overrides
+    if not _db.update_six_am_profile_json(profile_id,
+                                          json.dumps(prof, ensure_ascii=False)):
+        return jsonify({"ok": False, "error": "档案更新失败"}), 500
+    rec = _db.get_six_am_profile(profile_id)
+    return jsonify({"ok": True, **_six_am_profile_payload(rec)})
+
+
 @bp.route("/api/reports/<int:report_id>/six-am/docx")
 @admin_required
 @report_scoped
 def api_report_six_am_docx(report_id):
-    """下载 Word 档案（8 章节，含 State 总表与规则审计附录）。"""
+    """下载 Word 档案（紧凑摘要 / 六维行动卡 / 待确认问题 / 规则审计附录）。"""
     import io as _io
     rec = _six_am_pick_profile(report_id)
     if not rec:

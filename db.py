@@ -1194,6 +1194,24 @@ def get_six_am_report_ids() -> List[int]:
         return [int(r) for r in rows if r]
 
 
+def update_six_am_profile_json(profile_id: int, profile_json: str,
+                               session: Optional[Session] = None) -> bool:
+    """就地更新指定档案的 profile_json（不新建版本，不改 version / created_at）。
+
+    用于人工行动修订落库；记录不存在返回 False。
+    默认自建 Session 并提交；传入 ``session`` 时只执行 update、不提交，
+    供迁移脚本在一个事务中批量覆盖。
+    """
+    stmt = (update(SixAmProfile).where(SixAmProfile.id == int(profile_id))
+            .values(profile_json=profile_json))
+    if session is not None:
+        return session.execute(stmt).rowcount > 0
+    with Session(engine) as sess:
+        result = sess.execute(stmt)
+        sess.commit()
+        return result.rowcount > 0
+
+
 def _six_am_rv_row(m: "SixAmRuleVersion") -> Dict[str, Any]:
     return {
         "id": m.id,
