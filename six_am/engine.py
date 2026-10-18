@@ -462,7 +462,6 @@ def _finalize_dim(acc: DimAcc, ctx: Ctx, conf_overrides: Dict[str, str],
         "activation_key": R.ACTIVATION_KEYS.get(acc.dim),
         "triggered_rules": triggered,
         "cross_mods": [],
-        "score": None,
         "flags": acc.flags,
         "notes": acc.notes,
         "secure_confirmed": acc.secure_confirmed,
@@ -470,13 +469,21 @@ def _finalize_dim(acc: DimAcc, ctx: Ctx, conf_overrides: Dict[str, str],
 
 
 # ── A6 支持方案（R6.* 选择器）──────────────────────────────────
+# 定性适配级别（新版 §4.6：不输出数值分，优先级 避免 > 慎用 > 优先 > 可考虑；
+# 冲突时以 R6.5–R6.7 的避免/慎用为准，见 X.5）
+FIT_LABELS = ["优先", "可考虑", "慎用", "避免"]
+FIT_RANK = {"优先": 0, "可考虑": 1, "慎用": 2, "避免": 3}
+# A4 神经质背景（R4.5）下需补高压力评价 caution 的亚机制：认可 / 适度竞争
+HIGH_PRESSURE_SUBS = ("Recognition", "Competition")
+
+
 def _run_a6(ctx: Ctx, rules_data: Dict[str, Dict[str, Any]], hits_by_dim: Dict[str, List[Dict[str, Any]]],
-            params: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-    base = float(params.get("a6_base_score", 1.0))
-    scores = {d: base for d in DIRECTIONS}
+            params: Dict[str, Any], dims: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     subs: Dict[str, List[str]] = {d: [] for d in DIRECTIONS}
     basis: Dict[str, List[str]] = {d: [] for d in DIRECTIONS}
     cautions: Dict[str, List[str]] = {d: [] for d in DIRECTIONS}
+    supported: Dict[str, List[str]] = {d: [] for d in DIRECTIONS}   # 正向推荐依据规则
+    marks: Dict[str, List[str]] = {d: [] for d in DIRECTIONS}       # 慎用/避免标记
     avoid: List[Dict[str, Any]] = []
     hits: List[Dict[str, Any]] = []
     trace: List[Dict[str, Any]] = []
@@ -498,9 +505,8 @@ def _run_a6(ctx: Ctx, rules_data: Dict[str, Dict[str, Any]], hits_by_dim: Dict[s
         effect = {"support_ops": []}
         for op in (rule.get("then") or {}).get("support_ops") or []:
             d = str(op.get("direction"))
-            if d not in scores:
+            if d not in subs:
                 continue
-            scores[d] += float(op.get("delta", 0))
             for s in op.get("sub") or []:
                 if s not in subs[d]:
                     subs[d].append(s)
@@ -509,10 +515,15 @@ def _run_a6(ctx: Ctx, rules_data: Dict[str, Dict[str, Any]], hits_by_dim: Dict[s
             note = op.get("sub_note") or op.get("note")
             if note:
                 cautions[d].append(note)
-            if op.get("kind") in ("慎用", "避免"):
-                avoid.append({"direction": d, "kind": op.get("kind"),
+            kind = op.get("kind")
+            if kind in ("慎用", "避免"):
+                if kind not in marks[d]:
+                    marks[d].append(kind)
+                avoid.append({"direction": d, "kind": kind,
                               "basis_rules": [rid],
-                              "reason": op.get("sub_note") or op.get("note") or rule.get("title", "")})
+                              "reason": note or rule.get("title", "")})
+            elif rid not in supported[d]:
+                supported[d].append(rid)
             effect["support_ops"].append(op)
         hits.append({"id": rid, "title": rule.get("title", ""), "dim": "A6", "evidence": ev_all,
                      "effect": effect, "confidence": None, "contributing": True,
@@ -520,19 +531,29 @@ def _run_a6(ctx: Ctx, rules_data: Dict[str, Dict[str, Any]], hits_by_dim: Dict[s
         trace.append({"id": rid, "title": rule.get("title", ""), "evidence": ev_all,
                       "effect": effect, "confidence": None, "contributing": True,
                       "notes": []})
-    hi = float((params.get("a6_effectiveness") or {}).get("high", 3.0))
-    mid = float((params.get("a6_effectiveness") or {}).get("mid", 2.0))
+    # A4 神经质背景（R4.5 flag）：给“认可、适度竞争”亚机制补高压力评价 caution
+    neuroticism = "神经质背景" in (((dims or {}).get("A4") or {}).get("flags") or [])
     ranked = []
-    for d in sorted(DIRECTIONS, key=lambda x: (-scores[x], DIRECTIONS.index(x))):
-        eff = "高" if scores[d] >= hi else ("中" if scores[d] >= mid else "低")
+    for d in DIRECTIONS:
+        sub_list = subs[d] or list(DEFAULT_SUBS[d])
+        if neuroticism and any(any(h in s for h in HIGH_PRESSURE_SUBS) for s in sub_list):
+            cautions[d].append("减少高压力评价情境")
+        if "避免" in marks[d]:
+            fit = "避免"
+        elif "慎用" in marks[d]:
+            fit = "慎用"
+        elif supported[d]:
+            fit = "优先"
+        else:
+            fit = "可考虑"
         ranked.append({
             "direction": d,
-            "sub_mechanisms": subs[d] or list(DEFAULT_SUBS[d]),
-            "predicted_effectiveness": eff,
-            "score": round(scores[d], 2),
+            "sub_mechanisms": sub_list,
+            "fit_label": fit,
             "basis_rules": basis[d],
             "cautions": "；".join(cautions[d]) if cautions[d] else "",
         })
+    ranked.sort(key=lambda item: (FIT_RANK[item["fit_label"]], DIRECTIONS.index(item["direction"])))
     # 权威施压与 R6.6 冲突提示（X.5：以 R6.6 为准）
     if any(a["direction"] == "权威施压" and a["basis_rules"] == ["R6.6"] for a in avoid):
         for item in ranked:
@@ -548,7 +569,6 @@ def _run_a6(ctx: Ctx, rules_data: Dict[str, Dict[str, Any]], hits_by_dim: Dict[s
         "activation_key": R.ACTIVATION_KEYS.get("A6"),
         "triggered_rules": trace,
         "cross_mods": [],
-        "score": None,
         "flags": [],
         "notes": [],
     }
@@ -565,7 +585,7 @@ def run(eval_items: List[Dict[str, Any]],
         answers: Optional[List[Dict[str, Any]]] = None,
         rule_overrides: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     """执行 6 A.M. 全流程，返回 profile dict（结构见实施计划 §3.3）。"""
-    from . import cross_rules, scoring, questionnaire
+    from . import cross_rules, priority, questionnaire
     params = R.merge_params(params)
     rules_data = R.apply_rule_overrides(overrides=rule_overrides)
     answers = answers or []
@@ -595,7 +615,7 @@ def run(eval_items: List[Dict[str, Any]],
     dims: Dict[str, Any] = {}
     for dim in ["A1", "A2", "A3", "A4", "A5"]:
         dims[dim] = _finalize_dim(accs[dim], ctx, conf_overrides, refuted)
-    a6_rec, a6_hits = _run_a6(ctx, rules_data, hits, params)
+    a6_rec, a6_hits = _run_a6(ctx, rules_data, hits, params, dims)
     dims["A6"] = a6_rec
     hits["A6"] = a6_hits
 
@@ -606,21 +626,23 @@ def run(eval_items: List[Dict[str, Any]],
     for dim, notes in xres["notes"].items():
         dims[dim]["notes"].extend(notes)
 
-    # 评分与排序
-    obstacles = scoring.compute(dims, xres["multipliers"], xres["constraints"], params)
+    # 规则优先级（不使用数值权重，新版 §6）
+    prio = priority.compute(dims, xres["constraints"])
 
     # 追问选择
-    questions = questionnaire.select(dims, hits, params)
+    questions = questionnaire.select(dims, hits, params, prio["priority_order"])
 
     profile = {
-        "schema": "six-am-profile-v1",
+        "schema": "six-am-profile-v2",
         "generated_at": _dt.datetime.now().isoformat(timespec="seconds"),
         "rule_version": rule_version or {"id": None, "label": "default", "status": None},
         "student": {"name": (student or {}).get("name", ""), "grade": (student or {}).get("grade", "")},
         "report_id": report_id,
         "dimensions": dims,
-        "obstacles": obstacles["obstacles"],
-        "sequence_note": obstacles["sequence_note"],
+        "obstacles": prio["obstacles"],
+        "priority_order": prio["priority_order"],
+        "deferred": prio["deferred"],
+        "sequence_note": prio["sequence_note"],
         "support_plan": dims["A6"]["support_ranking"],
         "questions": questions,
         "evidence_log": _evidence_log(evidence),

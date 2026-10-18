@@ -390,8 +390,8 @@ _rule(
     when=[{"any": [{"point": "人格-神经质", "is": ["高", "较好"]},
                    {"point": "人格-神经质", "num_gt": 3.5}]}],
     then={"noop": True, "flags": ["神经质背景"], "confidence": "Hypothesis",
-          "notes": ["不独立判风险；作为 A4 放大因子（severity +0.5，封顶 3）"]},
-    text="对潜在负面结果更敏感，不等于胜任信心不足（计分见 §6）",
+          "notes": ["不独立判风险；作为 A6 高压场景（公开认可/竞争、问责）的 caution 输入"]},
+    text="对潜在负面结果更敏感，不等于胜任信心不足",
 )
 _rule(
     id="R4.6", dim="A4", title="掌控感缺失预期",
@@ -582,11 +582,11 @@ _rule(
 # ── 跨维度规则 X.1–X.7（条件求值在 cross_rules.py）───────────
 CROSS_RULES: Dict[str, Dict[str, str]] = {
     "X.1": {"id": "X.1", "title": "Double-Lock 双锁",
-            "action": "两维 obstacle score × 1.5；处理顺序固定为先 A1 后 A2"},
+            "action": "处理顺序固定为先 A1 后 A2（没有所有权时谈意义会被当成新一轮说教）"},
     "X.2": {"id": "X.2", "title": "A2 信号污染修正",
             "action": "A2 confidence 降一级（下限 Hypothesis），标注'需用学生自选任务重测'"},
     "X.3": {"id": "X.3", "title": "A3 优先排除",
-            "action": "A4/A5 所有 Hypothesis 级结论标注'待 A3 处理后复测'；score × 0.7；obstacle 排序中 A3 强制置顶"},
+            "action": "A4/A5 所有 Hypothesis 级结论标注'待 A3 处理后复测'；障碍排序中 A3 强制置顶"},
     "X.4": {"id": "X.4", "title": "A4 约束 A5 设计",
             "action": "A5 的 First Move 必须满足低风险标准：可私下完成、允许低质量、无即时评价"},
     "X.5": {"id": "X.5", "title": "A6 统筹约束",
@@ -594,29 +594,19 @@ CROSS_RULES: Dict[str, Dict[str, str]] = {
     "X.6": {"id": "X.6", "title": "全局无兴趣优先级",
             "action": "所有任务级干预（A1 选择设计、A5 First Move）暂缓；处理顺序改为：兴趣探索 → 再评估"},
     "X.7": {"id": "X.7", "title": "家长无法让渡主导权",
-            "action": "A1 obstacle score × 0.5，A1 干预降级为长期目标；干预重心转向 A2 意义匹配"},
+            "action": "A1 干预降级为长期目标，不进入常规障碍排序；干预重心转向 A2 意义匹配"},
 }
 
-# ── 参数默认值（v0.2 §4.1 + 落地补充）────────────────────────
+# ── 参数默认值（§4.1 + 落地补充）─────────────────────────────
 DEFAULT_PARAMS: Dict[str, Any] = {
     "order_top_n": 5,                 # R1.3/R1.8/R2.5/R6.4 的 ORDER 条件
     "mindset_fixed_threshold": 40,    # R4.3：v0.2 暂定
-    "severity": {"Secure": 0, "Watch": 1, "At-Risk": 2, "Blocked": 3},
-    "confidence_factor": {"Hypothesis": 0.7, "Supported": 1.0, "Confirmed": 1.2},
-    "r45_neuroticism": {"mode": "severity_add", "value": 0.5, "cap": 3},  # R4.5
-    "x1_multiplier": 1.5,             # X.1
-    "x3_multiplier": 0.7,             # X.3
-    "x7_multiplier": 0.5,             # X.7
-    "high_priority_min_score": 2.0,
     "confidence_order": ["Hypothesis", "Supported", "Confirmed"],
     "questionnaire": {"top_n": 8, "a6_slots": 2, "hypothesis_dim_limit": 3},
     # v0.2 暂定：排期"自由时间极少"判定阈值（小时/周）与负荷评级字段配合使用
     "schedule_free_hours_max": 5,
     # v0.2 待定：任务可连接价值默认列表为空（需任务信息才评估 R2.5）
     "value_link_defaults": [],
-    # A6 支持方向评分基础分与有效性分档（v0.2 §4.6 输出格式的落地量化）
-    "a6_base_score": 1.0,
-    "a6_effectiveness": {"high": 3.0, "mid": 2.0},
 }
 
 # ── 规则 ID 全集（覆盖检查对照）──────────────────────────────

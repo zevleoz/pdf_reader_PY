@@ -12,6 +12,7 @@ DB 访问只出现在本模块（集成胶水）。
 
 from __future__ import annotations
 
+import copy
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -109,9 +110,15 @@ def _build(record: Dict[str, Any], items: List[Dict[str, Any]], student: Dict[st
     elif rule_version is None:
         rule_version = {"id": None, "label": "sandbox", "status": "draft"}
 
-    return engine.run(items, student=student, evidence=evidence, params=params,
-                      rule_version=rule_version, report_id=record.get("report_id"),
-                      answers=answers, rule_overrides=rule_overrides)
+    profile = engine.run(items, student=student, evidence=evidence, params=params,
+                         rule_version=rule_version, report_id=record.get("report_id"),
+                         answers=answers, rule_overrides=rule_overrides)
+    # 人工行动修订跟随档案版本继承：无论 prev 来自显式 source_profile
+    # 还是 _latest_profile_dict fallback，新版本都深拷贝旧 overrides。
+    prev_overrides = (prev or {}).get("action_overrides")
+    if isinstance(prev_overrides, dict) and prev_overrides:
+        profile["action_overrides"] = copy.deepcopy(prev_overrides)
+    return profile
 
 
 def build_profile(report_id: int, *,

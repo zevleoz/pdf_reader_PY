@@ -114,7 +114,7 @@
     <div class="page-head">
       <div>
         <div class="page-title">6AM 规则与参数</div>
-        <div class="sr-sub">6 A.M. 规则版本（草稿 / 已发布）与参数覆盖编辑；沙盒以指定版本只读重跑并对比已存档案，不写入学生档案。</div>
+        <div class="sr-sub">管理规则开关、阈值与追问数量；优先级由固定规则决定，不使用数值权重。</div>
       </div>
       <div style="flex:1"></div>
       <div class="sr-controls">
@@ -228,29 +228,34 @@
     cur[parts[parts.length - 1]] = val;
   }
 
+  // ── 已废弃参数：优先级改由固定规则决定，不再使用数值权重 ──
+  // 历史规则版本 params_json / DEFAULTS 中若残留这些键，一律不渲染、不收集。
+  var DEPRECATED_PARAMS = {
+    severity: 1,
+    confidence_factor: 1,
+    r45_neuroticism: 1,
+    x1_multiplier: 1,
+    x3_multiplier: 1,
+    x7_multiplier: 1,
+    high_priority_min_score: 1,
+    a6_base_score: 1,
+    a6_effectiveness: 1
+  };
+  function isDeprecatedParam(path) {
+    return !!DEPRECATED_PARAMS[String(path).split('.')[0]];
+  }
+
   // ── 参数元数据（标签与提示；未列出的键直接显示键名）──
   var SR_META = {
     order_top_n: { label: '排序前 N 位', hint: 'R1.3 / R1.8 / R2.5 / R6.4 的 ORDER 条件' },
     mindset_fixed_threshold: { label: '固定型思维阈值', hint: 'R4.3 · v0.2 暂定' },
-    severity: { label: '严重度分（state → 基数）' },
-    confidence_factor: { label: '置信系数（confidence → 系数）' },
-    r45_neuroticism: { label: 'R4.5 神经质叠加' },
-    'r45_neuroticism.mode': { label: 'mode' },
-    'r45_neuroticism.value': { label: 'value（增幅）' },
-    'r45_neuroticism.cap': { label: 'cap（封顶）' },
-    x1_multiplier: { label: 'X.1 乘数', hint: 'A1 命中时的放大系数' },
-    x3_multiplier: { label: 'X.3 乘数' },
-    x7_multiplier: { label: 'X.7 乘数' },
-    high_priority_min_score: { label: '高优先阈值', hint: 'ObstacleScore ≥ 此值标记高优先' },
     confidence_order: { label: '置信度次序', hint: 'JSON 数组或逗号分隔' },
     questionnaire: { label: '追问选择参数' },
     'questionnaire.top_n': { label: 'top_n（总题量）' },
     'questionnaire.a6_slots': { label: 'a6_slots（A6 槽位）' },
     'questionnaire.hypothesis_dim_limit': { label: 'hypothesis_dim_limit（Hypothesis 维上限）' },
     schedule_free_hours_max: { label: '自由时间极少阈值（小时/周）', hint: '排期缺口判定 · v0.2 暂定' },
-    value_link_defaults: { label: '任务可连接价值默认列表', hint: 'v0.2 待定 · 默认空数组' },
-    a6_base_score: { label: 'A6 基础分' },
-    a6_effectiveness: { label: 'A6 有效性分档' }
+    value_link_defaults: { label: '任务可连接价值默认列表', hint: 'v0.2 待定 · 默认空数组' }
   };
 
   // ── 加载目录 ──
@@ -296,6 +301,8 @@
   function renderParams() {
     var rows = [];
     flattenParams(DEFAULTS, '', rows);
+    // 过滤历史规则版本 / 默认值中残留的废弃键，避免重新出现在编辑界面
+    rows = rows.filter(function (r) { return !isDeprecatedParam(r.path); });
     var groups = {}, order = [];
     rows.forEach(function (r) {
       var top = r.path.split('.')[0];

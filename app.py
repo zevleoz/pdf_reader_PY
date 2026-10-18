@@ -83,6 +83,18 @@ def create_app() -> Flask:
         return send_from_directory(str(BASE_DIR / "static"), "command-palette.js",
                                    mimetype="text/javascript")
 
+    @app.route("/css/six_am.css")
+    def serve_six_am_css():
+        """6AM 主页面样式（static/css/six_am.css）。"""
+        return send_from_directory(str(BASE_DIR / "static" / "css"), "six_am.css",
+                                   mimetype="text/css")
+
+    @app.route("/js/six_am.js")
+    def serve_six_am_js():
+        """6AM 主页面脚本（static/js/six_am.js）。"""
+        return send_from_directory(str(BASE_DIR / "static" / "js"), "six_am.js",
+                                   mimetype="text/javascript")
+
     @app.route("/favicon.ico")
     def favicon():
         """站点图标（浏览器默认请求 /favicon.ico）：静态品牌 logo 缩图。"""
