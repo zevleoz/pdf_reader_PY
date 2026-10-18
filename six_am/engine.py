@@ -393,6 +393,8 @@ def _run_dim(dim: str, rules_data: Dict[str, Dict[str, Any]], ctx: Ctx
         rule = rules_data.get(rid)
         if not rule or rule.get("dim") != dim:
             continue
+        if rid in ctx.refuted:
+            continue  # 被追问否定：不注册命中，也不产生 state/subtype/flag 写入
         ok = True
         ev_all: List[Dict[str, Any]] = []
         for cond in rule.get("when") or []:
@@ -571,14 +573,12 @@ def run(eval_items: List[Dict[str, Any]],
 
     def _pass(refuted: Dict[str, str]) -> Tuple[Dict[str, DimAcc], Dict[str, List[Dict[str, Any]]]]:
         ctx._hits = {}
+        ctx.refuted = dict(refuted)   # 被否定的规则：rule_hit() 一律返回 False
         accs: Dict[str, DimAcc] = {}
         hits: Dict[str, List[Dict[str, Any]]] = {}
         for dim in ["A1", "A2", "A3", "A4", "A5"]:
+            # _run_dim 内跳过 ctx.refuted：不注册命中、不写 state/subtype/flag，维度重算
             acc, dhits = _run_dim(dim, rules_data, ctx)
-            if refuted:
-                acc.trace = [t for t in acc.trace if t["id"] not in refuted]
-                acc.contrib_rules = [c for c in acc.contrib_rules if c["id"] not in refuted]
-                dhits = [h for h in dhits if h["id"] not in refuted]
             accs[dim] = acc
             hits[dim] = dhits
             # 供 A6 / X 规则读取中间态

@@ -24,7 +24,8 @@ import evaluation_rules as _eval_rules
 import y4_questions as _y4q
 from app_utils import (BASE_DIR, DATA_DIR, INPUT_DIR, JOB_FILE, JOB_LOG_FILE,
                        OUTPUT_DIR, UPLOAD_DIR, REQUIRED_KEYS,
-                       admin_required, role_required, report_scoped)
+                       admin_required, role_required, report_scoped,
+                       _advisor_scope)
 from ai_client import (_build_phase1_md_text, _build_qualification_view,
                        _build_y4_interpret_context, _build_y4_payload,
                        _finalize_y4_interpretation, _generate_e4_protocol_core,
@@ -1182,6 +1183,11 @@ def api_export():
     import csv
     import io
     reports = _db.get_all_reports()
+    # Advisor 数据隔离：与承载导出按钮的学生列表页一致，仅导出名下学生的报告
+    scope = _advisor_scope()
+    if scope is not None:
+        visible_ids = {s["id"] for s in _db.get_students(scope)}
+        reports = [r for r in reports if r.get("student_id") in visible_ids]
     if not reports:
         return jsonify({"ok": False, "error": "暂无数据"}), 404
 

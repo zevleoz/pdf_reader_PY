@@ -132,7 +132,7 @@
         var actions = '<div class="um-actions">' +
           '<button class="btn btn-sm btn-sec" onclick="resetPassword(' + u.id + ')">重置密码</button>' +
           toggleBtn +
-          '<button class="btn btn-sm btn-sec" onclick="editAdvisor(' + u.id + ', \'' + esc(u.advisor_name) + '\')">顾问</button>' +
+          '<button class="btn btn-sm btn-sec" data-advisor-btn data-id="' + u.id + '" data-advisor="' + esc(u.advisor_name) + '">顾问</button>' +
           (isSelf ? '' : '<button class="btn btn-sm btn-ghost-danger" onclick="deleteUser(' + u.id + ')">删除</button>') +
           '</div>';
         html += '<tr>' +
@@ -146,6 +146,11 @@
       });
       html += '</tbody></table></div>';
       el.innerHTML = html;
+      el.querySelectorAll('[data-advisor-btn]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          editAdvisor(parseInt(btn.dataset.id, 10), btn.dataset.advisor);
+        });
+      });
     }
 
     // 与壳的 icon() 同源的极简 SVG（供 JS 动态插入的空态使用）

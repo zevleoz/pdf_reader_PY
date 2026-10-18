@@ -96,14 +96,15 @@ def validate_minutes(data: dict) -> dict:
     action_raw = data.get("action_items")
     action_items: List[Dict[str, Any]] = []
     if isinstance(action_raw, list):
-        for item in action_raw[:MAX_ACTION_ITEMS]:
+        for item in action_raw:
             if not isinstance(item, dict):
                 continue
             entry = {f: _as_str(item.get(f)) for f in _ACTION_FIELDS}
             entry["priority"] = _as_int(item.get("priority"), len(action_items) + 1)
             action_items.append(entry)
-        # 按优先级排序后重新连续编号，保证 1..N
+        # 先按优先级排序（高优先级在前，稳定排序保序），再裁剪到 MAX_ACTION_ITEMS，最后连续编号 1..N
         action_items.sort(key=lambda x: x["priority"])
+        action_items = action_items[:MAX_ACTION_ITEMS]
         for i, it in enumerate(action_items, 1):
             it["priority"] = i
 

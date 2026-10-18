@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import (Column, ForeignKey, Integer, String, Text, DateTime,
                         insert, select, update, delete, func)
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as _db
@@ -145,18 +146,40 @@ def create_tables(bind=None) -> None:
 
 
 def ensure_indexes(bind=None) -> None:
-    """活动任务部分唯一索引。
+    """问卷子系统的索引（幂等）。
 
-    SQLite 不支持 ORM 层带 WHERE 的唯一约束，这里用原生 DDL；
-    ``CREATE UNIQUE INDEX IF NOT EXISTS ... WHERE`` 在 SQLite 9.6+ 与
-    PostgreSQL 9.5+ 语义一致。
+    - ``ux_assignments_active``：活动任务部分唯一索引。SQLite 不支持 ORM 层带
+      WHERE 的唯一约束，这里用原生 DDL；``CREATE UNIQUE INDEX IF NOT EXISTS
+      ... WHERE`` 在 SQLite 3.8+ 与 PostgreSQL 9.5+ 语义一致。
+    - ``ux_responses_assignment``：responses.assignment_id 唯一，作为「重复提交」
+      的最后一道防线（防并发下双写答案）。
+    - ``ix_assignments_status`` / ``ix_assignments_student_status``：加速
+      ``_refresh_expired`` 的批量过期扫描与按生查询。
+
+    逐条独立执行并以 try/except 兜底：旧库若已存在历史重复 responses，建唯一
+    索引会失败，但不致于回滚其它索引的创建。
     """
     from sqlalchemy import text
-    ddl = ("CREATE UNIQUE INDEX IF NOT EXISTS ux_assignments_active "
-           "ON assignments (student_id, questionnaire_id) "
-           "WHERE status IN ('pending', 'sent')")
-    with (bind or engine).begin() as conn:
-        conn.execute(text(ddl))
+    ddls = [
+        ("ux_assignments_active",
+         "CREATE UNIQUE INDEX IF NOT EXISTS ux_assignments_active "
+         "ON assignments (student_id, questionnaire_id) "
+         "WHERE status IN ('pending', 'sent')"),
+        ("ix_assignments_status",
+         "CREATE INDEX IF NOT EXISTS ix_assignments_status ON assignments (status)"),
+        ("ix_assignments_student_status",
+         "CREATE INDEX IF NOT EXISTS ix_assignments_student_status "
+         "ON assignments (student_id, status)"),
+        ("ux_responses_assignment",
+         "CREATE UNIQUE INDEX IF NOT EXISTS ux_responses_assignment "
+         "ON responses (assignment_id)"),
+    ]
+    for name, ddl in ddls:
+        try:
+            with (bind or engine).begin() as conn:
+                conn.execute(text(ddl))
+        except Exception as e:  # 单条失败不阻断其余索引（如历史重复数据）
+            print(f"[DB] 创建索引 {name} 失败 (非致命): {e}")
 
 
 # ─── 序列化 ────────────────────────────────────────────────────
@@ -292,6 +315,13 @@ def load_seed_files(seed_dir: Optional[Path] = None) -> Dict[str, Any]:
                 report["unchanged" if same else "updated"].append(code)
             sess.commit()
 
+    if not loaded_codes:
+        # seed 目录存在但没有任何有效问卷载入（无 *.json / 全部解析失败）时，
+        # **不得**停用库中现存问卷，否则会把在用题库一并停掉。
+        report.setdefault("warnings", []).append(
+            f"seed 目录 {seed_dir} 存在但未成功载入任何问卷，跳过停用（保留现有题库状态）")
+        return report
+
     with Session(engine) as sess:
         rows = sess.execute(select(Questionnaire)).scalars().all()
         for m in rows:
@@ -338,11 +368,13 @@ def save_rule_version(rules_json: Any, note: str = "",
     payload = json.dumps(rules_json, ensure_ascii=False)
     with Session(engine) as sess:
         maxv = sess.execute(select(func.max(QuestionnaireRule.version))).scalar() or 0
-        res = sess.execute(insert(QuestionnaireRule).values(
-            version=int(maxv) + 1, status="draft", rules_json=payload,
-            note=note or "", created_by=created_by))
+        obj = QuestionnaireRule(version=int(maxv) + 1, status="draft", rules_json=payload,
+                                note=note or "", created_by=created_by)
+        sess.add(obj)
+        sess.flush()                       # 拿到自增主键（SQLite / PostgreSQL 通用）
+        new_id = obj.id
         sess.commit()
-        return res.lastrowid
+        return new_id
 
 
 def publish_rule_version(vid: int) -> None:
@@ -398,16 +430,29 @@ def _find_active_assignment(sess, student_id: int, questionnaire_id: int) -> Opt
 def create_assignment(student_id: int, questionnaire_id: int, *,
                       source: str = "manual", reason: str = "",
                       status: str = "pending") -> Tuple[int, bool]:
-    """创建任务；同生同卷已有活动任务时复用。返回 (assignment_id, created)。"""
+    """创建任务；同生同卷已有活动任务时复用。返回 (assignment_id, created)。
+
+    采用「先查后插」的乐观路径，并对并发下 ux_assignments_active 抛出的
+    IntegrityError 兜底：回滚后重查活动任务并复用，避免 TOCTOU 造成 HTTP 500。
+    """
     with Session(engine) as sess:
         dup = _find_active_assignment(sess, student_id, questionnaire_id)
         if dup is not None:
             return dup.id, False
-        res = sess.execute(insert(Assignment).values(
-            student_id=int(student_id), questionnaire_id=int(questionnaire_id),
-            status=status, source=source, reason=reason or ""))
+        obj = Assignment(student_id=int(student_id), questionnaire_id=int(questionnaire_id),
+                         status=status, source=source, reason=reason or "")
+        sess.add(obj)
+        try:
+            sess.flush()                   # 唯一索引冲突在此触发
+        except IntegrityError:
+            sess.rollback()
+            dup = _find_active_assignment(sess, student_id, questionnaire_id)
+            if dup is not None:
+                return dup.id, False
+            raise                          # 非活动去重冲突（异常数据），交由上层处理
+        new_id = obj.id
         sess.commit()
-        return res.lastrowid, True
+        return new_id, True
 
 
 def get_assignment(aid: int) -> Optional[Dict[str, Any]]:
@@ -427,20 +472,29 @@ def refresh_expired() -> int:
 
 def _refresh_expired(sess) -> int:
     """同上，但在调用方事务内执行（不 commit）；由 list/counts 合并入口复用，
-    保证一次请求内只刷新一次、行与计数读到同一状态。"""
+    保证一次请求内只刷新一次、行与计数读到同一状态。
+
+    单条批量 UPDATE（依赖 assignments.status 索引 + NOT EXISTS 子查询），
+    取代原先「全表扫 sent + 逐行查 token」的 N+1 写法。
+    """
     now = datetime.utcnow()
-    changed = 0
-    rows = sess.execute(select(Assignment).where(Assignment.status == "sent")).scalars().all()
-    for a in rows:
-        tokens = sess.execute(select(AssignmentToken)
-                              .where(AssignmentToken.assignment_id == a.id)).scalars().all()
-        if not tokens:
-            continue  # 纯账号模式无 token，不自动过期
-        live = any(t.used_at is None and t.expires_at and t.expires_at > now for t in tokens)
-        if not live:
-            a.status = "expired"
-            changed += 1
-    return changed
+    # 至少有一个 token（纯账号模式无 token 的任务不自动过期）
+    has_token = (select(AssignmentToken.id)
+                 .where(AssignmentToken.assignment_id == Assignment.id)
+                 .exists())
+    # 仍存在「未使用且未过期」的可用 token
+    live_token = (select(AssignmentToken.id)
+                  .where(AssignmentToken.assignment_id == Assignment.id,
+                         AssignmentToken.used_at.is_(None),
+                         AssignmentToken.expires_at > now)
+                  .exists())
+    res = sess.execute(
+        update(Assignment)
+        .where(Assignment.status == "sent")
+        .where(has_token)
+        .where(~live_token)
+        .values(status="expired"))
+    return int(res.rowcount or 0)
 
 
 def list_assignments(status: Optional[str] = None, *,
@@ -564,11 +618,13 @@ def ensure_student_account(student_id: int) -> Dict[str, Any]:
         if clash:
             username = f"{username}-{int(student_id)}"
         password = secrets.token_urlsafe(8)
-        res = sess.execute(insert(StudentAccount).values(
-            student_id=int(student_id), username=username,
-            password_hash=generate_password_hash(password), is_active=1))
+        obj = StudentAccount(student_id=int(student_id), username=username,
+                             password_hash=generate_password_hash(password), is_active=1)
+        sess.add(obj)
+        sess.flush()                       # 拿到自增主键（SQLite / PostgreSQL 通用）
+        account_id = obj.id
         sess.commit()
-        return {"account_id": res.lastrowid, "username": username,
+        return {"account_id": account_id, "username": username,
                 "password": password, "created": True}
 
 
@@ -754,23 +810,39 @@ def reissue_assignment(aid: int, *, base_url: str = "",
 # ─── 提交 / 答案 / 草稿 ────────────────────────────────────────
 
 def submit_response(aid: int, answers: Dict[str, Any], via: str) -> Dict[str, Any]:
-    """写原始答案 + 置 submitted。重复提交拒绝。"""
-    a = get_assignment(aid)
-    if not a:
-        return {"ok": False, "error": "任务不存在"}
-    if a["status"] == "submitted":
-        return {"ok": False, "error": "该问卷已提交，请勿重复提交"}
-    if a["status"] not in ("sent", "pending"):
-        return {"ok": False, "error": "该任务当前不可提交"}
+    """写原始答案 + 置 submitted。重复提交拒绝。
+
+    原子性：用条件 UPDATE（WHERE status IN ('sent','pending')）在同一事务内抢占
+    状态位，rowcount==1 才算抢到；未抢到（并发下已被他人提交）则优雅返回，不写
+    答案、不抛异常。responses.assignment_id 唯一索引作为双写的最后兜底。
+    """
+    aid = int(aid)
     now = datetime.utcnow()
     with Session(engine) as sess:
-        sess.execute(insert(Response).values(
-            assignment_id=aid, student_id=a["student_id"],
-            questionnaire_id=a["questionnaire_id"],
-            answers_json=json.dumps(answers or {}, ensure_ascii=False),
-            submitted_via=via))
-        sess.execute(update(Assignment).where(Assignment.id == aid)
-                     .values(status="submitted", submitted_at=now))
+        a = sess.get(Assignment, aid)
+        if a is None:
+            return {"ok": False, "error": "任务不存在"}
+        student_id, questionnaire_id = a.student_id, a.questionnaire_id
+        res = sess.execute(
+            update(Assignment)
+            .where(Assignment.id == aid, Assignment.status.in_(("sent", "pending")))
+            .values(status="submitted", submitted_at=now))
+        if not res.rowcount:
+            sess.rollback()
+            cur = sess.get(Assignment, aid)
+            if cur is not None and cur.status == "submitted":
+                return {"ok": False, "error": "该问卷已提交，请勿重复提交"}
+            return {"ok": False, "error": "该任务当前不可提交"}
+        try:
+            sess.execute(insert(Response).values(
+                assignment_id=aid, student_id=student_id,
+                questionnaire_id=questionnaire_id,
+                answers_json=json.dumps(answers or {}, ensure_ascii=False),
+                submitted_via=via))
+        except IntegrityError:
+            # 极端并发双写：唯一索引兜底
+            sess.rollback()
+            return {"ok": False, "error": "该问卷已提交，请勿重复提交"}
         sess.execute(delete(ResponseDraft).where(ResponseDraft.assignment_id == aid))
         sess.commit()
     return {"ok": True}

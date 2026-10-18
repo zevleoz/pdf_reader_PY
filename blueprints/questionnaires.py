@@ -130,11 +130,16 @@ def api_create_assignment():
     student_id = data.get("student_id")
     if not student_id:
         return _err("缺少 student_id")
+    try:
+        student_id = int(student_id)
+    except (TypeError, ValueError):
+        return _err("student_id 必须是数字")
+    st = _db.get_student(student_id)
+    if not st:
+        return _err("学生不存在", 404)
     scope = _advisor_scope()
-    if scope is not None:
-        st = _db.get_student(student_id)
-        if not st or (st.get("advisor_name") or "") != scope:
-            return _err("无权为该学生创建任务", 403)
+    if scope is not None and (st.get("advisor_name") or "") != scope:
+        return _err("无权为该学生创建任务", 403)
     qid = data.get("questionnaire_id")
     if not qid and data.get("code"):
         q = qs.get_questionnaire_by_code(data["code"])

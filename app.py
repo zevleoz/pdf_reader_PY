@@ -20,6 +20,7 @@ import json
 import os
 import sys
 import traceback
+from datetime import timedelta
 from pathlib import Path
 
 from flask import (Flask, abort, jsonify, render_template, request,
@@ -47,6 +48,9 @@ def create_app() -> Flask:
     app = Flask(__name__, template_folder=str(TEMPLATE_DIR), static_folder=None)
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
     app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+    # 会话总寿命（登录时 session.permanent=True）：把 Flask 默认的 31 天收敛到 7 天，
+    # 缩短被停用/删除用户既有 session 的最长残留窗口（另有 app_utils 的 DB 复核兜底）。
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
     # ProxyFix: 信任单层反向代理（Nginx）注入的 X-Forwarded-* 头，
     # 使 request.remote_addr 反映真实客户端 IP（限流/审计依赖此值）。

@@ -131,8 +131,37 @@ def current_user() -> dict:
     }
 
 
+# session 用户有效性缓存：user_id -> (过期时间戳, 是否有效)。短 TTL 避免每请求都查库，
+# 同时在用户被停用/物理删除后于 TTL 内使既有 session 失效。
+_SESSION_USER_TTL = 60
+_SESSION_USER_CACHE: dict = {}
+
+
+def _session_user_valid() -> bool:
+    """校验当前 session 的 user_id 对应用户仍存在且 is_active（带短 TTL 缓存）。
+
+    未登录返回 False。用户被物理删除或停用后，其既有 session 最迟在缓存 TTL 内失效；
+    另行配合 ``PERMANENT_SESSION_LIFETIME`` 限制会话总寿命（见 app.create_app）。
+    """
+    uid = session.get("user_id")
+    if not uid:
+        return False
+    try:
+        uid = int(uid)
+    except (TypeError, ValueError):
+        return False
+    now = time.time()
+    cached = _SESSION_USER_CACHE.get(uid)
+    if cached and cached[0] > now:
+        return cached[1]
+    user = _db.get_user_by_id(uid)
+    ok = bool(user and user.get("is_active"))
+    _SESSION_USER_CACHE[uid] = (now + _SESSION_USER_TTL, ok)
+    return ok
+
+
 def is_authenticated() -> bool:
-    return bool(session.get("user_id"))
+    return _session_user_valid()
 
 
 def _is_api_request() -> bool:

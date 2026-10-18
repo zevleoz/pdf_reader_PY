@@ -17,8 +17,9 @@ from typing import List, Optional, Dict, Any
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, Date, DateTime,
-    ForeignKey, select, insert, update, delete, func
+    ForeignKey, select, insert, update, delete, func, event
 )
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import declarative_base, Session
 
 Base = declarative_base()
@@ -33,6 +34,18 @@ if DATABASE_URL.startswith("sqlite"):
     connect_args["check_same_thread"] = False
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
+
+# student_code 分配在并发下可能撞唯一索引，插入端做有限次重试（见 add_student 等）。
+_CODE_ALLOC_RETRIES = 5
+
+# SQLite 默认不校验 ForeignKey；显式开启后，引用完整性（含 ON DELETE 行为）才生效。
+# 守卫：仅 SQLite 注册（PostgreSQL 由数据库自身强制，且不支持 PRAGMA 语法）。
+if DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 class Student(Base):
@@ -397,15 +410,22 @@ def next_student_code(sess=None) -> str:
 def add_student(name: str, gender: str = "", birthday: str = "",
                 grade: str = "", email: str = "", phone: str = "") -> int:
     """Create a student record. Returns student id."""
-    with Session(engine) as sess:
-        stmt = insert(Student).values(
-            student_code=next_student_code(sess),
-            name=name, gender=gender, birthday=birthday,
-            grade=grade, email=email, phone=phone,
-        )
-        result = sess.execute(stmt)
-        sess.commit()
-        return result.lastrowid
+    for attempt in range(_CODE_ALLOC_RETRIES):
+        with Session(engine) as sess:
+            try:
+                stmt = insert(Student).values(
+                    student_code=next_student_code(sess),
+                    name=name, gender=gender, birthday=birthday,
+                    grade=grade, email=email, phone=phone,
+                )
+                result = sess.execute(stmt)
+                sess.commit()
+                return result.lastrowid
+            except IntegrityError:
+                # 并发下 student_code 撞唯一索引：回滚后重新分配并重试
+                sess.rollback()
+                if attempt == _CODE_ALLOC_RETRIES - 1:
+                    raise
 
 
 def find_or_create_student(name: str, gender: str = "", birthday: str = "",
@@ -455,16 +475,23 @@ def find_or_create_student(name: str, gender: str = "", birthday: str = "",
                 sess.commit()
             return student.id
     # Create new student
-    with Session(engine) as sess:
-        stmt = insert(Student).values(
-            student_code=next_student_code(sess),
-            name=name, gender=gender, birthday=birthday,
-            grade=grade, email=email, phone=phone,
-            advisor_name=advisor_name, school=school, single_parent=single_parent,
-        )
-        result = sess.execute(stmt)
-        sess.commit()
-        return result.lastrowid
+    for attempt in range(_CODE_ALLOC_RETRIES):
+        with Session(engine) as sess:
+            try:
+                stmt = insert(Student).values(
+                    student_code=next_student_code(sess),
+                    name=name, gender=gender, birthday=birthday,
+                    grade=grade, email=email, phone=phone,
+                    advisor_name=advisor_name, school=school, single_parent=single_parent,
+                )
+                result = sess.execute(stmt)
+                sess.commit()
+                return result.lastrowid
+            except IntegrityError:
+                # 并发下 student_code 撞唯一索引：回滚后重新分配并重试
+                sess.rollback()
+                if attempt == _CODE_ALLOC_RETRIES - 1:
+                    raise
 
 
 def get_students(advisor_name: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -693,39 +720,46 @@ def create_booking_with_student(student_name: str, appointment_time: datetime,
                                 single_parent: str = "false",
                                 notes: str = "") -> tuple:
     """Create student + booking in one transaction. Returns (student_id, booking_id)."""
-    with Session(engine) as sess:
-        # 1. Find or create student
-        existing = sess.execute(select(Student).where(Student.name == student_name)).first()
-        if existing:
-            student = existing[0]
-            update_values = {}
-            if advisor_name:
-                update_values["advisor_name"] = advisor_name
-            if school:
-                update_values["school"] = school
-            if single_parent and single_parent != "false":
-                update_values["single_parent"] = single_parent
-            if update_values:
-                sess.execute(update(Student).where(Student.id == student.id).values(**update_values))
-            sess.flush()
-            student_id = student.id
-        else:
-            result = sess.execute(insert(Student).values(
-                student_code=next_student_code(sess),
-                name=student_name, advisor_name=advisor_name,
-                school=school, single_parent=single_parent))
-            sess.flush()
-            student_id = result.lastrowid
+    for attempt in range(_CODE_ALLOC_RETRIES):
+        with Session(engine) as sess:
+            try:
+                # 1. Find or create student
+                existing = sess.execute(select(Student).where(Student.name == student_name)).first()
+                if existing:
+                    student = existing[0]
+                    update_values = {}
+                    if advisor_name:
+                        update_values["advisor_name"] = advisor_name
+                    if school:
+                        update_values["school"] = school
+                    if single_parent and single_parent != "false":
+                        update_values["single_parent"] = single_parent
+                    if update_values:
+                        sess.execute(update(Student).where(Student.id == student.id).values(**update_values))
+                    sess.flush()
+                    student_id = student.id
+                else:
+                    result = sess.execute(insert(Student).values(
+                        student_code=next_student_code(sess),
+                        name=student_name, advisor_name=advisor_name,
+                        school=school, single_parent=single_parent))
+                    sess.flush()
+                    student_id = result.lastrowid
 
-        # 2. Create booking linked to student
-        result = sess.execute(insert(Booking).values(
-            student_name=student_name, student_id=student_id,
-            appointment_time=appointment_time, status="pending",
-            notes=notes, advisor_name=advisor_name,
-            school=school, single_parent=single_parent))
-        booking_id = result.lastrowid
-        sess.commit()
-        return student_id, booking_id
+                # 2. Create booking linked to student
+                result = sess.execute(insert(Booking).values(
+                    student_name=student_name, student_id=student_id,
+                    appointment_time=appointment_time, status="pending",
+                    notes=notes, advisor_name=advisor_name,
+                    school=school, single_parent=single_parent))
+                booking_id = result.lastrowid
+                sess.commit()
+                return student_id, booking_id
+            except IntegrityError:
+                # 并发下 student_code 撞唯一索引：回滚整笔事务后重试
+                sess.rollback()
+                if attempt == _CODE_ALLOC_RETRIES - 1:
+                    raise
 
 
 def get_bookings(status: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -791,8 +825,61 @@ def complete_booking(booking_id: int) -> int:
 # ─── Delete operations ─────────────────────────────────────────
 
 def delete_student(student_id: int) -> None:
-    """Delete a student and all their reports."""
+    """Delete a student and all their dependent records.
+
+    开启 SQLite ForeignKey 后，直接删 students 会因子表外键引用而失败；
+    这里按「子表先删 / 可空外键解绑，父表后删」的顺序清理，覆盖
+    reports / bookings / meeting_minutes / six_am_profiles 以及问卷子系统的
+    assignments / assignment_tokens / responses / response_drafts / student_accounts。
+    """
+    # 问卷子系统模型定义在 questionnaire_store（模块级互相 import，延迟导入避免循环）
+    try:
+        from questionnaire_store import (
+            Assignment, AssignmentToken, Response, ResponseDraft, StudentAccount,
+        )
+        has_qstore = True
+    except Exception:
+        # 导入失败说明问卷子系统未启用/表未创建，通常也无相关行
+        has_qstore = False
+
     with Session(engine) as sess:
+        # 1. 问卷子系统：tokens / responses / drafts 依赖 assignments，先清理
+        if has_qstore:
+            assignment_ids = [
+                r[0] for r in sess.execute(
+                    select(Assignment.id).where(Assignment.student_id == student_id)).all()
+            ]
+            if assignment_ids:
+                sess.execute(delete(AssignmentToken).where(
+                    AssignmentToken.assignment_id.in_(assignment_ids)))
+                sess.execute(delete(Response).where(
+                    Response.assignment_id.in_(assignment_ids)))
+                sess.execute(delete(ResponseDraft).where(
+                    ResponseDraft.assignment_id.in_(assignment_ids)))
+            sess.execute(delete(Response).where(Response.student_id == student_id))
+            sess.execute(delete(Assignment).where(Assignment.student_id == student_id))
+            sess.execute(delete(StudentAccount).where(StudentAccount.student_id == student_id))
+
+        # 2. reports 的子表：meeting_minutes.report_id 可空 → 解绑；six_am_profiles.report_id NOT NULL → 删除
+        report_ids = [
+            r[0] for r in sess.execute(
+                select(Report.id).where(Report.student_id == student_id)).all()
+        ]
+        if report_ids:
+            sess.execute(update(MeetingMinutes).where(
+                MeetingMinutes.report_id.in_(report_ids)).values(report_id=None))
+            sess.execute(delete(SixAmProfile).where(
+                SixAmProfile.report_id.in_(report_ids)))
+
+        # 3. 直接挂学生的 meeting_minutes / 6AM 档案
+        sess.execute(delete(MeetingMinutes).where(MeetingMinutes.student_id == student_id))
+        sess.execute(delete(SixAmProfile).where(SixAmProfile.student_id == student_id))
+
+        # 4. bookings.student_id 可空 → 解绑（保留预约历史，不级联删除）
+        sess.execute(update(Booking).where(Booking.student_id == student_id)
+                     .values(student_id=None))
+
+        # 5. reports 与 student 本体
         sess.execute(delete(Report).where(Report.student_id == student_id))
         sess.execute(delete(Student).where(Student.id == student_id))
         sess.commit()
@@ -808,8 +895,15 @@ def update_student(student_id: int, **kwargs) -> None:
 
 
 def delete_report(report_id: int) -> None:
-    """Delete a single report."""
+    """Delete a single report and its FK dependents.
+
+    meeting_minutes.report_id 可空 → 解绑（保留纪要）；six_am_profiles.report_id
+    NOT NULL → 连带删除（报告派生产物）。
+    """
     with Session(engine) as sess:
+        sess.execute(update(MeetingMinutes).where(MeetingMinutes.report_id == report_id)
+                     .values(report_id=None))
+        sess.execute(delete(SixAmProfile).where(SixAmProfile.report_id == report_id))
         sess.execute(delete(Report).where(Report.id == report_id))
         sess.commit()
 

@@ -14,7 +14,8 @@ import evaluation_rules as _eval_rules
 from minutes_schema import validate_minutes, minutes_to_markdown
 from minutes_docx import build_minutes_docx
 from app_utils import (BASE_DIR, DATA_DIR, admin_required, role_required,
-                       student_scoped, minutes_scoped)
+                       student_scoped, minutes_scoped, _student_forbidden,
+                       _report_forbidden, _minutes_forbidden)
 from ai_client import (_assemble_e4_protocol, _build_phase1_md_text,
                        _build_qualification_view, _build_y4_interpret_context,
                        _build_y4_payload, _dashscope_chat,
@@ -66,6 +67,13 @@ def api_transcript():
             resolved_rid = int(report_id)
         except (TypeError, ValueError):
             return jsonify({"ok": False, "error": "report_id 格式错误"}), 400
+
+    # Advisor 数据隔离：advisor 只能为名下学生/报告写入纪要（admin 不隔离）
+    denied = _student_forbidden(resolved_sid) if resolved_sid else None
+    if not denied and resolved_rid:
+        denied = _report_forbidden(resolved_rid)
+    if denied:
+        return denied
 
     report_summary = "（暂无测评数据）"
 
@@ -533,6 +541,10 @@ def api_transcript_docx():
     minutes_json = None
 
     if minutes_id:
+        # Advisor 数据隔离：advisor 只能下载名下学生的纪要
+        denied = _minutes_forbidden(int(minutes_id))
+        if denied:
+            return denied
         mrec = _db.get_minutes(int(minutes_id))
         if not mrec:
             return jsonify({"ok": False, "error": "纪要不存在"}), 404
