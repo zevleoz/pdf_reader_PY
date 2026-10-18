@@ -20,6 +20,9 @@ branding/
 *.log
 .worktrees/
 
+# 渲染产物（含 PII，禁止提交）
+new_iteration/*_rendered.html
+
 # 环境变量（含密钥，禁止提交）
 .env
 .env.production

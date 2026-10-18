@@ -47,6 +47,16 @@ def fnum(x):
     return f"{v:g}"
 
 
+def to_float(val, default=0.0):
+    """把任意值转成 float，失败返回 default（同 generate.py 约定）。"""
+    try:
+        if val is None or val == "":
+            return default
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
 def build_context(student, d):
     ctx = {}
     ctx["student"] = student
@@ -90,7 +100,7 @@ def build_context(student, d):
     ctx["self_concept"] = {
         "total": fnum(d["051"]),
         "level": d["052"],
-        "band_pct": round(float(d["051"]) / 120.0 * 100, 1),
+        "band_pct": round(max(5, min(95, to_float(d["051"], 80))), 1),
         "rows": [
             {"zh": zh, "en": en, "val": fnum(d[code]),
              "pct": round(float(d[code]) / 10.0 * 100, 1)}
