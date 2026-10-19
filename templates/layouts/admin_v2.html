@@ -69,7 +69,13 @@
             <span :style="open ? '' : 'transform:rotate(-90deg)'" style="transition:transform .16s">{{ icon('chevron-down', 12) }}</span>
           </button>
           {% endif %}
-          <div x-show="{{ 'open' if multi else 'true' }}" x-cloak>
+          {# 仅“初始折叠”的分组需要 x-cloak；初始展开的分组和单项分组直接由服务端
+             渲染为可见，避免每次整页跳转时先被 Alpine 隐藏、加载后又弹出来（侧栏闪烁）。 #}
+          {% if multi %}
+          <div x-show="open"{% if not g_open %} x-cloak{% endif %}>
+          {% else %}
+          <div>
+          {% endif %}
             {% for item in group.links %}
             {% set is_active = item.key == active_key %}
             <a class="side-item{{ ' is-active' if is_active else '' }}" href="{{ item.href }}"

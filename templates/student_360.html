@@ -57,11 +57,11 @@
   }
   .stu-meta .meta-chip .k { color: var(--muted); flex: none; }
   .stu-meta .meta-chip .v { color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .stu-meta .meta-chip .v.empty { color: var(--faint); }
+  .stu-meta .meta-chip .v.is-empty { color: var(--faint); }
   .stu-meta .meta-chip:has(.meta-input) { padding: 3px 8px; }
   .stu-meta .meta-val { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .stu-meta .meta-val span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .stu-meta .meta-val span.empty { color: var(--faint); }
+  .stu-meta .meta-val span.is-empty { color: var(--faint); }
   .meta-pencil {
     flex: none; display: inline-flex; align-items: center; justify-content: center;
     width: 20px; height: 20px; padding: 0;
@@ -221,7 +221,7 @@
           <span class="k">顾问：</span>
           <template x-if="metaEdit !== 'advisor_name'">
             <span class="meta-val">
-              <span :class="{ 'empty': metaEmpty('advisor_name') }" x-text="metaVal('advisor_name')"></span>
+              <span :class="{ 'is-empty': metaEmpty('advisor_name') }" x-text="metaVal('advisor_name')"></span>
               <button type="button" class="meta-pencil" x-show="canWrite" title="编辑顾问"
                       @click="startMetaEdit('advisor_name')">{{ icon('pencil', 12) }}</button>
             </span>
@@ -238,7 +238,7 @@
           <span class="k">学校：</span>
           <template x-if="metaEdit !== 'school'">
             <span class="meta-val">
-              <span :class="{ 'empty': metaEmpty('school') }" x-text="metaVal('school')"></span>
+              <span :class="{ 'is-empty': metaEmpty('school') }" x-text="metaVal('school')"></span>
               <button type="button" class="meta-pencil" x-show="canWrite" title="编辑学校"
                       @click="startMetaEdit('school')">{{ icon('pencil', 12) }}</button>
             </span>
@@ -253,11 +253,11 @@
         </div>
         <div class="meta-chip">
           <span class="k">邮箱：</span>
-          <span class="v{{ ' empty' if not profile.email else '' }}">{{ profile.email or '未填写' }}</span>
+          <span class="v{{ ' is-empty' if not profile.email else '' }}">{{ profile.email or '未填写' }}</span>
         </div>
         <div class="meta-chip">
           <span class="k">电话：</span>
-          <span class="v mono{{ ' empty' if not profile.phone else '' }}">{{ profile.phone or '未填写' }}</span>
+          <span class="v mono{{ ' is-empty' if not profile.phone else '' }}">{{ profile.phone or '未填写' }}</span>
         </div>
       </div>
 

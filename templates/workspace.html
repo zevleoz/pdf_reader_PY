@@ -206,7 +206,7 @@
         <!-- 行内展开确认面板（仅 pending / expired 可展开） -->
         <div x-show="rowOpen === a.id" x-cloak
              style="display:grid; grid-template-rows: 0fr; transition: grid-template-rows .18s var(--ease);"
-             :style="rowOpen === a.id && 'grid-template-rows: 1fr'">
+             :style="{ 'grid-template-rows': rowOpen === a.id ? '1fr' : '0fr' }">
           <div style="overflow:hidden">
             <div class="qpanel">
               <div class="asg-panel-grid">
