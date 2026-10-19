@@ -807,6 +807,25 @@ def reissue_assignment(aid: int, *, base_url: str = "",
     return pkg
 
 
+def delete_assignment(aid: int) -> bool:
+    """永久删除一条问卷任务及其 token / 原始答案 / 草稿。
+
+    不限状态（pending / sent / submitted / expired / rejected 都可删）；同一事务
+    内先清子表再删主表，只 commit 一次。不删学生、题库模板、报告或共享学生账号，
+    也不触碰同学生的其他任务。任务不存在时返回 ``False``。
+    """
+    aid = int(aid)
+    with Session(engine) as sess:
+        sess.execute(delete(AssignmentToken)
+                     .where(AssignmentToken.assignment_id == aid))
+        sess.execute(delete(Response).where(Response.assignment_id == aid))
+        sess.execute(delete(ResponseDraft).where(ResponseDraft.assignment_id == aid))
+        res = sess.execute(delete(Assignment).where(Assignment.id == aid))
+        deleted = bool(res.rowcount)
+        sess.commit()
+    return deleted
+
+
 # ─── 提交 / 答案 / 草稿 ────────────────────────────────────────
 
 def submit_response(aid: int, answers: Dict[str, Any], via: str) -> Dict[str, Any]:
