@@ -232,3 +232,15 @@ def test_api_delete_missing_assignment_is_404(client, qdb):
 
     assert res.status_code == 404
     assert res.get_json()["ok"] is False
+
+
+# ---------------------------------------------------------------------------
+# 工作台 UI 契约（浏览器交互另由最终验收覆盖）
+# ---------------------------------------------------------------------------
+def test_workspace_exposes_shared_delete_flow():
+    text = Path("templates/workspace.html").read_text(encoding="utf-8")
+    assert '@contextmenu="openContextMenu(a, $event)"' in text
+    assert "act: 'delete'" in text
+    assert "deleteAsk(a)" in text
+    assert "method: 'DELETE'" in text
+    assert "'X-CSRF-Token': CSRF" in text

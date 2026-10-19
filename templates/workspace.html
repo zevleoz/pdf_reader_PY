@@ -73,6 +73,9 @@
   .answer-item .q { font-size: 13px; font-weight: 550; color: var(--ink); }
   .answer-item .a { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
 
+  /* 右键上下文菜单：只覆盖 .menu 的定位，视觉沿用 .menu/.menu-item */
+  .ws-context-menu { position: fixed; right: auto; top: auto; z-index: 120; }
+
   @media (max-width: 1023px) {
     .asg-rows .qrow { grid-template-columns: 1fr auto; row-gap: 6px; }
     .asg-rows .c-delivery { grid-column: 1 / -1; }
@@ -84,7 +87,9 @@
 
 {% block content %}
 <div x-data="wsPage()" x-init="load()" data-role="{{ current_role }}"
-     @v2:refresh.window="load()" @v2:create.window="openCreate()">
+     @v2:refresh.window="load()" @v2:create.window="openCreate()"
+     @keydown.escape.window="closeContextMenu()"
+     @resize.window="closeContextMenu()" @scroll.window="closeContextMenu()">
 
   <!-- ============ 页头 ============ -->
   <div class="page-head ws-head">
@@ -144,7 +149,8 @@
     <template x-for="a in rows" :key="a.id">
       <div class="qwrap" style="transition:opacity .2s var(--ease)">
         <div class="qrow" :class="{ 'is-open': rowOpen === a.id }"
-             @click="expandable(a) && toggleRow(a.id)">
+             @click="expandable(a) && toggleRow(a.id)"
+             @contextmenu="openContextMenu(a, $event)">
           <div class="c-student who">
             <a class="n" :href="a.student_code ? '/students/' + a.student_code : '#'"
                @click.stop href="#" x-text="a.student_name"></a>
@@ -256,6 +262,16 @@
       </div>
     </template>
   </section>
+
+  <!-- 右键上下文菜单：与行内「⋯」菜单共用 menuItems / runMenu / deleteAsk -->
+  <div class="menu ws-context-menu" x-cloak x-show="contextMenu.open && contextMenu.assignment"
+       :style="'left:' + contextMenu.x + 'px;top:' + contextMenu.y + 'px'"
+       role="menu" @click.stop @click.outside="closeContextMenu()">
+    <template x-for="it in menuItems(contextMenu.assignment)" :key="it.label">
+      <button type="button" class="menu-item" :class="{ danger: it.danger }"
+              @click="runContextMenu(it)" x-text="it.label"></button>
+    </template>
+  </div>
 
   <!-- ============ 生成作业 + 最近活跃学生 ============ -->
   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px" class="bottom-grid">
@@ -432,6 +448,7 @@ function wsPage() {
     ],
     rowOpen: null, rowDelivery: 'link',
     rowError: '', rowErrorId: null,
+    contextMenu: { open: false, assignment: null, x: 0, y: 0 },
     createOpen: false, createForm: { student_id: '', questionnaire_id: '', reason: '' },
     students: [], bank: [],
     pkgOpen: false, pkgTitle: '', pkgText: '', pkgNote: '',
@@ -469,7 +486,7 @@ function wsPage() {
       } catch (e) { y4Toast(e.message, 'error'); }
       finally { this.loading = false; }
     },
-    setStatus(k) { this.status = k; this.rowOpen = null; this.load(); },
+    setStatus(k) { this.status = k; this.rowOpen = null; this.closeContextMenu(); this.load(); },
     countLabel(k) {
       if (!k) { var t = 0; for (var s in this.counts) { t += this.counts[s]; } return t ? '(' + t + ')' : ''; }
       var n = this.counts[k] || 0; return n ? '(' + n + ')' : '';
@@ -508,6 +525,7 @@ function wsPage() {
       return this.canWrite && (a.status === 'pending' || a.status === 'expired');
     },
     menuItems(a) {
+      if (!a) { return []; }
       var out = [];
       if (a.status === 'sent') {
         if (a.delivery !== 'account') out.push({ label: '重新生成链接', act: 'reissue' });
@@ -516,12 +534,37 @@ function wsPage() {
       if (a.status === 'pending' || a.status === 'sent' || a.status === 'expired') {
         out.push({ label: '驳回', act: 'reject', danger: true });
       }
+      /* 五种状态都可永久删除：submitted/rejected 也必须有「⋯」入口 */
+      out.push({ label: '删除问卷任务', act: 'delete', danger: true });
       return out;
     },
     runMenu(it, a) {
       if (it.act === 'reissue') { this.reissue(a); }
       else if (it.act === 'resetPwd') { this.resetPwd(a); }
       else if (it.act === 'reject') { this.rejectAsk(a); }
+      else if (it.act === 'delete') { this.deleteAsk(a); }
+    },
+    /* ── 右键上下文菜单（与「⋯」共用同一套菜单项与删除流程） ── */
+    openContextMenu(a, event) {
+      if (!this.canWrite) { return; }   /* viewer 保留浏览器原生右键菜单 */
+      event.preventDefault();
+      event.stopPropagation();
+      var items = this.menuItems(a);
+      var w = 200, h = Math.max(48, items.length * 34 + 12);
+      var x = Math.min(Math.max(8, event.clientX),
+                       Math.max(8, window.innerWidth - w - 8));
+      var y = Math.min(Math.max(8, event.clientY),
+                       Math.max(8, window.innerHeight - h - 8));
+      this.contextMenu = { open: true, assignment: a, x: x, y: y };
+    },
+    closeContextMenu() {
+      if (!this.contextMenu.open) { return; }
+      this.contextMenu = { open: false, assignment: null, x: 0, y: 0 };
+    },
+    runContextMenu(it) {
+      var a = this.contextMenu.assignment;   /* 先留存，再关闭菜单 */
+      this.closeContextMenu();
+      if (a) { this.runMenu(it, a); }
     },
     toggleRow(id) {
       this.rowOpen = this.rowOpen === id ? null : id;
@@ -563,6 +606,28 @@ function wsPage() {
         if (this.rowOpen === a.id) { this.rowOpen = null; }
         y4Toast('已驳回', 'success'); this.load();
       } catch (e) { y4Toast(e.message, 'error'); }
+      finally { this.busy = false; this.busyId = null; }
+    },
+    async deleteAsk(a) {
+      /* 右键菜单先收起，避免悬浮在确认对话框之上 */
+      this.closeContextMenu();
+      var ok = await this.askConfirm('删除问卷任务',
+        '将永久删除「' + a.questionnaire_title + ' · ' + a.student_name +
+        '」的任务、已提交答案或草稿，并使相关作答链接失效。此操作不可撤销。',
+        '确认删除');
+      if (!ok) { return; }   /* 取消不发请求 */
+      this.busy = true; this.busyId = a.id;
+      try {
+        var r = await fetch('/api/questionnaires/assignments/' + a.id,
+          { method: 'DELETE', credentials: 'same-origin',
+            headers: { 'X-CSRF-Token': CSRF } });
+        var d = await r.json();
+        if (!d.ok) { throw new Error(d.error || '删除失败'); }
+        if (this.rowOpen === a.id) { this.rowOpen = null; }
+        this.respOpen = false;
+        y4Toast('问卷任务已删除', 'success');
+        await this.load();
+      } catch (e) { y4Toast(e.message || '删除失败', 'error'); }
       finally { this.busy = false; this.busyId = null; }
     },
     async reissue(a) {

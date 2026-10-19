@@ -141,3 +141,13 @@
 - [ ] `pytest` 全绿（仓库已有测试体系）；`git status` 无模板/路由死引用。
 
 涉及文件汇总：`templates/students.html`、`templates/workspace.html`、`templates/student_360.html`、`templates/layouts/admin_v2.html`、`templates/layouts/_command_palette.html`、`templates/questionnaires/assignments.html`（删）、`blueprints/workspace.py`、`blueprints/questionnaires.py`、`blueprints/reports.py`、`db.py`、`app_utils.py`、`static/admin_v2.css`（仅新增 ⋯菜单/激活态等少量组件类，遵守文件头「禁用 Tailwind」契约）、`static/command-palette.js`、新增 `scripts/backfill_school.py`、`scripts/cleanup_test_data.py`。
+
+---
+
+## G. 2026-10-19 后续交互调整：任务删除
+
+- 工作台每一行（含 submitted / rejected）都提供「⋯」溢出菜单；五种状态都新增「删除问卷任务」。submitted / rejected 不再是无溢出菜单的状态。
+- 右键任务行额外打开同一套动作的自定义上下文菜单。右键只是额外汇入，触屏/键盘用户仍可经「⋯」完成同样操作；viewer 不显示菜单且保留浏览器原生右键。
+- 删除对象是**某学生的一条 assignment（问卷任务）**，不是 `questionnaires` 题库模板。永久硬删除，覆盖 `pending / sent / submitted / expired / rejected` 全部状态；同一事务清理该任务的 `responses`、`response_drafts`、`assignment_tokens` 后再删 assignment。
+- 权限：仅 admin / advisor；advisor 只能删名下学生的任务，viewer 调用 API 返回 403。所有删除都必须先经过二次确认；取消确认不发 DELETE 请求。
+- 不删除学生、题库模板、报告或共享 `student_accounts`，也不影响同学生的其他任务；删除后旧作答链接/账号任务不可再提交，可重新创建同卷任务。
