@@ -300,7 +300,7 @@ function wizard() {
     blockedLogin: false,
     lsOk: true,
     lsKey: '',
-    _timer: null, _advance: null, _retry: null, _cloud: null,
+    _timer: null, _retry: null, _cloud: null,
     _retryIdx: 0, _queued: false, _sending: false,
 
     /* ── 派生状态 ─────────────────────────────────────── */
@@ -521,10 +521,10 @@ function wizard() {
       this.persist();
       this.queueDraft();
     },
+    /* 选择只保存答案，用户点击下一步或按 Enter 后前进 */
     pick(step, value) {
       this.answers[step.id] = value;
       this.afterChange(step);
-      if (step.type === 'single') { this.scheduleAdvance(step); }
     },
     pickMulti(step, value, checked) {
       var arr = this.answers[step.id];
@@ -541,15 +541,6 @@ function wizard() {
       this.persist();
       this.queueDraft();
     },
-    /* 单选选中后 250ms 自动前进；期间再点别的选项，以最后一次为准 */
-    scheduleAdvance(step) {
-      var self = this;
-      clearTimeout(this._advance);
-      this._advance = setTimeout(function () {
-        if (self.state === 'form' && self.step === step) { self.next(); }
-      }, 250);
-    },
-
     /* ── 步进 ─────────────────────────────────────────── */
     firstOpenIndex() {
       for (var k = 0; k < this.steps.length; k++) {
@@ -568,7 +559,6 @@ function wizard() {
     next() {
       var s = this.step;
       if (!s || this.state !== 'form') { return; }
-      clearTimeout(this._advance);
       if (s.kind === 'q' && s.required && !this.hasAnswer(s)) {
         this.errors[s.id] = '需要作答';
         this.shakeCard();
@@ -578,7 +568,6 @@ function wizard() {
       this.goTo(this.i + 1, 1);
     },
     prev() {
-      clearTimeout(this._advance);
       this.goTo(this.i - 1, -1);
     },
     goTo(j, dir) {
@@ -715,7 +704,6 @@ function wizard() {
     },
     onSuccess() {
       this.busy = false;
-      clearTimeout(this._advance);
       clearTimeout(this._timer);
       clearTimeout(this._retry);
       this.clearLocal();
@@ -729,7 +717,6 @@ function wizard() {
       this.state = 'blocked';
       this.blockedMsg = msg || '该问卷当前无法提交，请联系顾问。';
       this.blockedLogin = /链接|无效|过期/.test(this.blockedMsg);
-      clearTimeout(this._advance);
       clearTimeout(this._timer);
       clearTimeout(this._retry);
       this.clearLocal();
