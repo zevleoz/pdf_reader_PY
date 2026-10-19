@@ -1,12 +1,14 @@
 /* =========================================================================
-   6AM 启动模型主页面：六维地图 + 右侧行动面板
+   6AM 启动模型主页面
+   信息架构：左侧按状态分组的六维导航（A1–A5 + A6 支持选择器），
+             右侧为当前维度的“判断 / 依据 / 行动”三标签工作区。
    数据源：GET /api/reports/<id>/six-am
      payload.profile    原始审计数据（答案、缺口、证据留痕）
-     payload.view_model 行动卡展示数据（cards 固定 A1–A6 顺序）
+     payload.view_model 展示数据（cards 固定 A1–A6 顺序）
    保存路径：
      POST /six-am/action-overrides  行动修订，就地更新，不生成新版本
      POST /six-am/answers           追问/缺口保存并重跑，生成新版本
-   页面不渲染任何 ObstacleScore 或规则公式。
+   页面不渲染分数、公式或内部排序。
    ========================================================================= */
 (function () {
   'use strict';
@@ -15,8 +17,20 @@
   var reports = [];
   var payload = null;    // {profile_id, version, profile, versions, view_model, ...}
   var selectedDim = null;
+  var selectedTab = 'judgment';
 
   var $ = function (id) { return document.getElementById(id); };
+
+  var TABS = ['judgment', 'evidence', 'action'];
+  var DIM_ORDER = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6'];
+
+  // 左侧分组顺序固定；空分组不渲染。A6 单独作为“支持选择器”组。
+  var GROUPS = [
+    { state: 'Blocked', title: '阻塞 Blocked' },
+    { state: 'At-Risk', title: '风险 At-Risk' },
+    { state: 'Watch', title: '关注 Watch' },
+    { state: 'Secure', title: '稳固 Secure' }
+  ];
 
   // 四类缺口 → 维度：家长诉求 A1/A2，排期负荷 A3，学科状态 A4，标准化任务 A5；A6 无缺口块
   var GAP_BY_DIM = { A1: ['family'], A2: ['family'], A3: ['schedule'], A4: ['subject'], A5: ['standard'], A6: [] };
@@ -39,17 +53,23 @@
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-  // "Autonomy 自主感"（英文在前，可能多词）→ 中文取末段；"稳固 Secure"（中文在前）→ 中文取首段
-  function splitZhEn(label) {
-    var s = String(label || '');
-    var i = s.lastIndexOf(' ');
-    if (i < 0) return { zh: s, en: '' };
-    return { zh: s.slice(i + 1), en: s.slice(0, i) };
+
+  // 中英混排标签拆成主中文 + 小号英文：
+  // "Autonomy 自主感"（英文在前）→ 自主感 / Autonomy
+  // "风险 At-Risk"（中文在前）→ 风险 / At-Risk
+  function splitLabel(label) {
+    var s = String(label == null ? '' : label).trim();
+    if (!s) return { zh: '', en: '' };
+    var parts = s.split(/\s+/);
+    if (parts.length === 1) return { zh: s, en: '' };
+    if (/^[A-Za-z]/.test(parts[0])) {
+      return { zh: parts[parts.length - 1], en: parts.slice(0, -1).join(' ') };
+    }
+    return { zh: parts[0], en: parts.slice(1).join(' ') };
   }
-  function zhFirst(label) {
-    var s = String(label || '');
-    var i = s.indexOf(' ');
-    return i < 0 ? s : s.slice(0, i);
+  function zhEn(label) {
+    var p = splitLabel(label);
+    return esc(p.zh) + (p.en ? ' <small>' + esc(p.en) + '</small>' : '');
   }
 
   function profile() { return (payload && payload.profile) || {}; }
@@ -60,13 +80,29 @@
     cards().forEach(function (c) { if (c.dim === dim) found = c; });
     return found;
   }
-  function summary() { return viewModel().summary || {}; }
 
-  function stateClass(st) {
-    return { Secure: 'st-secure', Watch: 'st-watch', 'At-Risk': 'st-atrisk', Blocked: 'st-blocked' }[st] || 'st-secure';
+  function stateClass(c) {
+    return { Secure: 'st-secure', Watch: 'st-watch', 'At-Risk': 'st-atrisk', Blocked: 'st-blocked' }[c.state] || 'st-secure';
   }
   function evClass(c) {
     return c === 'Confirmed' ? 'sa-ev c' : (c === 'Hypothesis' ? 'sa-ev h' : 'sa-ev');
+  }
+
+  function stateBadge(c) {
+    if (c.dim === 'A6') {
+      return '<span class="sa-badge st-a6">' + zhEn(c.state_label || '支持选择器') + '</span>';
+    }
+    return '<span class="sa-badge ' + stateClass(c) + '">' + zhEn(c.state_label) + '</span>';
+  }
+  function evBadge(c) {
+    if (!c.evidence_label) return '';
+    return '<span class="' + evClass(c.evidence_state) + '">' + zhEn(c.evidence_label) + '</span>';
+  }
+  function deferredBadge(c) {
+    return c.deferred ? '<span class="sa-deferred">长期目标</span>' : '';
+  }
+  function editedBadge(c) {
+    return c.manually_edited ? '<span class="sa-edited">已人工修订</span>' : '';
   }
 
   // ── 加载列表 ──────────────────────────────────────────────
@@ -119,60 +155,46 @@
     }).catch(function (e) { setStatus(String(e.message || e), true); });
   }
 
-  // 默认选中：最高优先级非 Secure 维度（priority_order 首项）；无障碍时选中 A1
+  // 默认选中第一个非空分组的第一项；全部稳固时即 A1。
+  function cardsInState(state) {
+    var out = [];
+    DIM_ORDER.forEach(function (dim) {
+      var c = cardOf(dim);
+      if (c && c.dim !== 'A6' && c.state === state) out.push(c);
+    });
+    return out;
+  }
   function defaultDim() {
-    var order = summary().priority_order || [];
-    for (var i = 0; i < order.length; i++) {
-      var c = cardOf(order[i]);
-      if (c && c.dim !== 'A6' && c.state !== 'Secure') return c.dim;
+    for (var i = 0; i < GROUPS.length; i++) {
+      var items = cardsInState(GROUPS[i].state);
+      if (items.length) return items[0].dim;
     }
-    return 'A1';
+    var first = null;
+    DIM_ORDER.forEach(function (dim) {
+      if (!first && dim !== 'A6' && cardOf(dim)) first = cardOf(dim);
+    });
+    return first ? first.dim : 'A6';
   }
 
   // ── 总渲染 ────────────────────────────────────────────────
   function renderAll() {
     var show = !!payload;
-    $('sa-summary').hidden = !show;
     $('sa-main').hidden = !show;
-    $('sa-evidence').hidden = !show;
     if (!show) {
       $('sa-version').innerHTML = '<option value="">版本</option>';
-      $('sa-map-grid').innerHTML = '';
-      $('sa-panel').innerHTML = '';
+      $('sa-nav').innerHTML = '';
+      $('sa-workspace-head').innerHTML = '';
+      TABS.forEach(function (t) {
+        var panel = $('sa-panel-' + t);
+        if (panel) { panel.innerHTML = ''; panel.hidden = true; }
+      });
       return;
     }
-    renderSummary();
     renderVersionSelect();
-    renderMap();
-    renderPanel();
-    renderEvidenceLog();
-  }
-
-  function renderSummary() {
-    var s = summary();
-    var prof = profile();
-    var st = s.student || {};
-    var rv = prof.rule_version || {};
-    var items = [
-      '<span>学生：<b>' + esc(st.name || '—') + '</b></span>',
-      '<span>年级：<b>' + esc(st.grade || '—') + '</b></span>',
-      '<span>报告：<b>#' + esc(s.report_id || prof.report_id || '') + '</b></span>',
-      '<span>规则版本：<b>' + esc(rv.label || 'default') + (rv.id ? '（id=' + rv.id + '）' : '') + '</b></span>',
-      '<span>档案版本：<b>v' + esc(payload.version) + '</b></span>',
-      '<span>生成时间：<b>' + esc(s.generated_at || prof.generated_at || '') + '</b></span>'
-    ];
-    var primary = s.primary_obstacle;
-    if (primary && primary.dim) {
-      var pc = cardOf(primary.dim);
-      var pTitle = pc ? splitZhEn(pc.title).zh : primary.dim;
-      items.push('<span>首要处理：<b>' + esc(primary.dim) + ' ' + esc(pTitle) + '</b></span>');
-    }
-    items.push('<span>待确认问题：<b>' + esc(s.open_question_count || 0) + '</b> 条</span>');
-    (s.deferred || []).forEach(function (d) {
-      if (d && d.dim) items.push('<span>长期目标：<b>' + esc(d.dim) + '</b></span>');
-    });
-    $('sa-summary-meta').innerHTML = items.join('');
-    $('sa-summary-note').textContent = s.sequence_note || '';
+    if (!cardOf(selectedDim)) selectedDim = defaultDim();
+    renderNav();
+    renderWorkspace();
+    setTab(selectedTab, false);
   }
 
   function renderVersionSelect() {
@@ -187,54 +209,168 @@
     });
   }
 
-  // ── 六维地图（固定 A1–A6 顺序）─────────────────────────────
-  function prioBadge(c) {
-    if (c.deferred) return '<span class="sa-prio deferred">长期目标</span>';
-    if (c.priority_label) {
-      return '<span class="sa-prio">' + esc(c.priority_label) +
-        (c.priority_rank ? ' ' + esc(c.priority_rank) : '') + '</span>';
-    }
-    return '';
+  // ── 左侧：按状态分组的六维导航 ────────────────────────────
+  function navItem(c) {
+    var name = splitLabel(c.title);
+    var current = c.dim === selectedDim;
+    return '<button type="button" class="sa-nav-item" data-dim="' + esc(c.dim) + '"' +
+      (current ? ' aria-current="true"' : '') + '>' +
+      '<span class="sa-nav-name">' + esc(c.dim) + ' ' + esc(name.zh) +
+        (name.en ? '<small>' + esc(name.en) + '</small>' : '') + '</span>' +
+      '<span class="sa-nav-meta">' + stateBadge(c) + evBadge(c) + deferredBadge(c) + '</span>' +
+      '</button>';
   }
-  function stateBadge(c) {
-    if (c.dim === 'A6') return '<span class="sa-badge st-secure">支持选择器</span>';
-    return '<span class="sa-badge ' + stateClass(c.state) + '">' + esc(zhFirst(c.state_label)) + '</span>';
+  function navGroup(title, items) {
+    var t = splitLabel(title);
+    return '<div class="sa-nav-group">' +
+      '<h2 class="sa-nav-group-title">' + esc(t.zh) +
+        (t.en ? ' <small>' + esc(t.en) + '</small>' : '') + '</h2>' +
+      '<div class="sa-nav-items">' + items.map(navItem).join('') + '</div>' +
+      '</div>';
   }
-  function evBadge(c) {
-    if (!c.evidence_label) return '';
-    return '<span class="' + evClass(c.evidence_state) + '">' + esc(c.evidence_label) + '</span>';
+  function renderNav() {
+    var html = '';
+    GROUPS.forEach(function (g) {
+      var items = cardsInState(g.state);
+      if (items.length) html += navGroup(g.title, items);
+    });
+    var a6 = cardOf('A6');
+    if (a6) html += navGroup('支持选择器 A6', [a6]);
+    $('sa-nav').innerHTML = html;
   }
 
-  function renderMap() {
-    var wrap = $('sa-map-grid');
-    wrap.innerHTML = '';
-    cards().forEach(function (c) {
-      var name = splitZhEn(c.title);
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'sa-dim-card';
-      btn.setAttribute('aria-pressed', c.dim === selectedDim ? 'true' : 'false');
-      btn.setAttribute('data-dim', c.dim);
-      btn.innerHTML =
-        '<div class="sa-dim-card-top">' +
-          '<div class="sa-dim-name">' + esc(c.dim) + ' · ' + esc(name.zh) +
-            (name.en ? '<small>' + esc(name.en) + '</small>' : '') + '</div>' +
-          '<div class="sa-dim-badges">' + stateBadge(c) + evBadge(c) + '</div>' +
-        '</div>' +
-        '<p class="sa-dim-headline">' + esc(c.headline) + '</p>' +
-        '<div class="sa-dim-foot">' + prioBadge(c) +
-          (c.manually_edited ? '<span class="sa-edited">已人工修订</span>' : '') + '</div>';
-      btn.addEventListener('click', function () {
-        selectedDim = c.dim;
-        renderMap();
-        renderPanel();
-      });
-      wrap.appendChild(btn);
+  // 只切换选中态，不重建左栏 DOM：重建会让整列导航重绘一次，看起来像“闪一下”，
+  // 同时会丢失悬停态与滚动位置。徽章/分组只在 renderAll 时随数据一起刷新。
+  function syncNavSelection(dim) {
+    Array.prototype.forEach.call(document.querySelectorAll('#sa-nav .sa-nav-item'), function (btn) {
+      if (btn.getAttribute('data-dim') === dim) btn.setAttribute('aria-current', 'true');
+      else btn.removeAttribute('aria-current');
     });
   }
 
-  // ── 右侧行动面板 ──────────────────────────────────────────
-  function listSection(title, items, emptyText) {
+  function selectDim(dim) {
+    if (!dim || dim === selectedDim) return;
+    selectedDim = dim;
+    syncNavSelection(dim);
+    renderWorkspace();
+    setTab(selectedTab, false);
+    var btn = document.querySelector('.sa-nav-item[data-dim="' + dim + '"]');
+    // preventScroll：焦点落在左栏时不要把页面滚回导航顶部。
+    if (btn) btn.focus({ preventScroll: true });
+  }
+
+  // ── 右侧：维度头 + 三标签 ─────────────────────────────────
+  function renderWorkspace() {
+    var c = cardOf(selectedDim);
+    if (!c) {
+      $('sa-workspace-head').innerHTML = '';
+      TABS.forEach(function (t) { $('sa-panel-' + t).innerHTML = ''; });
+      return;
+    }
+    renderWorkspaceHead(c);
+    $('sa-panel-judgment').innerHTML = renderJudgment(c);
+    $('sa-panel-evidence').innerHTML = renderEvidence(c);
+    $('sa-panel-action').innerHTML = renderAction(c);
+    bindPanelEvents(c);
+  }
+
+  function renderWorkspaceHead(c) {
+    var name = splitLabel(c.title);
+    $('sa-workspace-head').innerHTML =
+      '<div class="sa-workspace-title">' + esc(c.dim) + ' · ' + esc(name.zh) +
+        (name.en ? '<small>' + esc(name.en) + '</small>' : '') + '</div>' +
+      '<div class="sa-workspace-badges">' + stateBadge(c) + evBadge(c) +
+        deferredBadge(c) + editedBadge(c) + '</div>';
+  }
+
+  function setTab(name, focus) {
+    if (TABS.indexOf(name) < 0) name = 'judgment';
+    selectedTab = name;
+    TABS.forEach(function (t) {
+      var tab = $('sa-tab-' + t);
+      var panel = $('sa-panel-' + t);
+      var active = t === name;
+      if (tab) {
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        tab.tabIndex = active ? 0 : -1;
+      }
+      if (panel) panel.hidden = !active;
+    });
+    if (focus) {
+      var activeTab = $('sa-tab-' + name);
+      if (activeTab) activeTab.focus();
+    }
+  }
+
+  // ── 判断标签页 ────────────────────────────────────────────
+  function evidenceExplanation(c) {
+    var map = {
+      Hypothesis: '当前判断来自 Y4 初筛，尚未经追问确认。',
+      Supported: '已有补充证据支持，仍可在“依据”中继续确认。',
+      Confirmed: '判断已由追问或外部证据确认。',
+      Refuted: '原有判断已被追问否定。'
+    };
+    if (c.dim === 'A6') return '支持选择器，无证据状态。';
+    if (!c.evidence_label) return '暂无证据状态记录。';
+    var extra = map[c.evidence_state] || '';
+    return zhEn(c.evidence_label) + (extra ? '：' + extra : '');
+  }
+
+  function renderJudgment(c) {
+    var html = '';
+
+    html += '<section class="sa-sec sa-sec-first">' +
+      '<h3>证据状态</h3>' +
+      '<p class="sa-judgment-evidence">' + evidenceExplanation(c) + '</p>' +
+      '</section>';
+
+    html += '<section class="sa-sec">' +
+      '<h3>一句话判断</h3>' +
+      '<p class="sa-headline">' + esc(c.headline || '') + '</p>' +
+      '</section>';
+
+    html += judgmentReason(c);
+    html += judgmentQuestions(c);
+    return html;
+  }
+
+  // 只呈现长期目标与跨维修正/备注；不展示内部排序原因。
+  function judgmentReason(c) {
+    var items = [];
+    if (c.deferred && c.deferred_reason) items.push('长期目标：' + c.deferred_reason);
+    ((c.audit || {}).cross_mods || []).forEach(function (m) {
+      var action = String((m && m.action) || '');
+      if (action) items.push('联动：' + action);
+    });
+    ((c.audit || {}).notes || []).forEach(function (n) {
+      if (n) items.push('注：' + n);
+    });
+
+    var body;
+    if (!items.length) {
+      body = '<div class="sa-empty">本维度暂无额外联动说明；判断原因见上方证据状态与一句话判断。</div>';
+    } else {
+      body = '<ul class="sa-reason-list">' + items.map(function (t) {
+        return '<li>' + esc(t) + '</li>';
+      }).join('') + '</ul>';
+    }
+    return '<section class="sa-sec"><h3>当前判断原因 / 联动说明</h3>' + body + '</section>';
+  }
+
+  function judgmentQuestions(c) {
+    var count = (c.questions || []).length;
+    var label = c.dim === 'A6' ? '支持偏好追问' : '待确认问题';
+    var text = label + '：<b>' + count + '</b> 条' +
+      (count ? '，可在“依据”中录入答案。' : '。');
+    var btn = count ?
+      '<button type="button" class="sa-btn sa-mini" data-goto-tab="evidence">去“依据”录入</button>' : '';
+    return '<section class="sa-sec"><h3>待确认问题</h3>' +
+      '<div class="sa-inline sa-question-count"><span>' + text + '</span>' + btn + '</div></section>';
+  }
+
+  // ── 依据标签页 ────────────────────────────────────────────
+  function listSection(title, items, emptyText, hideWhenEmpty) {
+    if (hideWhenEmpty && (!items || !items.length)) return '';
     var html = '<section class="sa-sec"><h3>' + esc(title) + '</h3>';
     if (!items || !items.length) {
       html += '<div class="sa-empty">' + esc(emptyText) + '</div>';
@@ -246,74 +382,35 @@
     return html + '</section>';
   }
 
-  function renderPanel() {
-    var panel = $('sa-panel');
-    var c = cardOf(selectedDim);
-    if (!c) { panel.innerHTML = ''; return; }
-    var name = splitZhEn(c.title);
+  function renderEvidence(c) {
+    var isA6 = c.dim === 'A6';
     var html = '';
 
-    // 头部：维度名 + 状态/证据/优先级
-    html += '<div class="sa-panel-head">' +
-      '<div class="sa-dim-name">' + esc(c.dim) + ' · ' + esc(name.zh) +
-        (name.en ? '<small>' + esc(name.en) + '</small>' : '') + '</div>' +
-      '<div class="sa-panel-badges">' + stateBadge(c) + evBadge(c) + prioBadge(c) +
-        (c.manually_edited ? '<span class="sa-edited">已人工修订</span>' : '') + '</div>' +
-      '</div>';
+    // A6 只渲染有数据的区块，不强行展示空白证据区。
+    html += listSection('Y4 事实', c.y4_facts, '当前维度暂无 Y4 事实记录。', isA6);
+    html += listSection('初筛假设', c.hypotheses, '无初筛假设。', isA6);
+    html += listSection('补充证据 / 已确认依据', c.confirmed_evidence, '尚无追问确认的补充证据。', isA6);
 
-    // 判断
-    html += '<section class="sa-sec"><h3>判断</h3>' +
-      '<p class="sa-headline">' + esc(c.headline) + '</p>';
-    if (c.deferred && c.deferred_reason) {
-      html += '<p class="sa-note">长期目标：' + esc(c.deferred_reason) + '</p>';
-    } else if (c.priority_reason) {
-      html += '<p class="sa-note">' + esc(c.priority_reason) + '</p>';
-    }
-    html += '</section>';
+    html += questionsSection(c, isA6);
+    if (!isA6) html += gapsSection(c.dim);
 
-    // Y4 事实 / 初筛假设 / 补充证据
-    html += listSection('Y4 事实', c.y4_facts, '当前维度暂无 Y4 事实记录。');
-    html += listSection('初筛假设', c.hypotheses, '无初筛假设。');
-    html += listSection('补充证据（已确认依据）', c.confirmed_evidence, '尚无追问确认的补充证据。');
+    html += auditSection(c);
+    html += evidenceLogSection(isA6);
 
-    // 行动编辑（下一步 / 避免事项）
-    html += '<section class="sa-sec"><h3>下一步行动<span class="sa-sec-sub">每行一条，最多 ' +
-      OVERRIDE_MAX_ITEMS + ' 条、每条 ' + OVERRIDE_MAX_LEN + ' 字</span></h3>' +
-      '<label class="sa-visually-hidden" for="sa-next-actions">下一步行动（每行一条）</label>' +
-      '<textarea id="sa-next-actions" class="sa-input sa-actions" rows="3" placeholder="每行一条行动建议">' +
-      esc((c.next_actions || []).join('\n')) + '</textarea>' +
-      '<h3 style="margin-block-start:12px">避免事项</h3>' +
-      '<label class="sa-visually-hidden" for="sa-avoid-actions">避免事项（每行一条）</label>' +
-      '<textarea id="sa-avoid-actions" class="sa-input sa-actions" rows="2" placeholder="每行一条避免事项">' +
-      esc((c.avoid_actions || []).join('\n')) + '</textarea>' +
-      '<div class="sa-save-row">' +
-      '<button id="sa-save-actions" type="button" class="sa-btn">保存行动修订（不生成新版本）</button>' +
-      '<span id="sa-save-actions-status" class="sa-status" role="status"></span></div>' +
-      '<p class="sa-note">清空两个编辑框后保存，即恢复为系统生成的行动建议。</p></section>';
-
-    // 待确认问题与答案
-    html += questionsSection(c);
-
-    // 维度相关缺口（A6 无缺口块，仅有上方支持偏好追问）
-    html += gapsSection(c.dim);
-
-    // 保存追问并重跑
     html += '<section class="sa-sec"><div class="sa-save-row">' +
       '<button id="sa-save-answers" type="button" class="sa-btn primary">保存追问并重跑（生成新版本）</button>' +
       '<span id="sa-save-answers-status" class="sa-status" role="status"></span></div>' +
-      '<p class="sa-note">保存本维度的追问答案与缺口字段，重跑后生成新版本（旧版本保留，可在上方切换）。</p></section>';
+      '<p class="sa-note">保存本维度的追问答案与缺口字段，重跑后生成新版本（旧版本保留，可在顶部切换）。</p>' +
+      '</section>';
 
-    // 折叠审计区
-    html += auditSection(c);
-
-    panel.innerHTML = html;
-    bindPanelEvents(c);
+    return html;
   }
 
-  function questionsSection(c) {
+  function questionsSection(c, hideWhenEmpty) {
     var ansMap = {};
     (profile().answers || []).forEach(function (a) { if (a && a.q) ansMap[a.q] = a; });
     var qs = c.questions || [];
+    if (hideWhenEmpty && !qs.length) return '';
     var title = c.dim === 'A6' ? '支持偏好追问与答案' : '待确认问题与答案';
     var html = '<section class="sa-sec"><h3>' + title + '</h3>';
     if (!qs.length) {
@@ -458,15 +555,15 @@
     if (e.rule) return '依赖 ' + e.rule + ' 命中';
     if (e.evidence) return '证据 ' + e.evidence + ' = ' + e.value;
     if (e.predicate) return '谓词 ' + e.predicate;
-    if (e.dim) return e.dim + ' state = ' + e.state;
+    if (e.dim) return e.dim + ' 状态 = ' + e.state;
     return JSON.stringify(e);
   }
   function effectText(eff) {
     if (!eff) return '';
     var parts = [];
-    if (eff.state) parts.push('state → ' + eff.state);
+    if (eff.state) parts.push('状态 → ' + eff.state);
     if (eff.subtype) parts.push('亚型 → ' + eff.subtype);
-    if (eff.confidence) parts.push('confidence → ' + eff.confidence);
+    if (eff.confidence) parts.push('证据等级 → ' + eff.confidence);
     if (eff.escalate) parts.push(eff.escalate);
     if (eff.deescalate) parts.push('降一级');
     if (eff.flags) parts.push('标记：' + eff.flags.join('、'));
@@ -528,18 +625,69 @@
     return html + '</div></details>';
   }
 
-  // ── 页级证据留痕（折叠）───────────────────────────────────
-  function renderEvidenceLog() {
+  // ── 全档案证据留痕（放在“依据”标签折叠区）─────────────────
+  function evidenceLogSection(hideWhenEmpty) {
     var log = profile().evidence_log || [];
-    var html = '';
-    if (!log.length) html = '<div class="sa-empty">暂无外部证据（仅 Y4 数据）。</div>';
+    if (hideWhenEmpty && !log.length) return '';
+    var html = '<details class="sa-audit sa-log"><summary>全档案证据留痕（追问 / 家长 / FT 录入原始记录）</summary>' +
+      '<div class="sa-audit-body">';
+    if (!log.length) {
+      html += '<div class="sa-empty">暂无外部证据（仅 Y4 数据）。</div>';
+    }
     log.forEach(function (e) {
       var d = e.detail;
       var txt = typeof d === 'string' ? d : JSON.stringify(d);
       html += '<div class="sa-evidence-item"><span class="sa-tag">' + esc(e.source) + '</span> ' +
         '<span class="sa-tag">' + esc(e.kind) + '</span> ' + esc(txt) + '</div>';
     });
-    $('sa-evidence-body').innerHTML = html;
+    return html + '</div></details>';
+  }
+
+  // ── 行动标签页 ────────────────────────────────────────────
+  function renderAction(c) {
+    var html = '';
+
+    html += '<section class="sa-sec sa-sec-first">' +
+      '<h3>下一步行动<span class="sa-sec-sub">每行一条，最多 ' + OVERRIDE_MAX_ITEMS +
+        ' 条、每条 ' + OVERRIDE_MAX_LEN + ' 字</span></h3>' +
+      '<label class="sa-visually-hidden" for="sa-next-actions">下一步行动（每行一条）</label>' +
+      '<textarea id="sa-next-actions" class="sa-input sa-actions" rows="3" placeholder="每行一条行动建议">' +
+      esc((c.next_actions || []).join('\n')) + '</textarea>' +
+      '</section>';
+
+    html += '<section class="sa-sec">' +
+      '<h3>避免事项<span class="sa-sec-sub">每行一条，最多 ' + OVERRIDE_MAX_ITEMS +
+        ' 条、每条 ' + OVERRIDE_MAX_LEN + ' 字</span></h3>' +
+      '<label class="sa-visually-hidden" for="sa-avoid-actions">避免事项（每行一条）</label>' +
+      '<textarea id="sa-avoid-actions" class="sa-input sa-actions" rows="2" placeholder="每行一条避免事项">' +
+      esc((c.avoid_actions || []).join('\n')) + '</textarea>' +
+      '</section>';
+
+    if (c.dim === 'A6') html += a6SupportBlock(c);
+
+    html += '<section class="sa-sec"><div class="sa-save-row">' +
+      '<button id="sa-save-actions" type="button" class="sa-btn">保存行动修订（不生成新版本）</button>' +
+      '<span id="sa-save-actions-status" class="sa-status" role="status"></span></div>' +
+      '<p class="sa-note">清空两个编辑框后保存，即恢复为系统生成的行动建议。</p></section>';
+
+    return html;
+  }
+
+  function a6SupportBlock(c) {
+    var next = c.next_actions || [];
+    var avoid = c.avoid_actions || [];
+    var nextHtml = next.length ? '<ul class="sa-fact-list">' + next.map(function (t) {
+      return '<li>' + esc(t) + '</li>';
+    }).join('') + '</ul>' : '<div class="sa-empty">暂无支持方向。</div>';
+    var avoidHtml = avoid.length ? '<ul class="sa-fact-list">' + avoid.map(function (t) {
+      return '<li>' + esc(t) + '</li>';
+    }).join('') + '</ul>' : '<div class="sa-empty">暂无慎用 / 避免项。</div>';
+    return '<section class="sa-sec"><h3>A6 支持方向与慎用/避免项' +
+      '<span class="sa-sec-sub">当前系统生成，供编辑时对照</span></h3>' +
+      '<div class="sa-a6-panel">' +
+      '<div class="sa-a6-col"><h4>支持方向</h4>' + nextHtml + '</div>' +
+      '<div class="sa-a6-col"><h4>慎用 / 避免</h4>' + avoidHtml + '</div>' +
+      '</div></section>';
   }
 
   // ── 面板事件 ──────────────────────────────────────────────
@@ -616,7 +764,7 @@
     (profile().answers || []).forEach(function (a) {
       if (a && a.q) map[a.q] = { q: a.q, result: a.result, text: a.text || '' };
     });
-    Array.prototype.forEach.call(document.querySelectorAll('#sa-panel .sa-ans-row'), function (row) {
+    Array.prototype.forEach.call(document.querySelectorAll('#sa-panel-evidence .sa-ans-row'), function (row) {
       var q = row.getAttribute('data-q');
       var result = row.querySelector('.sa-ans-result').value;
       var text = row.querySelector('.sa-ans-text').value.trim();
@@ -630,10 +778,10 @@
   function collectGapsFor(dim) {
     var gaps = {};
     var kinds = GAP_BY_DIM[dim] || [];
-    var q = function (sel) { return document.querySelector('#sa-panel ' + sel); };
+    var q = function (sel) { return document.querySelector('#sa-panel-evidence ' + sel); };
     if (kinds.indexOf('family') >= 0) {
       var tags = [];
-      Array.prototype.forEach.call(document.querySelectorAll('#sa-panel .sa-fam-tag'), function (c) {
+      Array.prototype.forEach.call(document.querySelectorAll('#sa-panel-evidence .sa-fam-tag'), function (c) {
         if (c.checked) tags.push(c.value);
       });
       gaps.family_complaint = {
@@ -652,7 +800,7 @@
     }
     if (kinds.indexOf('subject') >= 0) {
       var rows = [];
-      Array.prototype.forEach.call(document.querySelectorAll('#sa-panel .sa-subj-row'), function (row) {
+      Array.prototype.forEach.call(document.querySelectorAll('#sa-panel-evidence .sa-subj-row'), function (row) {
         var name = row.querySelector('.sj-name').value.trim();
         if (!name) return;
         rows.push({
@@ -735,6 +883,31 @@
     });
   }
 
+  // ── 标签切换（鼠标 + 左右方向键）────────────────────────────
+  function initTabs() {
+    TABS.forEach(function (t) {
+      var tab = $('sa-tab-' + t);
+      tab.addEventListener('click', function () { setTab(t, false); });
+    });
+    var tablist = document.querySelector('.sa-tabs');
+    tablist.addEventListener('keydown', function (e) {
+      var idx = TABS.indexOf(selectedTab);
+      var next = null;
+      if (e.key === 'ArrowRight') next = (idx + 1) % TABS.length;
+      else if (e.key === 'ArrowLeft') next = (idx - 1 + TABS.length) % TABS.length;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = TABS.length - 1;
+      if (next == null) return;
+      e.preventDefault();
+      setTab(TABS[next], true);
+    });
+    // “去依据录入”等跨标签跳转；不重绘面板，避免丢失已输入内容。
+    $('sa-workspace').addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-goto-tab]') : null;
+      if (btn) setTab(btn.getAttribute('data-goto-tab'), true);
+    });
+  }
+
   // ── 事件绑定 ──────────────────────────────────────────────
   $('sa-student').addEventListener('change', loadReports);
   $('sa-report').addEventListener('change', function () { selectedDim = null; loadProfile(); });
@@ -748,6 +921,11 @@
     if (!rid || !payload) { setStatus('请先加载档案', true); return; }
     window.open('/api/reports/' + rid + '/six-am/docx?profile_id=' + payload.profile_id, '_blank');
   });
+  $('sa-nav').addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('.sa-nav-item') : null;
+    if (btn) selectDim(btn.getAttribute('data-dim'));
+  });
 
+  initTabs();
   loadStudents();
 })();

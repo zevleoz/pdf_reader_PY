@@ -13,7 +13,7 @@
     <div class="page-head">
       <div>
         <div class="page-title">6AM 启动模型</div>
-        <p class="sa-sub">以报告数据为输入，输出六维启动判断与行动卡；在右侧面板录入追问答案与缺口字段后可重跑版本。</p>
+        <p class="sa-sub">先在左侧按状态定位维度，再在右侧“判断 / 依据 / 行动”中查看结论、补证据或修订行动。</p>
       </div>
       <div class="sa-head-spacer"></div>
       <div class="sa-controls">
@@ -31,23 +31,34 @@
     </div>
     <div id="sa-status" class="sa-status" role="status"></div>
 
-    <section id="sa-summary" class="sa-summary" aria-label="档案摘要" hidden>
-      <div id="sa-summary-meta" class="sa-meta"></div>
-      <div id="sa-summary-note" class="sa-summary-note"></div>
-    </section>
-
     <div id="sa-main" class="sa-main" hidden>
-      <section class="sa-map" aria-label="六维地图">
-        <h2 class="sa-section-title">六维地图</h2>
-        <div id="sa-map-grid" class="sa-map-grid"></div>
-      </section>
-      <section id="sa-panel" class="sa-panel-side" aria-label="维度详情与行动"></section>
-    </div>
+      <nav id="sa-nav" class="sa-nav" aria-label="六维导航"></nav>
 
-    <details id="sa-evidence" class="sa-evidence" hidden>
-      <summary>证据留痕（追问 / 家长 / FT 录入原始记录）</summary>
-      <div id="sa-evidence-body" class="sa-evidence-body"></div>
-    </details>
+      <section id="sa-workspace" class="sa-workspace" aria-label="当前维度工作区">
+        <div id="sa-workspace-head" class="sa-workspace-head"></div>
+
+        <div class="sa-tabs" role="tablist" aria-label="维度工作区分类">
+          <button type="button" class="sa-tab" role="tab" id="sa-tab-judgment"
+                  aria-controls="sa-panel-judgment" aria-selected="true"
+                  data-tab="judgment">判断</button>
+          <button type="button" class="sa-tab" role="tab" id="sa-tab-evidence"
+                  aria-controls="sa-panel-evidence" aria-selected="false" tabindex="-1"
+                  data-tab="evidence">依据</button>
+          <button type="button" class="sa-tab" role="tab" id="sa-tab-action"
+                  aria-controls="sa-panel-action" aria-selected="false" tabindex="-1"
+                  data-tab="action">行动</button>
+        </div>
+
+        <div class="sa-tabpanels">
+          <section class="sa-tabpanel" role="tabpanel" id="sa-panel-judgment"
+                   aria-labelledby="sa-tab-judgment" tabindex="0"></section>
+          <section class="sa-tabpanel" role="tabpanel" id="sa-panel-evidence"
+                   aria-labelledby="sa-tab-evidence" tabindex="0" hidden></section>
+          <section class="sa-tabpanel" role="tabpanel" id="sa-panel-action"
+                   aria-labelledby="sa-tab-action" tabindex="0" hidden></section>
+        </div>
+      </section>
+    </div>
   </div>
 </div>
 {% endblock %}
