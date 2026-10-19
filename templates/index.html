@@ -1201,30 +1201,79 @@
   // Cloudflare 免费版代理对源站响应有约 100 秒超时，因此把原来的「一次性上传
   // + 同步生成」拆成多个短请求：分片上传 → 启动任务 → 轮询进度 → 取回结果。
   // =====================================
-  const CHUNK_SIZE = 1 * 1024 * 1024;
+  // 每片 256KB：生产隧道实测约 30KB/s，1MB 一片要 26–38s，接近 Safari/代理
+  // 的请求超时边界；256KB 单片约 8–9s，失败重发的代价也小。
+  const CHUNK_SIZE = 256 * 1024;
+  const CHUNK_TIMEOUT_MS = 45 * 1000;   // 单分片请求上限，避免 fetch 无限挂起
+  const MAX_UPLOAD_ATTEMPTS = 3;        // 首次 + 2 次重试
 
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // 分片上传单个文件：每片约 1.5MB，顺序 POST 到 /api/upload/chunk
-  async function uploadFileChunked(key, file, uploadId, onBytes) {
+  function isRetryableUploadError(err) {
+    const status = err && err.status;
+    if (status) {
+      // 参数/鉴权/CSRF/体积错误重试也没用；只有超时、限流、服务端 5xx 才重试
+      return status === 408 || status === 429 || status >= 500;
+    }
+    // 无 HTTP 状态：网络断开 / Safari "Load failed" / AbortController 超时
+    return true;
+  }
+
+  // 分片上传单个文件：每片 256KB，顺序 POST 到 /api/upload/chunk。
+  // 单片失败按 1s、2s（含抖动）退避重试；只有成功才回调 onBytes，进度不回退。
+  async function uploadFileChunked(key, file, uploadId, onBytes, onRetry) {
+    if (!file.size) throw new Error(key + ' 文件为空');
     const total = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
     for (let i = 0; i < total; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(file.size, start + CHUNK_SIZE);
-      const fd = new FormData();
-      fd.append('key', key);
-      fd.append('upload_id', uploadId);
-      fd.append('chunk_index', String(i));
-      fd.append('total_chunks', String(total));
-      fd.append('chunk', file.slice(start, end), key + '.part');
+      let lastErr = null;
 
-      const resp = await fetch('/api/upload/chunk', { method: 'POST', body: fd });
-      if (!resp.ok) {
-        let msg = '上传失败 (HTTP ' + resp.status + ')';
-        try { const e = await resp.json(); if (e && e.error) msg = e.error; } catch (_) {}
-        throw new Error(msg);
+      for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), CHUNK_TIMEOUT_MS);
+        try {
+          const fd = new FormData();
+          fd.append('key', key);
+          fd.append('upload_id', uploadId);
+          fd.append('chunk_index', String(i));
+          fd.append('total_chunks', String(total));
+          fd.append('chunk', file.slice(start, end), key + '.part');
+
+          const resp = await fetch('/api/upload/chunk', {
+            method: 'POST', body: fd, signal: controller.signal
+          });
+          clearTimeout(timer);
+          if (!resp.ok) {
+            let msg = '上传失败 (HTTP ' + resp.status + ')';
+            try { const e = await resp.json(); if (e && e.error) msg = e.error; } catch (_) {}
+            const httpErr = new Error(msg);
+            httpErr.status = resp.status;
+            throw httpErr;
+          }
+          lastErr = null;
+          break;   // 本片成功
+        } catch (err) {
+          lastErr = err;
+          if (!isRetryableUploadError(err) || attempt >= MAX_UPLOAD_ATTEMPTS) {
+            break;
+          }
+          if (onRetry) onRetry(i, total, attempt, MAX_UPLOAD_ATTEMPTS, err);
+          // 1s、2s + 0–500ms 抖动；给死连接/边缘节点一个恢复窗口
+          await sleep(1000 * Math.pow(2, attempt - 1) + Math.round(Math.random() * 500));
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      if (lastErr) {
+        const detail = (lastErr.name === 'AbortError')
+          ? '网络超时'
+          : (lastErr.message || String(lastErr));
+        throw new Error('上传 ' + key + ' 第 ' + (i + 1) + '/' + total +
+                        ' 片失败（已尝试 ' + MAX_UPLOAD_ATTEMPTS + ' 次）：' + detail);
       }
       onBytes(end - start);
     }
@@ -1301,6 +1350,11 @@
           // 视觉：标记当前正在上传的槽 + 推进 stepper（挂在既有赋值处）
           document.querySelector('#slots .slot[data-key="' + k + '"]')?.classList.add('is-uploading');
           setStage(pct);
+        }, (chunkIndex, totalChunks, attempt, maxAttempts) => {
+          // 仅改进度文案：传输层自动重试，不打断整个 generate()
+          progText.textContent = '网络波动，正在重试 ' + k + ' 第 ' +
+            (chunkIndex + 1) + '/' + totalChunks + ' 片（' + attempt + '/' + maxAttempts + '）…';
+          setStatus('网络波动，正在重试 ' + k + ' 第 ' + (chunkIndex + 1) + ' 片…', 'loading');
         });
       }
 

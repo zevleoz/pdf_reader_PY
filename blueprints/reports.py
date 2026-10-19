@@ -4,15 +4,17 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 import time
 import traceback
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
-from flask import (Blueprint, jsonify, render_template, request, redirect,
-                   send_file, send_from_directory, abort)
+from flask import (Blueprint, jsonify, render_template, request,
+                   redirect, send_file, send_from_directory, abort)
 
 import db as _db
 import app_utils
@@ -319,36 +321,198 @@ def _run_pipeline_job(job: dict) -> int:
 
 
 # ---------------------------------------------------------------------------
-# 分片上传：接收单片 PDF 数据，追加写入 data/_uploads/<upload_id>/<KEY>.part
+# 分片上传（传输层）
+#
+# 背景：Cloudflare Tunnel 下链路慢且会偶发断连。旧实现把分片按顺序 append 到
+# 单个 <KEY>.part，无法安全重试：一旦服务端已写入但响应在隧道上丢失，客户端
+# 重发同一片就会写出重复字节，PDF 被污染。因此这里改为「一片一个文件」：
+#   data/_uploads/<upload_id>/<KEY>.<index:06d>.part
+#   data/_uploads/<upload_id>/<KEY>.total          # 可选的总片数元数据
+# 同一 index 重试 = 覆盖同一文件（幂等）；start 时按 index 排序合并。
+#
+# 对外协议不变：请求字段 / 响应结构 / <KEY>.part 旧格式读取兼容。
 # ---------------------------------------------------------------------------
+_MAX_TOTAL_CHUNKS = 4096
+_INDEXED_CHUNK_RE = re.compile(r"^(?P<key>[A-Z0-9]+)\.(?P<index>\d{6})\.part$")
+
+
+def _chunk_total_path(dest_dir: Path, key: str) -> Path:
+    return dest_dir / f"{key}.total"
+
+
+def _chunk_path(dest_dir: Path, key: str, index: int) -> Path:
+    return dest_dir / f"{key}.{index:06d}.part"
+
+
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """原子写入：同目录唯一临时文件 + fsync + os.replace。"""
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent),
+                                    prefix=f".{path.name}.",
+                                    suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+def _target_for_key(key: str, manifest: dict) -> Path:
+    """按既有规则确定 input/ 目标文件名（B6 保留高中/初中版本后缀）。"""
+    entry = manifest.get(key)
+    original_name = entry.get("filename", "") if isinstance(entry, dict) else (entry or "")
+    if key == "B6" and ("高中" in original_name or "初中" in original_name):
+        version = "高中" if "高中" in original_name else "初中"
+        return INPUT_DIR / f"report_{key}_{version}.pdf"
+    return INPUT_DIR / f"report_{key}.pdf"
+
+
+def _collect_chunk_plan(src_dir: Path, key: str) -> Tuple[List[Path], str]:
+    """收集某个 key 的分片来源；返回 (按 index 排序的 sources, 错误文案)。"""
+    indexed = []
+    for part in src_dir.glob(f"{key}.[0-9]*.part"):
+        m = _INDEXED_CHUNK_RE.fullmatch(part.name)
+        if not m or m.group("key") != key:
+            continue
+        indexed.append((int(m.group("index")), part))
+
+    legacy = src_dir / f"{key}.part"
+    if indexed and legacy.exists():
+        return [], f"{key} 上传数据新旧格式混用，请重新上传"
+    if indexed:
+        indexed.sort(key=lambda item: item[0])
+        actual = [i for i, _ in indexed]
+        if actual != list(range(len(actual))):
+            return [], f"{key} 分片不连续（收到 {len(actual)} 片）"
+        total_path = _chunk_total_path(src_dir, key)
+        if total_path.exists():
+            try:
+                total = int(total_path.read_text(encoding="utf-8").strip())
+            except (OSError, ValueError):
+                return [], f"{key} 分片元数据损坏，请重新上传"
+            if total != len(actual):
+                return [], f"{key} 分片不完整（{len(actual)}/{total}）"
+        return [p for _, p in indexed], ""
+    if legacy.exists():
+        return [legacy], ""
+    return [], ""
+
+
+def _plan_upload(src_dir: Path, manifest: dict) -> Tuple[List[dict], List[str]]:
+    plans: List[dict] = []
+    errors: List[str] = []
+    for key in REQUIRED_KEYS:
+        sources, error = _collect_chunk_plan(src_dir, key)
+        if error:
+            errors.append(error)
+        elif sources:
+            plans.append({"key": key, "sources": sources,
+                          "target": _target_for_key(key, manifest)})
+    return plans, errors
+
+
+def _stage_upload(plans: List[dict]) -> List[Tuple[Path, Path]]:
+    """把每个 plan 先写成 input/ 下的隐藏临时文件；返回 (tmp, target) 列表。
+
+    全部暂存成功后才由调用方清空旧 input/ 并原子替换，避免半途失败把上一份
+    输入文件清空。
+    """
+    INPUT_DIR.mkdir(parents=True, exist_ok=True)
+    staged: List[Tuple[Path, Path]] = []
+    try:
+        for plan in plans:
+            target = plan["target"]
+            fd, tmp_name = tempfile.mkstemp(dir=str(INPUT_DIR),
+                                            prefix=f".{target.name}.",
+                                            suffix=".uploading")
+            tmp_path = Path(tmp_name)
+            try:
+                with os.fdopen(fd, "wb") as out:
+                    for src in plan["sources"]:
+                        with open(src, "rb") as fh:
+                            shutil.copyfileobj(fh, out, 1024 * 1024)
+                    out.flush()
+                    os.fsync(out.fileno())
+            except BaseException:
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
+                raise
+            staged.append((tmp_path, target))
+    except BaseException:
+        for tmp_path, _ in staged:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+        raise
+    return staged
+
+
 @bp.route("/api/upload/chunk", methods=["POST"])
 @admin_required
 def api_upload_chunk():
     key = (request.form.get("key") or "").strip().upper()
     upload_id = (request.form.get("upload_id") or "").strip()
     chunk_index = request.form.get("chunk_index", type=int)
+    total_chunks = request.form.get("total_chunks", type=int)
     chunk = request.files.get("chunk")
 
     if key not in REQUIRED_KEYS or not upload_id or chunk_index is None or chunk is None:
         return jsonify({"ok": False, "error": "上传参数不完整"}), 400
     if not _UPLOAD_ID_RE.fullmatch(upload_id):
         return jsonify({"ok": False, "error": "upload_id 非法"}), 400
+    if chunk_index < 0:
+        return jsonify({"ok": False, "error": "chunk_index 非法"}), 400
+    if total_chunks is not None and not (1 <= total_chunks <= _MAX_TOTAL_CHUNKS):
+        return jsonify({"ok": False, "error": "total_chunks 非法"}), 400
+    if total_chunks is not None and chunk_index >= total_chunks:
+        return jsonify({"ok": False, "error": "chunk_index 超出 total_chunks"}), 400
+
+    try:
+        data = chunk.read()
+    except OSError as exc:
+        return jsonify({"ok": False, "error": f"读取分片失败: {exc}"}), 500
+    if not data:
+        return jsonify({"ok": False, "error": "分片内容为空"}), 400
 
     dest_dir = UPLOAD_DIR / upload_id
     try:
         dest_dir.mkdir(parents=True, exist_ok=True)
-        part = dest_dir / f"{key}.part"
-        # 第 0 片覆盖写入（新文件），后续分片顺序追加
-        with open(part, "wb" if chunk_index == 0 else "ab") as fh:
-            fh.write(chunk.read())
+        if total_chunks is not None:
+            total_path = _chunk_total_path(dest_dir, key)
+            if total_path.exists():
+                try:
+                    existing_total = int(total_path.read_text(encoding="utf-8").strip())
+                except (OSError, ValueError):
+                    return jsonify({"ok": False,
+                                    "error": "分片元数据损坏，请重新上传"}), 400
+                if existing_total != total_chunks:
+                    return jsonify({"ok": False,
+                                    "error": "分片总数与已上传不一致，请重新上传"}), 400
+            else:
+                _atomic_write_bytes(total_path, str(total_chunks).encode("utf-8"))
+        _atomic_write_bytes(_chunk_path(dest_dir, key, chunk_index), data)
     except OSError as exc:
         return jsonify({"ok": False, "error": f"写入分片失败: {exc}"}), 500
 
+    # gunicorn 的 app logger 默认只到 WARNING；用 print 确保部署后能在
+    # journalctl -u y4_report / 容器 stdout 中核对每片与重试情况。
+    print(f"[upload] id={upload_id} key={key} "
+          f"index={chunk_index}/{total_chunks if total_chunks is not None else '?'} "
+          f"bytes={len(data)}", flush=True)
     return jsonify({"ok": True, "received": chunk_index})
 
 
 # ---------------------------------------------------------------------------
-# 启动生成任务：合并分片 → 拉起独立子进程 → 立即返回
+# 启动生成任务：校验分片 → 暂存合并 → 拉起独立子进程 → 立即返回
 # ---------------------------------------------------------------------------
 @bp.route("/api/generate/start", methods=["POST"])
 @admin_required
@@ -356,6 +520,10 @@ def api_generate_start():
     upload_id = (request.form.get("upload_id") or "").strip()
     if not upload_id or not _UPLOAD_ID_RE.fullmatch(upload_id):
         return jsonify({"ok": False, "error": "upload_id 非法"}), 400
+
+    # 先判断运行中任务，避免重复点击时先动了 input/ 再返回 409。
+    if _job_running():
+        return jsonify({"ok": False, "error": "已有生成任务正在运行，请稍候"}), 409
 
     src_dir = UPLOAD_DIR / upload_id
     if not src_dir.is_dir():
@@ -368,40 +536,38 @@ def api_generate_start():
     if not isinstance(manifest, dict):
         manifest = {}
 
-    if _job_running():
-        return jsonify({"ok": False, "error": "已有生成任务正在运行，请稍候"}), 409
+    plans, errors = _plan_upload(src_dir, manifest)
+    if errors:
+        return jsonify({"ok": False,
+                        "error": "上传不完整：" + "；".join(errors)}), 400
+    if not plans:
+        return jsonify({"ok": False, "error": "请至少上传一份 PDF"}), 400
 
-    # 清空 input/ 旧文件，按 report_<KEY>.pdf 命名落盘
+    # 先把所有目标写成隐藏临时文件；任何一步失败都不动旧 input/。
+    try:
+        staged = _stage_upload(plans)
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"合并上传文件失败: {exc}"}), 500
+
+    saved_keys: List[str] = [p["key"] for p in plans]
+    print(f"[generate] start id={upload_id} keys={saved_keys}", flush=True)
+
+    # 全部暂存成功，才清空旧 input/ 并原子替换。
     try:
         for old in INPUT_DIR.glob("*.pdf"):
             old.unlink()
-    except OSError:
-        pass
-
-    saved_keys: List[str] = []
-    try:
-        for part in sorted(src_dir.glob("*.part")):
-            key = part.stem.upper()
-            if key not in REQUIRED_KEYS:
-                continue
-            entry = manifest.get(key)
-            original_name = entry.get("filename", "") if isinstance(entry, dict) else (entry or "")
-            if key == "B6" and ("高中" in original_name or "初中" in original_name):
-                version = "高中" if "高中" in original_name else "初中"
-                target = INPUT_DIR / f"report_{key}_{version}.pdf"
-            else:
-                target = INPUT_DIR / f"report_{key}.pdf"
-            os.replace(str(part), str(target))
-            saved_keys.append(key)
+        for tmp_path, target in staged:
+            os.replace(str(tmp_path), str(target))
     except OSError as exc:
+        for tmp_path, _ in staged:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
         return jsonify({"ok": False, "error": f"合并上传文件失败: {exc}"}), 500
 
-    # 清理本次上传的分片目录
-    import shutil as _shutil
-    _shutil.rmtree(str(src_dir), ignore_errors=True)
-
-    if not saved_keys:
-        return jsonify({"ok": False, "error": "请至少上传一份 PDF"}), 400
+    # 清理本次上传的分片目录（失败时保留，便于重试/排查）
+    shutil.rmtree(str(src_dir), ignore_errors=True)
 
     job = {
         "mindset_score": request.form.get("mindset_score", ""),
