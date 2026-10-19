@@ -157,3 +157,78 @@ def test_delete_assignment_works_for_every_status(qdb, status):
     assert qdb.child_count(qs.AssignmentToken, aid) == 0
     assert qdb.child_count(qs.Response, aid) == 0
     assert qdb.child_count(qs.ResponseDraft, aid) == 0
+
+
+# ---------------------------------------------------------------------------
+# API：DELETE /api/questionnaires/assignments/<aid>
+# ---------------------------------------------------------------------------
+@pytest.fixture()
+def client(qdb, monkeypatch):
+    from blueprints import questionnaires as qb
+
+    # 只跳过「会话用户是否仍有效」的检查；角色与 advisor 归属校验走真实实现
+    monkeypatch.setattr(app_utils, "is_authenticated", lambda: True)
+    app = Flask(__name__)
+    app.secret_key = "test-secret"
+    app.register_blueprint(qb.bp)
+    return app.test_client()
+
+
+def login_as(client, role, advisor_name=None):
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["role"] = role
+        if advisor_name is not None:
+            sess["advisor_name"] = advisor_name
+
+
+def test_api_admin_can_delete_submitted_assignment(client, qdb):
+    aid = qdb.make_assignment(status="submitted", token=True, response=True)
+    login_as(client, role="admin")
+
+    res = client.delete(f"/api/questionnaires/assignments/{aid}")
+
+    assert res.status_code == 200
+    assert res.get_json() == {"ok": True}
+    assert qs.get_assignment(aid) is None
+    assert qs.get_response(aid) is None
+    assert qdb.child_count(qs.AssignmentToken, aid) == 0
+
+
+def test_api_advisor_can_delete_own_students_assignment(client, qdb):
+    aid = qdb.make_assignment(status="sent", advisor_name="Mine")
+    login_as(client, role="advisor", advisor_name="Mine")
+
+    res = client.delete(f"/api/questionnaires/assignments/{aid}")
+
+    assert res.status_code == 200
+    assert qs.get_assignment(aid) is None
+
+
+def test_api_advisor_cannot_delete_other_advisors_assignment(client, qdb):
+    aid = qdb.make_assignment(status="submitted", advisor_name="Other")
+    login_as(client, role="advisor", advisor_name="Mine")
+
+    res = client.delete(f"/api/questionnaires/assignments/{aid}")
+
+    assert res.status_code == 403
+    assert qs.get_assignment(aid) is not None
+
+
+def test_api_viewer_cannot_delete(client, qdb):
+    aid = qdb.make_assignment(status="pending")
+    login_as(client, role="viewer")
+
+    res = client.delete(f"/api/questionnaires/assignments/{aid}")
+
+    assert res.status_code == 403
+    assert qs.get_assignment(aid) is not None
+
+
+def test_api_delete_missing_assignment_is_404(client, qdb):
+    login_as(client, role="admin")
+
+    res = client.delete("/api/questionnaires/assignments/999999")
+
+    assert res.status_code == 404
+    assert res.get_json()["ok"] is False

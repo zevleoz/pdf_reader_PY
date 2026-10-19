@@ -185,6 +185,18 @@ def api_reject_assignment(aid):
     return jsonify({"ok": True})
 
 
+@bp.route("/api/questionnaires/assignments/<int:aid>", methods=["DELETE"])
+@role_required(*_ADMIN_ROLES)
+def api_delete_assignment(aid):
+    """永久删除一条任务及其答案/草稿/链接（admin 或名下 advisor）。"""
+    _, denied = _assignment_guard(aid)
+    if denied:
+        return denied
+    if not qs.delete_assignment(aid):
+        return _err("任务不存在", 404)
+    return jsonify({"ok": True})
+
+
 @bp.route("/api/questionnaires/assignments/<int:aid>/reissue", methods=["POST"])
 @role_required(*_ADMIN_ROLES)
 def api_reissue_assignment(aid):
