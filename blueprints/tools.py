@@ -22,7 +22,8 @@ from ai_client import (_assemble_e4_protocol, _build_phase1_md_text,
                        _determine_list_placement, _e4_step2_system,
                        _e4_step2_tail, _e4_step3_system,
                        _finalize_y4_interpretation, _format_e4_line,
-                       _get_student_name_from_items, _sanitize_e4_step2)
+                       _get_student_name_from_items, _sanitize_e4_step2,
+                       urlopen_with_retry)
 
 bp = Blueprint("tools", __name__)
 
@@ -220,11 +221,11 @@ def api_transcript():
         method="POST",
     )
     try:
-        with _ureq.urlopen(req, timeout=180) as resp:
+        with urlopen_with_retry(req, timeout=180) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         raw_content = result["choices"][0]["message"]["content"]
     except Exception as exc:
-        return jsonify({"ok": False, "error": f"AI 调用失败: {exc}"}), 500
+        return jsonify({"ok": False, "error": f"AI 调用失败（已自动重试，仍失败）: {exc}"}), 500
 
     # ------------------------------------------------------------------
     # 5) Structured JSON → normalize → Markdown preview; 失败回退 legacy
@@ -896,7 +897,7 @@ def prompt_lab_run():
     )
     t0 = _time.time()
     try:
-        with _ureq.urlopen(req, timeout=120) as resp:
+        with urlopen_with_retry(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         reply = _finalize_y4_interpretation(
             result["choices"][0]["message"]["content"], dashscope_key)
@@ -904,7 +905,7 @@ def prompt_lab_run():
         elapsed_ms = int((_time.time() - t0) * 1000)
         return jsonify({"ok": True, "reply": reply, "tokens": tokens_used, "time_ms": elapsed_ms})
     except Exception as exc:
-        return jsonify({"ok": False, "error": f"AI 调用失败: {exc}"}), 500
+        return jsonify({"ok": False, "error": f"AI 调用失败（已自动重试，仍失败）: {exc}"}), 500
 
 
 @bp.route("/api/prompt-lab/iterate", methods=["POST"])
@@ -973,7 +974,7 @@ def prompt_lab_iterate():
         method="POST",
     )
     try:
-        with _ureq.urlopen(req, timeout=120) as resp:
+        with urlopen_with_retry(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         new_prompt = result["choices"][0]["message"]["content"].strip()
 

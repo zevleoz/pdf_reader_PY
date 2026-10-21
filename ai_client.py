@@ -7,8 +7,49 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
+import time
+import urllib.error
+import urllib.request
 from typing import Any, Dict, List, Optional
+
+_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+
+
+def urlopen_with_retry(req: urllib.request.Request, timeout: int = 180,
+                       max_retries: int = 3):
+    """urllib.urlopen 的限流/5xx 重试封装：429 与 5xx 按指数退避重试，其余原样抛出。
+
+    尊重响应头 Retry-After（若有）；否则退避 2s/4s/8s + 0–1s 抖动。
+    最终仍失败时抛 HTTPError/URLError，由调用方统一处理。
+    """
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in _RETRYABLE_STATUS or attempt >= max_retries:
+                raise
+            last_exc = exc
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            try:
+                delay = float(retry_after) if retry_after else None
+            except (TypeError, ValueError):
+                delay = None
+            if delay is None:
+                delay = 2 ** (attempt + 1) + random.random()
+            print(f"[AI] HTTP {exc.code}，第 {attempt + 1}/{max_retries} 次重试，等待 {delay:.1f}s")
+            time.sleep(delay)
+        except urllib.error.URLError as exc:
+            if attempt >= max_retries:
+                raise
+            last_exc = exc
+            delay = 2 ** (attempt + 1) + random.random()
+            print(f"[AI] 网络错误 {exc.reason}，第 {attempt + 1}/{max_retries} 次重试，等待 {delay:.1f}s")
+            time.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 import db as _db
 import extract
@@ -187,7 +228,7 @@ def _generate_interpretation_for_report(report_id: int):
         method="POST",
     )
     try:
-        with _ureq.urlopen(req, timeout=120) as resp:
+        with urlopen_with_retry(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         reply = _finalize_y4_interpretation(
             result["choices"][0]["message"]["content"], dashscope_key)
@@ -311,7 +352,7 @@ def _y4_refine_once(text: str, dashscope_key: str) -> str:
     req = _ureq.Request(url, data=payload,
                         headers={"Authorization": f"Bearer {dashscope_key}",
                                  "Content-Type": "application/json"}, method="POST")
-    with _ureq.urlopen(req, timeout=120) as resp:
+    with urlopen_with_retry(req, timeout=120) as resp:
         result = json.loads(resp.read().decode("utf-8"))
     return _strip_wrapping_fence(result["choices"][0]["message"]["content"])
 
@@ -694,7 +735,7 @@ def _dashscope_chat(messages: List[Dict[str, str]], model: str,
         method="POST",
     )
     t0 = _time.time()
-    with _ureq.urlopen(req, timeout=timeout) as resp:
+    with urlopen_with_retry(req, timeout=timeout) as resp:
         result = json.loads(resp.read().decode("utf-8"))
     return {
         "content": result["choices"][0]["message"]["content"],

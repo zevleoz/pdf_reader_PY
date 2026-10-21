@@ -32,7 +32,8 @@ from ai_client import (_build_phase1_md_text, _build_qualification_view,
                        _build_y4_interpret_context, _build_y4_payload,
                        _finalize_y4_interpretation, _generate_e4_protocol_core,
                        _generate_interpretation_for_report,
-                       _report_qualification_payload, _strip_wrapping_fence)
+                       _report_qualification_payload, _strip_wrapping_fence,
+                       urlopen_with_retry)
 
 bp = Blueprint("reports", __name__)
 
@@ -898,7 +899,7 @@ def api_chat():
         method="POST",
     )
     try:
-        with _ureq.urlopen(req, timeout=120) as resp:
+        with urlopen_with_retry(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         reply = _strip_wrapping_fence(result["choices"][0]["message"]["content"])
         return jsonify({"ok": True, "reply": reply})
@@ -1048,7 +1049,7 @@ def api_report_interpret(report_id):
         method="POST",
     )
     try:
-        with _ureq.urlopen(req, timeout=120) as resp:
+        with urlopen_with_retry(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         reply = _finalize_y4_interpretation(
             result["choices"][0]["message"]["content"], dashscope_key)

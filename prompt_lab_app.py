@@ -22,6 +22,8 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
 
+from ai_client import urlopen_with_retry
+
 # ---------------------------------------------------------------------------
 # 路径常量
 # ---------------------------------------------------------------------------
@@ -114,7 +116,7 @@ def _call_dashscope(messages, temperature=None, max_tokens=8192, timeout=120, mo
         method="POST",
     )
     t0 = time.time()
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urlopen_with_retry(req, timeout=timeout) as resp:
         result = json.loads(resp.read().decode("utf-8"))
     choice = result["choices"][0]
     reply = choice["message"]["content"]
