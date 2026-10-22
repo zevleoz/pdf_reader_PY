@@ -163,6 +163,7 @@ class User(Base):
     role = Column(String(20), nullable=False, default="viewer")
     advisor_name = Column(String(100))
     display_name = Column(String(100))
+    email = Column(String(255), nullable=True)
     is_active = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -176,6 +177,10 @@ def init_db() -> None:
         import questionnaire_store  # noqa: F401
     except Exception as e:  # 问卷子系统导入失败不应阻断既有功能
         print(f"[DB] 问卷子系统模型注册失败 (非致命): {e}")
+    try:
+        import growth_talk_store  # noqa: F401
+    except Exception as e:  # Growth Talk 子系统导入失败不应阻断既有功能
+        print(f"[DB] Growth Talk 模型注册失败 (非致命): {e}")
     Base.metadata.create_all(engine)
     _migrate_schema()
     try:
@@ -370,11 +375,22 @@ def _migrate_schema() -> None:
                     role VARCHAR(20) NOT NULL DEFAULT 'viewer',
                     advisor_name VARCHAR(100),
                     display_name VARCHAR(100),
+                    email VARCHAR(255),
                     is_active INTEGER NOT NULL DEFAULT 1,
                     created_at DATETIME
                 )
             """)
             cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username ON users (username)")
+            conn.commit()
+        except Exception:
+            pass
+
+    # users.email（First Touch 账号合并）：存量库幂等补齐
+    cursor.execute("PRAGMA table_info(users)")
+    user_cols = {row[1] for row in cursor.fetchall()}
+    if "email" not in user_cols:
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN email VARCHAR(255)")
             conn.commit()
         except Exception:
             pass
