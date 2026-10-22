@@ -259,6 +259,11 @@ def _engine():
     return _db.engine
 
 
+def engine():
+    """公开 engine 访问器，供 runs 等同包模块开启事务会话。"""
+    return _db.engine
+
+
 def _iso(value: Any) -> Optional[str]:
     if value is None:
         return None
@@ -472,11 +477,14 @@ def get_source(source_id: int) -> Optional[dict]:
         return _source_dict(row) if row else None
 
 
-def list_sources(student_id: int, type: str | None = None) -> list[dict]:
+def list_sources(student_id: int, type: str | None = None,
+                 purpose: str | None = None) -> list[dict]:
     with Session(_engine()) as sess:
         stmt = select(GtSource).where(GtSource.student_id == student_id)
         if type:
             stmt = stmt.where(GtSource.type == type)
+        if purpose:
+            stmt = stmt.where(GtSource.purpose == purpose)
         stmt = stmt.order_by(GtSource.created_at.desc(), GtSource.id.desc())
         return [_source_dict(row) for row in sess.execute(stmt).scalars()]
 
@@ -663,6 +671,8 @@ def save_quadrant(run_id: int, points: str, narrative: str, model: str | None) -
             row.points = points
             row.narrative = narrative
             row.model = model
+            row.status = "DRAFT"
+            row.updated_at = datetime.utcnow()
         else:
             sess.add(GtQuadrant(
                 run_id=run_id, points=points, narrative=narrative, model=model,
@@ -793,7 +803,9 @@ def mark_outputs_stale(run_id: int) -> None:
 # ---------------------------------------------------------------------------
 # Reports
 # ---------------------------------------------------------------------------
-def create_report(student_id: int, run_id: int, payload: str, confirmed_by: str) -> dict:
+def create_report(student_id: int, run_id: int, payload: str, confirmed_by: str,
+                  *, payload_builder=None,
+                  expected_revision: int | None = None) -> dict:
     def _run():
         confirmed_at = _iso(datetime.utcnow())
         with Session(_engine()) as sess:
@@ -807,6 +819,9 @@ def create_report(student_id: int, run_id: int, payload: str, confirmed_by: str)
                 confirmed_at=confirmed_at, confirmed_by=confirmed_by,
             )
             sess.add(row)
+            sess.flush()
+            if payload_builder is not None:
+                row.payload = payload_builder(row.id, row.version)
             sess.execute(
                 update(GtUnderstanding).where(GtUnderstanding.run_id == run_id)
                 .values(status="CONFIRMED", updated_at=datetime.utcnow())
@@ -815,10 +830,15 @@ def create_report(student_id: int, run_id: int, payload: str, confirmed_by: str)
                 update(GtQuadrant).where(GtQuadrant.run_id == run_id)
                 .values(status="CONFIRMED", updated_at=datetime.utcnow())
             )
-            sess.execute(
-                update(GtRun).where(GtRun.id == run_id)
-                .values(revision=GtRun.revision + 1, updated_at=datetime.utcnow())
+            bump = update(GtRun).where(GtRun.id == run_id)
+            if expected_revision is not None:
+                bump = bump.where(GtRun.revision == expected_revision)
+            result = sess.execute(
+                bump.values(revision=GtRun.revision + 1, updated_at=datetime.utcnow())
             )
+            if not result.rowcount:
+                sess.rollback()
+                raise RevisionConflict("内容已变化，请重新预览")
             sess.add(AuditLog(
                 actor_id=None, student_id=student_id, action="report_confirmed",
                 details=json.dumps({
