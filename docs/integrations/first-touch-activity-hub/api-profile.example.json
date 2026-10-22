@@ -1,0 +1,28 @@
+{
+  "schema": "first_touch.activity_hub_import.3.0.0",
+  "schemaVersion": "3.0.0",
+  "yuguoStudentId": "yuguo-student-001",
+  "firstTouchStudentId": "first-touch-student-001",
+  "sourceReport": {
+    "reportId": "report-001",
+    "reportVersion": 1,
+    "confirmedAt": "2026-09-24T09:30:00.000Z"
+  },
+  "student": {
+    "name": "示例学生",
+    "grade": "G10",
+    "school": "示例学校"
+  },
+  "careerInterestProfile": {
+    "resultId": "report-001:career",
+    "careerInterests": { "framework": "not_available", "frameworkVersion": null, "dimensions": [], "topCodes": [], "summary": "未提供职业兴趣测评结果。", "evidence": [] },
+    "abilityTendencies": { "dimensions": [], "summary": "未提供测评结果。", "evidence": [] },
+    "valuePreferences": { "dimensions": [], "summary": "未提供测评结果。", "evidence": [] },
+    "summary": "未提供职业兴趣测评结果。",
+    "evidence": []
+  },
+  "interestProfile": {
+    "items": [{ "interestId": "interest-001", "label": "生物", "sourceType": "interest", "topicType": "hobby", "preferenceScoreV2": 2, "competenceScoreV2": 1, "studentEvidence": ["学生确认"], "sourceRefs": ["report-001"] }],
+    "summary": "已确认兴趣象限。"
+  }
+}

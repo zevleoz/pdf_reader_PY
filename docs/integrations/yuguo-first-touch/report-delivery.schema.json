@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://future-ark.example/schemas/yuguo-first-touch/report-delivery.schema.json",
+  "title": "First Touch report delivery v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "deliveryId", "sentAt", "report"],
+  "properties": {
+    "schema": { "const": "first-touch.report.delivery.v1" },
+    "deliveryId": { "$ref": "#/$defs/id" },
+    "sentAt": { "$ref": "#/$defs/dateTime" },
+    "report": { "$ref": "#/$defs/report" }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 30000 },
+    "dateTime": { "type": "string", "minLength": 1, "maxLength": 64, "format": "date-time" },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "reportId",
+        "version",
+        "yuguoStudentId",
+        "status",
+        "confirmedAt",
+        "confirmedBy",
+        "student",
+        "meetingSummary",
+        "career",
+        "interests",
+        "narrative",
+        "suggestions",
+        "sources",
+        "promptVersions"
+      ],
+      "properties": {
+        "schema": { "const": "first-touch.report.v1" },
+        "reportId": { "$ref": "#/$defs/id" },
+        "version": { "type": "integer", "minimum": 1 },
+        "yuguoStudentId": { "$ref": "#/$defs/id" },
+        "status": { "const": "CONFIRMED" },
+        "confirmedAt": { "$ref": "#/$defs/dateTime" },
+        "confirmedBy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "name"],
+          "properties": {
+            "id": { "$ref": "#/$defs/id" },
+            "name": { "type": "string", "minLength": 1, "maxLength": 200 }
+          }
+        },
+        "student": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "grade", "school"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "grade": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "school": {
+              "oneOf": [
+                { "type": "null" },
+                { "type": "string", "minLength": 1, "maxLength": 300 }
+              ]
+            }
+          }
+        },
+        "meetingSummary": { "$ref": "#/$defs/text" },
+        "career": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/career" }
+          ]
+        },
+        "interests": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/interest" }
+        },
+        "narrative": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "suggestions": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "$ref": "#/$defs/suggestion" }
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/source" }
+        },
+        "promptVersions": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 100 }
+        }
+      }
+    },
+    "career": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["careerInterests", "abilityTendencies", "valuePreferences"],
+      "properties": {
+        "careerInterests": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "abilityTendencies": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "valuePreferences": { "type": "string", "minLength": 1, "maxLength": 150 }
+      }
+    },
+    "interest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "evidence", "preferenceScore", "competenceScore", "quadrant"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "evidence": { "$ref": "#/$defs/text" },
+        "preferenceScore": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "competenceScore": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "quadrant": { "type": "string", "minLength": 1, "maxLength": 100 }
+      }
+    },
+    "suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "introduction", "growthValue", "possibleOutputs", "interestRefs"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "introduction": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "growthValue": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "possibleOutputs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+        },
+        "interestRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "createdAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "type": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "schema": "first-touch.report.delivery.v1",
+  "deliveryId": "outbox-task-id",
+  "sentAt": "2026-09-22T10:00:00.000Z",
+  "report": {
+    "schema": "first-touch.report.v1",
+    "reportId": "report-id",
+    "version": 1,
+    "yuguoStudentId": "student-1",
+    "status": "CONFIRMED",
+    "confirmedAt": "2026-09-22T09:55:00.000Z",
+    "confirmedBy": {
+      "id": "first-touch-account-id",
+      "name": "老师姓名"
+    },
+    "student": {
+      "name": "学生一",
+      "grade": "G8",
+      "school": "某某学校"
+    },
+    "meetingSummary": "本次会议主要围绕学生的兴趣与经历展开。",
+    "career": null,
+    "interests": [
+      {
+        "id": "interest-1",
+        "label": "生物观察",
+        "evidence": "持续记录并比较不同环境中的观察结果。",
+        "preferenceScore": 3,
+        "competenceScore": 2,
+        "quadrant": "HIGH_INTEREST_DEVELOPING_ABILITY"
+      }
+    ],
+    "narrative": "学生对可持续观察和证据整理有稳定兴趣。",
+    "suggestions": [
+      {
+        "id": "suggestion-1",
+        "title": "建立长期观察记录",
+        "introduction": "围绕一个可重复观察的问题积累数据。",
+        "growthValue": "训练持续性、证据意识和表达能力。",
+        "possibleOutputs": ["观察日志", "阶段性图表"],
+        "interestRefs": ["interest-1"]
+      }
+    ],
+    "sources": [
+      {
+        "id": "source-1",
+        "type": "MEETING_TRANSCRIPT",
+        "createdAt": "2026-09-20T08:00:00.000Z"
+      }
+    ],
+    "promptVersions": {
+      "meeting": "v1",
+      "quadrant": "v1"
+    }
+  }
+}

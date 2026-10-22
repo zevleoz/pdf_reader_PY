@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://future-ark.example/schemas/first_touch.confirmed_facts.1.0.0.schema.json",
+  "title": "First Touch confirmed facts 1.0.0",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema", "junctionStudentId", "source", "revision", "issuedAt", "idempotencyKey", "authorization", "confirmation", "facts"],
+  "properties": {
+    "schema": {"const": "first_touch.confirmed_facts.1.0.0"},
+    "junctionStudentId": {"$ref": "#/$defs/id"},
+    "source": {"type": "object", "additionalProperties": false, "required": ["system", "recordId", "legacyStudentId"], "properties": {
+      "system": {"const": "first_touch"}, "recordId": {"$ref": "#/$defs/id"},
+      "legacyStudentId": {"type": ["string", "null"], "minLength": 1, "maxLength": 160}
+    }},
+    "revision": {"type": "integer", "minimum": 1},
+    "issuedAt": {"type": "string", "format": "date-time"}, "idempotencyKey": {"$ref": "#/$defs/id"},
+    "authorization": {"$ref": "#/$defs/authorization"},
+    "confirmation": {"$ref": "#/$defs/confirmation"},
+    "facts": {"type": "array", "minItems": 1, "maxItems": 200, "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["factId", "kind", "statement", "sourceRefs"],
+      "properties": {
+        "factId": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["interest", "academic_observation", "activity", "award", "experience", "career_interest"]},
+        "statement": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "sourceRefs": {"type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
+      }
+    }}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "serviceId": {"type": "string", "pattern": "^[a-z][a-z0-9_:-]{0,159}$"},
+    "purposeId": {"type": "string", "pattern": "^[a-z][a-z0-9_:-]{0,159}$"},
+    "capabilities": {"type": "object", "additionalProperties": false, "properties": {
+      "scope": {"type": "array", "uniqueItems": true, "maxItems": 50, "items": {"$ref": "#/$defs/id"}},
+      "actions": {"type": "array", "uniqueItems": true, "maxItems": 50, "items": {"$ref": "#/$defs/id"}}
+    }},
+    "authorization": {"type": "object", "additionalProperties": false, "required": ["grantId", "recipient", "purpose", "grantedAt"], "properties": {
+      "grantId": {"$ref": "#/$defs/id"}, "recipient": {"$ref": "#/$defs/serviceId"},
+      "purpose": {"$ref": "#/$defs/purposeId"}, "grantedAt": {"type": "string", "format": "date-time"},
+      "expiresAt": {"type": ["string", "null"], "format": "date-time"},
+      "capabilities": {"$ref": "#/$defs/capabilities"}
+    }},
+    "confirmation": {"type": "object", "additionalProperties": false, "required": ["status", "confirmedBy", "confirmedAt"], "properties": {
+      "status": {"const": "confirmed"}, "confirmedBy": {"$ref": "#/$defs/id"},
+      "confirmedAt": {"type": "string", "format": "date-time"}
+    }}
+  }
+}

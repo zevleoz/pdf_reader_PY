@@ -3,6 +3,8 @@
 *.jpg
 *.jpeg
 *.json
+# 集成契约 schema/示例（接口校验依据，需随代码发布）
+!docs/integrations/**/*.json
 __pycache__/
 *.pyc
 *.pyo

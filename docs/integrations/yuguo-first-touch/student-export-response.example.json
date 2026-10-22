@@ -1,0 +1,35 @@
+{
+  "students": [
+    {
+      "id": "student-1",
+      "name": "学生一",
+      "grade": "G8",
+      "school": "某某学校",
+      "phone": "+8613800138000",
+      "teacherId": "new-first-touch-account-id",
+      "assignmentVersion": 2
+    },
+    {
+      "id": "student-2",
+      "name": "学生二",
+      "grade": "G6",
+      "school": null,
+      "phone": null,
+      "teacherId": "new-first-touch-account-id",
+      "assignmentVersion": 1
+    }
+  ],
+  "rejectedStudents": [
+    {
+      "id": "student-3",
+      "name": "学生三",
+      "reasonCode": "INVALID_STUDENT_FIELDS",
+      "message": "Student student-3 has invalid required fields"
+    }
+  ],
+  "summary": {
+    "assigned": 3,
+    "exportable": 2,
+    "rejected": 1
+  }
+}

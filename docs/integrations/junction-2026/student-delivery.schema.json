@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://future-ark.example/schemas/junction.student_delivery.1.1.0.schema.json",
+  "title": "CRM student and appointment delivery 1.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "messageId", "revision", "recipient", "kind", "status", "teacherId", "issuedAt", "expiresAt", "authorization"],
+  "properties": {
+    "schema": {"const": "junction.student_delivery.1.1.0"},
+    "messageId": {"$ref": "#/$defs/id"},
+    "junctionStudentId": {"type": ["string", "null"], "maxLength": 160},
+    "revision": {"type": "integer", "minimum": 1},
+    "recipient": {"enum": ["yuguo", "arkitect", "first_touch", "sales_crm"]},
+    "kind": {"enum": ["student", "appointment"]},
+    "status": {"enum": ["active", "revoked", "scheduled", "cancelled"]},
+    "teacherId": {"$ref": "#/$defs/id"},
+    "nativeStudentId": {"$ref": "#/$defs/id"},
+    "issuedAt": {"type": "string", "format": "date-time"},
+    "expiresAt": {"type": "string", "format": "date-time"},
+    "student": {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {
+      "name": {"type": "string", "minLength": 1, "maxLength": 200},
+      "grade": {"type": ["string", "null"], "maxLength": 100},
+      "school": {"type": ["string", "null"], "maxLength": 300},
+      "contactPhone": {"type": ["string", "null"], "maxLength": 40},
+      "guardianName": {"type": ["string", "null"], "maxLength": 200}
+    }},
+    "appointment": {"type": "object", "additionalProperties": false, "required": ["taskId", "startAt", "endAt", "moduleCode", "moduleName"], "properties": {
+      "taskId": {"$ref": "#/$defs/id"},
+      "startAt": {"type": "string", "format": "date-time"},
+      "endAt": {"type": "string", "format": "date-time"},
+      "moduleCode": {"$ref": "#/$defs/id"},
+      "moduleName": {"type": "string", "minLength": 1, "maxLength": 200}
+    }},
+    "authorization": {"type": "object", "additionalProperties": false, "required": ["grantId", "purpose", "grantedAt"], "properties": {
+      "grantId": {"$ref": "#/$defs/id"},
+      "purpose": {"const": "service_delivery"},
+      "grantedAt": {"type": "string", "format": "date-time"},
+      "expiresAt": {"type": ["string", "null"], "format": "date-time"}
+    }}
+  },
+  "allOf": [
+    {"if": {"properties": {"kind": {"const": "student"}}}, "then": {"properties": {"status": {"enum": ["active", "revoked"]}}}},
+    {"if": {"properties": {"kind": {"const": "student"}, "status": {"const": "active"}}, "required": ["kind", "status"]}, "then": {"required": ["student"]}},
+    {"if": {"properties": {"kind": {"const": "appointment"}}}, "then": {"required": ["appointment", "nativeStudentId"], "properties": {"recipient": {"const": "sales_crm"}, "status": {"enum": ["scheduled", "cancelled"]}}}}
+  ],
+  "$defs": {"id": {"type": "string", "minLength": 1, "maxLength": 160}}
+}

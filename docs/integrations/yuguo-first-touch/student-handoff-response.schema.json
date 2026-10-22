@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://future-ark.example/schemas/yuguo-first-touch/student-handoff-response.schema.json",
+  "title": "Yuguo student handoff response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requested", "matched", "newlyHandedOff", "alreadyHandedOff"],
+  "properties": {
+    "requested": { "type": "integer", "minimum": 0 },
+    "matched": { "type": "integer", "minimum": 0 },
+    "newlyHandedOff": { "type": "integer", "minimum": 0 },
+    "alreadyHandedOff": { "type": "integer", "minimum": 0 }
+  }
+}

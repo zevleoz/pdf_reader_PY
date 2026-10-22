@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://future-ark.example/schemas/yuguo-first-touch/student-export-response.schema.json",
+  "title": "Yuguo assigned students response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "students",
+    "rejectedStudents",
+    "summary"
+  ],
+  "properties": {
+    "students": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/student"
+      }
+    },
+    "rejectedStudents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rejectedStudent"
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assigned",
+        "exportable",
+        "rejected"
+      ],
+      "properties": {
+        "assigned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exportable": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "$defs": {
+    "student": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "grade",
+        "school",
+        "phone",
+        "teacherId",
+        "assignmentVersion"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "grade": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "school": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "phone": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^(\\+861[0-9]{10})?$"
+        },
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "当前已确认的 First Touch 导师账号 ID；用于已导入工作区的权威改派。"
+        },
+        "assignmentVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Yuguo 分配的单调递增版本；旧版本不得覆盖已应用的新分配。"
+        }
+      }
+    },
+    "rejectedStudent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "reasonCode",
+        "message"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "reasonCode": {
+          "enum": [
+            "MISSING_SCHOOL",
+            "INVALID_GUARDIAN_PHONE",
+            "INVALID_STUDENT_FIELDS"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

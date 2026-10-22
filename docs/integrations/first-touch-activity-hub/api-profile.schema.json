@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://junction.futureark.cn/contracts/first-touch-activity-hub/api-profile.schema.json",
+  "title": "First Touch confirmed profile for Activity Hub 3.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schemaVersion", "yuguoStudentId", "firstTouchStudentId", "sourceReport", "student", "careerInterestProfile", "interestProfile"],
+  "properties": {
+    "schema": { "const": "first_touch.activity_hub_import.3.0.0" },
+    "schemaVersion": { "const": "3.0.0" },
+    "yuguoStudentId": { "$ref": "#/$defs/id" },
+    "firstTouchStudentId": { "$ref": "#/$defs/id" },
+    "sourceReport": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reportId", "reportVersion", "confirmedAt"],
+      "properties": {
+        "reportId": { "$ref": "#/$defs/id" },
+        "reportVersion": { "type": "integer", "minimum": 1 },
+        "confirmedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "student": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "grade", "school"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "grade": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "school": { "type": ["string", "null"], "maxLength": 300 }
+      }
+    },
+    "careerInterestProfile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["resultId", "careerInterests", "abilityTendencies", "valuePreferences", "summary", "evidence"],
+      "properties": {
+        "resultId": { "$ref": "#/$defs/id" },
+        "careerInterests": { "$ref": "#/$defs/career" },
+        "abilityTendencies": { "$ref": "#/$defs/section" },
+        "valuePreferences": { "$ref": "#/$defs/section" },
+        "summary": { "type": "string", "maxLength": 4000 },
+        "evidence": { "$ref": "#/$defs/evidence" }
+      }
+    },
+    "interestProfile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["items", "summary"],
+      "properties": {
+        "summary": { "type": "string", "maxLength": 4000 },
+        "items": { "type": "array", "maxItems": 100, "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["interestId", "label", "sourceType", "topicType", "preferenceScoreV2", "competenceScoreV2", "studentEvidence", "sourceRefs"],
+          "properties": {
+            "interestId": { "$ref": "#/$defs/id" },
+            "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "sourceType": { "enum": ["interest", "subject"] },
+            "topicType": { "enum": ["hobby", "subject"] },
+            "preferenceScoreV2": { "type": "integer", "minimum": 0, "maximum": 3 },
+            "competenceScoreV2": { "type": "integer", "minimum": 0, "maximum": 3 },
+            "studentEvidence": { "$ref": "#/$defs/evidence" },
+            "sourceRefs": { "type": "array", "minItems": 1, "maxItems": 30, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }
+          }
+        } }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "evidence": { "type": "array", "maxItems": 30, "items": { "type": "string", "maxLength": 2000 } },
+    "dimension": { "type": "object", "additionalProperties": false,
+      "required": ["code", "label", "score", "scaleMin", "scaleMax"],
+      "properties": { "code": { "$ref": "#/$defs/id" }, "label": { "type": "string", "minLength": 1, "maxLength": 200 }, "score": { "type": "number" }, "scaleMin": { "type": "number" }, "scaleMax": { "type": "number" }, "interpretation": { "type": "string", "maxLength": 2000 } }
+    },
+    "section": { "type": "object", "additionalProperties": false,
+      "required": ["dimensions", "summary", "evidence"],
+      "properties": { "dimensions": { "type": "array", "maxItems": 30, "items": { "$ref": "#/$defs/dimension" } }, "summary": { "type": "string", "minLength": 1, "maxLength": 4000 }, "evidence": { "$ref": "#/$defs/evidence" } }
+    },
+    "career": { "type": "object", "additionalProperties": false,
+      "required": ["framework", "frameworkVersion", "dimensions", "topCodes", "summary", "evidence"],
+      "properties": { "framework": { "type": "string", "minLength": 1, "maxLength": 100 }, "frameworkVersion": { "type": ["string", "null"], "maxLength": 100 }, "dimensions": { "type": "array", "maxItems": 30, "items": { "$ref": "#/$defs/dimension" } }, "topCodes": { "type": "array", "maxItems": 30, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }, "summary": { "type": "string", "minLength": 1, "maxLength": 4000 }, "evidence": { "$ref": "#/$defs/evidence" } }
+    }
+  }
+}

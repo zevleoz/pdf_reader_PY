@@ -1,0 +1,12 @@
+{
+  "schema": "first_touch.confirmed_facts.1.0.0",
+  "junctionStudentId": "crm-issued-student-001",
+  "source": {"system": "first_touch", "recordId": "ft-report-001", "legacyStudentId": "ft-local-001"},
+  "revision": 1, "issuedAt": "2026-09-24T11:00:00Z", "idempotencyKey": "ft-report-001-v1-arkitect",
+  "authorization": {"grantId": "grant-003", "recipient": "arkitect", "purpose": "application_strategy", "grantedAt": "2026-09-24T10:50:00Z", "expiresAt": null},
+  "confirmation": {"status": "confirmed", "confirmedBy": "ft-advisor-001", "confirmedAt": "2026-09-24T10:55:00Z"},
+  "facts": [
+    {"factId": "fact-001", "kind": "interest", "statement": "学生表示持续关注城市骑行。", "sourceRefs": ["ft-report-001", "meeting-001:v1"]},
+    {"factId": "fact-002", "kind": "academic_observation", "statement": "学生描述了空气质量记录实践。", "sourceRefs": ["ft-report-001"]}
+  ]
+}
