@@ -37,3 +37,10 @@
 | `ITERATION_MODEL` | 选 | 迭代模型（速度优先，缺省 `qwen-turbo`） |
 | `DASHBOARD_AI_MODEL` / `DASHBOARD_AI_TIMEOUT` | 选 | Dashboard AI 分析模型与超时 |
 | `Y4_LOGIN_RATE_LIMIT` | 选 | 登录限流阈值（每 IP 每分钟失败次数），缺省 5 |
+| `DEEPSEEK_API_KEY` | Growth Talk 必 | 画像分析（Growth Talk）使用的 DeepSeek API key。未设置时分析作业报「未配置画像分析服务，请联系管理员」；不配置则 Growth Talk 分析不可用 |
+| `DEEPSEEK_BASE_URL` | 选 | DeepSeek OpenAI 兼容端点，缺省 `https://api.deepseek.com`；调用路径为 `{BASE_URL}/chat/completions` |
+| `DEEPSEEK_MODEL` | 选 | 画像分析模型，缺省 `deepseek-chat` |
+| `YUGUO_BASE_URL` | Yuguo 集成必 | Yuguo 服务根地址（如 `https://yuguo.example.com`），不带末尾斜杠。未设置时导师目录同步/学生导入返回「尚未配置」类 503 |
+| `YUGUO_STUDENT_READ_TOKEN` | Yuguo 集成必 | 调用 Yuguo 学生导入接口的 Bearer token，需与 Yuguo 侧配置一致；本平台只校验非空，建议同样使用至少 32 字符的独立强随机值 |
+| `FIRST_TOUCH_DIRECTORY_TOKEN` | Yuguo 集成必 | Yuguo / First Touch 调用本平台导师目录（`GET/POST /api/integrations/teachers`）的 Bearer token，**至少 32 字符**（代码强制，不足即按未配置返回 503） |
+| `CRM_INTEGRATION_TOKEN` | CRM 集成必 | CRM 投递预约/学生交付到 `POST /api/integrations/crm/deliveries` 的 Bearer token，**至少 32 字符**（代码强制，不足按未授权返回 401）；必须与导师目录 token 分开 |
