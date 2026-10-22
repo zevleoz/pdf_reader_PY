@@ -208,6 +208,14 @@ if __name__ == "__main__":
             _job_args = {}
         sys.exit(_run_pipeline_job(_job_args))
 
+    if len(sys.argv) > 1 and sys.argv[1] == "gtjob":
+        # 独立子进程执行 Growth Talk 分析：python app.py gtjob <run_id>
+        from growth_talk.jobs import run_analysis_job
+        try:
+            run_analysis_job(int(sys.argv[2]))
+        except Exception:
+            sys.exit(1)
+
     if len(sys.argv) > 1 and sys.argv[1] == "run":
         import extract
         import validate
