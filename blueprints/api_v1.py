@@ -4,6 +4,7 @@ CORS 由 app.py 的全局 after_request 统一注入（保持对所有 /api/v1/*
 """
 from __future__ import annotations
 
+import json
 import os
 from functools import wraps
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file
 
 import db as _db
+import growth_talk_store as gt_store
 import app_utils
 from app_utils import (BASE_DIR, Y4_API_KEY, Y4_API_CORS_ORIGINS,
                        Y4_API_RATE_LIMIT, Y4_API_E4_RATE_LIMIT)
@@ -124,6 +126,42 @@ def v1_student_reports(student_id):
     for r, orig in zip(slim, reports):
         r['has_interpretation'] = bool(orig.get('interpretation'))
     return jsonify({"ok": True, "reports": slim})
+
+
+@bp.route('/api/v1/students/<int:student_id>/growth-talk-reports')
+@api_key_required
+def v1_student_growth_talk_reports(student_id):
+    """某学生已确认的 Growth Talk 报告列表（仅摘要字段）。
+
+    DRAFT 报告不对外暴露；未知学生返回空列表。
+    """
+    err = _v1_int_id(student_id, 'student_id')
+    if err:
+        return err
+    reports = [
+        {"id": r["id"], "version": r["version"], "status": r["status"],
+         "confirmed_at": r["confirmed_at"], "confirmed_by": r["confirmed_by"]}
+        for r in gt_store.list_reports(student_id)
+        if r.get("status") == "CONFIRMED"
+    ]
+    return jsonify({"ok": True, "reports": reports})
+
+
+@bp.route('/api/v1/growth-talk-reports/<int:report_id>')
+@api_key_required
+def v1_growth_talk_report(report_id):
+    """已确认 Growth Talk 报告详情（payload 原文，DRAFT 视为不存在）。"""
+    err = _v1_int_id(report_id, 'report_id')
+    if err:
+        return err
+    report = gt_store.get_report(report_id)
+    if not report or report.get("status") != "CONFIRMED":
+        return _v1_error("NOT_FOUND", "报告不存在", 404)
+    try:
+        payload = json.loads(report.get("payload") or "{}")
+    except (TypeError, ValueError):
+        payload = {}
+    return jsonify({"ok": True, "report": payload})
 
 
 @bp.route('/api/v1/reports/<int:report_id>')
