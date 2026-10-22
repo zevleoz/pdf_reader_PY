@@ -1,7 +1,7 @@
 {% extends "layouts/admin_v2.html" %}
 {% from "layouts/_icons.html" import icon %}
 
-{% set ctx = {"id": profile.id, "code": profile.student_code, "canWrite": can_write, "stage": stage, "stageMeta": stage_meta, "meta": {"advisor_name": profile.advisor_name, "school": profile.school}} %}
+{% set ctx = {"id": profile.id, "code": profile.student_code, "canWrite": can_write, "stage": stage, "stageMeta": stage_meta, "meta": {"advisor_name": profile.advisor_name, "school": profile.school}, "gtReports": gt_reports} %}
 
 {% block title %}{{ profile.name }} · 学生档案{% endblock %}
 {% block page_title %}学生 360° 档案{% endblock %}
@@ -533,6 +533,40 @@
     </div>
   </div>
 
+  <!-- Growth Talk -->
+  <div x-show="tab === 'growth'" x-cloak class="tab-pane">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px">
+      <div class="page-sub" style="margin:0">
+        已确认 Growth Talk 报告与原始会谈分析会保留版本历史；新版本按学生单调递增。
+      </div>
+      <span class="spacer"></span>
+      <a class="btn btn-primary btn-sm" :href="'/students/' + id + '/growth-talk'">进入 Growth Talk</a>
+    </div>
+    <div class="empty" x-show="!gtReports.length">
+      <div class="ic">{{ icon('target', 16) }}</div>
+      <div class="t">暂无已确认的 Growth Talk 报告</div>
+      <div class="d">进入工作台完成会议理解、兴趣审核与建议确认后，报告会出现在这里。</div>
+    </div>
+    <template x-for="r in gtReports" :key="r.id">
+      <section class="surface">
+        <div class="surface-head">
+          <div style="min-width:0">
+            <div class="surface-title">版本 v<span x-text="r.version"></span></div>
+            <div class="card-title-sub">
+              确认于 <span class="mono" x-text="fmtDate(r.confirmed_at)"></span>
+              <span x-show="r.confirmed_by"> · <span x-text="r.confirmed_by"></span></span>
+            </div>
+          </div>
+          <span class="spacer"></span>
+          <a class="btn btn-sm btn-sec" :href="'/api/growth-talk/reports/' + r.id + '/download.json'"
+             download>JSON</a>
+          <a class="btn btn-sm btn-sec" :href="'/api/growth-talk/reports/' + r.id + '/download.pdf'"
+             target="_blank">PDF</a>
+        </div>
+      </section>
+    </template>
+  </div>
+
   <!-- 发起问卷任务对话框 -->
   <div class="dialog-backdrop" x-cloak x-show="createOpen" @click.self="createOpen = false" style="z-index:110">
     <div class="dialog" role="dialog" aria-modal="true">
@@ -596,8 +630,10 @@ function pageStudent360(ctx) {
     tabs: [
       { key: 'profile', label: '画像' }, { key: 'reports', label: '报告' },
       { key: 'questionnaires', label: '问卷' }, { key: 'bookings', label: '预约' },
-      { key: 'minutes', label: '纪要' }, { key: 'sixam', label: '6AM' }
+      { key: 'minutes', label: '纪要' }, { key: 'sixam', label: '6AM' },
+      { key: 'growth', label: 'Growth Talk' }
     ],
+    gtReports: ctx.gtReports || [],
     loaded: {}, loading: {}, profile: null,
     reports: [], questionnaires: null, bookings: [], minutes: [], sixam: [],
     showAnswers: {}, openMinutes: {}, openSixam: {}, v1Href: {},

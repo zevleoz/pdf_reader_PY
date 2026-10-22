@@ -281,6 +281,11 @@ def student_360(code):
     st, err = _scoped_student(code)
     if err:
         abort(err[1])
+    import growth_talk_store as gt_store
+    gt_reports = [
+        report for report in gt_store.list_reports(st["id"])
+        if report.get("status") == "CONFIRMED"
+    ]
     return render_template(
         "student_360.html",
         nav_active="students",
@@ -288,6 +293,7 @@ def student_360(code):
         can_write=session.get("role") != "viewer",
         stage=_student_progress_context(st["id"]),
         stage_meta=PROGRESS_STAGES,
+        gt_reports=gt_reports,
     )
 
 

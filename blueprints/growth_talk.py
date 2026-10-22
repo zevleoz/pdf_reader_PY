@@ -16,7 +16,8 @@ import tempfile
 from pathlib import Path
 from urllib.parse import quote
 
-from flask import (Blueprint, jsonify, request, send_file, session)
+from flask import (Blueprint, abort, jsonify, render_template, request, send_file,
+                   session)
 
 import db as _db
 import growth_talk_store as store
@@ -187,6 +188,34 @@ def _read_upload(upload_id: str) -> bytes:
 
 def _cleanup_upload(upload_id: str) -> None:
     shutil.rmtree(_upload_dir(upload_id), ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# 页面
+# ---------------------------------------------------------------------------
+@bp.route("/students/<int:sid>/growth-talk")
+@role_required("admin", "advisor")
+def page_workspace(sid: int):
+    student = _student_or_404(sid)
+    if not student:
+        abort(404)
+    ctx = {
+        "id": student["id"],
+        "code": student.get("student_code"),
+        "name": student.get("name"),
+        "canWrite": session.get("role") in ("admin", "advisor"),
+        "reports": [
+            {
+                "id": report["id"], "version": report["version"],
+                "confirmed_at": report["confirmed_at"],
+                "confirmed_by": report["confirmed_by"],
+            }
+            for report in store.list_reports(sid)
+            if report.get("status") == "CONFIRMED"
+        ],
+    }
+    return render_template("growth_talk/workspace.html",
+                           nav_active="students", ctx=ctx)
 
 
 # ---------------------------------------------------------------------------

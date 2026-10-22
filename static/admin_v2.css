@@ -758,5 +758,10 @@ input[type="checkbox"]:disabled, input[type="radio"]:disabled { cursor: not-allo
   .qpanel { padding-left: 16px; }
   .qpanel-grid { grid-template-columns: 1fr; }
 }
+@media (max-width: 720px) {
+  .topbar { height: auto; min-height: 52px; flex-wrap: wrap; padding: 6px 14px; gap: 8px 10px; }
+  .topbar .search-trigger, .topbar .role-pill, .topbar .who { display: none; }
+  .crumb .up, .crumb .sep { display: none; }
+}
 .menu-btn { display: none; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--r-sm); color: var(--ink-2); }
 .menu-btn:hover { background: var(--bg); }
