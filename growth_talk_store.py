@@ -287,7 +287,9 @@ def _model_dict(row, columns: Iterable[str]) -> dict:
         if isinstance(value, datetime):
             value = _iso(value)
         data[name] = value
-    data["id"] = row.id
+    # CRM 表的业务主键是 message_id / task_id，没有 id 列。
+    if hasattr(row, "id"):
+        data["id"] = row.id
     return data
 
 
