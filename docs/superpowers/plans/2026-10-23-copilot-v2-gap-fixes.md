@@ -19,6 +19,7 @@
 - UI 文案逐字对齐原版组件（如 `待审核/需补证据/顾问保留/排除/推荐给学生`、`采用会议建议`、`保留已确认评分`、`回答仅作为顾问审核草稿`、`已 finalize · 视为已推送`）。
 - 原版刻意不做的仍不做：SSE 流式、localStorage 聊天、Y4 文件上传、HomeDashboard 的未使用功能。
 - 模板测试用登录态 test_client GET 200 + 关键标记断言；纯前端交互用人工走查清单兜底。
+- **每个 UI 任务必须做视觉验收**：桌面 1280px 截图检查空态与有数据态两种状态，不得出现错位/破版/裸数据（参考差距分析文档"视觉走查补遗"的 V1–V3 案例）。
 
 ## Review Focus
 
@@ -108,6 +109,7 @@ def test_y4_validation_saved_via_phase_patch(client, ...):
 - 4×4 板补轴标签 `擅长程度 ↑` / `喜欢程度 →` 与图例 `横轴：喜欢 0–3 / 纵轴：擅长 0–3` + "N 项已评分"计数。
 - 3×3 板映射修正为 `v===null→无 / v>=3→高 / v===2→中 / 其余(0–1)→低`，标签逐字 `喜欢高（3）/喜欢中（2）/喜欢低（0–1）` 等，补图例与计数。
 - 兴趣列表改分类分组（subject/interest/social 三组可折叠，组头计数 + 组内"新增"按钮），参考 `CopilotWorkspace.tsx:227`。
+- **修复象限板破版（V1，视觉走查实证）**：空数据态下行轴标签横向排列、网格消失。4×4 板必须是真正的 CSS grid：第一列为行轴（擅长 3→0 纵向），第一行为列轴（喜欢 0→3 横向），4×4 单元格即使在空态也渲染完整网格边框。验收：空态与满态截图均网格完整。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -172,6 +174,7 @@ def test_workspace_has_confirmed_report_view(client, ...):
 - 状态码 → 中文标签映射逐字：`draft→待审核`、`needs_evidence→需补证据`、`advisor_kept→顾问保留`、`advisor_excluded→排除`、`student_review→推荐给学生`。
 - 卡片完整字段：证据引用列表（`evidenceQuotes`）、fitType 中文名（`observation_research→观察研究` 等，逐字自原版映射）、兴趣引用勾选、顾问版本视图。
 - "新增方案"按钮 → 空卡编辑；`recommendationId` 送 `null`；后端 `apply_project_edits` 遇 null id 分配 `str(uuid4())` 并计入新批次（其余校验不变）。
+- 空态修正（V3）：零推荐条目时隐藏"保存项目审核"按钮，显示空态文案而非禁用粉色按钮。
 - 粘贴块导入：原版支持把 JSON 块粘贴导入（`ProjectRecommendationList.tsx`），如实现成本高可降级为"新增方案"手工填写——**允许降级，需在本任务 commit message 注明**。
 
 - [ ] **Step 1: 写失败测试**
