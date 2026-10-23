@@ -1,0 +1,1158 @@
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% block title %}{{ ctx.name }} · First Touch{% endblock %}
+{% block page_title %}First Touch{% endblock %}
+
+{% block page_actions %}
+<a class="btn btn-sec" href="/students/{{ ctx.code }}">{{ icon('chevron-left', 13) }} 返回 360 档案</a>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+  [x-cloak] { display: none !important; }
+  .ft-page { display: flex; flex-direction: column; gap: 14px; }
+  .ft-phasebar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .ft-phase {
+    border: 1px solid var(--line); background: var(--bg); color: var(--muted);
+    border-radius: 999px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .ft-phase:hover { border-color: var(--brand); color: var(--brand-deep); }
+  .ft-phase.is-active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-deep); font-weight: 600; }
+  .ft-body { padding: 14px 16px 16px; }
+  .ft-sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.6; }
+  .ft-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  @media (max-width: 1023px) { .ft-grid-2 { grid-template-columns: minmax(0, 1fr); } }
+  .ft-field { margin-bottom: 10px; }
+  .ft-field > label { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+  .ft-field > label .n { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .ft-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .ft-actions .spacer { flex: 1; }
+  .ft-status { font-size: 12px; color: var(--muted); }
+  .ft-status.warn { color: var(--warn); }
+  .ft-status.ok { color: var(--ok); }
+
+  .ft-interest-table { width: 100%; border-collapse: collapse; }
+  .ft-interest-table th { font-size: 11px; color: var(--muted); font-weight: 500; text-align: left; padding: 0 6px 6px; }
+  .ft-interest-table td { padding: 5px 6px; vertical-align: top; border-top: 1px solid var(--line-soft); }
+  .ft-interest-table .input, .ft-interest-table .textarea, .ft-interest-table .select { font-size: 12px; }
+  .ft-interest-table .textarea { min-height: 44px; }
+  .ft-row-remove { color: var(--danger); background: none; border: 0; cursor: pointer; font-size: 12px; }
+
+  .ft-qgrid { display: grid; grid-template-columns: 64px repeat(4, minmax(0, 1fr)); gap: 4px; max-width: 620px; }
+  .ft-qyl { font-size: 11px; color: var(--muted); display: flex; align-items: center; justify-content: flex-end; padding-right: 4px; }
+  .ft-qxrow { display: contents; }
+  .ft-qx { text-align: center; font-size: 11px; color: var(--muted); padding-top: 2px; }
+  .ft-qcell { min-height: 58px; border-radius: 6px; border: 1px solid var(--line-soft); background: var(--surface); padding: 5px 6px; }
+  .ft-qcell.zone-core { background: var(--ok-soft); border-color: transparent; }
+  .ft-qcell.zone-interest { background: var(--brand-soft); border-color: transparent; }
+  .ft-qcell.zone-ability { background: var(--brand-soft); border-color: transparent; opacity: .82; }
+  .ft-qtag { font-size: 11.5px; color: var(--ink-2); line-height: 1.4; overflow-wrap: anywhere; }
+
+  .ft-candidates { display: flex; flex-direction: column; gap: 8px; }
+  .ft-candidate {
+    border: 1px solid var(--line); border-radius: var(--r-sm);
+    background: var(--surface); padding: 9px 11px;
+    display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;
+  }
+  .ft-candidate .main { flex: 1 1 260px; min-width: 0; }
+  .ft-candidate .main b { font-size: 12.5px; color: var(--ink); }
+  .ft-candidate .main .evi { display: block; margin-top: 3px; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+  .ft-candidate .acts { display: flex; gap: 4px; flex: none; }
+
+  .ft-projects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 1023px) { .ft-projects { grid-template-columns: minmax(0, 1fr); } }
+  .ft-project { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); padding: 12px 14px; min-width: 0; }
+  .ft-project-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .ft-project-head .t { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .ft-project-head .spacer { flex: 1; }
+  .ft-project .input, .ft-project .textarea { font-size: 12.5px; }
+  .ft-project .textarea { min-height: 56px; }
+
+  .ft-missing { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); line-height: 1.7; }
+  .ft-missing li.req { color: var(--danger); }
+  .ft-preview {
+    border: 1px solid var(--line); border-radius: var(--r-sm);
+    background: var(--surface); padding: 12px 14px; min-width: 0;
+  }
+  .ft-preview h4 { font-size: 12.5px; font-weight: 600; margin: 0 0 6px; color: var(--ink); }
+  .ft-preview .txt { font-size: 12.5px; color: var(--ink-2); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+  .ft-fingerprint { font-family: var(--mono); font-size: 11px; color: var(--muted); background: var(--bg); border: 1px solid var(--line-soft); border-radius: 4px; padding: 6px 8px; word-break: break-all; }
+  .ft-check { display: flex; align-items: flex-start; gap: 7px; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; cursor: pointer; }
+  .ft-check input { margin-top: 2px; flex: none; }
+  .ft-empty-line { font-size: 12.5px; color: var(--muted); padding: 6px 0; }
+
+  /* ---------- 浮动聊天 ---------- */
+  .ft-chat { position: fixed; right: 22px; bottom: 22px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .ft-chat-launcher {
+    width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--brand);
+    background: var(--brand); color: #fff; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(23, 97, 70, .24);
+  }
+  .ft-chat-panel {
+    width: min(400px, calc(100vw - 40px)); max-height: min(560px, 72vh);
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: 0 18px 48px rgba(15, 23, 42, .18);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .ft-chat-head { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
+  .ft-chat-head .t { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .ft-chat-head .spacer { flex: 1; }
+  .ft-chat-body { padding: 12px 14px; overflow: auto; display: flex; flex-direction: column; gap: 10px; min-height: 160px; }
+  .ft-msg { font-size: 12.5px; line-height: 1.65; padding: 8px 10px; border-radius: 9px; max-width: 92%; }
+  .ft-msg.q { align-self: flex-end; background: var(--brand-soft); color: var(--brand-deep); }
+  .ft-msg.a { align-self: flex-start; background: var(--bg); border: 1px solid var(--line-soft); color: var(--ink-2); }
+  .ft-msg.err { color: var(--danger); }
+  .ft-evidence { margin: 6px 0 0; padding-left: 16px; font-size: 11.5px; color: var(--muted); line-height: 1.55; }
+  .ft-chat-foot { border-top: 1px solid var(--line-soft); padding: 9px 12px; display: flex; gap: 8px; align-items: flex-end; }
+  .ft-chat-foot .textarea { min-height: 38px; font-size: 12.5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ft-page" x-data='ftWorkspace({{ ctx | tojson }})' x-init="init()">
+
+  <div class="page-head">
+    <div>
+      <div class="page-title">{{ ctx.name }} · First Touch</div>
+      <div class="page-sub">
+        {{ ctx.grade or '年级未填写' }} · {{ ctx.school or '学校未填写' }} ·
+        七阶段会谈工作台，随时保存与跳转。
+      </div>
+    </div>
+  </div>
+
+  <section class="surface">
+    <div class="ft-body">
+      <div class="ft-phasebar">
+        <template x-for="(name, index) in phases" :key="index">
+          <button type="button" class="ft-phase" :class="{ 'is-active': phase === index }"
+                  :disabled="busy" @click="goPhase(index)">
+            <span x-text="(index + 1) + ' · ' + name"></span>
+          </button>
+        </template>
+        <span class="spacer" style="flex:1"></span>
+        <span class="ft-status" x-text="dirty ? '有未保存改动' : ('修订 ' + revision)"></span>
+      </div>
+    </div>
+  </section>
+
+  <template x-if="!loaded">
+    <div class="surface"><div class="ft-body"><span class="ft-status">正在加载会谈…</span></div></div>
+  </template>
+
+  <!-- ============ 阶段 0 会议准备 ============ -->
+  <template x-if="loaded && phase === 0">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <section class="surface">
+        <div class="surface-head">
+          <span class="surface-title">Y4 结果校准</span>
+          <span class="spacer"></span>
+          <span class="badge" :class="hasCalibration ? 'badge-ok' : 'badge-neutral'">
+            <span class="dot"></span><span x-text="hasCalibration ? '已生成' : '待生成'"></span>
+          </span>
+        </div>
+        <div class="ft-body">
+          <div class="ft-sub">使用平台已确认的 Y4 报告生成职业兴趣、能力倾向与价值偏好三栏草稿，再由顾问校对。</div>
+          <div class="ft-actions">
+            <button type="button" class="btn btn-sec" :disabled="busy || !canWrite"
+                    @click="generateCalibration()">
+              <span x-text="calibrating ? '正在生成校准…' : '从 Y4 报告生成校准'"></span>
+            </button>
+          </div>
+          <div class="ft-grid-2" style="margin-top:12px">
+            <div class="ft-field">
+              <label>职业兴趣 <span class="n" x-text="len(calibration.careerInterests) + ' / 4000'"></span></label>
+              <textarea class="textarea" maxlength="4000" x-model="calibration.careerInterests"
+                        @input="dirty = true"></textarea>
+            </div>
+            <div class="ft-field">
+              <label>能力倾向 <span class="n" x-text="len(calibration.abilityTendencies) + ' / 4000'"></span></label>
+              <textarea class="textarea" maxlength="4000" x-model="calibration.abilityTendencies"
+                        @input="dirty = true"></textarea>
+            </div>
+            <div class="ft-field">
+              <label>价值偏好 <span class="n" x-text="len(calibration.valuePreferences) + ' / 4000'"></span></label>
+              <textarea class="textarea" maxlength="4000" x-model="calibration.valuePreferences"
+                        @input="dirty = true"></textarea>
+            </div>
+            <div class="ft-field">
+              <label>顾问备注 <span class="n" x-text="len(calibration.notes) + ' / 4000'"></span></label>
+              <textarea class="textarea" maxlength="4000" x-model="calibration.notes"
+                        @input="dirty = true"></textarea>
+            </div>
+          </div>
+          <div class="ft-actions">
+            <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
+                    @click="saveCalibration()">保存校准</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="surface">
+        <div class="surface-head">
+          <span class="surface-title">会谈话术</span>
+          <span class="spacer"></span>
+          <span class="ft-status">每段不超过 3000 字</span>
+        </div>
+        <div class="ft-body">
+          <template x-for="field in scriptFields" :key="field.key">
+            <div class="ft-field">
+              <label><span x-text="field.label"></span>
+                <span class="n" x-text="len(script[field.key]) + ' / ' + field.limit"></span></label>
+              <textarea class="textarea" :maxlength="field.limit" x-model="script[field.key]"
+                        @input="dirty = true"></textarea>
+            </div>
+          </template>
+          <div class="ft-actions">
+            <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
+                    @click="saveScript()">保存话术</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- ============ 阶段 1 / 2 只读 ============ -->
+  <template x-if="loaded && (phase === 1 || phase === 2)">
+    <section class="surface">
+      <div class="surface-head">
+        <span class="surface-title" x-text="phase === 1 ? '目标说明' : 'Y4 结果解读'"></span>
+        <span class="spacer"></span>
+        <span class="ft-status" x-text="phase === 1 ? '向学生说明本次会谈目标' : '结合 Y4 画像解读结果'"></span>
+      </div>
+      <div class="ft-body">
+        <template x-for="field in (phase === 1 ? scriptFields.slice(0, 3) : scriptFields.slice(2, 5))" :key="field.key">
+          <div class="ft-field">
+            <label><span x-text="field.label"></span></label>
+            <div class="ft-preview"><div class="txt" x-text="script[field.key] || '尚未填写'"></div></div>
+          </div>
+        </template>
+        <div class="ft-actions">
+          <button type="button" class="btn btn-sec" @click="goPhase(0)">回到会议准备修改</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
+                  @click="goPhase(phase + 1)">进入下一阶段</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <!-- ============ 阶段 3 兴趣事项 ============ -->
+  <template x-if="loaded && phase === 3">
+    <section class="surface">
+      <div class="surface-head">
+        <span class="surface-title">兴趣事项与评分</span>
+        <span class="spacer"></span>
+        <span class="badge badge-neutral"><span class="dot"></span><span x-text="interests.length + ' 项'"></span></span>
+      </div>
+      <div class="ft-body">
+        <div class="ft-sub">喜欢与擅长均为 0–3 分；0 不喜欢 / 不擅长，1 一般，2 喜欢 / 擅长，3 非常喜欢 / 非常擅长。</div>
+        <div style="overflow:auto;margin-top:10px">
+          <table class="ft-interest-table">
+            <thead>
+              <tr>
+                <th style="width:22%">兴趣名称</th>
+                <th style="width:12%">分类</th>
+                <th style="width:12%">喜欢</th>
+                <th style="width:12%">擅长</th>
+                <th style="width:20%">顾问 Note</th>
+                <th style="width:22%">会议证据</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(item, index) in interests" :key="item.id">
+                <tr>
+                  <td><input class="input" maxlength="80" x-model="item.label" @input="dirty = true"></td>
+                  <td>
+                    <select class="select" x-model="item.topicType" @change="dirty = true">
+                      <option value="subject">学科</option>
+                      <option value="interest">兴趣</option>
+                      <option value="social">社会 / 校园</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select class="select" x-model.number="item.preferenceScore" @change="dirty = true">
+                      <template x-for="score in [0, 1, 2, 3]" :key="score">
+                        <option :value="score" x-text="score"></option>
+                      </template>
+                    </select>
+                  </td>
+                  <td>
+                    <select class="select" x-model.number="item.competenceScore" @change="dirty = true">
+                      <template x-for="score in [0, 1, 2, 3]" :key="score">
+                        <option :value="score" x-text="score"></option>
+                      </template>
+                    </select>
+                  </td>
+                  <td><textarea class="textarea" maxlength="2000" x-model="item.note" @input="dirty = true"></textarea></td>
+                  <td><textarea class="textarea" maxlength="4000" x-model="item.evidence" @input="dirty = true"></textarea></td>
+                  <td><button type="button" class="ft-row-remove" @click="removeInterest(index)">删除</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div class="ft-actions">
+          <button type="button" class="btn btn-sec" :disabled="busy || !canWrite" @click="addInterest()">添加兴趣</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
+                  @click="saveInterests()">保存兴趣</button>
+        </div>
+
+        <div style="margin-top:16px">
+          <div class="ft-sub" style="margin-bottom:8px">兴趣分型 4×4：纵向为擅长程度，横向为喜欢程度。</div>
+          <div class="ft-qgrid">
+            <div></div>
+            <template x-for="pref in [0, 1, 2, 3]" :key="'x' + pref">
+              <div class="ft-qx" x-text="pref"></div>
+            </template>
+            <template x-for="comp in [3, 2, 1, 0]" :key="'row' + comp">
+              <div class="ft-qyl" x-text="'擅长 ' + comp"></div>
+              <template x-for="pref in [0, 1, 2, 3]" :key="'c' + comp + '-' + pref">
+                <div class="ft-qcell" :class="zoneClass(pref, comp)">
+                  <template x-for="name in cellItems(pref, comp)" :key="name">
+                    <div class="ft-qtag" x-text="name"></div>
+                  </template>
+                </div>
+              </template>
+            </template>
+          </div>
+        </div>
+
+        <div class="ft-actions">
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
+                  @click="goPhase(4)">进入总结与下一步</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <!-- ============ 阶段 4 总结与下一步 ============ -->
+  <template x-if="loaded && phase === 4">
+    <section class="surface">
+      <div class="surface-head">
+        <span class="surface-title">总结与下一步</span>
+        <span class="spacer"></span>
+        <span class="badge" :class="nextSummary ? 'badge-ok' : 'badge-neutral'">
+          <span class="dot"></span><span x-text="nextSummary ? '已生成' : '待生成'"></span>
+        </span>
+      </div>
+      <div class="ft-body">
+        <div class="ft-actions" style="margin-top:0">
+          <button type="button" class="btn btn-sec" :disabled="busy || !canWrite"
+                  @click="generateNextSteps()">
+            <span x-text="nextBusy ? '正在生成下一步摘要…' : '生成下一步摘要'"></span>
+          </button>
+        </div>
+        <div class="ft-preview" style="margin-top:12px">
+          <div class="txt" x-text="nextSummary || '尚未生成。生成后可在此查看面向学生的下一步建议。'"></div>
+        </div>
+
+        <div style="margin-top:16px">
+          <div class="ft-sub" style="margin-bottom:8px">三层兴趣分型：先看喜欢与擅长的组合，再决定探索优先级。</div>
+          <div class="ft-qgrid" style="grid-template-columns:64px repeat(3, minmax(0, 1fr));max-width:480px">
+            <div></div>
+            <template x-for="label in ['低', '中', '高']" :key="label">
+              <div class="ft-qx" x-text="'喜欢 ' + label"></div>
+            </template>
+            <template x-for="level in ['高', '中', '低']" :key="'l' + level">
+              <div class="ft-qyl" x-text="'擅长 ' + level"></div>
+              <template x-for="label in ['低', '中', '高']" :key="'b' + level + label">
+                <div class="ft-qcell" :class="level === '高' && label === '高' ? 'zone-core' : (level === '高' || label === '高' ? 'zone-interest' : '')">
+                  <template x-for="name in threeLevelItems(level, label)" :key="name">
+                    <div class="ft-qtag" x-text="name"></div>
+                  </template>
+                </div>
+              </template>
+            </template>
+          </div>
+        </div>
+
+        <div class="ft-actions">
+          <button type="button" class="btn btn-sec" @click="goPhase(3)">回到兴趣事项</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
+                  @click="goPhase(5)">进入会后补充</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <!-- ============ 阶段 5 会后补充 ============ -->
+  <template x-if="loaded && phase === 5">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <section class="surface">
+        <div class="surface-head">
+          <span class="surface-title">会议文字稿</span>
+          <span class="spacer"></span>
+          <span class="badge" :class="meetingFileName ? 'badge-ok' : 'badge-neutral'">
+            <span class="dot"></span><span x-text="meetingFileName || '待上传'"></span>
+          </span>
+        </div>
+        <div class="ft-body">
+          <div class="ft-sub">支持 PDF / DOCX / TXT / MD，最大 25 MB；上传后自动提取正文并替换当前版本。</div>
+          <label class="btn btn-sec" style="display:inline-flex;margin-top:10px;cursor:pointer">
+            <span x-text="uploading ? '正在上传…' : '选择会议文字稿'"></span>
+            <input type="file" accept=".pdf,.docx,.txt,.md" style="display:none"
+                   :disabled="busy || !canWrite" @change="uploadMeeting($event)">
+          </label>
+          <div class="ft-actions">
+            <button type="button" class="btn btn-sec" :disabled="busy || !canWrite || !sessionRow.meeting_source_id"
+                    @click="analyzeSupplement()">
+              <span x-text="supplementBusy ? '正在分析会议资料…' : '分析补充材料'"></span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="surface" x-show="analysis.newInterests && analysis.newInterests.length">
+        <div class="surface-head">
+          <span class="surface-title">候选兴趣审核</span>
+          <span class="spacer"></span>
+          <span class="ft-status" x-text="candidates.length + ' 条会议建议'"></span>
+        </div>
+        <div class="ft-body">
+          <div class="ft-sub">逐条确认是否纳入兴趣清单；纳入后可回到阶段 3 调整评分。</div>
+          <div class="ft-candidates" style="margin-top:10px">
+            <template x-for="(candidate, index) in candidates" :key="index">
+              <div class="ft-candidate">
+                <div class="main">
+                  <b x-text="candidate.label"></b>
+                  <span class="evi" x-text="candidate.evidence || '会议记录未提供逐字证据'"></span>
+                </div>
+                <div class="acts">
+                  <button type="button" class="btn btn-sm btn-sec"
+                          :disabled="busy || !canWrite"
+                          @click="decideCandidate(index, 'apply')">纳入</button>
+                  <button type="button" class="btn btn-sm btn-sec"
+                          :disabled="busy || !canWrite"
+                          @click="decideCandidate(index, 'exclude')">排除</button>
+                  <span class="ft-status" x-text="candidate.decision === 'exclude' ? '已排除' : '已纳入'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="ft-actions">
+            <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
+                    @click="saveSupplementReview()">保存审核与兴趣</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="surface">
+        <div class="surface-head">
+          <span class="surface-title">项目推荐</span>
+          <span class="spacer"></span>
+          <span class="ft-status" x-text="projectsStale ? '资料或兴趣已变化，请重新生成' : ''"></span>
+        </div>
+        <div class="ft-body">
+          <div class="ft-actions" style="margin-top:0">
+            <button type="button" class="btn btn-sec" :disabled="busy || !canWrite"
+                    @click="generateProjects()">
+              <span x-text="projectsBusy ? '正在生成项目推荐…' : '生成项目推荐'"></span>
+            </button>
+            <span class="ft-status" x-text="projectItems.length ? ('已验证 ' + projectItems.filter(function (p) { return p.status !== 'needs_evidence'; }).length + ' / ' + projectItems.length) : ''"></span>
+          </div>
+          <div class="ft-projects" style="margin-top:12px" x-show="projectItems.length">
+            <template x-for="(item, index) in projectItems" :key="item.recommendationId">
+              <div class="ft-project">
+                <div class="ft-project-head">
+                  <span class="t" x-text="'项目 ' + (index + 1)"></span>
+                  <span class="badge" :class="item.status === 'needs_evidence' ? 'badge-warn' : 'badge-neutral'">
+                    <span x-text="item.status"></span>
+                  </span>
+                  <span class="spacer"></span>
+                  <select class="select" style="height:26px;font-size:11.5px" x-model="item.status" @change="dirty = true">
+                    <option value="draft">draft</option>
+                    <option value="needs_evidence">needs_evidence</option>
+                    <option value="advisor_kept">advisor_kept</option>
+                    <option value="advisor_excluded">advisor_excluded</option>
+                    <option value="student_review">student_review</option>
+                  </select>
+                </div>
+                <div class="ft-field">
+                  <label>项目名称 <span class="n" x-text="len(item.title) + ' / 80'"></span></label>
+                  <input class="input" maxlength="80" x-model="item.title" @input="dirty = true">
+                </div>
+                <div class="ft-field">
+                  <label>兴趣锚点 <span class="n" x-text="len(item.interestAnchor) + ' / 120'"></span></label>
+                  <input class="input" maxlength="120" x-model="item.interestAnchor" @input="dirty = true">
+                </div>
+                <div class="ft-field">
+                  <label>探索问题 <span class="n" x-text="len(item.coreQuestion) + ' / 240'"></span></label>
+                  <textarea class="textarea" maxlength="240" x-model="item.coreQuestion" @input="dirty = true"></textarea>
+                </div>
+                <div class="ft-field">
+                  <label>起步尝试 <span class="n" x-text="len(item.example) + ' / 180'"></span></label>
+                  <textarea class="textarea" maxlength="180" x-model="item.example" @input="dirty = true"></textarea>
+                </div>
+                <div class="ft-field">
+                  <label>后续方向 <span class="n" x-text="len(item.journeySummary) + ' / 280'"></span></label>
+                  <textarea class="textarea" maxlength="280" x-model="item.journeySummary" @input="dirty = true"></textarea>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="ft-actions">
+            <button type="button" class="btn btn-primary" :disabled="busy || !canWrite || !projectItems.length"
+                    @click="saveProjects()">保存项目审核</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- ============ 阶段 6 报告确认 ============ -->
+  <template x-if="loaded && phase === 6">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <section class="surface">
+        <div class="surface-head">
+          <span class="surface-title">报告准备</span>
+          <span class="spacer"></span>
+          <span class="badge" :class="prepared ? 'badge-ok' : 'badge-neutral'">
+            <span class="dot"></span><span x-text="prepared ? '预览已就绪' : '待准备'"></span>
+          </span>
+        </div>
+        <div class="ft-body">
+          <div class="ft-actions" style="margin-top:0">
+            <button type="button" class="btn btn-sec" :disabled="busy || !canWrite"
+                    @click="prepareReport()">
+              <span x-text="prepareBusy ? '正在准备报告…' : '准备报告'"></span>
+            </button>
+            <span class="ft-status" x-text="reportId ? '该会谈已有确认报告' : ''"></span>
+          </div>
+          <template x-if="missing.length">
+            <ul class="ft-missing" style="margin-top:10px">
+              <template x-for="item in missing" :key="item.key">
+                <li :class="item.required ? 'req' : ''" x-text="item.label"></li>
+              </template>
+            </ul>
+          </template>
+        </div>
+      </section>
+
+      <section class="surface" x-show="preview">
+        <div class="surface-head">
+          <span class="surface-title">报告预览</span>
+          <span class="spacer"></span>
+          <span class="ft-status" x-text="preview && preview.fingerprint"></span>
+        </div>
+        <div class="ft-body">
+          <div class="ft-grid-2">
+            <div class="ft-preview">
+              <h4>会议总结</h4>
+              <div class="txt" x-text="preview && preview.meetingSummary"></div>
+            </div>
+            <div class="ft-preview">
+              <h4>兴趣分型说明</h4>
+              <div class="txt" x-text="preview && preview.narrative"></div>
+            </div>
+          </div>
+          <label class="ft-check">
+            <input type="checkbox" x-model="reviewedMeeting">
+            <span>我已核对会议总结与访谈信息</span>
+          </label>
+          <label class="ft-check">
+            <input type="checkbox" x-model="reviewedNarrative">
+            <span>我已核对兴趣分型说明与学生姓名</span>
+          </label>
+          <div class="ft-actions">
+            <button type="button" class="btn btn-primary"
+                    :disabled="busy || !canWrite || !preview || !reviewedMeeting || !reviewedNarrative"
+                    @click="confirmReport()">
+              <span x-text="confirmBusy ? '正在确认报告…' : '确认报告'"></span>
+            </button>
+            <a class="btn btn-sec" x-show="preview"
+               :href="pdfHref()" target="_blank" rel="noopener">下载草稿 PDF</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- ============ 浮动聊天（仅 0 / 5 / 6） ============ -->
+  <div class="ft-chat" x-show="advisorPhase" x-cloak>
+    <div class="ft-chat-panel" x-show="chat.open" x-transition>
+      <div class="ft-chat-head">
+        <span class="t">Copilot</span>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-sm btn-sec" @click="chat.open = false">收起</button>
+      </div>
+      <div class="ft-chat-body" x-ref="chatBody">
+        <template x-for="(turn, index) in chat.turns" :key="index">
+          <div>
+            <div class="ft-msg q" x-text="turn.question"></div>
+            <div class="ft-msg a" :class="{ err: turn.status === 'ERROR' }">
+              <span x-text="turn.answer || (turn.status === 'ERROR' ? '回答失败，请重试' : '正在思考…')"></span>
+              <template x-if="turn.evidence && turn.evidence.length">
+                <ul class="ft-evidence">
+                  <template x-for="(evi, i) in turn.evidence" :key="i">
+                    <li><span x-text="evi.source"></span>：<span x-text="evi.detail"></span></li>
+                  </template>
+                </ul>
+              </template>
+            </div>
+          </div>
+        </template>
+        <div class="ft-empty-line" x-show="!chat.turns.length">询问会谈资料、兴趣或下一步安排。</div>
+      </div>
+      <div class="ft-chat-foot">
+        <textarea class="textarea" maxlength="1000" placeholder="输入问题，最多 1000 字"
+                  x-model="chat.question" @keydown.enter.prevent="sendChat()"></textarea>
+        <button type="button" class="btn btn-primary" :disabled="chat.sending || !chat.question.trim()"
+                @click="sendChat()">发送</button>
+      </div>
+    </div>
+    <button type="button" class="ft-chat-launcher" x-show="!chat.open"
+            @click="chat.open = true" aria-label="打开 Copilot">
+      {{ icon('sparkle', 18) }}
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function ftWorkspace(ctx) {
+  return {
+    sid: ctx.sid, sessionId: ctx.sessionId, canWrite: ctx.canWrite,
+    phases: ctx.phases || [],
+    loaded: false, busy: false, dirty: false, calibrating: false,
+    sessionRow: {}, revision: 1, phase: 0, entryMode: 'guided',
+    calibration: { careerInterests: '', abilityTendencies: '', valuePreferences: '', notes: '' },
+    script: {}, interests: [], analysis: {}, projectsStale: false,
+    projectItems: [], meetingFileName: '', supplementBusy: false,
+    nextSummary: '', nextBusy: false, uploading: false,
+    preview: null, prepared: false, missing: [], reportId: null,
+    prepareBusy: false, confirmBusy: false, projectsBusy: false,
+    reviewedMeeting: false, reviewedNarrative: false,
+    candidates: [],
+    chat: { open: false, chatId: null, question: '', turns: [], sending: false },
+    scriptFields: [
+      { key: 'goal', label: '会谈目标', limit: 3000 },
+      { key: 'opening', label: '开场说明', limit: 3000 },
+      { key: 'interpretation', label: 'Y4 结果解读', limit: 3000 },
+      { key: 'transition', label: '过渡到兴趣', limit: 3000 },
+      { key: 'closing', label: '收尾与下一步', limit: 3000 },
+      { key: 'nextSummary', label: '下一步摘要', limit: 1400 }
+    ],
+
+    init() {
+      this.load();
+      window.addEventListener('beforeunload', this._beforeUnload = (event) => {
+        if (!this.dirty) { return; }
+        event.preventDefault();
+        event.returnValue = '';
+      });
+    },
+    destroy() {
+      window.removeEventListener('beforeunload', this._beforeUnload);
+    },
+
+    // ---------- 基础 ----------
+    async api(path, opts) {
+      opts = opts || {};
+      opts.credentials = 'same-origin';
+      const response = await fetch(path, opts);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) {
+        const error = new Error(data.error || ('HTTP ' + response.status));
+        error.status = response.status;
+        throw error;
+      }
+      return data;
+    },
+    handleError(error, fallback) {
+      const message = (error && error.message) || fallback || '操作失败';
+      if (error && error.status === 409) {
+        v2Toast(message, 'error');
+        this.load();
+        return;
+      }
+      v2Toast(message, 'error');
+    },
+    len(value) { return (value || '').length; },
+    fmtDT(iso) { return window.y4FmtDT ? window.y4FmtDT(iso) : (iso || '—'); },
+    get hasCalibration() {
+      return ['careerInterests', 'abilityTendencies', 'valuePreferences']
+        .some((key) => (this.calibration[key] || '').trim());
+    },
+    get advisorPhase() { return [0, 5, 6].includes(this.phase); },
+
+    async load() {
+      this.busy = true;
+      try {
+        const data = await this.api('/api/v2/copilot/sessions/' + this.sessionId);
+        const row = data.session || {};
+        this.sessionRow = row;
+        this.revision = row.revision || 1;
+        this.phase = row.phase || 0;
+        this.entryMode = data.entryMode || 'guided';
+        this.reportId = data.reportId || null;
+        this.script = Object.assign({}, row.script || {});
+        this.calibration = Object.assign(
+          { careerInterests: '', abilityTendencies: '', valuePreferences: '', notes: '' },
+          row.calibration || {});
+        this.interests = (row.interests || []).map((item) => ({
+          id: item.id, label: item.label || '', topicType: item.topicType || 'interest',
+          preferenceScore: item.preferenceScore === null ? 1 : item.preferenceScore,
+          competenceScore: item.competenceScore === null ? 1 : item.competenceScore,
+          note: item.note || '', evidence: item.evidence || ''
+        }));
+        const supplements = row.supplements || [];
+        const supplement = supplements[0] || null;
+        this.analysis = (supplement && supplement.analysis) || {};
+        this.projectsStale = !!(this.analysis.projectRecommendations && !data.projectsCurrent);
+        const sourceId = row.meeting_source_id;
+        this.meetingFileName = (data.sourceFileNames || {})[String(sourceId)] || '';
+        if (!this.meetingFileName && sourceId) { this.meetingFileName = '会议文字稿已上传'; }
+        this.buildCandidates();
+        this.loadProjects();
+        this.dirty = false;
+        this.loaded = true;
+      } catch (error) {
+        this.handleError(error, '会谈加载失败');
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    async savePhase(target, extra) {
+      if (!this.canWrite) { return null; }
+      this.busy = true;
+      try {
+        const body = Object.assign({ phase: target, revision: this.revision }, extra || {});
+        const data = await this.api(
+          '/api/v2/copilot/sessions/' + this.sessionId + '/phase',
+          { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        this.revision = data.revision;
+        const row = data.result || {};
+        this.phase = row.phase !== undefined ? row.phase : target;
+        this.script = Object.assign({}, row.script || this.script);
+        this.calibration = Object.assign(this.calibration, row.calibration || {});
+        if (row.interests) {
+          this.interests = row.interests.map((item) => ({
+            id: item.id, label: item.label || '', topicType: item.topicType || 'interest',
+            preferenceScore: item.preferenceScore === null ? 1 : item.preferenceScore,
+            competenceScore: item.competenceScore === null ? 1 : item.competenceScore,
+            note: item.note || '', evidence: item.evidence || ''
+          }));
+        }
+        if (data.result && data.result.savedSupplement) {
+          this.analysis = data.result.savedSupplement.analysis || this.analysis;
+          this.buildCandidates();
+          this.loadProjects();
+        }
+        this.dirty = false;
+        return data;
+      } catch (error) {
+        this.handleError(error, '保存失败');
+        return null;
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    async goPhase(target) {
+      if (target === this.phase) { return; }
+      if (this.dirty && !window.confirm('有未保存的改动，仍要切换阶段吗？')) { return; }
+      await this.savePhase(target);
+    },
+
+    async saveScript() {
+      const data = await this.savePhase(this.phase, { script: this.script });
+      if (data) { v2Toast('话术已保存', 'success'); }
+    },
+
+    // ---------- 阶段 0 ----------
+    async generateCalibration() {
+      if (!this.canWrite || this.busy) { return; }
+      this.calibrating = true;
+      try {
+        const data = await this.api(
+          '/api/v2/copilot/sessions/' + this.sessionId + '/y4-calibrate',
+          { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ revision: this.revision }) });
+        this.revision = data.revision;
+        this.calibration = Object.assign({}, this.calibration, data.analysis || {});
+        this.dirty = true;
+        v2Toast('Y4 校准已生成，请校对后保存', 'success');
+      } catch (error) {
+        this.handleError(error, 'Y4 校准失败');
+      } finally {
+        this.calibrating = false;
+      }
+    },
+    async saveCalibration() {
+      if (!this.canWrite || this.busy) { return; }
+      this.busy = true;
+      try {
+        const data = await this.api(
+          '/api/v2/copilot/sessions/' + this.sessionId + '/career-calibration',
+          { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ revision: this.revision }, this.calibration)) });
+        this.revision = data.revision;
+        this.calibration = Object.assign(this.calibration, data.result || {});
+        this.dirty = false;
+        v2Toast('校准已保存', 'success');
+      } catch (error) {
+        this.handleError(error, '校准保存失败');
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    // ---------- 阶段 3 ----------
+    addInterest() {
+      this.interests.push({
+        id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('i' + Date.now()),
+        label: '', topicType: 'interest', preferenceScore: 1, competenceScore: 1,
+        note: '', evidence: ''
+      });
+      this.dirty = true;
+    },
+    removeInterest(index) { this.interests.splice(index, 1); this.dirty = true; },
+    async saveInterests() {
+      if (!this.canWrite || this.busy) { return; }
+      const cleaned = this.interests.filter((item) => (item.label || '').trim());
+      if (cleaned.length !== this.interests.length) {
+        v2Toast('请先填写兴趣名称或删除空行', 'error');
+        return;
+      }
+      this.busy = true;
+      try {
+        const data = await this.api(
+          '/api/v2/copilot/sessions/' + this.sessionId + '/interest-draft',
+          { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ revision: this.revision, interests: cleaned }) });
+        this.revision = data.revision;
+        this.dirty = false;
+        v2Toast('兴趣已保存', 'success');
+      } catch (error) {
+        this.handleError(error, '兴趣保存失败');
+      } finally {
+        this.busy = false;
+      }
+    },
+    cellItems(pref, comp) {
+      return this.interests
+        .filter((item) => item.preferenceScore === pref && item.competenceScore === comp)
+        .map((item) => item.label);
+    },
+    zoneClass(pref, comp) {
+      if (pref >= 2 && comp >= 2) { return 'zone-core'; }
+      if (pref >= 2) { return 'zone-interest'; }
+      if (comp >= 2) { return 'zone-ability'; }
+      return '';
+    },
+    threeLevel(value) { return value === null || value === undefined ? null : (value <= 0 ? '低' : (value === 1 ? '中' : '高')); },
+    threeLevelItems(compLevel, prefLevel) {
+      return this.interests
+        .filter((item) => this.threeLevel(item.competenceScore) === compLevel
+          && this.threeLevel(item.preferenceScore) === prefLevel)
+        .map((item) => item.label);
+    },
+
+    // ---------- 异步作业 ----------
+    async pollJob(jobId) {
+      for (let attempt = 0; attempt < 300; attempt += 1) {
+        const job = await this.api('/api/v2/copilot/jobs/' + jobId);
+        if (job.status === 'done') { return job; }
+        if (job.status === 'error') { throw new Error(job.message || '任务失败'); }
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+      throw new Error('任务超时，请稍后重试');
+    },
+    async dispatch(path, extra, method) {
+      const body = Object.assign({ revision: this.revision }, extra || {});
+      const started = await this.api(
+        '/api/v2/copilot/sessions/' + this.sessionId + path,
+        { method: method || 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body) });
+      return this.pollJob(started.jobId);
+    },
+
+    async generateNextSteps() {
+      if (!this.canWrite || this.nextBusy) { return; }
+      this.nextBusy = true;
+      try {
+        const job = await this.dispatch('/next-steps');
+        const result = job.result || {};
+        this.nextSummary = (result.result && result.result.summary) || '';
+        this.revision = job.revision || this.revision;
+        this.sessionRow.next_steps = this.nextSummary;
+        v2Toast('下一步摘要已生成', 'success');
+      } catch (error) {
+        this.handleError(error, '下一步摘要生成失败');
+      } finally {
+        this.nextBusy = false;
+      }
+    },
+
+    // ---------- 阶段 5 ----------
+    async uploadMeeting(event) {
+      const input = event.target;
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file || !this.canWrite || this.uploading) { return; }
+      this.uploading = true;
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('kind', 'MEETING');
+        form.append('revision', String(this.revision));
+        const data = await this.api(
+          '/api/v2/copilot/sessions/' + this.sessionId + '/sources',
+          { method: 'POST', body: form });
+        this.revision = data.revision;
+        this.meetingFileName = (data.result && data.result.fileName) || file.name;
+        this.dirty = false;
+        v2Toast('会议文字稿已上传', 'success');
+        await this.load();
+      } catch (error) {
+        this.handleError(error, '上传失败');
+      } finally {
+        this.uploading = false;
+      }
+    },
+    async analyzeSupplement() {
+      if (!this.canWrite || this.supplementBusy) { return; }
+      this.supplementBusy = true;
+      try {
+        const job = await this.dispatch('/supplement');
+        this.revision = job.revision || this.revision;
+        this.analysis = Object.assign({}, job.result && job.result.analysis || this.analysis);
+        this.buildCandidates();
+        this.loadProjects();
+        v2Toast('会议资料分析完成', 'success');
+      } catch (error) {
+        this.handleError(error, '会议资料分析失败');
+      } finally {
+        this.supplementBusy = false;
+      }
+    },
+    _normalizeLabel(value) {
+      return (value || '').trim().toLowerCase();
+    },
+    buildCandidates() {
+      const proposals = Array.isArray(this.analysis.newInterests) ? this.analysis.newInterests : [];
+      const review = (this.analysis.interestReview && typeof this.analysis.interestReview === 'object')
+        ? this.analysis.interestReview : null;
+      const reviewValid = review && review.analysisVersion === this._analysisVersion();
+      this.candidates = proposals.map((proposal, index) => {
+        const label = (proposal && proposal.label) || '';
+        const original = label.split(/[（(]/)[0].trim();
+        const previous = reviewValid ? ((review.items || {})[String(index)] || null) : null;
+        const decided = previous && previous.decision === 'exclude' ? 'exclude' : 'apply';
+        return {
+          label: original || label,
+          topicType: (proposal && proposal.topicType) || 'interest',
+          preferenceScore: proposal ? proposal.preferenceScore : null,
+          competenceScore: proposal ? proposal.competenceScore : null,
+          evidence: (proposal && proposal.evidence) || '',
+          decision: decided
+        };
+      });
+    },
+    _analysisVersion() {
+      if (this.analysis.analysisVersion) { return String(this.analysis.analysisVersion); }
+      return JSON.stringify(this.analysis.newInterests || []);
+    },
+    decideCandidate(index, decision) {
+      const candidate = this.candidates[index];
+      if (!candidate) { return; }
+      candidate.decision = decision;
+      this.dirty = true;
+    },
+    async saveSupplementReview() {
+      if (!this.canWrite || this.busy) { return; }
+      const kept = [];
+      const reviewItems = {};
+      this.interests.forEach((item) => kept.push(Object.assign({}, item)));
+      this.candidates.forEach((candidate, index) => {
+        const existing = kept.find((item) => this._normalizeLabel(item.label) === this._normalizeLabel(candidate.label));
+        if (candidate.decision === 'exclude') {
+          reviewItems[String(index)] = { interestId: existing ? existing.id : null, decision: 'exclude' };
+          if (existing && existing._fromCandidate) {
+            const position = kept.indexOf(existing);
+            kept.splice(position, 1);
+          }
+          return;
+        }
+        if (existing) {
+          reviewItems[String(index)] = { interestId: existing.id, decision: 'keep' };
+          return;
+        }
+        const row = {
+          id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('i' + Date.now() + '-' + index),
+          label: candidate.label, topicType: candidate.topicType,
+          preferenceScore: candidate.preferenceScore === null ? 1 : candidate.preferenceScore,
+          competenceScore: candidate.competenceScore === null ? 1 : candidate.competenceScore,
+          note: '', evidence: candidate.evidence, _fromCandidate: true
+        };
+        kept.push(row);
+        const partial = candidate.preferenceScore === null || candidate.competenceScore === null;
+        reviewItems[String(index)] = {
+          interestId: row.id, decision: partial ? 'edit' : 'apply'
+        };
+      });
+      const cleaned = kept.map((item) => {
+        const row = Object.assign({}, item);
+        delete row._fromCandidate;
+        return row;
+      });
+      const data = await this.savePhase(this.phase, {
+        interests: cleaned,
+        interestReview: { analysisVersion: this._analysisVersion(), items: reviewItems }
+      });
+      if (data) {
+        this.interests = cleaned.map((item) => Object.assign({}, item));
+        v2Toast('审核结果已保存', 'success');
+      }
+    },
+    loadProjects() {
+      const batch = this.analysis.projectRecommendations;
+      const items = (batch && Array.isArray(batch.items)) ? batch.items : [];
+      this.projectItems = this.projectsStale ? [] : items.map((item) => Object.assign({}, item));
+    },
+    async generateProjects() {
+      if (!this.canWrite || this.projectsBusy) { return; }
+      this.projectsBusy = true;
+      try {
+        const job = await this.dispatch('/projects');
+        this.revision = job.revision || this.revision;
+        this.analysis = Object.assign({}, this.analysis, {
+          projectRecommendations: job.result && job.result.batch || null
+        });
+        this.projectsStale = false;
+        this.loadProjects();
+        v2Toast('项目推荐已生成', 'success');
+      } catch (error) {
+        this.handleError(error, '项目推荐生成失败');
+      } finally {
+        this.projectsBusy = false;
+      }
+    },
+    async saveProjects() {
+      if (!this.canWrite || this.busy || !this.projectItems.length) { return; }
+      this.busy = true;
+      try {
+        const payload = this.projectItems.map((item) => Object.assign({}, item));
+        const job = await this.dispatch('/projects', { items: payload }, 'PATCH');
+        const batch = job.result && job.result.batch;
+        if (batch) {
+          this.analysis = Object.assign({}, this.analysis, { projectRecommendations: batch });
+          this.loadProjects();
+        }
+        this.revision = job.revision || this.revision;
+        this.dirty = false;
+        v2Toast('项目审核已保存', 'success');
+      } catch (error) {
+        this.handleError(error, '项目审核保存失败');
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    // ---------- 阶段 6 ----------
+    async prepareReport() {
+      if (!this.canWrite || this.prepareBusy) { return; }
+      this.prepareBusy = true;
+      try {
+        const job = await this.dispatch('/report-prepare');
+        const result = job.result || {};
+        this.revision = job.revision || result.revision || this.revision;
+        this.preview = result.preview || null;
+        this.missing = (result.draft && result.draft.missing) || [];
+        this.reportId = result.reportId || this.reportId;
+        this.prepared = !!(this.preview || this.reportId);
+        if (!this.preview && this.missing.length) {
+          v2Toast('请先补充必填内容', 'error');
+        } else {
+          v2Toast('报告预览已准备', 'success');
+        }
+      } catch (error) {
+        this.handleError(error, '报告准备失败');
+      } finally {
+        this.prepareBusy = false;
+      }
+    },
+    pdfHref() {
+      if (!this.preview) { return '#'; }
+      return '/api/v2/copilot/sessions/' + this.sessionId + '/report-pdf?revision='
+        + encodeURIComponent(this.revision) + '&fingerprint=' + encodeURIComponent(this.preview.fingerprint);
+    },
+    async confirmReport() {
+      if (!this.canWrite || this.confirmBusy) { return; }
+      this.confirmBusy = true;
+      try {
+        const data = await this.api(
+          '/api/v2/copilot/sessions/' + this.sessionId + '/report-confirm',
+          { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              revision: this.revision,
+              fingerprint: this.preview && this.preview.fingerprint,
+              suggestionIds: (this.preview && this.preview.suggestions || [])
+                .filter((item) => item.status !== 'STALE').map((item) => item.id),
+              reviewedMeeting: this.reviewedMeeting,
+              reviewedNarrative: this.reviewedNarrative
+            }) });
+        this.reportId = (data.report && data.report.id) || this.reportId;
+        v2Toast('报告已确认', 'success');
+      } catch (error) {
+        this.handleError(error, '报告确认失败');
+      } finally {
+        this.confirmBusy = false;
+      }
+    },
+
+    // ---------- 聊天 ----------
+    async sendChat() {
+      const question = (this.chat.question || '').trim();
+      if (!question || this.chat.sending) { return; }
+      if (question.length > 1000) {
+        v2Toast('问题不能为空且不能超过 1000 字', 'error');
+        return;
+      }
+      const history = this.chat.turns.slice(-6).filter((turn) => turn.answer && turn.status === 'COMPLETE')
+        .map((turn) => ({ question: turn.question, answer: turn.answer }));
+      this.chat.turns.push({ question: question, answer: '', evidence: [], status: 'ASKED' });
+      this.chat.question = '';
+      this.chat.sending = true;
+      this.scrollChat();
+      try {
+        const body = { question: question, history: history };
+        if (this.chat.chatId) { body.chatId = this.chat.chatId; }
+        const started = await this.api(
+          '/api/v2/copilot/sessions/' + this.sessionId + '/assistant',
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        this.chat.chatId = started.chatId;
+        const job = await this.pollJob(started.jobId);
+        const result = job.result || {};
+        const turn = this.chat.turns[this.chat.turns.length - 1];
+        turn.answer = result.answer || '';
+        turn.evidence = result.evidence || [];
+        turn.status = 'COMPLETE';
+      } catch (error) {
+        const turn = this.chat.turns[this.chat.turns.length - 1];
+        turn.status = 'ERROR';
+        v2Toast((error && error.message) || '回答失败', 'error');
+      } finally {
+        this.chat.sending = false;
+        this.scrollChat();
+      }
+    },
+    scrollChat() {
+      this.$nextTick(() => {
+        const box = this.$refs.chatBody;
+        if (box) { box.scrollTop = box.scrollHeight; }
+      });
+    }
+  };
+}
+</script>
+{% endblock %}

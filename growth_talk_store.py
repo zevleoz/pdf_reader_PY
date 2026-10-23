@@ -11,12 +11,13 @@ from __future__ import annotations
 import json
 import os
 import time
+import uuid
 from datetime import datetime
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text,
-    UniqueConstraint, func, select, update,
+    UniqueConstraint, delete, func, select, update,
 )
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
@@ -237,6 +238,114 @@ class CrmAppointment(Base):
     __table_args__ = (
         Index("ix_crm_appointments_teacher_status_start",
               "teacher_id", "status", "start_at"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Copilot 2.0 模型（spec 2026-10-23 §2）
+# ---------------------------------------------------------------------------
+class CopilotSession(Base):
+    __tablename__ = "copilot_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    advisor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    y4_report_id = Column(Integer, ForeignKey("reports.id"))
+    meeting_source_id = Column(Integer, ForeignKey("gt_sources.id"))
+    run_id = Column(Integer, ForeignKey("gt_runs.id"))
+    phase = Column(Integer, nullable=False, default=0)
+    revision = Column(Integer, nullable=False, default=1)
+    status = Column(String(30), nullable=False, default="ACTIVE")
+    script = Column(Text, nullable=False, default="{}")
+    interests = Column(Text, nullable=False, default="[]")
+    meeting_at = Column(String(64))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(String(32))
+
+    __table_args__ = (
+        UniqueConstraint("student_id", "advisor_id",
+                         name="uq_copilot_sessions_student_advisor"),
+        Index("ix_copilot_sessions_student_created", "student_id", "created_at"),
+    )
+
+
+class CopilotPhaseEvent(Base):
+    __tablename__ = "copilot_phase_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("copilot_sessions.id", ondelete="CASCADE"),
+                        nullable=False)
+    actor_id = Column(Integer)
+    phase = Column(Integer, nullable=False, default=0)
+    action = Column(String(100), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_copilot_phase_events_session_created", "session_id", "created_at"),
+    )
+
+
+class CopilotCareerCalibration(Base):
+    __tablename__ = "copilot_career_calibration"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("copilot_sessions.id", ondelete="CASCADE"),
+                        nullable=False, unique=True)
+    career_interests = Column(Text, nullable=False, default="")
+    ability_tendencies = Column(Text, nullable=False, default="")
+    value_preferences = Column(Text, nullable=False, default="")
+    notes = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CopilotInterestNote(Base):
+    __tablename__ = "copilot_interest_notes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("copilot_sessions.id", ondelete="CASCADE"),
+                        nullable=False)
+    interest_id = Column(String(64), nullable=False)
+    note = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("session_id", "interest_id",
+                         name="uq_copilot_interest_notes_session_interest"),
+    )
+
+
+class CopilotTranscriptSupplement(Base):
+    __tablename__ = "copilot_transcript_supplements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("copilot_sessions.id", ondelete="CASCADE"),
+                        nullable=False)
+    source_id = Column(Integer, ForeignKey("gt_sources.id"), nullable=False)
+    status = Column(String(30), nullable=False, default="PENDING_REVIEW")
+    analysis = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_copilot_supplements_session_created", "session_id", "created_at"),
+    )
+
+
+class CopilotChatMessage(Base):
+    __tablename__ = "copilot_chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    chat_id = Column(String(36), nullable=False)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    session_id = Column(Integer, ForeignKey("copilot_sessions.id"))
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False, default="")
+    evidence = Column(Text)
+    status = Column(String(30), nullable=False, default="ANSWERED")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_copilot_chat_messages_student_created", "student_id", "created_at"),
     )
 
 
@@ -699,6 +808,32 @@ def replace_suggestions(run_id: int, items: list[dict]) -> None:
         sess.commit()
 
 
+def replace_passion_project_suggestions(run_id: int, items: list[dict]) -> None:
+    """替换 Passion Project 模块管理的确认建议，保留其他来源的建议。"""
+    with Session(_engine()) as sess:
+        existing = sess.execute(
+            select(GtSuggestion).where(
+                GtSuggestion.run_id == run_id,
+                GtSuggestion.exploration_tags.like('%"passion-project.v1"%'),
+            )
+        ).scalars().all()
+        for row in existing:
+            sess.delete(row)
+        for item in items:
+            sess.add(GtSuggestion(
+                run_id=run_id,
+                title=str(item.get("title") or "").strip(),
+                introduction=str(item.get("introduction") or ""),
+                growth_value=str(item.get("growth_value") or ""),
+                possible_outputs=_json_text(item.get("possible_outputs")),
+                recommendation_basis=item.get("recommendation_basis"),
+                interest_refs=_json_text(item.get("interest_refs")),
+                exploration_tags=_json_text(item.get("exploration_tags")),
+                status="CONFIRMED",
+            ))
+        sess.commit()
+
+
 def update_interest(interest_id: int, fields: dict) -> None:
     mapped = {
         "label": ("label", str),
@@ -807,7 +942,9 @@ def mark_outputs_stale(run_id: int) -> None:
 # ---------------------------------------------------------------------------
 def create_report(student_id: int, run_id: int, payload: str, confirmed_by: str,
                   *, payload_builder=None,
-                  expected_revision: int | None = None) -> dict:
+                  expected_revision: int | None = None,
+                  session_id: int | None = None,
+                  session_revision: int | None = None) -> dict:
     def _run():
         confirmed_at = _iso(datetime.utcnow())
         with Session(_engine()) as sess:
@@ -841,6 +978,21 @@ def create_report(student_id: int, run_id: int, payload: str, confirmed_by: str,
             if not result.rowcount:
                 sess.rollback()
                 raise RevisionConflict("内容已变化，请重新预览")
+            if session_id is not None:
+                copilot = sess.get(CopilotSession, session_id)
+                if (not copilot or copilot.run_id != run_id
+                        or (session_revision is not None
+                            and copilot.revision != session_revision)):
+                    sess.rollback()
+                    raise RevisionConflict("会谈已更新，请重新预览报告")
+                copilot.status = "COMPLETED"
+                copilot.completed_at = confirmed_at
+                copilot.revision += 1
+                copilot.updated_at = datetime.utcnow()
+                sess.add(CopilotPhaseEvent(
+                    session_id=session_id, actor_id=copilot.advisor_id,
+                    phase=copilot.phase, action="report_confirmed",
+                ))
             sess.add(AuditLog(
                 actor_id=None, student_id=student_id, action="report_confirmed",
                 details=json.dumps({
@@ -1041,3 +1193,454 @@ def upsert_appointment(task_id: str, junction_student_id: str,
         sess.commit()
         sess.refresh(row)
         return _appointment_dict(row)
+
+
+# ---------------------------------------------------------------------------
+# Copilot 2.0
+# ---------------------------------------------------------------------------
+COPILOT_DEFAULT_SCRIPT = {
+    "entryMode": "guided",
+    "goal": "一起识别兴趣与擅长，为后续升学探索寻找既有目标又有真实兴趣的方向。",
+    "opening": "今天我们一起看看你喜欢什么、做过什么，以及哪些能力还值得继续观察。",
+    "interpretation": "先看职业兴趣，再看能力倾向和价值偏好。测评提供线索，不是结论。",
+    "transition": "接下来把学校学科、课外兴趣和身边话题放进同一张图，看看你喜欢和擅长的程度。",
+    "closing": "这些判断会在活动和项目尝试中继续验证。",
+}
+
+_COPILOT_SESSION_FIELDS = (
+    "student_id", "advisor_id", "y4_report_id", "meeting_source_id", "run_id",
+    "phase", "revision", "status", "meeting_at", "created_at", "updated_at",
+    "completed_at",
+)
+
+_SESSION_UPDATABLE = {
+    "phase", "status", "script", "interests", "meeting_source_id",
+    "y4_report_id", "run_id", "completed_at", "meeting_at",
+}
+
+
+def _load_json(value: Any, default):
+    if isinstance(value, type(default)):
+        return value
+    if not isinstance(value, str) or not value:
+        return default
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if isinstance(parsed, type(default)) else default
+
+
+def _copilot_session_dict(row: CopilotSession) -> dict:
+    data = _model_dict(row, _COPILOT_SESSION_FIELDS)
+    data["script"] = _load_json(row.script, {})
+    data["interests"] = _load_json(row.interests, [])
+    return data
+
+
+def _copilot_calibration_dict(row: CopilotCareerCalibration) -> dict:
+    return {
+        "careerInterests": row.career_interests,
+        "abilityTendencies": row.ability_tendencies,
+        "valuePreferences": row.value_preferences,
+        "notes": row.notes,
+        "updated_at": _iso(row.updated_at),
+    }
+
+
+def _copilot_supplement_dict(row: CopilotTranscriptSupplement) -> dict:
+    return {
+        "id": row.id,
+        "session_id": row.session_id,
+        "source_id": row.source_id,
+        "status": row.status,
+        "analysis": _load_json(row.analysis, {}),
+        "created_at": _iso(row.created_at),
+    }
+
+
+def _session_full(sess: Session, row: CopilotSession) -> dict:
+    data = _copilot_session_dict(row)
+    calibration = sess.execute(
+        select(CopilotCareerCalibration)
+        .where(CopilotCareerCalibration.session_id == row.id)
+    ).scalar_one_or_none()
+    notes = sess.execute(
+        select(CopilotInterestNote)
+        .where(CopilotInterestNote.session_id == row.id)
+        .order_by(CopilotInterestNote.id.asc())
+    ).scalars().all()
+    supplements = sess.execute(
+        select(CopilotTranscriptSupplement)
+        .where(CopilotTranscriptSupplement.session_id == row.id)
+        .order_by(CopilotTranscriptSupplement.created_at.desc(),
+                  CopilotTranscriptSupplement.id.desc())
+    ).scalars().all()
+    events = sess.execute(
+        select(CopilotPhaseEvent)
+        .where(CopilotPhaseEvent.session_id == row.id)
+        .order_by(CopilotPhaseEvent.created_at.desc(), CopilotPhaseEvent.id.desc())
+        .limit(30)
+    ).scalars().all()
+    data["calibration"] = (
+        _copilot_calibration_dict(calibration) if calibration else None
+    )
+    data["notes"] = [{
+        "interest_id": note.interest_id,
+        "note": note.note,
+        "updated_at": _iso(note.updated_at),
+    } for note in notes]
+    data["supplements"] = [_copilot_supplement_dict(item) for item in supplements]
+    data["events"] = [{
+        "id": event.id,
+        "session_id": event.session_id,
+        "actor_id": event.actor_id,
+        "phase": event.phase,
+        "action": event.action,
+        "created_at": _iso(event.created_at),
+    } for event in events]
+    return data
+
+
+def create_session(student_id: int, advisor_id: int, entry_mode: str = "guided",
+                   meeting_at: str | None = None) -> tuple[dict, bool]:
+    """幂等创建：同一学生 + 顾问只存在一条 session。"""
+    def _run():
+        with Session(_engine()) as sess:
+            existing = sess.execute(
+                select(CopilotSession).where(
+                    CopilotSession.student_id == student_id,
+                    CopilotSession.advisor_id == advisor_id,
+                )
+            ).scalar_one_or_none()
+            if existing:
+                return _session_full(sess, existing), False
+            mode = "direct" if entry_mode == "direct" else "guided"
+            script = dict(COPILOT_DEFAULT_SCRIPT)
+            script["entryMode"] = mode
+            row = CopilotSession(
+                student_id=student_id, advisor_id=advisor_id,
+                phase=5 if mode == "direct" else 0,
+                revision=1, status="ACTIVE",
+                script=json.dumps(script, ensure_ascii=False),
+                interests="[]", meeting_at=meeting_at,
+            )
+            sess.add(row)
+            sess.flush()
+            sess.add(CopilotPhaseEvent(
+                session_id=row.id, actor_id=advisor_id, phase=row.phase,
+                action="created",
+            ))
+            sess.commit()
+            sess.refresh(row)
+            return _session_full(sess, row), True
+
+    return _with_retry(_run)
+
+
+def get_session(session_id: int) -> Optional[dict]:
+    with Session(_engine()) as sess:
+        row = sess.get(CopilotSession, session_id)
+        return _session_full(sess, row) if row else None
+
+
+def list_sessions(student_id: int, advisor_id: int | None = None) -> list[dict]:
+    with Session(_engine()) as sess:
+        stmt = select(CopilotSession).where(CopilotSession.student_id == student_id)
+        if advisor_id is not None:
+            stmt = stmt.where(CopilotSession.advisor_id == advisor_id)
+        rows = sess.execute(
+            stmt.order_by(CopilotSession.updated_at.desc(), CopilotSession.id.desc())
+            .limit(30)
+        ).scalars().all()
+        return [_copilot_session_dict(row) for row in rows]
+
+
+def bump_session_revision(session_id: int, expected_revision: int, actor_id: int,
+                          action: str, phase: int | None = None) -> int:
+    with Session(_engine()) as sess:
+        row = sess.get(CopilotSession, session_id)
+        if not row:
+            raise NotFoundError("会谈不存在")
+        values = {
+            "revision": CopilotSession.revision + 1,
+            "updated_at": datetime.utcnow(),
+        }
+        if phase is not None:
+            values["phase"] = phase
+        result = sess.execute(
+            update(CopilotSession)
+            .where(CopilotSession.id == session_id,
+                   CopilotSession.revision == expected_revision)
+            .values(**values)
+        )
+        if not result.rowcount:
+            sess.rollback()
+            raise RevisionConflict("会谈已更新，请保留草稿并刷新确认")
+        effective_phase = phase if phase is not None else row.phase
+        sess.add(CopilotPhaseEvent(
+            session_id=session_id, actor_id=actor_id,
+            phase=effective_phase, action=action,
+        ))
+        sess.commit()
+        sess.refresh(row)
+        return int(row.revision)
+
+
+def update_session_fields(session_id: int, **fields) -> None:
+    values = {}
+    for key, value in fields.items():
+        if key not in _SESSION_UPDATABLE:
+            continue
+        if key == "script":
+            value = _json_text(value, "{}")
+        elif key == "interests":
+            value = _json_text(value, "[]")
+        values[key] = value
+    if not values:
+        return
+    values["updated_at"] = datetime.utcnow()
+    with Session(_engine()) as sess:
+        result = sess.execute(
+            update(CopilotSession)
+            .where(CopilotSession.id == session_id)
+            .values(**values)
+        )
+        if not result.rowcount:
+            sess.rollback()
+            raise NotFoundError("会谈不存在")
+        sess.commit()
+
+
+def upsert_calibration(session_id: int, career_interests: str,
+                       ability_tendencies: str, value_preferences: str,
+                       notes: str) -> None:
+    def _run():
+        with Session(_engine()) as sess:
+            if not sess.get(CopilotSession, session_id):
+                raise NotFoundError("会谈不存在")
+            row = sess.execute(
+                select(CopilotCareerCalibration)
+                .where(CopilotCareerCalibration.session_id == session_id)
+            ).scalar_one_or_none()
+            if row:
+                row.career_interests = career_interests
+                row.ability_tendencies = ability_tendencies
+                row.value_preferences = value_preferences
+                row.notes = notes
+                row.updated_at = datetime.utcnow()
+            else:
+                sess.add(CopilotCareerCalibration(
+                    session_id=session_id, career_interests=career_interests,
+                    ability_tendencies=ability_tendencies,
+                    value_preferences=value_preferences, notes=notes,
+                ))
+            sess.commit()
+
+    _with_retry(_run)
+
+
+def replace_session_interests(session_id: int, interests: list[dict]) -> None:
+    normalized = []
+    for item in interests or []:
+        if not isinstance(item, dict):
+            continue
+        entry = dict(item)
+        interest_id = str(entry.get("id") or "").strip()
+        if not interest_id:
+            interest_id = uuid.uuid4().hex
+        entry["id"] = interest_id
+        normalized.append(entry)
+
+    def _run():
+        with Session(_engine()) as sess:
+            row = sess.get(CopilotSession, session_id)
+            if not row:
+                raise NotFoundError("会谈不存在")
+            row.interests = json.dumps(normalized, ensure_ascii=False)
+            row.updated_at = datetime.utcnow()
+            sess.execute(
+                delete(CopilotInterestNote)
+                .where(CopilotInterestNote.session_id == session_id)
+            )
+            for entry in normalized:
+                note = entry.get("note")
+                note = note.strip() if isinstance(note, str) else ""
+                if note:
+                    sess.add(CopilotInterestNote(
+                        session_id=session_id, interest_id=entry["id"], note=note,
+                    ))
+            sess.commit()
+
+    _with_retry(_run)
+
+
+def create_supplement(session_id: int, source_id: int) -> dict:
+    def _run():
+        with Session(_engine()) as sess:
+            if not sess.get(CopilotSession, session_id):
+                raise NotFoundError("会谈不存在")
+            row = CopilotTranscriptSupplement(
+                session_id=session_id, source_id=source_id,
+                status="PENDING_REVIEW", analysis="{}",
+            )
+            sess.add(row)
+            sess.commit()
+            sess.refresh(row)
+            return _copilot_supplement_dict(row)
+
+    return _with_retry(_run)
+
+
+def latest_supplement(session_id: int) -> Optional[dict]:
+    with Session(_engine()) as sess:
+        row = sess.execute(
+            select(CopilotTranscriptSupplement)
+            .where(CopilotTranscriptSupplement.session_id == session_id)
+            .order_by(CopilotTranscriptSupplement.created_at.desc(),
+                      CopilotTranscriptSupplement.id.desc())
+        ).scalars().first()
+        return _copilot_supplement_dict(row) if row else None
+
+
+def save_supplement_analysis(supplement_id: int, analysis: dict, status: str) -> None:
+    with Session(_engine()) as sess:
+        row = sess.get(CopilotTranscriptSupplement, supplement_id)
+        if not row:
+            raise NotFoundError("补充材料不存在")
+        row.analysis = json.dumps(analysis, ensure_ascii=False)
+        row.status = status
+        sess.commit()
+
+
+# ---------------------------------------------------------------------------
+# Copilot 聊天
+# ---------------------------------------------------------------------------
+def create_chat(student_id: int, advisor_id: int,
+                session_id: int | None = None) -> str:
+    """创建聊天 id；该学生已有 20 个聊天时删除最旧的一个。"""
+    def _run():
+        with Session(_engine()) as sess:
+            groups = sess.execute(
+                select(CopilotChatMessage.chat_id,
+                       func.min(CopilotChatMessage.created_at).label("started"))
+                .where(CopilotChatMessage.student_id == student_id)
+                .group_by(CopilotChatMessage.chat_id)
+                .order_by("started")
+            ).all()
+            if len(groups) >= 20:
+                sess.execute(
+                    delete(CopilotChatMessage).where(
+                        CopilotChatMessage.student_id == student_id,
+                        CopilotChatMessage.chat_id == groups[0][0],
+                    )
+                )
+                sess.commit()
+            return str(uuid.uuid4())
+
+    return _with_retry(_run)
+
+
+def add_chat_turn(chat_id: str, question: str, answer: dict | None,
+                  status: str, *, student_id: int | None = None,
+                  session_id: int | None = None) -> None:
+    with Session(_engine()) as sess:
+        previous = sess.execute(
+            select(CopilotChatMessage)
+            .where(CopilotChatMessage.chat_id == chat_id)
+            .order_by(CopilotChatMessage.id.asc())
+            .limit(1)
+        ).scalars().first()
+        if previous:
+            student_id = student_id or previous.student_id
+            session_id = session_id if session_id is not None else previous.session_id
+        if student_id is None:
+            raise ValueError("聊天上下文格式无效")
+        turns = sess.execute(
+            select(func.count(CopilotChatMessage.id)).where(
+                CopilotChatMessage.chat_id == chat_id,
+                CopilotChatMessage.role == "question",
+            )
+        ).scalar() or 0
+        if turns >= 20:
+            raise ValueError("对话轮数已达上限")
+        sess.add(CopilotChatMessage(
+            chat_id=chat_id, student_id=student_id, session_id=session_id,
+            role="question", content=question, status="ASKED",
+        ))
+        if answer is not None:
+            text = answer.get("answer") if isinstance(answer, dict) else ""
+            evidence = answer.get("evidence") if isinstance(answer, dict) else []
+            sess.add(CopilotChatMessage(
+                chat_id=chat_id, student_id=student_id, session_id=session_id,
+                role="answer", content=str(text or ""),
+                evidence=json.dumps(evidence or [], ensure_ascii=False),
+                status=status,
+            ))
+        sess.commit()
+
+
+def list_chats(student_id: int) -> list[dict]:
+    with Session(_engine()) as sess:
+        rows = sess.execute(
+            select(CopilotChatMessage)
+            .where(CopilotChatMessage.student_id == student_id)
+            .order_by(CopilotChatMessage.id.asc())
+        ).scalars().all()
+    grouped: dict[str, list] = {}
+    for row in rows:
+        grouped.setdefault(row.chat_id, []).append(row)
+
+    chats = []
+    for chat_id, messages in grouped.items():
+        questions = [item for item in messages if item.role == "question"]
+        answers = [item for item in messages if item.role == "answer"]
+        latest = messages[-1]
+        chats.append({
+            "chatId": chat_id,
+            "studentId": messages[0].student_id,
+            "sessionId": messages[0].session_id,
+            "question": questions[0].content if questions else "",
+            "answer": answers[-1].content if answers else "",
+            "status": latest.status,
+            "turnCount": len(questions),
+            "createdAt": _iso(messages[0].created_at),
+            "updatedAt": _iso(latest.created_at),
+        })
+    chats.sort(key=lambda item: item["updatedAt"] or "", reverse=True)
+    return chats
+
+
+def get_chat(chat_id: str) -> dict:
+    with Session(_engine()) as sess:
+        rows = sess.execute(
+            select(CopilotChatMessage)
+            .where(CopilotChatMessage.chat_id == chat_id)
+            .order_by(CopilotChatMessage.id.asc())
+        ).scalars().all()
+    if not rows:
+        raise NotFoundError("对话不存在")
+    turns = []
+    for row in rows:
+        if row.role == "question":
+            turns.append({
+                "question": row.content,
+                "answer": None,
+                "evidence": [],
+                "status": row.status,
+                "createdAt": _iso(row.created_at),
+            })
+        elif row.role == "answer" and turns:
+            turns[-1]["answer"] = row.content
+            turns[-1]["evidence"] = _load_json(row.evidence, [])
+            turns[-1]["status"] = row.status
+            turns[-1]["answerCreatedAt"] = _iso(row.created_at)
+    return {
+        "chatId": chat_id,
+        "studentId": rows[0].student_id,
+        "sessionId": rows[0].session_id,
+        "turnCount": len(turns),
+        "createdAt": _iso(rows[0].created_at),
+        "updatedAt": _iso(rows[-1].created_at),
+        "turns": turns,
+    }

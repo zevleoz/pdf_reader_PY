@@ -335,6 +335,13 @@ ADMIN_NAV = [
     {"key": "students", "title": "学生", "links": [
         {"key": "students", "label": "学生档案", "href": "/students", "icon": "users"},
     ]},
+    {"key": "first_touch", "title": "First Touch", "links": [
+        {"key": "first_touch", "label": "工作台", "href": "/first-touch", "icon": "target"},
+        {"key": "first_touch.copilot", "label": "聊天中心", "href": "/first-touch/copilot",
+         "icon": "sparkle"},
+        {"key": "first_touch.guide", "label": "使用指南", "href": "/first-touch/guide",
+         "icon": "book"},
+    ]},
     {"key": "generate", "title": "报告生成", "links": [
         {"key": "generate", "label": "报告生成", "href": "/generate", "icon": "file",
          "roles": ("admin", "advisor")},

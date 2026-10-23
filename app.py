@@ -180,6 +180,7 @@ def create_app() -> Flask:
     # --- 注册蓝图（导入放在 create_app 内，避免与 app_utils 形成导入环） ---
     from blueprints.api_v1 import bp as api_v1_bp
     from blueprints.auth import bp as auth_bp
+    from blueprints.copilot import bp as copilot_bp
     from blueprints.growth_talk import bp as growth_talk_bp
     from blueprints.insights import bp as insights_bp
     from blueprints.integrations import bp as integrations_bp
@@ -191,7 +192,7 @@ def create_app() -> Flask:
     from blueprints.workspace import bp as workspace_bp
 
     for _bp in (auth_bp, workspace_bp, students_bp, reports_bp,
-                growth_talk_bp, integrations_bp, questionnaires_bp,
+                growth_talk_bp, copilot_bp, integrations_bp, questionnaires_bp,
                 insights_bp, tools_bp, system_bp, api_v1_bp):
         app.register_blueprint(_bp)
 
@@ -217,6 +218,21 @@ if __name__ == "__main__":
         from growth_talk.jobs import run_analysis_job
         try:
             run_analysis_job(int(sys.argv[2]))
+        except Exception:
+            sys.exit(1)
+
+    if len(sys.argv) > 1 and sys.argv[1] == "copilotjob":
+        # 独立子进程执行 Copilot LLM 作业：python app.py copilotjob <job_id> <args.json>
+        from growth_talk.jobs import run_copilot_job
+        try:
+            _copilot_args = json.loads(
+                Path(sys.argv[3]).read_text(encoding="utf-8"))
+        except Exception:
+            _copilot_args = {}
+        try:
+            run_copilot_job(
+                sys.argv[2], _copilot_args.get("kind"),
+                _copilot_args.get("payload") or {})
         except Exception:
             sys.exit(1)
 

@@ -1,0 +1,402 @@
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% block title %}First Touch{% endblock %}
+{% block page_title %}First Touch{% endblock %}
+
+{% block page_actions %}
+<button type="button" class="btn btn-sec" onclick="openY4Import()">
+  {{ icon('download', 13) }} 从 Y4 导入
+</button>
+{% if ctx.canImport %}
+<button type="button" class="btn btn-sec" onclick="openYuguoImport()">
+  {{ icon('refresh', 13) }} 从 Yuguo 导入
+</button>
+{% endif %}
+<button type="button" class="btn btn-primary" onclick="ftOpenAddDialog()">
+  {{ icon('users', 13) }} 手动添加学生
+</button>
+{% endblock %}
+
+{% block head_extra %}
+{% include "first_touch/_styles.html" %}
+<style>
+  #yuguoImportDialog[hidden],
+  #y4ImportDialog[hidden] { display: none !important; }
+  .ft-import-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .ft-import-table th {
+    padding: 6px 8px; text-align: left; font-size: 11px; font-weight: 600;
+    letter-spacing: .05em; color: var(--muted); background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .ft-import-table td {
+    padding: 7px 8px; border-bottom: 1px solid var(--line-soft); color: var(--ink-2);
+  }
+
+  .ft-y4-toolbar {
+    display: flex; align-items: center; gap: 12px;
+    margin: 12px 0 7px; font-size: 12px; color: var(--muted);
+  }
+  .ft-y4-toolbar label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .ft-y4-list {
+    max-height: 300px; overflow: auto; border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+  }
+  .ft-y4-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 11px; border-bottom: 1px solid var(--line-soft);
+    font-size: 12.5px; cursor: pointer;
+  }
+  .ft-y4-row:last-child { border-bottom: 0; }
+  .ft-y4-row:hover { background: var(--bg); }
+  .ft-y4-row .nm { font-weight: 550; color: var(--ink); }
+  .ft-y4-row .meta { font-size: 11.5px; color: var(--muted); }
+  .ft-y4-row .spacer { flex: 1; }
+  .ft-y4-empty { padding: 14px 12px; font-size: 12px; color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ft-page" x-data="ftHome()"
+     @ft:add-student.window="addOpen = true">
+  <section class="surface ft-hero">
+    <span class="ft-kicker">First Touch</span>
+    <h1>七阶段会谈工作台</h1>
+    <p>从会议准备到报告确认，逐阶段沉淀会谈话术、Y4 解读、兴趣证据与项目方向。会谈中的补充材料在会后上传，由 Copilot 生成兴趣候选与项目建议。</p>
+  </section>
+
+  <section class="surface">
+    <div class="surface-head">
+      <span class="surface-title">学生</span>
+      <span class="count-pill">{{ ctx.students | length }}</span>
+      <span class="spacer"></span>
+      <a class="btn btn-sec btn-sm" href="/first-touch/guide">查看使用指南</a>
+      <a class="btn btn-sec btn-sm" href="/first-touch/copilot">聊天中心</a>
+    </div>
+    <div class="ft-grid">
+      {% for s in ctx.students %}
+      <article class="ft-card">
+        <div class="ft-card-head">
+          <div style="min-width:0">
+            <div class="ft-card-name">{{ s.name }}</div>
+            <div class="ft-card-meta">{{ [s.code, s.grade, s.school] | select | join(' · ') or '—' }}</div>
+          </div>
+          <span class="spacer"></span>
+          <span class="badge {{ 'badge-brand' if s.phaseLabel else 'badge-neutral' }}">{{ s.phaseLabel or '未开始' }}</span>
+        </div>
+        <div class="ft-card-stats">
+          <span>会谈 <b>{{ s.sessionCount }}</b></span>
+          <span>已确认报告 <b>{{ s.reportCount }}</b></span>
+        </div>
+        <div class="ft-card-actions">
+          <a class="btn btn-primary btn-sm" href="/first-touch/students/{{ s.id }}">进入工作台</a>
+          <a class="btn btn-sec btn-sm" href="/first-touch/copilot/{{ s.id }}">聊天</a>
+          <a class="btn btn-sec btn-sm" href="/students/{{ s.code }}">360 档案</a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% if not ctx.students %}
+    <div class="empty">
+      <div class="ic">{{ icon('users', 16) }}</div>
+      <div class="t">还没有学生</div>
+      <div class="d">手动添加学生或从 Yuguo 导入后，即可开始首次会谈。</div>
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- 手动添加学生 -->
+  <div class="dialog-backdrop" x-cloak x-show="addOpen" @click.self="addOpen = false">
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="手动添加学生">
+      <div class="dialog-title">手动添加学生</div>
+      <div class="dialog-body">
+        <div class="field">
+          <label class="field-label">学生姓名</label>
+          <input class="input" x-model="form.name" maxlength="100" placeholder="请输入学生姓名"
+                 @keydown.enter.prevent="submitAdd()">
+        </div>
+        <div class="field">
+          <label class="field-label">年级</label>
+          <input class="input" x-model="form.grade" maxlength="50" placeholder="如 10 年级">
+        </div>
+        <div class="field">
+          <label class="field-label">学校</label>
+          <input class="input" x-model="form.school" maxlength="200" placeholder="可选">
+        </div>
+        <div class="ft-error" x-show="addError" x-text="addError"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-sec" @click="addOpen = false">取消</button>
+        <button type="button" class="btn btn-primary" :disabled="addBusy" @click="submitAdd()"
+                x-text="addBusy ? '正在创建…' : '创建并进入工作台'"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 从 Y4 导入（平台已有报告） -->
+  {% set y4list = ctx.students | selectattr('y4ReportCount') | list %}
+  <div class="dialog-backdrop" id="y4ImportDialog" hidden
+       onclick="if (event.target === this) closeY4Import()">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="y4ImportTitle"
+         style="max-width:560px">
+      <div class="dialog-title" id="y4ImportTitle">从 Y4 导入</div>
+      <div class="dialog-body">
+        <p style="margin:0">选择已有 Y4 报告的学生，导入后会创建会谈工作台并绑定最新一份报告。</p>
+        <div class="ft-y4-toolbar">
+          <label><input type="checkbox" id="y4SelectAll" checked onchange="toggleY4All(this.checked)"> 全选</label>
+          <span id="y4SelectedCount">已选 0 人</span>
+        </div>
+        {% if y4list %}
+        <div class="ft-y4-list">
+          {% for s in y4list %}
+          <label class="ft-y4-row">
+            <input type="checkbox" class="y4-student" value="{{ s.id }}" checked onchange="updateY4Count()">
+            <span class="nm">{{ s.name }}</span>
+            <span class="meta">{{ [s.code, s.grade] | select | join(' · ') }}</span>
+            <span class="spacer"></span>
+            <span class="meta">Y4 {{ s.y4ReportCount }} 份{% if s.y4LatestDate %} · {{ s.y4LatestDate }}{% endif %}</span>
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="ft-y4-empty">
+          {% if current_role == 'advisor' %}
+          当前顾问（{{ current_display_name }}）名下暂无带 Y4 报告的学生。请确认学生归属，或改用管理员账号导入。
+          {% else %}
+          当前没有带 Y4 报告的学生，请先在报告生成中完成测评。
+          {% endif %}
+        </div>
+        {% endif %}
+        <div id="y4ImportError" hidden class="ft-error"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-sec" onclick="closeY4Import()">取消</button>
+        <button type="button" class="btn btn-primary" id="y4ImportConfirm"
+                onclick="submitY4Import()" {% if not y4list %}disabled{% endif %}>开始导入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 从 Yuguo 导入 -->
+  <div class="dialog-backdrop" id="yuguoImportDialog" hidden
+       onclick="if (event.target === this) closeYuguoImport()">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="yuguoImportTitle">
+      <div class="dialog-title" id="yuguoImportTitle">从 Yuguo 导入学生</div>
+      <div class="dialog-body">
+        <div id="yuguoImportLoading" class="page-sub" style="margin:0">
+          正在拉取 Yuguo 学生名单，请稍候…
+        </div>
+        <div id="yuguoImportResult" hidden>
+          <div class="ft-summary" id="yuguoImportSummary"></div>
+          <div id="yuguoImportRejectedWrap" hidden>
+            <div class="field-label" style="margin:14px 0 6px">未导入学生</div>
+            <div style="max-height:220px; overflow:auto">
+              <table class="ft-import-table" id="yuguoImportRejected">
+                <thead><tr><th>姓名</th><th>Yuguo ID</th><th>原因</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="yuguoImportError" hidden style="color:var(--danger); font-size:13px"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" id="yuguoImportClose"
+                onclick="closeYuguoImport()">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function ftOpenAddDialog() {
+  window.dispatchEvent(new CustomEvent('ft:add-student'));
+}
+
+function ftHome() {
+  return {
+    addOpen: false,
+    addBusy: false,
+    addError: '',
+    form: { name: '', grade: '', school: '' },
+    async submitAdd() {
+      if (this.addBusy) return;
+      const name = (this.form.name || '').trim();
+      if (!name) { this.addError = '请填写学生姓名'; return; }
+      this.addBusy = true;
+      this.addError = '';
+      try {
+        const resp = await fetch('/api/first-touch/students', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name,
+            grade: this.form.grade || '',
+            school: this.form.school || ''
+          })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.ok === false) {
+          throw new Error(data.error || ('HTTP ' + resp.status));
+        }
+        window.location.href = '/first-touch/students/' + data.student.id;
+      } catch (e) {
+        this.addError = e.message;
+        this.addBusy = false;
+      }
+    }
+  };
+}
+
+// --- 从 Y4 导入（平台已有报告） ---
+let y4ImportBusy = false;
+
+function openY4Import() {
+  document.getElementById('y4ImportDialog').hidden = false;
+  document.getElementById('y4ImportError').hidden = true;
+  updateY4Count();
+}
+
+function closeY4Import() {
+  if (y4ImportBusy) return;
+  document.getElementById('y4ImportDialog').hidden = true;
+}
+
+function y4Boxes() {
+  return Array.from(document.querySelectorAll('input.y4-student'));
+}
+
+function toggleY4All(checked) {
+  y4Boxes().forEach(box => { box.checked = checked; });
+  updateY4Count();
+}
+
+function updateY4Count() {
+  const boxes = y4Boxes();
+  const selected = boxes.filter(box => box.checked).length;
+  const label = document.getElementById('y4SelectedCount');
+  if (label) label.textContent = '已选 ' + selected + ' 人';
+  const all = document.getElementById('y4SelectAll');
+  if (all) {
+    all.checked = boxes.length > 0 && selected === boxes.length;
+    all.indeterminate = selected > 0 && selected < boxes.length;
+  }
+}
+
+async function submitY4Import() {
+  if (y4ImportBusy) return;
+  const error = document.getElementById('y4ImportError');
+  const ids = y4Boxes().filter(box => box.checked).map(box => Number(box.value));
+  if (!ids.length) {
+    error.textContent = '请至少选择一名学生';
+    error.hidden = false;
+    return;
+  }
+  y4ImportBusy = true;
+  const button = document.getElementById('y4ImportConfirm');
+  button.disabled = true;
+  button.textContent = '正在导入…';
+  try {
+    const resp = await fetch('/api/first-touch/import-y4', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentIds: ids })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || ('HTTP ' + resp.status));
+    }
+    window.v2Toast('已导入 ' + data.imported + ' 名学生', 'success');
+    setTimeout(function () { window.location.reload(); }, 600);
+  } catch (e) {
+    error.textContent = '导入失败：' + e.message;
+    error.hidden = false;
+    y4ImportBusy = false;
+    button.disabled = false;
+    button.textContent = '开始导入';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', updateY4Count);
+
+// --- 从 Yuguo 导入（复用第一阶段端点） ---
+let yuguoImportBusy = false;
+
+function openYuguoImport() {
+  if (yuguoImportBusy) return;
+  document.getElementById('yuguoImportDialog').hidden = false;
+  document.getElementById('yuguoImportLoading').hidden = false;
+  document.getElementById('yuguoImportResult').hidden = true;
+  document.getElementById('yuguoImportError').hidden = true;
+  document.getElementById('yuguoImportClose').disabled = true;
+  runYuguoImport();
+}
+
+function closeYuguoImport() {
+  if (yuguoImportBusy) return;
+  document.getElementById('yuguoImportDialog').hidden = true;
+}
+
+async function runYuguoImport() {
+  yuguoImportBusy = true;
+  try {
+    const resp = await fetch('/students/import-yuguo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || ('HTTP ' + resp.status));
+    }
+    renderYuguoImport(data);
+  } catch (e) {
+    const el = document.getElementById('yuguoImportError');
+    el.textContent = '导入失败：' + e.message;
+    el.hidden = false;
+  } finally {
+    yuguoImportBusy = false;
+    document.getElementById('yuguoImportLoading').hidden = true;
+    document.getElementById('yuguoImportClose').disabled = false;
+  }
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+  });
+}
+
+function renderYuguoImport(data) {
+  const summary = data.localImport || {};
+  const cells = [
+    ['新建', summary.created || 0, false],
+    ['关联', summary.attached || 0, false],
+    ['更新', summary.refreshed || 0, false],
+    ['已存在', summary.alreadyLocal || 0, false],
+    ['冲突', summary.conflicts || 0, true],
+    ['未导入', summary.rejected || 0, true]
+  ];
+  document.getElementById('yuguoImportSummary').innerHTML = cells.map(function (cell) {
+    return '<div class="ft-summary-cell' + (cell[2] && cell[1] ? ' is-warn' : '') + '">' +
+           '<span class="n">' + Number(cell[1]) + '</span>' +
+           '<span class="k">' + cell[0] + '</span></div>';
+  }).join('');
+
+  const rejected = data.rejectedStudents || [];
+  document.querySelector('#yuguoImportRejected tbody').innerHTML = rejected.map(function (item) {
+    return '<tr><td>' + escapeHtml(item.name || '—') + '</td>' +
+           '<td class="mono">' + escapeHtml(item.id || '—') + '</td>' +
+           '<td>' + escapeHtml(item.message || item.reasonCode || '—') + '</td></tr>';
+  }).join('');
+  document.getElementById('yuguoImportRejectedWrap').hidden = !rejected.length;
+  document.getElementById('yuguoImportResult').hidden = false;
+  if ((summary.created || 0) + (summary.attached || 0) > 0) {
+    window.v2Toast('导入完成，正在刷新列表…', 'success');
+    setTimeout(function () { window.location.reload(); }, 900);
+  }
+}
+</script>
+{% endblock %}

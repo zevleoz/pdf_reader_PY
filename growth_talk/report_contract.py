@@ -355,7 +355,9 @@ def build_report_preview(run_id: int) -> dict:
 def confirm_report(run_id: int, *, reviewed_meeting: bool,
                    reviewed_narrative: bool, suggestion_ids: list,
                    fingerprint: str, confirmed_by: str,
-                   actor_id: int | str | None = None) -> dict:
+                   actor_id: int | str | None = None,
+                   session_id: int | None = None,
+                   session_revision: int | None = None) -> dict:
     run = store.get_run(run_id)
     if not run:
         raise NotFoundError("分析不存在")
@@ -418,6 +420,8 @@ def confirm_report(run_id: int, *, reviewed_meeting: bool,
         student["id"], run_id, "{}", confirmed_by,
         payload_builder=build_payload,
         expected_revision=preview["revision"],
+        session_id=session_id,
+        session_revision=session_revision,
     )
     return {
         "id": row["id"],

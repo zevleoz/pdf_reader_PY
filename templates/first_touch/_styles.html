@@ -1,0 +1,66 @@
+{# First Touch 分区共用样式（home / chat_picker / chat / guide / archive） #}
+<style>
+  [x-cloak] { display: none !important; }
+
+  .ft-page { display: flex; flex-direction: column; gap: 14px; }
+
+  .ft-hero { padding: 18px 20px 20px; }
+  .ft-kicker {
+    font-size: 10.5px; font-weight: 650; letter-spacing: .14em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .ft-hero h1 {
+    margin-top: 5px; font-size: 20px; font-weight: 650; letter-spacing: -.02em;
+    color: var(--ink);
+  }
+  .ft-hero p {
+    margin-top: 5px; max-width: 760px; font-size: 12.5px; line-height: 1.7;
+    color: var(--muted);
+  }
+
+  .ft-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+    gap: 12px; padding: 14px 16px 16px;
+  }
+  .ft-card {
+    display: flex; flex-direction: column; gap: 9px; min-width: 0;
+    padding: 13px 14px; border: 1px solid var(--line);
+    border-radius: var(--r-sm); background: var(--bg);
+  }
+  .ft-card-head { display: flex; align-items: flex-start; gap: 8px; }
+  .ft-card-head .spacer { flex: 1; }
+  .ft-card-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .ft-card-meta {
+    margin-top: 2px; font-size: 11.5px; line-height: 1.55; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ft-card-stats { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); }
+  .ft-card-stats b {
+    color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .ft-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; padding-top: 3px; }
+
+  .ft-error {
+    margin-top: 4px; padding: 8px 10px; border-radius: var(--r-sm);
+    background: var(--danger-soft); color: var(--danger); font-size: 12.5px;
+  }
+
+  .ft-summary {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 8px; margin-top: 4px;
+  }
+  .ft-summary-cell {
+    padding: 8px 10px; border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm); background: var(--surface);
+  }
+  .ft-summary-cell .n {
+    display: block; font-size: 18px; font-weight: 650;
+    font-variant-numeric: tabular-nums; color: var(--ink);
+  }
+  .ft-summary-cell .k { display: block; margin-top: 1px; font-size: 11.5px; color: var(--muted); }
+  .ft-summary-cell.is-warn .n { color: var(--warn); }
+
+  .ft-empty {
+    padding: 12px 16px 16px; font-size: 12px; color: var(--muted);
+  }
+</style>

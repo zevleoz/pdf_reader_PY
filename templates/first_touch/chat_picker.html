@@ -1,0 +1,62 @@
+{% extends "layouts/admin_v2.html" %}
+{% from "layouts/_icons.html" import icon %}
+
+{% block title %}聊天中心 · First Touch{% endblock %}
+{% block page_title %}聊天中心{% endblock %}
+
+{% block page_actions %}
+<a class="btn btn-sec" href="/first-touch">{{ icon('chevron-left', 13) }} 返回工作台</a>
+{% endblock %}
+
+{% block head_extra %}
+{% include "first_touch/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="ft-page">
+  <section class="surface ft-hero">
+    <span class="ft-kicker">First Touch</span>
+    <h1>聊天中心</h1>
+    <p>向 Copilot 追问会谈中的事实、Y4 结论与学生兴趣证据。回答只基于已确认的会谈文字稿与平台报告，依据以折叠列表展示。</p>
+  </section>
+
+  <section class="surface">
+    <div class="surface-head">
+      <span class="surface-title">有会谈记录的学生</span>
+      <span class="count-pill">{{ ctx.students | length }}</span>
+      <span class="spacer"></span>
+      <a class="btn btn-sec btn-sm" href="/first-touch">全部学生</a>
+    </div>
+    <div class="ft-grid">
+      {% for s in ctx.students %}
+      <article class="ft-card">
+        <div class="ft-card-head">
+          <div style="min-width:0">
+            <div class="ft-card-name">{{ s.name }}</div>
+            <div class="ft-card-meta">{{ [s.code, s.grade, s.school] | select | join(' · ') or '—' }}</div>
+          </div>
+          <span class="spacer"></span>
+          <span class="badge badge-brand">{{ s.phaseLabel or '进行中' }}</span>
+        </div>
+        <div class="ft-card-stats">
+          <span>会谈 <b>{{ s.sessionCount }}</b></span>
+          <span>对话 <b>{{ s.chatCount }}</b></span>
+          <span>报告 <b>{{ s.reportCount }}</b></span>
+        </div>
+        <div class="ft-card-actions">
+          <a class="btn btn-primary btn-sm" href="/first-touch/copilot/{{ s.id }}">打开聊天</a>
+          <a class="btn btn-sec btn-sm" href="/first-touch/students/{{ s.id }}">工作台</a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% if not ctx.students %}
+    <div class="empty">
+      <div class="ic">{{ icon('sparkle', 16) }}</div>
+      <div class="t">还没有可聊天的学生</div>
+      <div class="d">先在工作台创建一次会谈记录，学生就会出现在这里。</div>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
