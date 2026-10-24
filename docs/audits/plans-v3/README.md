@@ -15,6 +15,7 @@ Design spec: `../first-touch-v3-prototype.html` (clickable; open it in a browser
 | 1 | **V1** AI provider · **V2** remove Yuguo + Growth Talk 1.0 UI · **V3a** session model + Y4 start | — |
 | 2 | **V3b** wrap-up & report backend · **V4a** student list, nav, guide · **V5** student 360 | V3a (all three); V1 (for V3b) |
 | 3 | **V4b** workspace rewrite | V1, V3a, V3b |
+| 4 | **V6** fix-ups from the end-to-end review | everything above |
 
 File ownership never overlaps within a wave. V3a then V3b share `blueprints/copilot.py` / `growth_talk/copilot.py`, so they run in sequence.
 
