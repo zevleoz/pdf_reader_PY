@@ -8,7 +8,7 @@
 
 **Tech Stack:** Flask / Jinja / Alpine（CDN）/ pytest。
 
-**Spec:** `docs/superpowers/specs/2026-10-23-copilot-v2-gap-analysis.md`（逐项差距与 file:line 证据，**执行时必读**）；背景：`2026-10-23-copilot-v2-merge-design.md`、第一阶段 spec/plan。
+**Spec:** `docs/superpowers/specs/2026-10-23-copilot-v2-gap-analysis.md`（逐项差距与 file:line 证据，**执行时必读**）；UI 验收标准另读设计评审快照 `.impeccable/critique/2026-10-24T01-06-30Z__pdf-converter-templates-first-touch-workspace-html.md`（18/40，P0×2 P1×2，本计划已全量并入）；背景：`2026-10-23-copilot-v2-merge-design.md`、第一阶段 spec/plan。
 
 **源仓库（只读参考）：** `/Users/jefflau/projects/first-touch`。UI 文案、状态标签、交互细节以实现时读原版组件为准。
 
@@ -77,6 +77,7 @@ def test_meeting_at_in_preview_payload(client, seeded_session):
   - 候选卡完整编辑：改名 input、分类 select（subject/interest/social）、喜欢/擅长 0–3 select、逐条证据展示
   - 分数冲突解决 UI：逐条冲突显示"采用会议建议 / 保留已确认评分"按钮 + 未解决计数；有未解决冲突时 phase PATCH 按原样触发 `409 请确认兴趣评分差异`（后端已有，前端需展示该 toast 并滚动到冲突区）
   - "会议对 Y4 的验证"编辑器：AI 生成列表 + 逐条编辑 + 重新生成按钮；保存进 supplement analysis 的 `y4Validation`（≤3 条 × ≤100 字，前端计数）
+  - **候选默认待决（评审 P1）**：候选审核默认状态必须是"待决"，不得在顾问操作前显示"已纳入"（当前 `decision === 'exclude' ? '已排除' : '已纳入'` 谎报状态）；纳入/排除按钮加按下态（aria-pressed 或等效视觉）。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -98,18 +99,20 @@ def test_y4_validation_saved_via_phase_patch(client, ...):
 
 ---
 
-### Task 3: 阶段 3 分数保真（M13、P1、P2、P3）
+### Task 3: 阶段 3 重做——分组卡片 + 实时象限（M13、P1、P2、P3 + 评审 P0×2）
+
+**方向（用户已拍板）**：放弃电子表格模型，恢复原版交互模型——左侧**按分类折叠的兴趣卡片组**（subject/interest/social 三组，组头计数 + 组内"新增"，语义化分数标签如 `非常喜欢/非常擅长`，卡片内含 note/evidence 编辑），右侧**固定高度实时象限板**（编辑即时上板，660px 左右分栏，参考 `CopilotWorkspace.tsx:227` 的 split 布局）。这是评审确认的最大单项机会。
 
 **Files:**
-- Modify: `templates/first_touch/workspace.html`
+- Modify: `templates/first_touch/workspace.html`、`growth_talk/copilot.py`（AI payload 过滤未评分项）
 - Test: `test_copilot_gapfixes.py`
 
 **Interfaces:**
-- 分数下拉必须有空选项 `待评`（value 空 → 提交 null）；**删除所有 null→1 的强制转换**（`workspace.html:702-705, 811-815`）；象限板只渲染双分数非 null 的项；报告缺失清单把未评分兴趣列为必填（后端已有，验证其出现）。
-- 4×4 板补轴标签 `擅长程度 ↑` / `喜欢程度 →` 与图例 `横轴：喜欢 0–3 / 纵轴：擅长 0–3` + "N 项已评分"计数。
+- 分数下拉必须有空选项 `待评`（value 空 → 提交 null）；**删除所有 null→1 的强制转换**（`workspace.html:702-705, 811-815`）；象限板只渲染双分数非 null 的项；未评分项不进 AI payload（next-steps/projects 的 interests 输入过滤 null 分数——检查 `growth_talk/copilot.py` 相应装配函数）；报告缺失清单把未评分兴趣列为必填（后端已有，验证其出现）。
+- **象限板破版修复（评审 P0，根因已定位）**：`workspace.html:312-321, 362-371` 的 `<template x-for>` 有多个根子节点，违反 Alpine 单根规则导致只渲染标签。修法：每行包单个容器（`display:contents` 的 div）或拍平为单层循环。4×4 板必须是真正的 CSS grid：第一列行轴（擅长 3→0 纵向）、第一行列轴（喜欢 0→3 横向）、空态也渲染完整 16 格边框。恢复单元格内 `score / score` 标签、分区色、图例 `横轴：喜欢 0–3 / 纵轴：擅长 0–3` + "N 项已评分"计数。
 - 3×3 板映射修正为 `v===null→无 / v>=3→高 / v===2→中 / 其余(0–1)→低`，标签逐字 `喜欢高（3）/喜欢中（2）/喜欢低（0–1）` 等，补图例与计数。
-- 兴趣列表改分类分组（subject/interest/social 三组可折叠，组头计数 + 组内"新增"按钮），参考 `CopilotWorkspace.tsx:227`。
-- **修复象限板破版（V1，视觉走查实证）**：空数据态下行轴标签横向排列、网格消失。4×4 板必须是真正的 CSS grid：第一列为行轴（擅长 3→0 纵向），第一行为列轴（喜欢 0→3 横向），4×4 单元格即使在空态也渲染完整网格边框。验收：空态与满态截图均网格完整。
+- **特别关注**：每条兴趣卡加"特别关注"开关（沿用一阶段 `set-special-focus` 语义，每 run/session 至多一个）；指南页在教这个能力，工作台必须有入口。
+- **浏览免费、保存 deliberate**：纯浏览/切换阶段不得 bump revision（评审实测浏览一圈 27→33）；只有实际修改才发 PATCH。409 时 toast + 重载（已有）。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -175,6 +178,8 @@ def test_workspace_has_confirmed_report_view(client, ...):
 - 卡片完整字段：证据引用列表（`evidenceQuotes`）、fitType 中文名（`observation_research→观察研究` 等，逐字自原版映射）、兴趣引用勾选、顾问版本视图。
 - "新增方案"按钮 → 空卡编辑；`recommendationId` 送 `null`；后端 `apply_project_edits` 遇 null id 分配 `str(uuid4())` 并计入新批次（其余校验不变）。
 - 空态修正（V3）：零推荐条目时隐藏"保存项目审核"按钮，显示空态文案而非禁用粉色按钮。
+- **阅读模式优先（评审 P2）**：项目卡默认阅读模式（标题 + 摘要 + 状态徽标），点击内容进编辑模式，而非 5 个常显输入框。
+- **过期可见（评审）**：指纹过期的项目列表标灰显示"已过期，需重新生成"，不得整体隐藏（当前 `projectItems = []` 直接消失）。
 - 粘贴块导入：原版支持把 JSON 块粘贴导入（`ProjectRecommendationList.tsx`），如实现成本高可降级为"新增方案"手工填写——**允许降级，需在本任务 commit message 注明**。
 
 - [ ] **Step 1: 写失败测试**
@@ -206,6 +211,7 @@ def test_apply_project_edits_accepts_new_item(qdb, session_with_batch):
 - 阶段 2 增加 Y4 画像三卡（职业兴趣/能力倾向/价值偏好 + 校准 note），数据来自 session calibration。
 - 阶段 4：进入时若 `script.nextSummary` 为空自动调 `next-steps`；摘要行内可编辑（随 phase PATCH 保存，≤1400 字计数）；顶部已评分兴趣 chips 行。
 - 阶段 0 校准四字段各加 AI 来源徽标与逐字段"重新生成"（整体重新生成后覆盖，逐字段=重新生成后仅替换该字段）。
+- **生成失败的可恢复性（评审）**：所有 AI 生成任务（校准、下一步摘要、补充分析、项目推荐、报告准备）失败后须留下**持久页内状态**（错误面板 + 重试按钮），不得 toast 过后页面静默回到"待生成"无痕。错误文案面向顾问，不暴露系统行话（如"未配置画像分析服务"改为引导性文案 + 详情折叠）。
 
 - [ ] **Step 1: 写失败测试**（页面标记断言：阶段 1 不含 interpretation 容器、阶段 2 含三卡容器、阶段 4 含编辑 textarea）
 - [ ] **Step 2: 跑测试确认失败**
@@ -227,6 +233,8 @@ def test_apply_project_edits_accepts_new_item(qdb, session_with_batch):
 - 选择器：顶部搜索框（按姓名过滤）。
 - 浮动聊天：历史列表（点击载入该 chat）、新对话、"展开为全页"链接（`/first-touch/copilot/<sid>?chat=<id>`）、同样的停止按钮与格式化渲染。
 - 删除后深链处理：`?chat=<不存在>` → 落到该学生最新对话，无对话则空态 + "开始聊天"按钮。
+- **键盘契约统一（评审）**：聊天中心与浮动面板发送键一致——统一为 Ctrl/Cmd+Enter 发送、Enter 换行，两处 placeholder 文案同步。
+- **浮动聊天补阶段 3（评审）**：浮动聊天在 `phase in (0, 3, 5, 6)` 显示——会谈现场（阶段 4 兴趣事项，phase index 3）正是证据提问的场景。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -263,6 +271,8 @@ def test_chat_page_fallback_on_deleted_deep_link(client, ...):
 - Yuguo 导入按钮对所有登录角色可见（对齐原版）；导入结果弹层加 PARTIAL/FAILED/COMPLETED 标题区分 + 按 reasonCode 的指引文案（逐字自 `CopilotStudentList.tsx:16-20`：`LOCAL_CONFLICT→…`、`INVALID_STUDENT_FIELDS→…` 等）。
 - 归档报告行加"Activity Hub JSON"下载（格式按 `docs/integrations/junction/first-touch-activity-hub/api-profile.schema.json` 生成）+ 已确认报告显示 `已 finalize · 视为已推送` 徽标。
 - 移除归档的原始 payload `<pre>`（PORT-ONLY 冗余）。
+- **归档入口（评审）**：学生 360 档案页与 First Touch 首页学生卡加"归档"链接（仅 admin 可见）——当前 `/first-touch/archive/<sid>` 是孤儿页。
+- **字号地板线（检测器发现）**：`archive.html` 两处 11.5px 正文 → ≥12px；`chat.html` 一处 11.5px + 两处 10.5px 功能文字 → ≥12px/≥11px。修完跑 `impeccable detect` 确认零发现。
 
 - [ ] **Step 1: 写失败测试**
 
