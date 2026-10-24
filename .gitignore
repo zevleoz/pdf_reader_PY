@@ -32,3 +32,7 @@ new_iteration/*_rendered.html
 # 本地 API 调用演示页 & IDE 计划文档（不进生产）
 api_demo_client/
 .trae/
+
+# 测试 / 性能采样缓存
+.pytest_cache/
+*.profraw
