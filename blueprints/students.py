@@ -291,6 +291,7 @@ def student_360(code):
         nav_active="students",
         profile=st,
         can_write=session.get("role") != "viewer",
+        is_admin=session.get("role") == "admin",
         stage=_student_progress_context(st["id"]),
         stage_meta=PROGRESS_STAGES,
         gt_reports=gt_reports,

@@ -22,24 +22,31 @@
   .ft-arc-summary::-webkit-details-marker { display: none; }
   .ft-arc-summary:hover { background: #FAFAFB; }
   .ft-arc-summary .t { font-size: 13px; font-weight: 550; color: var(--ink); }
-  .ft-arc-summary .m { font-size: 11.5px; color: var(--muted); }
+  .ft-arc-summary .m { font-size: 12px; color: var(--muted); }
+  .ft-arc-format { font-size: 12px; color: var(--muted); }
+  .ft-arc-finalized {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 7px; border-radius: 999px; white-space: nowrap;
+    background: var(--ok-soft); color: var(--ok);
+    font-size: 12px; font-weight: 600;
+  }
   .ft-arc-summary .spacer { flex: 1; }
   .ft-arc-body { padding: 4px 16px 16px; }
   .ft-pre {
     margin: 0; padding: 10px 12px; max-height: 260px; overflow: auto;
     background: var(--bg); border: 1px solid var(--line-soft); border-radius: var(--r-sm);
-    font-family: var(--mono); font-size: 11.5px; line-height: 1.65;
+    font-family: var(--mono); font-size: 12px; line-height: 1.65;
     color: var(--ink-2); white-space: pre-wrap; word-break: break-word;
   }
   .ft-arc-block { margin-top: 12px; }
   .ft-arc-block > h4 {
-    margin-bottom: 6px; font-size: 11.5px; font-weight: 650;
+    margin-bottom: 6px; font-size: 12px; font-weight: 650;
     letter-spacing: .05em; color: var(--muted);
   }
   .ft-arc-block p { font-size: 12.5px; line-height: 1.7; color: var(--ink-2); }
   .ft-arc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   .ft-arc-table th {
-    padding: 6px 8px; text-align: left; font-size: 11px; font-weight: 600;
+    padding: 6px 8px; text-align: left; font-size: 12px; font-weight: 600;
     letter-spacing: .05em; color: var(--muted); background: var(--bg);
     border-bottom: 1px solid var(--line);
   }
@@ -176,7 +183,13 @@
     <details class="ft-arc-item">
       <summary class="ft-arc-summary">
         <span class="t">版本 v{{ report.version }}</span>
+        {% if report.format != 'first-touch.report.v1' %}
+        <span class="ft-arc-format">历史格式</span>
+        {% endif %}
         <span class="spacer"></span>
+        {% if report.status == 'CONFIRMED' and report.activityHubAvailable %}
+        <span class="ft-arc-finalized">{{ icon('check', 12) }}已 finalize · 视为已推送</span>
+        {% endif %}
         <span class="badge {{ 'badge-ok' if report.status == 'CONFIRMED' else 'badge-neutral' }}">{{ report.status }}</span>
         <span class="m mono">{{ report.confirmed_at or report.created_at }}</span>
       </summary>
@@ -184,17 +197,15 @@
         <div class="ft-arc-block">
           <h4>确认信息</h4>
           <p>确认人：{{ report.confirmed_by or '—' }} · 确认时间：{{ report.confirmed_at or '—' }}</p>
-          <div style="display:flex; gap:6px; margin-top:8px">
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">
             <a class="btn btn-sec btn-sm" href="/api/growth-talk/reports/{{ report.id }}/download.json" download>JSON</a>
             <a class="btn btn-sec btn-sm" href="/api/growth-talk/reports/{{ report.id }}/download.pdf" target="_blank">PDF</a>
+            {% if report.activityHubAvailable %}
+            <a class="btn btn-sec btn-sm" href="/api/first-touch/reports/{{ report.id }}/activity-hub.json"
+               title="下载用于 Activity Hub 导入的 JSON" download>Activity Hub JSON</a>
+            {% endif %}
           </div>
         </div>
-        {% if report.payload %}
-        <div class="ft-arc-block">
-          <h4>报告内容</h4>
-          <pre class="ft-pre">{{ report.payload }}</pre>
-        </div>
-        {% endif %}
       </div>
     </details>
     {% endfor %}

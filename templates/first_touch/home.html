@@ -9,7 +9,8 @@
   {{ icon('download', 13) }} 从 Y4 导入
 </button>
 {% if ctx.canImport %}
-<button type="button" class="btn btn-sec" onclick="openYuguoImport()">
+<button type="button" class="btn btn-sec" onclick="openYuguoImport()"
+        title="导入宇果当前已分配的新学生，已有工作区按宇果分配自动转交">
   {{ icon('refresh', 13) }} 从 Yuguo 导入
 </button>
 {% endif %}
@@ -53,12 +54,39 @@
   .ft-y4-row .meta { font-size: 11.5px; color: var(--muted); }
   .ft-y4-row .spacer { flex: 1; }
   .ft-y4-empty { padding: 14px 12px; font-size: 12px; color: var(--muted); }
+
+  /* 正文最小 12px */
+  .ft-page .ft-card-meta,
+  .ft-page .ft-card-stats,
+  .ft-page .ft-summary-cell .k { font-size: 12px; }
+  .ft-import-table th { font-size: 12px; }
+  .ft-y4-row .meta { font-size: 12px; }
+
+  .ft-add-success {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 4px 0 2px; color: var(--ink-2);
+  }
+  .ft-add-success .ic { display: inline-flex; margin-top: 1px; color: var(--ok); }
+  .ft-add-success .tt { font-size: 13px; font-weight: 650; color: var(--ink); }
+  .ft-add-success .dd { margin-top: 3px; font-size: 12.5px; line-height: 1.7; }
+
+  .ft-import-notice {
+    display: flex; align-items: flex-start; gap: 9px;
+    padding: 10px 12px; border-radius: var(--r-sm);
+    border: 1px solid var(--line-soft); background: var(--bg);
+    font-size: 12.5px; line-height: 1.7; color: var(--ink-2);
+  }
+  .ft-import-notice.is-success { border-color: #BBE5C8; background: var(--ok-soft); color: var(--ok); }
+  .ft-import-notice.is-error { border-color: #F6C9C9; background: var(--danger-soft); color: var(--danger); }
+  .ft-import-notice .ic { display: inline-flex; margin-top: 1px; }
+  .ft-import-notice .tt { font-size: 12.5px; font-weight: 650; }
+  .ft-import-notice .dd { margin-top: 2px; color: var(--ink-2); }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="ft-page" x-data="ftHome()"
-     @ft:add-student.window="addOpen = true">
+     @ft:add-student.window="openAdd()">
   <section class="surface ft-hero">
     <span class="ft-kicker">First Touch</span>
     <h1>七阶段会谈工作台</h1>
@@ -90,8 +118,12 @@
         </div>
         <div class="ft-card-actions">
           <a class="btn btn-primary btn-sm" href="/first-touch/students/{{ s.id }}">进入工作台</a>
+          <a class="btn btn-sec btn-sm" href="/first-touch/students/{{ s.id }}?entry=direct">直接上传会后资料</a>
           <a class="btn btn-sec btn-sm" href="/first-touch/copilot/{{ s.id }}">聊天</a>
           <a class="btn btn-sec btn-sm" href="/students/{{ s.code }}">360 档案</a>
+          {% if ctx.isAdmin %}
+          <a class="btn btn-sec btn-sm" href="/first-touch/archive/{{ s.id }}">归档</a>
+          {% endif %}
         </div>
       </article>
       {% endfor %}
@@ -106,14 +138,14 @@
   </section>
 
   <!-- 手动添加学生 -->
-  <div class="dialog-backdrop" x-cloak x-show="addOpen" @click.self="addOpen = false">
+  <div class="dialog-backdrop" x-cloak x-show="addOpen" @click.self="closeAdd()">
     <div class="dialog" role="dialog" aria-modal="true" aria-label="手动添加学生">
       <div class="dialog-title">手动添加学生</div>
-      <div class="dialog-body">
+      <div class="dialog-body" x-show="!addSuccess">
         <div class="field">
           <label class="field-label">学生姓名</label>
           <input class="input" x-model="form.name" maxlength="100" placeholder="请输入学生姓名"
-                 @keydown.enter.prevent="submitAdd()">
+                 autocomplete="off" @keydown.enter.prevent="submitAdd()">
         </div>
         <div class="field">
           <label class="field-label">年级</label>
@@ -123,12 +155,30 @@
           <label class="field-label">学校</label>
           <input class="input" x-model="form.school" maxlength="200" placeholder="可选">
         </div>
+        <div class="field">
+          <label class="field-label">联系电话（选填）</label>
+          <input class="input" type="tel" x-model="form.phone" maxlength="50"
+                 placeholder="学生或家长联系电话" autocomplete="off">
+        </div>
         <div class="ft-error" x-show="addError" x-text="addError"></div>
       </div>
+      <div class="dialog-body" x-show="addSuccess">
+        <div class="ft-add-success" role="status">
+          <span class="ic">{{ icon('check-circle', 18) }}</span>
+          <div>
+            <div class="tt">学生已添加</div>
+            <div class="dd"><span x-text="addSuccess ? addSuccess.name : ''"></span> 已加入你的工作区，可从下方列表进入会谈。</div>
+          </div>
+        </div>
+      </div>
       <div class="dialog-actions">
-        <button type="button" class="btn btn-sec" @click="addOpen = false">取消</button>
-        <button type="button" class="btn btn-primary" :disabled="addBusy" @click="submitAdd()"
-                x-text="addBusy ? '正在创建…' : '创建并进入工作台'"></button>
+        <button type="button" class="btn btn-sec" x-show="!addSuccess" @click="closeAdd()">取消</button>
+        <button type="button" class="btn btn-primary" x-show="!addSuccess"
+                :disabled="addBusy" @click="submitAdd()"
+                x-text="addBusy ? '正在创建…' : '保存学生'"></button>
+        <button type="button" class="btn btn-sec" x-show="addSuccess" @click="closeAdd()">关闭</button>
+        <a class="btn btn-primary" x-show="addSuccess"
+           :href="addSuccess ? '/first-touch/students/' + addSuccess.id : '#'">进入工作台</a>
       </div>
     </div>
   </div>
@@ -187,20 +237,29 @@
           正在拉取 Yuguo 学生名单，请稍候…
         </div>
         <div id="yuguoImportResult" hidden>
+          <div class="ft-import-notice" id="yuguoImportNotice" role="status" hidden>
+            <span class="ic" data-tone="success">{{ icon('check-circle', 16) }}</span>
+            <span class="ic" data-tone="error" hidden>{{ icon('x-circle', 16) }}</span>
+            <div>
+              <div class="tt" id="yuguoImportNoticeTitle"></div>
+              <div class="dd" id="yuguoImportNoticeDetail"></div>
+            </div>
+          </div>
           <div class="ft-summary" id="yuguoImportSummary"></div>
           <div id="yuguoImportRejectedWrap" hidden>
             <div class="field-label" style="margin:14px 0 6px">未导入学生</div>
             <div style="max-height:220px; overflow:auto">
               <table class="ft-import-table" id="yuguoImportRejected">
-                <thead><tr><th>姓名</th><th>Yuguo ID</th><th>原因</th></tr></thead>
+                <thead><tr><th>姓名</th><th>Yuguo ID</th><th>原因</th><th>指引</th></tr></thead>
                 <tbody></tbody>
               </table>
             </div>
           </div>
         </div>
-        <div id="yuguoImportError" hidden style="color:var(--danger); font-size:13px"></div>
       </div>
       <div class="dialog-actions">
+        <button type="button" class="btn btn-sec" id="yuguoImportRefresh" hidden
+                onclick="window.location.reload()">刷新列表</button>
         <button type="button" class="btn btn-primary" id="yuguoImportClose"
                 onclick="closeYuguoImport()">关闭</button>
       </div>
@@ -215,16 +274,52 @@ function ftOpenAddDialog() {
   window.dispatchEvent(new CustomEvent('ft:add-student'));
 }
 
+function ftNewRequestId() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+    window.crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < 16; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, function (b) {
+    return b.toString(16).padStart(2, '0');
+  }).join('');
+  return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) +
+         '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+}
+
 function ftHome() {
   return {
     addOpen: false,
     addBusy: false,
     addError: '',
-    form: { name: '', grade: '', school: '' },
-    async submitAdd() {
+    addSuccess: null,
+    requestId: '',
+    form: { name: '', grade: '', school: '', phone: '' },
+    openAdd() {
+      this.form = { name: '', grade: '', school: '', phone: '' };
+      this.addError = '';
+      this.addSuccess = null;
+      this.addBusy = false;
+      this.requestId = ftNewRequestId();
+      this.addOpen = true;
+    },
+    closeAdd() {
       if (this.addBusy) return;
+      const created = this.addSuccess;
+      this.addOpen = false;
+      if (created) window.location.reload();
+    },
+    async submitAdd() {
+      if (this.addBusy || this.addSuccess) return;
       const name = (this.form.name || '').trim();
       if (!name) { this.addError = '请填写学生姓名'; return; }
+      if (!this.requestId) this.requestId = ftNewRequestId();
       this.addBusy = true;
       this.addError = '';
       try {
@@ -234,16 +329,22 @@ function ftHome() {
           body: JSON.stringify({
             name: name,
             grade: this.form.grade || '',
-            school: this.form.school || ''
+            school: this.form.school || '',
+            phone: this.form.phone || '',
+            requestId: this.requestId
           })
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || data.ok === false) {
           throw new Error(data.error || ('HTTP ' + resp.status));
         }
-        window.location.href = '/first-touch/students/' + data.student.id;
+        this.addSuccess = {
+          id: data.student.id,
+          name: data.student.name || name
+        };
       } catch (e) {
         this.addError = e.message;
+      } finally {
         this.addBusy = false;
       }
     }
@@ -324,12 +425,24 @@ document.addEventListener('DOMContentLoaded', updateY4Count);
 // --- 从 Yuguo 导入（复用第一阶段端点） ---
 let yuguoImportBusy = false;
 
+const FT_REJECTION_GUIDANCE = {
+  INVALID_STUDENT_FIELDS: '请检查学生姓名、年级等必填信息后重试。',
+  LOCAL_CONFLICT: '学生身份映射或宇果分配版本不一致，请核对后重试。',
+  LOCAL_IMPORT_FAILED: '请稍后重试；若持续失败，请联系管理员查看导入日志。'
+};
+
+function rejectionGuidance(code) {
+  return FT_REJECTION_GUIDANCE[code] || '请修正后重试。';
+}
+
 function openYuguoImport() {
   if (yuguoImportBusy) return;
   document.getElementById('yuguoImportDialog').hidden = false;
+  document.getElementById('yuguoImportTitle').textContent = '从 Yuguo 导入学生';
   document.getElementById('yuguoImportLoading').hidden = false;
   document.getElementById('yuguoImportResult').hidden = true;
-  document.getElementById('yuguoImportError').hidden = true;
+  document.getElementById('yuguoImportNotice').hidden = true;
+  document.getElementById('yuguoImportRefresh').hidden = true;
   document.getElementById('yuguoImportClose').disabled = true;
   runYuguoImport();
 }
@@ -353,9 +466,12 @@ async function runYuguoImport() {
     }
     renderYuguoImport(data);
   } catch (e) {
-    const el = document.getElementById('yuguoImportError');
-    el.textContent = '导入失败：' + e.message;
-    el.hidden = false;
+    const result = document.getElementById('yuguoImportResult');
+    result.hidden = false;
+    document.getElementById('yuguoImportSummary').innerHTML = '';
+    document.getElementById('yuguoImportRejectedWrap').hidden = true;
+    document.getElementById('yuguoImportRefresh').hidden = true;
+    renderYuguoImportNotice('error', '导入失败', '导入未完成：' + e.message);
   } finally {
     yuguoImportBusy = false;
     document.getElementById('yuguoImportLoading').hidden = true;
@@ -369,8 +485,24 @@ function escapeHtml(value) {
   });
 }
 
+function renderYuguoImportNotice(tone, title, detail) {
+  const wrap = document.getElementById('yuguoImportNotice');
+  wrap.hidden = false;
+  wrap.classList.toggle('is-error', tone === 'error');
+  wrap.classList.toggle('is-success', tone !== 'error');
+  wrap.querySelectorAll('.ic').forEach(function (el) {
+    el.hidden = el.dataset.tone !== (tone === 'error' ? 'error' : 'success');
+  });
+  document.getElementById('yuguoImportNoticeTitle').textContent = title;
+  document.getElementById('yuguoImportNoticeDetail').textContent = detail;
+  document.getElementById('yuguoImportTitle').textContent = title;
+}
+
 function renderYuguoImport(data) {
   const summary = data.localImport || {};
+  const status = summary.status || 'COMPLETED';
+  const changed = (summary.created || 0) + (summary.attached || 0) +
+                  (summary.refreshed || 0);
   const cells = [
     ['新建', summary.created || 0, false],
     ['关联', summary.attached || 0, false],
@@ -389,14 +521,27 @@ function renderYuguoImport(data) {
   document.querySelector('#yuguoImportRejected tbody').innerHTML = rejected.map(function (item) {
     return '<tr><td>' + escapeHtml(item.name || '—') + '</td>' +
            '<td class="mono">' + escapeHtml(item.id || '—') + '</td>' +
-           '<td>' + escapeHtml(item.message || item.reasonCode || '—') + '</td></tr>';
+           '<td>' + escapeHtml(item.message || '—') + '</td>' +
+           '<td>' + escapeHtml(rejectionGuidance(item.reasonCode)) + '</td></tr>';
   }).join('');
   document.getElementById('yuguoImportRejectedWrap').hidden = !rejected.length;
+
+  let title = '导入完成';
+  if (status === 'FAILED') title = '没有学生成功导入';
+  else if (status === 'PARTIAL') title = '部分学生已导入';
+  else if (!changed) title = '学生列表已是最新';
+
+  const detail = [
+    summary.created ? '新增 ' + summary.created + ' 位' : '',
+    summary.attached ? '重新关联 ' + summary.attached + ' 位' : '',
+    summary.refreshed ? '更新资料 ' + summary.refreshed + ' 位' : '',
+    summary.alreadyLocal ? '已在本地 ' + summary.alreadyLocal + ' 位' : '',
+    summary.rejected ? summary.rejected + ' 位未导入' : ''
+  ].filter(Boolean).join('，') || ('共检查 ' + (summary.fetched || 0) + ' 位学生');
+
+  renderYuguoImportNotice(status === 'FAILED' ? 'error' : 'success', title, detail);
   document.getElementById('yuguoImportResult').hidden = false;
-  if ((summary.created || 0) + (summary.attached || 0) > 0) {
-    window.v2Toast('导入完成，正在刷新列表…', 'success');
-    setTimeout(function () { window.location.reload(); }, 900);
-  }
+  document.getElementById('yuguoImportRefresh').hidden = changed <= 0;
 }
 </script>
 {% endblock %}

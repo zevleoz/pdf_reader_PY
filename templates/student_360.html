@@ -187,6 +187,9 @@
         </div>
         <div style="flex:1"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">
+          {% if is_admin %}
+          <a class="btn btn-sec" href="/first-touch/archive/{{ profile.id }}">First Touch 归档</a>
+          {% endif %}
           <!-- 上下文主按钮：随生命周期阶段变化，全页只出现一次 -->
           <template x-if="stage.suggestion && stage.suggestion.action_kind === 'link'">
             <a class="btn btn-primary stage-primary" :href="stage.suggestion.action_href"
