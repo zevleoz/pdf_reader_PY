@@ -1611,6 +1611,26 @@ def list_chats(student_id: int) -> list[dict]:
     return chats
 
 
+def delete_chat(chat_id: str) -> None:
+    """硬删一条对话的全部消息；不存在时抛 NotFoundError。"""
+    def _run():
+        with Session(_engine()) as sess:
+            existed = sess.execute(
+                select(CopilotChatMessage.id)
+                .where(CopilotChatMessage.chat_id == chat_id)
+                .limit(1)
+            ).first()
+            if not existed:
+                raise NotFoundError("对话不存在")
+            sess.execute(
+                delete(CopilotChatMessage)
+                .where(CopilotChatMessage.chat_id == chat_id)
+            )
+            sess.commit()
+
+    _with_retry(_run)
+
+
 def get_chat(chat_id: str) -> dict:
     with Session(_engine()) as sess:
         rows = sess.execute(

@@ -99,6 +99,7 @@ def _report_result(row: dict) -> dict:
         "id": row["id"],
         "version": row["version"],
         "confirmedAt": row.get("confirmed_at"),
+        "confirmedBy": row.get("confirmed_by"),
     }
 
 
@@ -519,7 +520,8 @@ def prepare_report(session_id: int, expected_revision: int) -> dict:
     revision = prepared["revision"]
     _ensure_quadrant(run_id)
     _check_report_session(session_id, revision)
-    preview = report_contract.build_report_preview(run_id)
+    preview = report_contract.build_report_preview(
+        run_id, meeting_at=session.get("meeting_at") or session.get("created_at"))
     _check_report_session(session_id, revision)
 
     draft["calibration"] = dict(preview["career"]) if preview.get("career") else None

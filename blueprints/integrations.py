@@ -940,7 +940,7 @@ def _notices_payload(advisor_name: str) -> dict:
 # session 路由：导入 / 改派同步
 # ---------------------------------------------------------------------------
 @bp.route("/students/import-yuguo", methods=["POST"])
-@role_required("advisor")
+@role_required("admin", "advisor")
 def api_import_yuguo():
     user = _db.get_user_by_id(session.get("user_id")) or {}
     teacher_user = {

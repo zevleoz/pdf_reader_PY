@@ -115,12 +115,17 @@ def validate_interest_drafts(items) -> list[dict]:
         evidence = raw.get("evidence").strip() if isinstance(raw.get("evidence"), str) else ""
         if len(note) > 2000 or len(evidence) > 4000:
             raise ValueError("事项备注或证据过长")
+        special_focus = raw.get("specialFocus", False)
+        if not isinstance(special_focus, bool):
+            raise ValueError("特别关注标记无效")
         result.append({
             "id": interest_id, "label": label, "topicType": topic_type,
             "preferenceScore": raw.get("preferenceScore"),
             "competenceScore": raw.get("competenceScore"),
-            "note": note, "evidence": evidence,
+            "note": note, "evidence": evidence, "specialFocus": special_focus,
         })
+    if sum(1 for item in result if item["specialFocus"]) > 1:
+        raise ValueError("特别关注只能标记一项")
     return result
 
 
@@ -367,6 +372,26 @@ def validate_report_y4_validation(value) -> list[str]:
     return [item.strip() for item in value]
 
 
+def clamp_y4_validation(value) -> list[str]:
+    """顾问编辑保存时的宽松钳制：最多 3 条、单条 100 字。"""
+    if not isinstance(value, list):
+        return []
+    return [
+        item.strip()[:REPORT_CONTENT_LIMITS["y4ValidationItem"]]
+        for item in value
+        if isinstance(item, str) and item.strip()
+    ][:REPORT_CONTENT_LIMITS["y4ValidationCount"]]
+
+
+def _scorable_interests(interests: list[dict]) -> list[dict]:
+    """AI 输入只送双分数已评的兴趣；未评分项留给顾问先补分。"""
+    return [
+        item for item in interests
+        if item.get("preferenceScore") is not None
+        and item.get("competenceScore") is not None
+    ]
+
+
 def run_supplement_analysis(session_id: int) -> dict:
     session = store.get_session(session_id)
     if not session:
@@ -430,7 +455,7 @@ def _next_steps_prompt(student_name: str, transcript: str, interests: list[dict]
         "note": item.get("note"), "evidence": item.get("evidence"),
         "preferenceScore": item.get("preferenceScore"),
         "competenceScore": item.get("competenceScore"),
-    } for item in interests]
+    } for item in _scorable_interests(interests)]
     return f"""你是 First Touch 会谈总结助手。请基于学生 {student_name} 的会议资料和顾问已保存的兴趣评分，生成一段“总结与下一步”的审核草稿。
 
 只输出 JSON：{{"summary":"..."}}。
@@ -713,7 +738,8 @@ def generate_projects(session_id: int) -> dict:
             if item.get("status") == "CONFIRMED"
         ]
     output = call_model(_projects_prompt(
-        _student_name(session["student_id"]), transcript[:30000], interests, existing,
+        _student_name(session["student_id"]), transcript[:30000],
+        _scorable_interests(interests), existing,
     ))
     recommendations = output.get("recommendations") if isinstance(output, dict) else None
     try:
@@ -803,9 +829,16 @@ def apply_project_edits(session_id: int, items: list[dict], actor: str) -> dict:
     source_id = supplement["source_id"]
     if not recommendations_current(source_id, interests, analysis):
         raise store.RevisionConflict("会议资料或兴趣已变化，请重新生成项目清单")
+    prepared = []
+    for item in items:
+        row = dict(item) if isinstance(item, dict) else item
+        if isinstance(row, dict) and not row.get("recommendationId"):
+            row["recommendationId"] = str(uuid.uuid4())
+            row.setdefault("version", 1)
+        prepared.append(row)
     previous = analysis["projectRecommendations"]
     validated = validate_recommendation_edits(
-        items, previous.get("items") or [], interests, meeting.get("content") or "",
+        prepared, previous.get("items") or [], interests, meeting.get("content") or "",
     )
     batch = {
         **previous,

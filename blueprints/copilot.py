@@ -10,6 +10,7 @@ import io
 import json
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
@@ -31,6 +32,10 @@ bp = Blueprint("copilot", __name__)
 
 _JOB_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _UPLOAD_SUFFIXES = {".pdf", ".docx", ".txt", ".md"}
+
+# 手动建档 requestId 幂等缓存：{(actor_id, request_id): (monotonic, student_id)}
+_MANUAL_STUDENT_IDEMPOTENCY: dict[tuple, tuple[float, int]] = {}
+_IDEMPOTENCY_TTL_SECONDS = 600
 
 
 # ---------------------------------------------------------------------------
@@ -195,17 +200,25 @@ def api_get_session(session_id: int):
 
     run_id = row.get("run_id")
     report_id = None
+    report = None
     has_generated = False
     if run_id:
         with Session(store.engine()) as sess:
-            report = sess.execute(
+            report_row = sess.execute(
                 select(store.GtReport).where(
                     store.GtReport.run_id == run_id,
                     store.GtReport.student_id == row["student_id"],
                     store.GtReport.status == "CONFIRMED",
                 ).order_by(store.GtReport.id.desc())
             ).scalars().first()
-            report_id = report.id if report else None
+            report_id = report_row.id if report_row else None
+            if report_row:
+                report = {
+                    "id": report_row.id,
+                    "version": report_row.version,
+                    "confirmedAt": report_row.confirmed_at,
+                    "confirmedBy": report_row.confirmed_by,
+                }
         full = store.get_run_full(run_id) or {}
         has_generated = bool(report_id or full.get("quadrant"))
 
@@ -226,6 +239,7 @@ def api_get_session(session_id: int):
         "entryMode": _entry_mode(row),
         "student": _student_profile(row["student_id"]),
         "reportId": report_id,
+        "report": report,
         "hasGeneratedReport": has_generated,
         "sourceFileNames": source_names,
         "projectsCurrent": projects_current,
@@ -281,6 +295,12 @@ def api_save_phase(session_id: int):
             not isinstance(supplement_patch, dict)
             or isinstance(supplement_patch, list)):
         return _error("审核线索格式无效", 400)
+    if isinstance(supplement_patch, dict) and "y4Validation" in supplement_patch:
+        supplement_patch = {
+            **supplement_patch,
+            "y4Validation": copilot.clamp_y4_validation(
+                supplement_patch.get("y4Validation")),
+        }
 
     supplement = store.latest_supplement(session_id)
     saved_supplement = None
@@ -671,7 +691,8 @@ def api_report_pdf(session_id: int):
     current = store.get_session(session_id) or row
     draft = copilot_report.report_draft(current, student)
     try:
-        preview = report_contract.build_report_preview(current["run_id"])
+        preview = report_contract.build_report_preview(
+            current["run_id"], meeting_at=current.get("meeting_at"))
     except (store.NotFoundError, store.RevisionConflict, ActionError) as exc:
         return _error_response(exc)
     payload = {
@@ -680,6 +701,7 @@ def api_report_pdf(session_id: int):
             "grade": student.get("grade") or "",
             "school": student.get("school") or "",
         },
+        "meetingAt": current.get("meeting_at") or current.get("created_at"),
         "meetingSummary": preview["meetingSummary"],
         "narrative": preview["narrative"],
         "career": preview.get("career"),
@@ -792,7 +814,8 @@ def page_home():
         "first_touch/home.html", nav_active="first_touch",
         ctx={
             "students": _first_touch_students(),
-            "canImport": session.get("role") == "advisor",
+            "canImport": True,
+            "isAdmin": session.get("role") == "admin",
         })
 
 
@@ -815,6 +838,7 @@ def page_chat(sid: int):
     if not profile or not _student_or_404(sid):
         abort(404)
     active_chat_id = (request.args.get("chat") or "").strip()
+    chats = store.list_chats(sid)
     active = None
     if active_chat_id and _JOB_ID_RE.fullmatch(active_chat_id):
         try:
@@ -823,6 +847,12 @@ def page_chat(sid: int):
             row = None
         if row and row.get("studentId") == sid:
             active = row
+    if active is None and active_chat_id and chats:
+        # 深链指向已删除/不存在的对话时，落到该学生最新对话
+        try:
+            active = store.get_chat(chats[0]["chatId"])
+        except store.NotFoundError:
+            active = None
     sessions = store.list_sessions(
         sid, _actor_id() if session.get("role") == "advisor" else None)
     ctx = {
@@ -831,10 +861,13 @@ def page_chat(sid: int):
         "code": profile.get("student_code") or "",
         "grade": profile.get("grade") or "",
         "school": profile.get("school") or "",
-        "chats": store.list_chats(sid),
+        "chats": chats,
+        "students": _first_touch_students(),
         "activeChat": active,
         "sessionId": sessions[0]["id"] if sessions else None,
         "canWrite": session.get("role") in ("admin", "advisor"),
+        "maxTurns": 20,
+        "maxChats": 20,
     }
     return render_template("first_touch/chat.html",
                            nav_active="first_touch.copilot", ctx=ctx)
@@ -855,6 +888,15 @@ def page_archive(sid: int):
         abort(404)
     store.write_audit(_actor_id(), sid, "archive_viewed",
                       json.dumps({"path": request.path}, ensure_ascii=False))
+    reports = store.list_reports(sid)
+    for report in reports:
+        try:
+            report_format = json.loads(report.get("payload") or "{}").get("schema")
+        except (TypeError, ValueError):
+            report_format = None
+        report["format"] = report_format
+        report["activityHubAvailable"] = (
+            report_format == report_contract.REPORT_SCHEMA_VERSION)
     ctx = {
         "sid": sid,
         "name": profile.get("name") or "",
@@ -863,10 +905,19 @@ def page_archive(sid: int):
         "school": profile.get("school") or "",
         "sources": store.list_sources(sid),
         "runs": store.list_runs(sid),
-        "reports": store.list_reports(sid),
+        "reports": reports,
     }
     return render_template("first_touch/archive.html",
                            nav_active="first_touch.archive", ctx=ctx)
+
+
+def _idempotency_lookup(key) -> int | None:
+    now = time.monotonic()
+    for stale in [k for k, (ts, _sid) in _MANUAL_STUDENT_IDEMPOTENCY.items()
+                  if now - ts > _IDEMPOTENCY_TTL_SECONDS]:
+        _MANUAL_STUDENT_IDEMPOTENCY.pop(stale, None)
+    hit = _MANUAL_STUDENT_IDEMPOTENCY.get(key)
+    return hit[1] if hit else None
 
 
 @bp.route("/api/first-touch/students", methods=["POST"])
@@ -882,9 +933,24 @@ def api_create_student():
         return _error("学生姓名不能超过 100 字", 400)
     grade = body.get("grade") if isinstance(body.get("grade"), str) else ""
     school = body.get("school") if isinstance(body.get("school"), str) else ""
-    grade, school = grade.strip(), school.strip()
+    phone = body.get("phone") if isinstance(body.get("phone"), str) else ""
+    grade, school, phone = grade.strip(), school.strip(), phone.strip()
     if len(grade) > 50 or len(school) > 200:
         return _error("年级或学校名称过长", 400)
+    if len(phone) > 50:
+        return _error("联系电话不能超过 50 字", 400)
+
+    request_id = body.get("requestId")
+    request_id = request_id.strip() if isinstance(request_id, str) else ""
+    idempotency_key = (_actor_id(), request_id) if request_id else None
+    if idempotency_key:
+        existing_id = _idempotency_lookup(idempotency_key)
+        existing_profile = (
+            _student_profile(existing_id) if existing_id else None)
+        if existing_profile:
+            return jsonify({"ok": True, "existing": True,
+                            "student": existing_profile})
+
     advisor_name = session.get("advisor_name") or ""
     if session.get("role") == "admin":
         advisor_name = ((body.get("advisorName") or "").strip()
@@ -895,7 +961,11 @@ def api_create_student():
             select(_db.Student.id).where(_db.Student.name == name)
         ).first() is not None
     student_id = _db.find_or_create_student(
-        name=name, grade=grade, school=school, advisor_name=advisor_name)
+        name=name, grade=grade, school=school, phone=phone,
+        advisor_name=advisor_name)
+    if idempotency_key:
+        _MANUAL_STUDENT_IDEMPOTENCY[idempotency_key] = (
+            time.monotonic(), student_id)
     return jsonify({"ok": True, "student": _student_profile(student_id)}), (
         200 if existed else 201)
 
@@ -944,17 +1014,20 @@ def page_workspace(sid: int):
     profile = _student_profile(sid)
     if not profile or not _student_or_404(sid):
         abort(404)
-    entry_mode = "direct" if request.args.get("entry") == "direct" else "guided"
-    row, _created = store.create_session(
-        sid, _actor_id(), entry_mode,
-        datetime.utcnow().replace(microsecond=0).isoformat())
+    initial_entry_mode = (
+        "direct" if request.args.get("entry") == "direct" else "guided")
+    advisor_id = None if session.get("role") == "admin" else _actor_id()
+    sessions = store.list_sessions(sid, advisor_id)
+    row = sessions[0] if sessions else None
     ctx = {
         "sid": sid,
         "code": profile.get("student_code") or "",
         "name": profile.get("name") or "",
         "grade": profile.get("grade") or "",
         "school": profile.get("school") or "",
-        "sessionId": row["id"],
+        "sessionId": row["id"] if row else None,
+        "entryScreen": row is None,
+        "initialEntryMode": initial_entry_mode,
         "canWrite": session.get("role") in ("admin", "advisor"),
         "phases": copilot.PHASES,
     }
@@ -1042,3 +1115,139 @@ def api_get_chat(chat_id: str):
     if not _student_or_404(chat["studentId"]):
         return _error("对话不存在", 404)
     return jsonify({"chat": chat})
+
+
+@bp.route("/api/copilot/chats/<chat_id>", methods=["DELETE"])
+@role_required("admin", "advisor")
+def api_delete_chat(chat_id: str):
+    try:
+        chat = store.get_chat(chat_id)
+    except store.NotFoundError:
+        return _error("对话不存在", 404)
+    if not _student_or_404(chat["studentId"]):
+        return _error("对话不存在", 404)
+    try:
+        store.delete_chat(chat_id)
+    except store.NotFoundError:
+        return _error("对话不存在", 404)
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Activity Hub 导出
+# ---------------------------------------------------------------------------
+def _activity_hub_section(value) -> dict:
+    text = value.strip() if isinstance(value, str) and value.strip() else ""
+    return {
+        "dimensions": [],
+        "summary": text or "未提供测评结果。",
+        "evidence": [],
+    }
+
+
+def _activity_hub_profile(report: dict, student: dict) -> dict:
+    """按 first-touch-activity-hub/api-profile.schema.json 生成画像。"""
+    try:
+        payload = json.loads(report.get("payload") or "{}")
+    except (TypeError, ValueError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    career = payload.get("career") if isinstance(payload.get("career"), dict) else None
+    report_id = str(payload.get("reportId") or report.get("id") or "")
+    student_name = (
+        (payload.get("student") or {}).get("name") if isinstance(payload.get("student"), dict)
+        else None) or student.get("name") or ""
+    student_grade = (
+        (payload.get("student") or {}).get("grade") if isinstance(payload.get("student"), dict)
+        else None) or student.get("grade") or "未填写"
+    student_school = (
+        (payload.get("student") or {}).get("school") if isinstance(payload.get("student"), dict)
+        else None) or student.get("school") or None
+
+    interests = []
+    for item in payload.get("interests") or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("preferenceScore") is None or item.get("competenceScore") is None:
+            continue
+        evidence = item.get("evidence")
+        interests.append({
+            "interestId": str(item.get("id") or ""),
+            "label": str(item.get("label") or ""),
+            "sourceType": "interest",
+            "topicType": "hobby",
+            "preferenceScoreV2": int(item["preferenceScore"]),
+            "competenceScoreV2": int(item["competenceScore"]),
+            "studentEvidence": [str(evidence)] if evidence else [],
+            "sourceRefs": [report_id],
+        })
+    career_interests = (career or {}).get("careerInterests") or ""
+    ability = (career or {}).get("abilityTendencies") or ""
+    values = (career or {}).get("valuePreferences") or ""
+    career_summary = "；".join(
+        value for value in (career_interests, ability, values) if value) \
+        or "未提供职业兴趣测评结果。"
+
+    return {
+        "schema": "first_touch.activity_hub_import.3.0.0",
+        "schemaVersion": "3.0.0",
+        "yuguoStudentId": str(payload.get("yuguoStudentId") or student.get("student_code")
+                              or student.get("id") or ""),
+        "firstTouchStudentId": str(student.get("id") or ""),
+        "sourceReport": {
+            "reportId": report_id,
+            "reportVersion": int(report.get("version") or 1),
+            "confirmedAt": report.get("confirmed_at"),
+        },
+        "student": {
+            "name": student_name,
+            "grade": student_grade,
+            "school": student_school,
+        },
+        "careerInterestProfile": {
+            "resultId": f"{report_id}:career",
+            "careerInterests": {
+                "framework": "not_available",
+                "frameworkVersion": None,
+                "dimensions": [],
+                "topCodes": [],
+                "summary": career_interests or "未提供职业兴趣测评结果。",
+                "evidence": [],
+            },
+            "abilityTendencies": _activity_hub_section(ability),
+            "valuePreferences": _activity_hub_section(values),
+            "summary": career_summary,
+            "evidence": [],
+        },
+        "interestProfile": {
+            "items": interests,
+            "summary": "已确认兴趣象限。",
+        },
+    }
+
+
+@bp.route("/api/first-touch/reports/<int:report_id>/activity-hub.json")
+@role_required("admin", "advisor")
+def api_report_activity_hub(report_id: int):
+    report = store.get_report(report_id)
+    if not report or not _student_or_404(report["student_id"]):
+        return _error("报告不存在", 404)
+    if report.get("status") != "CONFIRMED":
+        return _error("报告尚未确认", 409)
+    try:
+        payload = json.loads(report.get("payload") or "{}")
+    except (TypeError, ValueError):
+        payload = {}
+    if payload.get("schema") != report_contract.REPORT_SCHEMA_VERSION:
+        return _error("历史报告格式不支持 Activity Hub 导出", 409)
+    student = _student_profile(report["student_id"]) or {
+        "id": report["student_id"], "name": "", "grade": "", "school": ""}
+    profile = _activity_hub_profile(report, student)
+    data = json.dumps(profile, ensure_ascii=False, indent=2).encode("utf-8")
+    response = send_file(
+        io.BytesIO(data), mimetype="application/json; charset=utf-8",
+        as_attachment=True,
+        download_name=f"first-touch-activity-hub-{report['id']}.json")
+    response.headers["Cache-Control"] = "no-store"
+    return response

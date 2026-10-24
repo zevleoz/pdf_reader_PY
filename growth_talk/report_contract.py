@@ -236,7 +236,7 @@ def _yuguo_student_id(student: dict) -> str:
     return student.get("student_code") or str(student["id"])
 
 
-def build_report_preview(run_id: int) -> dict:
+def build_report_preview(run_id: int, meeting_at: str | None = None) -> dict:
     run = store.get_run_full(run_id)
     if not run:
         raise NotFoundError("分析不存在")
@@ -305,7 +305,7 @@ def build_report_preview(run_id: int) -> dict:
         })
 
     fingerprint = report_fingerprint(run, career_source, student)
-    meeting_at = run["created_at"]
+    meeting_at = meeting_at or run["created_at"]
     meeting_summary = analysis.meeting_summary_with_overview(
         run["understanding"]["summary"], student["name"], interests)
     payload_interests = [{
