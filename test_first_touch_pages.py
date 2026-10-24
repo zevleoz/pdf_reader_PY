@@ -44,22 +44,20 @@ def test_home_page_hides_other_advisor_students(client, qdb):
     assert "陈同学" not in html
 
 
-def test_chat_picker_renders(client, qdb):
+def test_chat_picker_redirects_home(client, qdb):
     login_as(client, qdb)
     qdb.session()
     resp = client.get("/first-touch/copilot")
-    assert resp.status_code == 200
-    html = resp.get_data(as_text=True)
-    assert "聊天中心" in html
-    assert "林同学" in html
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/first-touch"
 
 
-def test_chat_page_renders(client, qdb):
+def test_chat_page_redirects_workspace(client, qdb):
     login_as(client, qdb)
     qdb.session()
     resp = client.get(f"/first-touch/copilot/{qdb.student_id}")
-    assert resp.status_code == 200
-    assert "ftChat" in resp.get_data(as_text=True)
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == f"/first-touch/students/{qdb.student_id}"
 
 
 def test_guide_page_renders(client, qdb):
@@ -87,26 +85,11 @@ def test_archive_renders_and_writes_audit(client, qdb):
     assert audits and audits[0]["actor_id"] == qdb.alice_id
 
 
-def test_manual_create_student_idempotent(client, qdb):
+def test_manual_create_student_route_removed(client, qdb):
     login_as(client, qdb)
-    body = {"name": "王同学", "grade": "9", "school": "实验中学"}
-    first = client.post("/api/first-touch/students", json=body)
-    second = client.post("/api/first-touch/students", json=body)
-    assert first.status_code == 201
-    assert second.status_code == 200
-    payload = first.get_json()
-    assert payload["student"]["name"] == "王同学"
-    assert payload["student"]["advisor_name"] == "Alice"
-    assert payload["student"]["id"] == second.get_json()["student"]["id"]
-    created = _db.get_student_by_code(payload["student"]["student_code"])
-    assert created and created["grade"] == "9"
-
-
-def test_manual_create_student_requires_name(client, qdb):
-    login_as(client, qdb)
-    resp = client.post("/api/first-touch/students", json={"grade": "9"})
-    assert resp.status_code == 400
-    assert resp.get_json()["error"] == "请填写学生姓名"
+    resp = client.post("/api/first-touch/students",
+                       json={"name": "王同学", "grade": "9"})
+    assert resp.status_code in (404, 405)
 
 
 def test_home_lists_y4_students(client, qdb):
@@ -117,38 +100,10 @@ def test_home_lists_y4_students(client, qdb):
     assert "Y4 1 份" in html
 
 
-def test_import_y4_binds_latest_report(client, qdb):
-    _seed_report(qdb, qdb.student_id, day=1)
-    latest = _seed_report(qdb, qdb.student_id, day=2)
+def test_import_y4_route_removed(client, qdb):
+    _seed_report(qdb, qdb.student_id)
     login_as(client, qdb)
     resp = client.post("/api/first-touch/import-y4",
                        json={"studentIds": [qdb.student_id]})
-    assert resp.status_code == 200
-    payload = resp.get_json()
-    assert payload["imported"] == 1
-    assert payload["skipped"] == 0
-    session = store.list_sessions(qdb.student_id, qdb.alice_id)[0]
-    assert session["y4_report_id"] == latest
-    audits = store.list_audit(qdb.student_id, action="first_touch_y4_imported")
-    assert audits and '"reportId": ' + str(latest) in audits[0]["details"]
-
-
-def test_import_y4_skips_other_advisor_student(client, qdb):
-    _seed_report(qdb, qdb.student_id)
-    _seed_report(qdb, qdb.other_student_id)
-    login_as(client, qdb)
-    denied = client.post("/api/first-touch/import-y4",
-                         json={"studentIds": [qdb.other_student_id]})
-    assert denied.status_code == 400
-    assert denied.get_json()["error"] == "没有可导入的学生"
-    mixed = client.post("/api/first-touch/import-y4",
-                        json={"studentIds": [qdb.student_id, qdb.other_student_id]})
-    assert mixed.status_code == 200
-    assert mixed.get_json() == {"ok": True, "imported": 1, "skipped": 1}
-
-
-def test_import_y4_requires_selection(client, qdb):
-    login_as(client, qdb)
-    resp = client.post("/api/first-touch/import-y4", json={"studentIds": []})
-    assert resp.status_code == 400
-    assert resp.get_json()["error"] == "请选择要导入的学生"
+    assert resp.status_code in (404, 405)
+    assert not store.list_audit(qdb.student_id, action="first_touch_y4_imported")

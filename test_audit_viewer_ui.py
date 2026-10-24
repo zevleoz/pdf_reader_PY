@@ -63,7 +63,8 @@ def test_viewer_workspace_is_read_only(client, qdb):
     assert '"readOnly":true' in flat
     assert '"canWrite":false' in flat
     assert '"role":"viewer"' in flat
-    assert '"entryScreen":false' in flat
+    assert '"canStart":false' in flat
+    assert '"steps":[' in flat
     assert ":disabled=\"readOnly\"" in html
     assert "is-readonly" in html
     assert "只读账号可查看历史对话，不能发起提问。" in html
@@ -82,7 +83,7 @@ def test_viewer_workspace_without_session_shows_empty_state(client, qdb):
 
     assert "该学生尚未开始 First Touch 会谈。" in html
     assert '"sessionId":null' in flat
-    assert '"entryScreen":false' in flat
+    assert '"canStart":false' in flat
 
 
 # ---------------------------------------------------------------------------
@@ -94,55 +95,8 @@ def test_viewer_home_hides_management_actions(client, qdb):
 
     html = _page(client, "/first-touch")
 
-    assert "手动添加学生" not in html
-    assert "从 Y4 导入" not in html
-    assert "从 Yuguo 导入" not in html
-    assert "直接上传会后资料" not in html
     assert ">查看</a>" in html
     assert "进入工作台" not in html
-
-
-def test_advisor_home_keeps_management_actions(client, qdb):
-    login_as(client, qdb)
-
-    html = _page(client, "/first-touch")
-
-    assert "手动添加学生" in html
-    assert "从 Y4 导入" in html
-
-
-def test_upload_entry_only_before_session_exists(client, qdb):
-    login_as(client, qdb)
-
-    assert "直接上传会后资料" in _page(client, "/first-touch")
-    qdb.session()
-    assert "直接上传会后资料" not in _page(client, "/first-touch")
-
-
-# ---------------------------------------------------------------------------
-# 聊天
-# ---------------------------------------------------------------------------
-def test_viewer_chat_hides_composer(client, qdb):
-    qdb.session()
-    _login_viewer(client, qdb)
-
-    html = _page(client, f"/first-touch/copilot/{qdb.student_id}")
-
-    assert "只读账号可查看历史对话，不能发起提问。" in html
-    assert "<textarea" not in html
-    assert "开始聊天" not in html
-    assert '@click="requestDelete' not in html
-    assert "@click=\"send()\"" not in html
-
-
-def test_advisor_chat_has_composer(client, qdb):
-    qdb.session()
-    login_as(client, qdb)
-
-    html = _page(client, f"/first-touch/copilot/{qdb.student_id}")
-
-    assert "<textarea" in html
-    assert "开始聊天" in html
 
 
 # ---------------------------------------------------------------------------

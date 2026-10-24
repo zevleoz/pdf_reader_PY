@@ -26,55 +26,6 @@ NORMALIZER = ROOT / "scripts" / "normalize_meeting_at.py"
 
 
 # ---------------------------------------------------------------------------
-# F4：手动建档只在调用者可见范围内去重
-# ---------------------------------------------------------------------------
-def test_manual_add_does_not_merge_across_advisors(client, qdb):
-    """顾问 B 添加 A 名下同名学生会新建档案，A 的记录不受影响。"""
-    login_as(client, qdb, advisor_name="Bob", display_name="Bob")
-
-    response = client.post("/api/first-touch/students", json={
-        "name": "林同学", "grade": "10", "school": "新学校"})
-
-    assert response.status_code == 201
-    body = response.get_json()
-    assert body["ok"] is True
-    assert body.get("existing") is not True
-    new_id = body["student"]["id"]
-    assert new_id != qdb.student_id
-    assert body["student"]["advisor_name"] == "Bob"
-
-    with Session(qdb.engine) as sess:
-        alice_row = sess.get(_db.Student, qdb.student_id)
-        assert alice_row.advisor_name == "Alice"
-        assert alice_row.school is None
-        created = sess.get(_db.Student, new_id)
-        assert created.advisor_name == "Bob"
-        assert created.school == "新学校"
-
-
-def test_manual_add_same_advisor_returns_existing(client, qdb):
-    """顾问 A 重复添加同名学生：返回既有档案，200，且不修改任何字段。"""
-    login_as(client, qdb)
-
-    response = client.post("/api/first-touch/students", json={
-        "name": "林同学", "grade": "99", "phone": "13900000000"})
-
-    assert response.status_code == 200
-    body = response.get_json()
-    assert body["existing"] is True
-    assert body["student"]["id"] == qdb.student_id
-
-    with Session(qdb.engine) as sess:
-        row = sess.get(_db.Student, qdb.student_id)
-        assert row.grade == "10"
-        assert row.phone is None
-        count = len(sess.execute(
-            select(_db.Student).where(_db.Student.name == "林同学")
-        ).scalars().all())
-    assert count == 1
-
-
-# ---------------------------------------------------------------------------
 # F5：会议时间统一存 UTC
 # ---------------------------------------------------------------------------
 def test_naive_meeting_at_is_stored_as_utc_and_reported_local(
@@ -85,7 +36,7 @@ def test_naive_meeting_at_is_stored_as_utc_and_reported_local(
 
     patched = client.patch(
         f"/api/v2/copilot/sessions/{session['id']}/phase",
-        json={"phase": 6, "revision": session["revision"],
+        json={"phase": 2, "revision": session["revision"],
               "meetingAt": "2026-01-01T12:00"})
     assert patched.status_code == 200
     assert store.get_session(session["id"])["meeting_at"] == \
@@ -105,26 +56,12 @@ def test_naive_meeting_at_is_stored_as_utc_and_reported_local(
     assert "访谈日期：2026年1月1日 12:00" in result["preview"]["meetingSummary"]
 
 
-def test_offset_meeting_at_is_normalized_to_utc(client, qdb):
-    login_as(client, qdb)
-
-    response = client.post(
-        f"/api/v2/students/{qdb.student_id}/copilot/sessions",
-        json={"entryMode": "direct",
-              "meetingAt": "2026-01-01T04:00:00.000Z"})
-
-    assert response.status_code == 201
-    session_id = response.get_json()["session"]["id"]
-    assert store.get_session(session_id)["meeting_at"] == \
-        "2026-01-01T04:00:00Z"
-
-
 def test_default_meeting_at_rounds_down_to_quarter_hour(client, qdb):
     login_as(client, qdb)
+    qdb.add_y4()
 
     response = client.post(
-        f"/api/v2/students/{qdb.student_id}/copilot/sessions",
-        json={"entryMode": "guided"})
+        f"/api/v2/students/{qdb.student_id}/copilot/sessions", json={})
 
     assert response.status_code == 201
     value = response.get_json()["session"]["meeting_at"]

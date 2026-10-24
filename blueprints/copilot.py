@@ -12,22 +12,22 @@ import io
 import json
 import os
 import re
-import time
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-from flask import (Blueprint, abort, jsonify, request, send_file, session,
-                   render_template)
+from flask import (Blueprint, abort, jsonify, redirect, request, send_file,
+                   session, render_template)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import db as _db
 import growth_talk_store as store
 from app_utils import role_required
-from growth_talk import analysis, copilot, copilot_report, jobs, report_contract
+from growth_talk import (analysis, copilot, copilot_report, jobs, report_contract,
+                         y4_snapshot)
 from growth_talk.errors import ActionError
 from growth_talk.report_pdf import render_report_pdf
 from growth_talk.upload import MAX_UPLOAD_BYTES, UploadError, extract_upload
@@ -38,12 +38,8 @@ _JOB_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _UPLOAD_SUFFIXES = {".pdf", ".docx", ".txt", ".md"}
 
 # 阶段 PATCH 中视为“内容写入”的字段；都不存在时按纯导航处理（不递增 revision）。
-_PHASE_CONTENT_KEYS = ("interests", "script", "meetingAt", "entryMode",
+_PHASE_CONTENT_KEYS = ("interests", "script", "meetingAt",
                        "supplementAnalysis", "interestReview")
-
-# 手动建档 requestId 幂等缓存：{(actor_id, request_id): (monotonic, student_id)}
-_MANUAL_STUDENT_IDEMPOTENCY: dict[tuple, tuple[float, int]] = {}
-_IDEMPOTENCY_TTL_SECONDS = 600
 
 # 顾问输入的会议时间按上海本地时间理解；存储统一为 UTC。
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -143,6 +139,13 @@ def _session_or_404(session_id: int) -> dict | None:
     return row
 
 
+def _with_step(row: dict | None) -> dict | None:
+    """把会话里的旧阶段（0–6）归一化为三步模型后再返回给前端。"""
+    if not row:
+        return row
+    return {**row, "phase": copilot.normalize_phase(row.get("phase"))}
+
+
 def _last_editor(row: dict) -> dict | None:
     """最近一次写入者的展示名与时间（取自最新 CopilotPhaseEvent）。"""
     events = row.get("events") or []
@@ -209,18 +212,6 @@ def _default_meeting_at() -> str:
                        microsecond=0).strftime(_MEETING_AT_FORMAT)
 
 
-def _entry_mode(row: dict) -> str:
-    script = row.get("script") or {}
-    mode = script.get("entryMode")
-    if mode in ("direct", "guided"):
-        return mode
-    events = row.get("events") or []
-    if row.get("phase", 0) >= 5 and not any(
-            0 < event.get("phase", 0) < 5 for event in events):
-        return "direct"
-    return "guided"
-
-
 # ---------------------------------------------------------------------------
 # 会话
 # ---------------------------------------------------------------------------
@@ -237,18 +228,21 @@ def api_list_sessions(sid: int):
 def api_create_session(sid: int):
     if not _student_or_404(sid):
         return _error("学生不存在或未分配至你的本地工作区", 404)
-    body = _json_body()
-    entry_mode = "direct" if body.get("entryMode") == "direct" else "guided"
-    if body.get("meetingAt") is not None:
-        meeting_at = _parse_meeting_at(body.get("meetingAt"))
-        if meeting_at is None:
-            return _error("会议日期时间无效", 400)
-    else:
-        meeting_at = _default_meeting_at()
-    row, created = store.create_session(sid, _actor_id(), entry_mode, meeting_at)
+    report = y4_snapshot.latest_complete_y4(sid)
+    if report is None:
+        return jsonify({
+            "ok": False,
+            "error": "该学生还没有完整的 Y4 报告，请先生成 Y4 报告",
+            "code": "needs_y4",
+        }), 409
+    snapshot = y4_snapshot.build_snapshot(report)
+    row, created = store.create_session(
+        sid, _actor_id(), meeting_at=_default_meeting_at(),
+        y4_report_id=report.id, script={"y4Snapshot": snapshot})
+    row = _with_step(row)
     if created:
-        return jsonify({"session": row}), 201
-    return jsonify({"session": row, "existing": True})
+        return jsonify({"session": row, "y4Snapshot": snapshot}), 201
+    return jsonify({"session": row, "y4Snapshot": snapshot, "existing": True})
 
 
 @bp.route("/api/v2/copilot/sessions/<int:session_id>")
@@ -257,6 +251,21 @@ def api_get_session(session_id: int):
     row = _session_or_404(session_id)
     if not row:
         return _error("会谈不存在", 404)
+    row = _with_step(row)
+
+    script = dict(row.get("script") or {})
+    snapshot = script.get("y4Snapshot")
+    latest_y4 = y4_snapshot.latest_complete_y4(row["student_id"])
+    if latest_y4 is not None and (
+            not isinstance(snapshot, dict)
+            or snapshot.get("reportId") != latest_y4.id):
+        snapshot = y4_snapshot.build_snapshot(latest_y4)
+        script["y4Snapshot"] = snapshot
+        # 派生数据：普通字段更新，不递增 revision。
+        store.update_session_fields(session_id, script=script)
+        row = {**row, "script": script}
+    if not isinstance(snapshot, dict):
+        snapshot = None
 
     run_id = row.get("run_id")
     report_id = None
@@ -296,8 +305,8 @@ def api_get_session(session_id: int):
 
     return jsonify({
         "session": row,
+        "y4Snapshot": snapshot,
         "lastEditor": _last_editor(row),
-        "entryMode": _entry_mode(row),
         "student": _student_profile(row["student_id"]),
         "reportId": report_id,
         "report": report,
@@ -341,10 +350,6 @@ def api_save_phase(session_id: int):
         except ValueError as exc:
             return _error(str(exc), 400)
 
-    entry_mode = body.get("entryMode")
-    if entry_mode is not None and entry_mode not in ("direct", "guided"):
-        return _error("会谈入口无效", 400)
-
     meeting_at = None
     if body.get("meetingAt") is not None:
         meeting_at = _parse_meeting_at(body.get("meetingAt"))
@@ -378,7 +383,7 @@ def api_save_phase(session_id: int):
         current_analysis = supplement.get("analysis") or {}
         next_analysis = copilot.merge_supplement_analysis(
             current_analysis, supplement_patch or {})
-        if (interests is not None and phase in (5, 6)
+        if (interests is not None and phase == len(copilot.PHASES) - 1
                 and isinstance(current_analysis.get("newInterests"), list)):
             try:
                 next_analysis["interestReview"] = copilot.validate_interest_review_save(
@@ -401,11 +406,9 @@ def api_save_phase(session_id: int):
     fields = {"phase": phase}
     if meeting_at:
         fields["meeting_at"] = meeting_at
-    if script_content is not None or entry_mode:
+    if script_content is not None:
         merged_script = dict(row.get("script") or {})
-        merged_script.update(script_content or {})
-        if entry_mode:
-            merged_script["entryMode"] = entry_mode
+        merged_script.update(script_content)
         fields["script"] = merged_script
     if phase == len(copilot.PHASES) - 1:
         fields["status"] = "REVIEW"
@@ -424,37 +427,9 @@ def api_save_phase(session_id: int):
     return jsonify({"revision": revision, "result": result})
 
 
-@bp.route("/api/v2/copilot/sessions/<int:session_id>/career-calibration",
-          methods=["PATCH"])
-@role_required("admin", "advisor")
-@_conflict_guard
-def api_save_calibration(session_id: int):
-    row = _session_or_404(session_id)
-    if not row:
-        return _error("会谈不存在", 404)
-    body = _json_body()
-    error = _revision_error(body, row)
-    if error:
-        return error
-
-    values = {}
-    for key in ("careerInterests", "abilityTendencies",
-                "valuePreferences", "notes"):
-        value = body.get(key, "")
-        if not isinstance(value, str) or len(value) > 4000:
-            return _error("文本格式或长度无效", 400)
-        values[key] = value.strip()
-    revision = store.claim_revision(
-        session_id, body["revision"], _actor_id(), "calibration_saved")
-    store.upsert_calibration(
-        session_id,
-        values["careerInterests"], values["abilityTendencies"],
-        values["valuePreferences"], values["notes"])
-    current = store.get_session(session_id) or {}
-    return jsonify({"revision": revision,
-                    "result": current.get("calibration")})
-
-
+# ---------------------------------------------------------------------------
+# 兴趣草稿
+# ---------------------------------------------------------------------------
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/interest-draft",
           methods=["PATCH"])
 @role_required("admin", "advisor")
@@ -551,65 +526,6 @@ def api_upload_source(session_id: int):
     }), 201
 
 
-@bp.route("/api/v2/copilot/sessions/<int:session_id>/y4-calibrate",
-          methods=["POST"])
-@role_required("admin", "advisor")
-@_conflict_guard
-def api_y4_calibrate(session_id: int):
-    row = _session_or_404(session_id)
-    if not row:
-        return _error("会谈不存在", 404)
-    body = _json_body()
-    error = _revision_error(body, row)
-    if error:
-        return error
-
-    report = None
-    with Session(_db.engine) as sess:
-        if row.get("y4_report_id"):
-            report = sess.get(_db.Report, int(row["y4_report_id"]))
-            if report and report.student_id != row["student_id"]:
-                report = None
-        if report is None:
-            report = sess.execute(
-                select(_db.Report)
-                .where(_db.Report.student_id == row["student_id"])
-                .order_by(_db.Report.id.desc())
-            ).scalars().first()
-    if not report:
-        return _error("该学生还没有已确认的 Y4 报告，请先生成 Y4 报告", 422)
-
-    try:
-        payload = json.loads(report.data_json or "{}")
-    except ValueError:
-        payload = {}
-    try:
-        calibration = copilot.generate_career_calibration(
-            payload if isinstance(payload, dict) else {},
-            report.interpretation or "")
-    except ValueError as exc:
-        return _error(str(exc) or "该学生还没有已确认的 Y4 报告，请先生成 Y4 报告",
-                      422)
-    except analysis.AnalysisError as exc:
-        return _error_response(exc)
-
-    revision = store.claim_revision(
-        session_id, body["revision"], _actor_id(), "career_analysis_completed")
-    store.upsert_calibration(
-        session_id, calibration["career_interests"],
-        calibration["ability_tendencies"],
-        calibration["value_preferences"], "")
-    store.update_session_fields(session_id, y4_report_id=report.id)
-    return jsonify({
-        "revision": revision,
-        "analysis": {
-            "careerInterests": calibration["career_interests"],
-            "abilityTendencies": calibration["ability_tendencies"],
-            "valuePreferences": calibration["value_preferences"],
-        },
-    })
-
-
 # ---------------------------------------------------------------------------
 # 会后补充 / 下一步 / 项目推荐 / 报告准备（异步作业）
 # ---------------------------------------------------------------------------
@@ -639,6 +555,20 @@ def api_next_steps(session_id: int):
     if error:
         return error
     return _dispatch(row, "next_steps")
+
+
+@bp.route("/api/v2/copilot/sessions/<int:session_id>/talking-points",
+          methods=["POST"])
+@role_required("admin", "advisor")
+def api_talking_points(session_id: int):
+    row = _session_or_404(session_id)
+    if not row:
+        return _error("会谈不存在", 404)
+    body = _json_body()
+    error = _revision_error(body, row)
+    if error:
+        return error
+    return _dispatch(row, "talking_points")
 
 
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/projects",
@@ -832,51 +762,96 @@ def _visible_students() -> list[dict]:
     } for row in rows]
 
 
-def _latest_y4_reports(student_ids: list[int]) -> dict:
-    """每个学生在本平台最新的 Y4 报告：``{sid: {reportId, count, latestDate}}``。"""
-    if not student_ids:
-        return {}
-    with Session(_db.engine) as sess:
-        rows = sess.execute(
-            select(_db.Report.student_id, _db.Report.id, _db.Report.report_date)
-            .where(_db.Report.student_id.in_(student_ids))
-            .order_by(_db.Report.student_id,
-                      _db.Report.created_at.desc(), _db.Report.id.desc())
-        ).all()
-    report_map: dict = {}
-    for sid, report_id, report_date in rows:
-        item = report_map.setdefault(
-            sid, {"reportId": report_id, "count": 0, "latestDate": ""})
-        item["count"] += 1
-        if not item["latestDate"]:
-            item["latestDate"] = report_date.isoformat() if report_date else ""
-    return report_map
-
-
 def _first_touch_students() -> list[dict]:
-    """First Touch 学生卡片：最近会谈阶段、会谈数、已确认报告数、Y4 报告摘要。"""
+    """First Touch 学生卡片：Y4 是否可用于开始会谈、当前步骤与报告版本。
+
+    以固定次数的批量查询取数，学生数量不影响查询次数。
+    """
     students = _visible_students()
-    y4_map = _latest_y4_reports([item["id"] for item in students])
+    ids = [item["id"] for item in students]
+    if not ids:
+        return []
+
+    y4_counts: dict[int, int] = {}
+    y4_latest: dict[int, str] = {}
+    y4_complete: dict[int, str] = {}
+    report_counts: dict[int, int] = {}
+    sessions: dict[int, object] = {}
+    confirmed_versions: dict[int, int] = {}
+
+    with Session(_db.engine) as sess:
+        for row in sess.execute(
+                select(_db.Report)
+                .where(_db.Report.student_id.in_(ids))
+                .order_by(_db.Report.report_date.desc(),
+                          _db.Report.id.desc())).scalars():
+            sid = row.student_id
+            y4_counts[sid] = y4_counts.get(sid, 0) + 1
+            date_text = row.report_date.isoformat() if row.report_date else ""
+            y4_latest.setdefault(sid, date_text)
+            if sid not in y4_complete and y4_snapshot.is_complete(row):
+                y4_complete[sid] = date_text
+
+        for row in sess.execute(
+                select(store.CopilotSession)
+                .where(store.CopilotSession.student_id.in_(ids),
+                       store.CopilotSession.status != "ARCHIVED")
+                .order_by(store.CopilotSession.updated_at.desc(),
+                          store.CopilotSession.id.desc())).scalars():
+            sessions.setdefault(row.student_id, row)
+
+        for sid, in sess.execute(
+                select(store.GtReport.student_id)
+                .where(store.GtReport.student_id.in_(ids))).all():
+            report_counts[sid] = report_counts.get(sid, 0) + 1
+
+        for run_id, version in sess.execute(
+                select(store.GtReport.run_id, store.GtReport.version)
+                .where(store.GtReport.student_id.in_(ids),
+                       store.GtReport.status == "CONFIRMED")
+                .order_by(store.GtReport.version.desc(),
+                          store.GtReport.id.desc())).all():
+            if run_id is not None:
+                confirmed_versions.setdefault(run_id, version)
+
     cards = []
     for student in students:
-        sessions = store.list_sessions(student["id"])
-        latest = sessions[0] if sessions else None
-        y4 = y4_map.get(student["id"]) or {}
+        sid = student["id"]
+        session = sessions.get(sid)
+        step = copilot.normalize_phase(session.phase) if session else None
+        version = (confirmed_versions.get(session.run_id)
+                   if session and session.run_id else None)
+        completed = bool(
+            session and (session.status == "COMPLETED" or version is not None))
+        can_start = sid in y4_complete
+        if not can_start:
+            status = "needs_y4"
+        elif session is None:
+            status = "not_started"
+        elif completed:
+            status = "completed"
+        else:
+            status = "in_progress"
         cards.append({
-            "id": student["id"],
+            "id": sid,
             "code": student.get("student_code") or "",
             "name": student.get("name") or "",
             "grade": student.get("grade") or "",
             "school": student.get("school") or "",
             "advisorName": student.get("advisor_name") or "",
-            "sessionCount": len(sessions),
-            "phase": latest["phase"] if latest else None,
-            "phaseLabel": (copilot.PHASES[latest["phase"]]
-                           if latest and 0 <= latest["phase"] < len(copilot.PHASES)
-                           else ""),
-            "reportCount": len(store.list_reports(student["id"])),
-            "y4ReportCount": y4.get("count", 0),
-            "y4LatestDate": y4.get("latestDate", ""),
+            "y4Date": y4_complete.get(sid, ""),
+            "canStart": can_start,
+            "status": status,
+            "step": step,
+            "reportVersion": version,
+            # 兼容尚未改版的首页模板（V4a 会替换）。
+            "sessionCount": 1 if session else 0,
+            "phase": step,
+            "phaseLabel": (copilot.PHASES[step]
+                           if step is not None else ""),
+            "reportCount": report_counts.get(sid, 0),
+            "y4ReportCount": y4_counts.get(sid, 0),
+            "y4LatestDate": y4_latest.get(sid, ""),
         })
     return cards
 
@@ -900,17 +875,7 @@ def page_home():
 @bp.route("/first-touch/copilot")
 @role_required("admin", "advisor", "viewer")
 def page_chat_picker():
-    can_write = session.get("role") in ("admin", "advisor")
-    students = [card for card in _first_touch_students()
-                if card["sessionCount"]]
-    for card in students:
-        card["chatCount"] = len(store.list_chats(card["id"]))
-    return render_template("first_touch/chat_picker.html",
-                           nav_active="first_touch.copilot",
-                           ctx={"students": students,
-                                "canWrite": can_write,
-                                "readOnly": not can_write,
-                                "role": session.get("role") or ""})
+    return redirect("/first-touch")
 
 
 @bp.route("/first-touch/copilot/<int:sid>")
@@ -919,42 +884,7 @@ def page_chat(sid: int):
     profile = _student_profile(sid)
     if not profile or not _student_or_404(sid):
         abort(404)
-    active_chat_id = (request.args.get("chat") or "").strip()
-    chats = store.list_chats(sid)
-    active = None
-    if active_chat_id and _JOB_ID_RE.fullmatch(active_chat_id):
-        try:
-            row = store.get_chat(active_chat_id)
-        except store.NotFoundError:
-            row = None
-        if row and row.get("studentId") == sid:
-            active = row
-    if active is None and active_chat_id and chats:
-        # 深链指向已删除/不存在的对话时，落到该学生最新对话
-        try:
-            active = store.get_chat(chats[0]["chatId"])
-        except store.NotFoundError:
-            active = None
-    sessions = store.list_sessions(sid)
-    can_write = session.get("role") in ("admin", "advisor")
-    ctx = {
-        "sid": sid,
-        "name": profile.get("name") or "",
-        "code": profile.get("student_code") or "",
-        "grade": profile.get("grade") or "",
-        "school": profile.get("school") or "",
-        "chats": chats,
-        "students": _first_touch_students(),
-        "activeChat": active,
-        "sessionId": sessions[0]["id"] if sessions else None,
-        "canWrite": can_write,
-        "readOnly": not can_write,
-        "role": session.get("role") or "",
-        "maxTurns": 20,
-        "maxChats": 20,
-    }
-    return render_template("first_touch/chat.html",
-                           nav_active="first_touch.copilot", ctx=ctx)
+    return redirect(f"/first-touch/students/{sid}")
 
 
 @bp.route("/first-touch/guide")
@@ -1001,120 +931,12 @@ def page_archive(sid: int):
                            nav_active="first_touch.archive", ctx=ctx)
 
 
-def _idempotency_lookup(key) -> int | None:
-    now = time.monotonic()
-    for stale in [k for k, (ts, _sid) in _MANUAL_STUDENT_IDEMPOTENCY.items()
-                  if now - ts > _IDEMPOTENCY_TTL_SECONDS]:
-        _MANUAL_STUDENT_IDEMPOTENCY.pop(stale, None)
-    hit = _MANUAL_STUDENT_IDEMPOTENCY.get(key)
-    return hit[1] if hit else None
-
-
-@bp.route("/api/first-touch/students", methods=["POST"])
-@role_required("admin", "advisor")
-def api_create_student():
-    """手动建档：按姓名幂等，顾问自动归属当前登录顾问。"""
-    body = _json_body()
-    name = body.get("name")
-    name = name.strip() if isinstance(name, str) else ""
-    if not name:
-        return _error("请填写学生姓名", 400)
-    if len(name) > 100:
-        return _error("学生姓名不能超过 100 字", 400)
-    grade = body.get("grade") if isinstance(body.get("grade"), str) else ""
-    school = body.get("school") if isinstance(body.get("school"), str) else ""
-    phone = body.get("phone") if isinstance(body.get("phone"), str) else ""
-    grade, school, phone = grade.strip(), school.strip(), phone.strip()
-    if len(grade) > 50 or len(school) > 200:
-        return _error("年级或学校名称过长", 400)
-    if len(phone) > 50:
-        return _error("联系电话不能超过 50 字", 400)
-
-    request_id = body.get("requestId")
-    request_id = request_id.strip() if isinstance(request_id, str) else ""
-    idempotency_key = (_actor_id(), request_id) if request_id else None
-    if idempotency_key:
-        existing_id = _idempotency_lookup(idempotency_key)
-        existing_profile = (
-            _student_profile(existing_id) if existing_id else None)
-        if existing_profile:
-            return jsonify({"ok": True, "existing": True,
-                            "student": existing_profile})
-
-    advisor_name = session.get("advisor_name") or ""
-    if session.get("role") == "admin":
-        advisor_name = ((body.get("advisorName") or "").strip()
-                        if isinstance(body.get("advisorName"), str)
-                        else advisor_name) or advisor_name
-    # 只在调用者可见范围内去重：顾问只看自己名下，管理员看全部。
-    # 命中同名（且请求给了学校时学校也一致）的学生直接返回，不改任何字段。
-    with Session(_db.engine) as sess:
-        stmt = select(_db.Student.id).where(_db.Student.name == name)
-        if session.get("role") != "admin":
-            stmt = stmt.where(_db.Student.advisor_name == advisor_name)
-        if school:
-            stmt = stmt.where(_db.Student.school == school)
-        match = sess.execute(
-            stmt.order_by(_db.Student.id.asc())).first()
-    if match:
-        return jsonify({"ok": True, "existing": True,
-                        "student": _student_profile(match[0])}), 200
-
-    student_id = _db.create_student(
-        name=name, grade=grade, school=school, phone=phone,
-        advisor_name=advisor_name)
-    if idempotency_key:
-        _MANUAL_STUDENT_IDEMPOTENCY[idempotency_key] = (
-            time.monotonic(), student_id)
-    return jsonify({"ok": True, "student": _student_profile(student_id)}), 201
-
-
-@bp.route("/api/first-touch/import-y4", methods=["POST"])
-@role_required("admin", "advisor")
-def api_import_y4():
-    """把平台已有 Y4 报告导入 First Touch：建会谈并绑定最新报告。"""
-    body = _json_body()
-    raw_ids = body.get("studentIds")
-    if not isinstance(raw_ids, list) or not raw_ids:
-        return _error("请选择要导入的学生", 400)
-    if len(raw_ids) > 200:
-        return _error("一次最多导入 200 名学生", 400)
-    ids: list[int] = []
-    for value in raw_ids:
-        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-            return _error("学生参数无效", 400)
-        if value not in ids:
-            ids.append(value)
-    visible = {item["id"] for item in _visible_students()}
-    allowed = [sid for sid in ids if sid in visible]
-    if not allowed:
-        return _error("没有可导入的学生", 400)
-    report_map = _latest_y4_reports(allowed)
-    imported = 0
-    skipped = len(ids) - len(allowed)
-    for sid in allowed:
-        info = report_map.get(sid)
-        if not info:
-            skipped += 1
-            continue
-        row, _created = store.create_session(sid, _actor_id(), "guided")
-        if row.get("y4_report_id") != info["reportId"]:
-            store.update_session_fields(row["id"], y4_report_id=info["reportId"])
-        store.write_audit(
-            _actor_id(), sid, "first_touch_y4_imported",
-            json.dumps({"reportId": info["reportId"]}, ensure_ascii=False))
-        imported += 1
-    return jsonify({"ok": True, "imported": imported, "skipped": skipped})
-
-
 @bp.route("/first-touch/students/<int:sid>")
 @role_required("admin", "advisor", "viewer")
 def page_workspace(sid: int):
     profile = _student_profile(sid)
     if not profile or not _student_or_404(sid):
         abort(404)
-    initial_entry_mode = (
-        "direct" if request.args.get("entry") == "direct" else "guided")
     sessions = store.list_sessions(sid)
     row = sessions[0] if sessions else None
     can_write = session.get("role") in ("admin", "advisor")
@@ -1124,12 +946,14 @@ def page_workspace(sid: int):
         "name": profile.get("name") or "",
         "grade": profile.get("grade") or "",
         "school": profile.get("school") or "",
+        "advisorName": profile.get("advisor_name") or "",
         "sessionId": row["id"] if row else None,
-        "entryScreen": row is None and can_write,
-        "initialEntryMode": initial_entry_mode,
+        "canStart": y4_snapshot.latest_complete_y4(sid) is not None,
         "canWrite": can_write,
         "readOnly": not can_write,
         "role": session.get("role") or "",
+        "steps": copilot.PHASES,
+        # 兼容尚未改版的工作台模板（V4a/V4b 会替换为 steps）。
         "phases": copilot.PHASES,
     }
     return render_template("first_touch/workspace.html", nav_active="first_touch",

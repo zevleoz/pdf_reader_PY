@@ -38,10 +38,11 @@ def _login_admin(client, qdb) -> int:
 
 def test_admin_created_session_is_shared_with_advisor(client, qdb):
     admin_id = _login_admin(client, qdb)
+    qdb.add_y4()
 
     created = client.post(
         f"/api/v2/students/{qdb.student_id}/copilot/sessions",
-        json={"entryMode": "guided"})
+        json={})
     assert created.status_code == 201
     session = created.get_json()["session"]
     assert session["advisor_id"] == admin_id
@@ -54,7 +55,7 @@ def test_admin_created_session_is_shared_with_advisor(client, qdb):
 
     again = client.post(
         f"/api/v2/students/{qdb.student_id}/copilot/sessions",
-        json={"entryMode": "direct"})
+        json={})
     assert again.status_code == 200
     assert again.get_json()["existing"] is True
     assert again.get_json()["session"]["id"] == session["id"]
@@ -70,9 +71,10 @@ def test_admin_created_session_is_shared_with_advisor(client, qdb):
 
 def test_advisor_can_patch_admin_created_session(client, qdb):
     _login_admin(client, qdb)
+    qdb.add_y4()
     session = client.post(
         f"/api/v2/students/{qdb.student_id}/copilot/sessions",
-        json={"entryMode": "guided"}).get_json()["session"]
+        json={}).get_json()["session"]
 
     login_as(client, qdb)
     response = client.patch(
@@ -94,9 +96,10 @@ def test_advisor_can_patch_admin_created_session(client, qdb):
 
 def test_advisor_of_another_student_gets_404(client, qdb):
     _login_admin(client, qdb)
+    qdb.add_y4()
     session = client.post(
         f"/api/v2/students/{qdb.student_id}/copilot/sessions",
-        json={"entryMode": "guided"}).get_json()["session"]
+        json={}).get_json()["session"]
 
     login_as(client, qdb, advisor_name="Bob", display_name="Bob")
 

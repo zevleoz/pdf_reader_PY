@@ -82,23 +82,8 @@ def test_stale_phase_content_409_leaves_db_unchanged(client, qdb):
 
     response = client.patch(
         f"/api/v2/copilot/sessions/{session['id']}/phase",
-        json={"phase": 4, "revision": session["revision"] + 1,
+        json={"phase": 2, "revision": session["revision"] + 1,
               "interests": [_interest("足球")]})
-
-    assert response.status_code == 409
-    assert response.get_json()["error"] == CONFLICT_MESSAGE
-    assert _snapshot(session["id"]) == before
-
-
-def test_stale_calibration_409_leaves_db_unchanged(client, qdb):
-    login_as(client, qdb)
-    session = _ready_session(qdb)
-    before = _snapshot(session["id"])
-
-    response = client.patch(
-        f"/api/v2/copilot/sessions/{session['id']}/career-calibration",
-        json={"revision": session["revision"] + 1,
-              "careerInterests": "改变后的职业兴趣"})
 
     assert response.status_code == 409
     assert response.get_json()["error"] == CONFLICT_MESSAGE
@@ -139,18 +124,15 @@ def test_stale_upload_source_409_leaves_db_unchanged(client, qdb):
     assert _snapshot(session["id"]) == before
 
 
-def test_stale_y4_calibrate_409_leaves_db_unchanged(client, qdb):
+def test_stale_y4_calibrate_route_removed(client, qdb):
     login_as(client, qdb)
     session = _ready_session(qdb)
-    before = _snapshot(session["id"])
 
     response = client.post(
         f"/api/v2/copilot/sessions/{session['id']}/y4-calibrate",
-        json={"revision": session["revision"] + 1})
+        json={"revision": session["revision"]})
 
-    assert response.status_code == 409
-    assert response.get_json()["error"] == CONFLICT_MESSAGE
-    assert _snapshot(session["id"]) == before
+    assert response.status_code in (404, 405)
 
 
 @pytest.mark.parametrize("method,path,payload", [
@@ -185,30 +167,31 @@ def test_phase_only_patch_keeps_revision(client, qdb):
 
     response = client.patch(
         f"/api/v2/copilot/sessions/{session['id']}/phase",
-        json={"phase": 4, "revision": session["revision"]})
+        json={"phase": 1, "revision": session["revision"]})
 
     assert response.status_code == 200
     data = response.get_json()
     assert data["revision"] == session["revision"]
-    assert data["result"]["phase"] == 4
+    assert data["result"]["phase"] == 1
     current = store.get_session(session["id"])
     assert current["revision"] == session["revision"]
-    assert current["phase"] == 4
+    assert current["phase"] == 1
 
 
 def test_phase_only_last_phase_sets_review_without_bump(client, qdb):
     login_as(client, qdb)
+    # 旧数据可能停在第 5 阶段，这一步直接切到第 3 步（API 里的 phase 2）。
     session = qdb.session(phase=5)
 
     response = client.patch(
         f"/api/v2/copilot/sessions/{session['id']}/phase",
-        json={"phase": 6, "revision": session["revision"]})
+        json={"phase": 2, "revision": session["revision"]})
 
     assert response.status_code == 200
     assert response.get_json()["revision"] == session["revision"]
     current = store.get_session(session["id"])
     assert current["revision"] == session["revision"]
-    assert current["phase"] == 6
+    assert current["phase"] == 2
     assert current["status"] == "REVIEW"
 
 
@@ -218,7 +201,7 @@ def test_phase_content_patch_bumps_revision(client, qdb):
 
     response = client.patch(
         f"/api/v2/copilot/sessions/{session['id']}/phase",
-        json={"phase": 4, "revision": session["revision"],
+        json={"phase": 1, "revision": session["revision"],
               "interests": [_interest("足球")]})
 
     assert response.status_code == 200

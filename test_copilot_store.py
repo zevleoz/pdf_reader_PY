@@ -71,13 +71,13 @@ def qdb(tmp_path, monkeypatch):
     engine.dispose()
 
 
-def _session(qdb, entry_mode="guided"):
-    return store.create_session(qdb.student_id, qdb.advisor_id, entry_mode)
+def _session(qdb):
+    return store.create_session(qdb.student_id, qdb.advisor_id)
 
 
 def test_create_session_idempotent_per_student(qdb):
-    s1, created1 = _session(qdb, "guided")
-    s2, created2 = _session(qdb, "direct")
+    s1, created1 = _session(qdb)
+    s2, created2 = _session(qdb)
     assert created1 is True and created2 is False and s1["id"] == s2["id"]
     assert s1["phase"] == 0
     # 每名学生只有一条 session：另一位顾问拿到同一条，不再各建一份。
@@ -85,16 +85,6 @@ def test_create_session_idempotent_per_student(qdb):
     assert created3 is False and other["id"] == s1["id"]
     assert other["advisor_id"] == qdb.advisor_id
     assert len(store.list_sessions(qdb.student_id)) == 1
-
-
-def test_direct_entry_starts_at_phase_5(qdb):
-    session, _ = _session(qdb, "direct")
-    assert session["phase"] == 5
-    assert session["script"]["entryMode"] == "direct"
-    assert session["script"]["goal"] == (
-        "一起识别兴趣与擅长，为后续升学探索寻找既有目标又有真实兴趣的方向。"
-    )
-    assert [event["action"] for event in session["events"]] == ["created"]
 
 
 def test_bump_session_revision_conflict_message(qdb):

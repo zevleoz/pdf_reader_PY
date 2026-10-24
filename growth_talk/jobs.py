@@ -229,6 +229,12 @@ def _dispatch_copilot_job(kind: str, payload: dict) -> dict:
         copilot.persist_next_steps(int(session_id), summary)
         return {"revision": revision, "result": {"summary": summary}}
 
+    if kind == "talking_points":
+        points = copilot.compute_talking_points(int(session_id))
+        revision = claim("talking_points_generated")
+        copilot.persist_talking_points(int(session_id), points)
+        return {"revision": revision, "points": points}
+
     if kind == "projects_generate":
         batch, supplement, saved = copilot.compute_projects(int(session_id))
         revision = claim("project_recommendations_generated")

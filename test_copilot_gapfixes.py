@@ -23,7 +23,7 @@ from test_copilot_routes import (  # noqa: F401
 def _phase_patch(client, session_id: int, revision: int, **body):
     return client.patch(
         f"/api/v2/copilot/sessions/{session_id}/phase",
-        json={"phase": 6, "revision": revision, **body})
+        json={"phase": 2, "revision": revision, **body})
 
 
 # ---------------------------------------------------------------------------
@@ -37,18 +37,6 @@ def test_workspace_get_does_not_autocreate_session(client, qdb):
     assert response.status_code == 200
     assert "v2-entry-choice" in response.get_data(as_text=True)
     assert store.list_sessions(qdb.student_id) == []
-
-
-def test_workspace_entry_screen_direct_preselect(client, qdb):
-    login_as(client, qdb)
-
-    response = client.get(
-        f"/first-touch/students/{qdb.student_id}?entry=direct")
-
-    assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert 'data-initial-entry="direct"' in body
-    assert "直接上传会后资料" in body
 
 
 def test_meeting_at_in_preview_payload(client, qdb, monkeypatch):
@@ -248,56 +236,22 @@ def test_delete_chat_other_advisor_404(client, qdb):
     assert response.status_code == 404
 
 
-def test_chat_page_fallback_on_deleted_deep_link(client, qdb):
+def test_chat_page_redirects_to_student_workspace(client, qdb):
     login_as(client, qdb)
     deleted_id = _seed_chat(qdb, "已删除对话")
-    latest_id = _seed_chat(qdb, "最新对话")
+    _seed_chat(qdb, "最新对话")
     store.delete_chat(deleted_id)
 
     response = client.get(
         f"/first-touch/copilot/{qdb.student_id}?chat={deleted_id}")
 
-    assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert deleted_id not in body
-    assert latest_id in body
+    assert response.status_code == 302
+    assert response.headers["Location"] == f"/first-touch/students/{qdb.student_id}"
 
 
 # ---------------------------------------------------------------------------
 # Task 8：首页与归档
 # ---------------------------------------------------------------------------
-def test_manual_add_accepts_phone(client, qdb):
-    login_as(client, qdb)
-
-    response = client.post("/api/first-touch/students", json={
-        "name": "张三", "phone": "13800000000", "requestId": "u-phone"})
-
-    assert response.status_code == 201
-    with Session(qdb.engine) as sess:
-        row = sess.execute(
-            select(_db.Student).where(_db.Student.name == "张三")).scalar_one()
-        assert row.phone == "13800000000"
-
-
-def test_manual_add_request_id_idempotent(client, qdb):
-    login_as(client, qdb)
-
-    first = client.post("/api/first-touch/students", json={
-        "name": "李四", "requestId": "u-1"})
-    second = client.post("/api/first-touch/students", json={
-        "name": "李四", "requestId": "u-1"})
-
-    assert first.status_code == 201
-    assert second.status_code == 200
-    assert second.get_json()["existing"] is True
-    assert (first.get_json()["student"]["id"]
-            == second.get_json()["student"]["id"])
-    with Session(qdb.engine) as sess:
-        count = len(sess.execute(
-            select(_db.Student).where(_db.Student.name == "李四")).scalars().all())
-    assert count == 1
-
-
 def test_archive_has_activity_hub_download(client, qdb):
     login_as(client, qdb, role="admin", advisor_name="", display_name="Admin")
 

@@ -86,8 +86,6 @@ def test_viewer_read_routes_return_200(client, qdb, seeded):
     urls = [
         "/first-touch",
         f"/first-touch/students/{sid}",
-        "/first-touch/copilot",
-        f"/first-touch/copilot/{sid}",
         "/first-touch/guide",
         f"/api/v2/students/{sid}/copilot/sessions",
         f"/api/v2/copilot/sessions/{seeded['session_id']}",
@@ -103,6 +101,19 @@ def test_viewer_read_routes_return_200(client, qdb, seeded):
     for url in urls:
         response = client.get(url)
         assert response.status_code == 200, (url, response.status_code)
+
+
+def test_viewer_chat_pages_redirect(client, qdb):
+    _login_viewer(client, qdb)
+    sid = qdb.student_id
+
+    picker = client.get("/first-touch/copilot")
+    assert picker.status_code == 302
+    assert picker.headers["Location"] == "/first-touch"
+
+    deep = client.get(f"/first-touch/copilot/{sid}")
+    assert deep.status_code == 302
+    assert deep.headers["Location"] == f"/first-touch/students/{sid}"
 
 
 def test_viewer_forbidden_on_every_write_route(app, client, qdb, seeded):
@@ -147,11 +158,12 @@ def test_viewer_workspace_without_session_is_read_only(client, qdb):
 
     assert response.status_code == 200
     flat = re.sub(r"\s+", "", response.get_data(as_text=True))
-    assert '"entryScreen":false' in flat
+    assert '"canStart":false' in flat
     assert '"sessionId":null' in flat
     assert '"readOnly":true' in flat
     assert '"canWrite":false' in flat
     assert '"role":"viewer"' in flat
+    assert '"steps":[' in flat
     assert store.list_sessions(qdb.other_student_id) == []
 
 
@@ -163,5 +175,6 @@ def test_viewer_workspace_with_session_shows_it(client, qdb, seeded):
     assert response.status_code == 200
     flat = re.sub(r"\s+", "", response.get_data(as_text=True))
     assert f'"sessionId":{seeded["session_id"]}' in flat
-    assert '"entryScreen":false' in flat
+    assert '"canStart":false' in flat
+    assert '"steps":[' in flat
     assert '"readOnly":true' in flat

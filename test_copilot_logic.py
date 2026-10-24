@@ -106,16 +106,14 @@ def test_merge_supplement_analysis_preserves_reserved_keys():
 
 
 def test_script_fields_limits():
-    script = copilot.validate_script_fields({"goal": " 目标 ", "opening": ""})
-    assert script["goal"] == "目标"
-    assert script["closing"] == ""
+    script = copilot.validate_script_fields(
+        {"talkingPoints": [" 问题一 ", "问题二"], "goal": "旧字段"})
+    assert script == {"talkingPoints": ["问题一", "问题二"]}
+    with pytest.raises(ValueError, match="谈话要点格式无效"):
+        copilot.validate_script_fields(
+            {"talkingPoints": [f"问题{index}" for index in range(6)]})
     with pytest.raises(ValueError, match="文本格式或长度无效"):
-        copilot.validate_script_fields({"goal": "长" * 3001})
-
-
-def test_calibration_requires_y4():
-    with pytest.raises(ValueError, match="还没有已确认的 Y4 报告"):
-        copilot.generate_career_calibration({}, "")
+        copilot.validate_script_fields({"talkingPoints": ["长" * 121]})
 
 
 def test_next_steps_rejects_forbidden_pattern(qdb, monkeypatch):

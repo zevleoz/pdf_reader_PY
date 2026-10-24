@@ -1199,12 +1199,7 @@ def upsert_appointment(task_id: str, junction_student_id: str,
 # Copilot 2.0
 # ---------------------------------------------------------------------------
 COPILOT_DEFAULT_SCRIPT = {
-    "entryMode": "guided",
-    "goal": "一起识别兴趣与擅长，为后续升学探索寻找既有目标又有真实兴趣的方向。",
-    "opening": "今天我们一起看看你喜欢什么、做过什么，以及哪些能力还值得继续观察。",
-    "interpretation": "先看职业兴趣，再看能力倾向和价值偏好。测评提供线索，不是结论。",
-    "transition": "接下来把学校学科、课外兴趣和身边话题放进同一张图，看看你喜欢和擅长的程度。",
-    "closing": "这些判断会在活动和项目尝试中继续验证。",
+    "talkingPoints": [],
 }
 
 _COPILOT_SESSION_FIELDS = (
@@ -1231,10 +1226,14 @@ def _load_json(value: Any, default):
     return parsed if isinstance(parsed, type(default)) else default
 
 
-def _copilot_session_dict(row: CopilotSession) -> dict:
+def _copilot_session_dict(row: CopilotSession, *, normalize_phase: bool = True) -> dict:
     data = _model_dict(row, _COPILOT_SESSION_FIELDS)
     data["script"] = _load_json(row.script, {})
     data["interests"] = _load_json(row.interests, [])
+    if normalize_phase:
+        # 旧数据存 0–6 阶段；读取时统一映射到三步模型，避免数据迁移。
+        from growth_talk.copilot import normalize_phase as _normalize
+        data["phase"] = _normalize(data.get("phase"))
     return data
 
 
@@ -1260,7 +1259,9 @@ def _copilot_supplement_dict(row: CopilotTranscriptSupplement) -> dict:
 
 
 def _session_full(sess: Session, row: CopilotSession) -> dict:
-    data = _copilot_session_dict(row)
+    # 保留原始 0–6 阶段：报告模块（V3b 前）仍按旧阶段判断；对外读取在
+    # ``list_sessions`` 与蓝图层归一化为三步。
+    data = _copilot_session_dict(row, normalize_phase=False)
     calibration = sess.execute(
         select(CopilotCareerCalibration)
         .where(CopilotCareerCalibration.session_id == row.id)
@@ -1313,25 +1314,31 @@ def _active_session(sess: Session, student_id: int) -> Optional[CopilotSession]:
     ).scalars().first()
 
 
-def create_session(student_id: int, advisor_id: int, entry_mode: str = "guided",
-                   meeting_at: str | None = None) -> tuple[dict, bool]:
+def create_session(student_id: int, advisor_id: int, *,
+                   meeting_at: str | None = None,
+                   y4_report_id: int | None = None,
+                   script: dict | None = None) -> tuple[dict, bool]:
     """幂等创建：每名学生只保留一条非归档 session（所有顾问共享）。
 
-    ``advisor_id`` 仅记录“创建者”；同一学生已有非 ARCHIVED session 时直接返回它。
+    ``advisor_id`` 仅记录“创建者”；同一学生已有非 ARCHIVED session 时直接返回它，
+    并按调用方提供的 Y4 报告、会议时间与预填脚本做一次普通字段更新（不递增版本）。
     """
     def _run():
         with Session(_engine()) as sess:
             existing = _active_session(sess, student_id)
             if existing:
-                return _session_full(sess, existing), False
-            mode = "direct" if entry_mode == "direct" else "guided"
-            script = dict(COPILOT_DEFAULT_SCRIPT)
-            script["entryMode"] = mode
+                data = _session_full(sess, existing)
+                if y4_report_id is not None or meeting_at is not None or script:
+                    data = _apply_session_start(
+                        sess, existing, meeting_at, y4_report_id, script)
+                return data, False
+            merged = dict(COPILOT_DEFAULT_SCRIPT)
+            merged.update(script or {})
             row = CopilotSession(
                 student_id=student_id, advisor_id=advisor_id,
-                phase=5 if mode == "direct" else 0,
-                revision=1, status="ACTIVE",
-                script=json.dumps(script, ensure_ascii=False),
+                phase=0, revision=1, status="ACTIVE",
+                y4_report_id=y4_report_id,
+                script=json.dumps(merged, ensure_ascii=False),
                 interests="[]", meeting_at=meeting_at,
             )
             sess.add(row)
@@ -1353,6 +1360,24 @@ def create_session(student_id: int, advisor_id: int, entry_mode: str = "guided",
             return _session_full(sess, row), True
 
     return _with_retry(_run)
+
+
+def _apply_session_start(sess: Session, row: CopilotSession,
+                         meeting_at: str | None, y4_report_id: int | None,
+                         script: dict | None) -> dict:
+    """把开始会谈时的 Y4 快照等派生字段写入已有会话（不递增版本）。"""
+    if meeting_at is not None:
+        row.meeting_at = meeting_at
+    if y4_report_id is not None:
+        row.y4_report_id = y4_report_id
+    if script:
+        merged = _load_json(row.script, {})
+        merged.update(script)
+        row.script = json.dumps(merged, ensure_ascii=False)
+    row.updated_at = datetime.utcnow()
+    sess.commit()
+    sess.refresh(row)
+    return _session_full(sess, row)
 
 
 def get_session(session_id: int) -> Optional[dict]:

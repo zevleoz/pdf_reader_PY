@@ -40,9 +40,30 @@ class RouteDB:
 
     def session(self, *, phase=0):
         session, _ = store.create_session(
-            self.student_id, self.alice_id, "guided")
+            self.student_id, self.alice_id)
         store.update_session_fields(session["id"], phase=phase)
         return store.get_session(session["id"])
+
+    def add_y4(self, student_id=None, *, report_date=None, complete=True):
+        """写入一份 Y4 报告；默认是该学生完整数据的最近报告。"""
+        from datetime import date as _date
+        points = [{"code": "072", "value": "SAE", "type": "string"}]
+        if complete:
+            points += [
+                {"code": code, "value": value, "type": "number"}
+                for code, value in (("073", "2"), ("074", "5"),
+                                    ("075", "2"), ("076", "4"),
+                                    ("077", "1"), ("078", "3"))
+            ]
+        payload = json.dumps({"schema_124": points}, ensure_ascii=False)
+        with Session(self.engine) as sess:
+            report = _db.Report(
+                student_id=student_id or self.student_id,
+                report_date=report_date or _date(2026, 10, 1),
+                pdf_path="report.pdf", data_json=payload)
+            sess.add(report)
+            sess.commit()
+            return report.id
 
 
 @pytest.fixture()
@@ -149,7 +170,8 @@ def _ready_session(qdb):
 
 def test_create_session_idempotent_200(client, qdb):
     login_as(client, qdb)
-    payload = {"entryMode": "direct", "meetingAt": "2026-10-20T10:00:00"}
+    qdb.add_y4()
+    payload = {"meetingAt": "2026-10-20T10:00:00"}
 
     first = client.post(
         f"/api/v2/students/{qdb.student_id}/copilot/sessions", json=payload)
