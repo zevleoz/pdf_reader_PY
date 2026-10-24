@@ -13,10 +13,11 @@ import json
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from flask import (Blueprint, abort, jsonify, request, send_file, session,
                    render_template)
@@ -43,6 +44,19 @@ _PHASE_CONTENT_KEYS = ("interests", "script", "meetingAt", "entryMode",
 # 手动建档 requestId 幂等缓存：{(actor_id, request_id): (monotonic, student_id)}
 _MANUAL_STUDENT_IDEMPOTENCY: dict[tuple, tuple[float, int]] = {}
 _IDEMPOTENCY_TTL_SECONDS = 600
+
+# 顾问输入的会议时间按上海本地时间理解；存储统一为 UTC。
+_SHANGHAI = ZoneInfo("Asia/Shanghai")
+_MEETING_AT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+# 我方 topicType -> Activity Hub schema 的 (sourceType, topicType)。
+# schema 只允许 sourceType ∈ {interest, subject}、topicType ∈ {hobby, subject}，
+# 没有 social 分类；social（社交类事项）最接近 hobby，故归入 interest/hobby。
+_ACTIVITY_HUB_TOPIC_TYPES = {
+    "subject": ("subject", "subject"),
+    "interest": ("interest", "hobby"),
+    "social": ("interest", "hobby"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -172,13 +186,27 @@ def _dispatch(row: dict, kind: str, extra: dict | None = None):
 
 
 def _parse_meeting_at(value):
+    """把客户端会议时间规整为 UTC ``YYYY-MM-DDTHH:MM:SSZ``。
+
+    带时区偏移或 ``Z`` 的输入按原时区换算；无时区的输入按上海本地时间理解
+    （顾问在界面上填写的就是本地时间）。无效输入返回 ``None``。
+    """
     if not isinstance(value, str) or not value.strip():
         return None
     try:
-        datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     except ValueError:
         return None
-    return value.strip()
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_SHANGHAI)
+    return parsed.astimezone(timezone.utc).strftime(_MEETING_AT_FORMAT)
+
+
+def _default_meeting_at() -> str:
+    """默认会议时间：当前 UTC 时间向下取整到最近的 15 分钟。"""
+    now = datetime.now(timezone.utc)
+    return now.replace(minute=(now.minute // 15) * 15, second=0,
+                       microsecond=0).strftime(_MEETING_AT_FORMAT)
 
 
 def _entry_mode(row: dict) -> str:
@@ -216,7 +244,7 @@ def api_create_session(sid: int):
         if meeting_at is None:
             return _error("会议日期时间无效", 400)
     else:
-        meeting_at = datetime.utcnow().replace(microsecond=0).isoformat()
+        meeting_at = _default_meeting_at()
     row, created = store.create_session(sid, _actor_id(), entry_mode, meeting_at)
     if created:
         return jsonify({"session": row}), 201
@@ -1018,18 +1046,27 @@ def api_create_student():
         advisor_name = ((body.get("advisorName") or "").strip()
                         if isinstance(body.get("advisorName"), str)
                         else advisor_name) or advisor_name
+    # 只在调用者可见范围内去重：顾问只看自己名下，管理员看全部。
+    # 命中同名（且请求给了学校时学校也一致）的学生直接返回，不改任何字段。
     with Session(_db.engine) as sess:
-        existed = sess.execute(
-            select(_db.Student.id).where(_db.Student.name == name)
-        ).first() is not None
-    student_id = _db.find_or_create_student(
+        stmt = select(_db.Student.id).where(_db.Student.name == name)
+        if session.get("role") != "admin":
+            stmt = stmt.where(_db.Student.advisor_name == advisor_name)
+        if school:
+            stmt = stmt.where(_db.Student.school == school)
+        match = sess.execute(
+            stmt.order_by(_db.Student.id.asc())).first()
+    if match:
+        return jsonify({"ok": True, "existing": True,
+                        "student": _student_profile(match[0])}), 200
+
+    student_id = _db.create_student(
         name=name, grade=grade, school=school, phone=phone,
         advisor_name=advisor_name)
     if idempotency_key:
         _MANUAL_STUDENT_IDEMPOTENCY[idempotency_key] = (
             time.monotonic(), student_id)
-    return jsonify({"ok": True, "student": _student_profile(student_id)}), (
-        200 if existed else 201)
+    return jsonify({"ok": True, "student": _student_profile(student_id)}), 201
 
 
 @bp.route("/api/first-touch/import-y4", methods=["POST"])
@@ -1209,6 +1246,16 @@ def _activity_hub_section(value) -> dict:
     }
 
 
+def _activity_hub_topic(item: dict) -> tuple[str, str]:
+    """把兴趣的 topicType 映射到 Activity Hub schema 允许的取值。
+
+    缺失或未知类型按 interest 处理（兼容不含 topicType 的历史报告载荷）。
+    """
+    raw = item.get("topicType")
+    key = raw.strip().lower() if isinstance(raw, str) else ""
+    return _ACTIVITY_HUB_TOPIC_TYPES.get(key, ("interest", "hobby"))
+
+
 def _activity_hub_profile(report: dict, student: dict) -> dict:
     """按 first-touch-activity-hub/api-profile.schema.json 生成画像。"""
     try:
@@ -1236,11 +1283,12 @@ def _activity_hub_profile(report: dict, student: dict) -> dict:
         if item.get("preferenceScore") is None or item.get("competenceScore") is None:
             continue
         evidence = item.get("evidence")
+        source_type, topic_type = _activity_hub_topic(item)
         interests.append({
             "interestId": str(item.get("id") or ""),
             "label": str(item.get("label") or ""),
-            "sourceType": "interest",
-            "topicType": "hobby",
+            "sourceType": source_type,
+            "topicType": topic_type,
             "preferenceScoreV2": int(item["preferenceScore"]),
             "competenceScoreV2": int(item["competenceScore"]),
             "studentEvidence": [str(evidence)] if evidence else [],

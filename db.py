@@ -428,6 +428,31 @@ def next_student_code(sess=None) -> str:
         return _calc(s)
 
 
+def create_student(name: str, grade: str = "", school: str = "",
+                   phone: str = "", advisor_name: str = "") -> int:
+    """Create a student without de-duplicating. Returns student id.
+
+    与 ``add_student`` / ``find_or_create_student`` 一样按 ``next_student_code``
+    分配 ``Y4-XXXX`` 编号，并在并发撞唯一索引时有限次重试。
+    """
+    name = (name or "").strip()
+    for attempt in range(_CODE_ALLOC_RETRIES):
+        with Session(engine) as sess:
+            try:
+                stmt = insert(Student).values(
+                    student_code=next_student_code(sess),
+                    name=name, grade=grade, school=school,
+                    phone=phone, advisor_name=advisor_name,
+                )
+                result = sess.execute(stmt)
+                sess.commit()
+                return result.lastrowid
+            except IntegrityError:
+                sess.rollback()
+                if attempt == _CODE_ALLOC_RETRIES - 1:
+                    raise
+
+
 def add_student(name: str, gender: str = "", birthday: str = "",
                 grade: str = "", email: str = "", phone: str = "") -> int:
     """Create a student record. Returns student id."""
