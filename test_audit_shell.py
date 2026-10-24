@@ -81,8 +81,8 @@ def test_viewer_gets_first_touch_nav():
         "/first-touch", "/first-touch/copilot", "/first-touch/guide"]
 
 
-def test_viewer_first_touch_pages_still_forbidden(client, qdb):
-    """导航可见，但页面 403 直到后端 A2 放开只读访问——本任务是预期状态。"""
+def test_viewer_first_touch_pages_read_only(client, qdb):
+    """A2 起 Viewer 可只读访问 First Touch 页面。"""
     login_as(client, qdb, role="viewer", display_name="Viewer")
-    assert client.get("/first-touch").status_code == 403
-    assert client.get(f"/first-touch/students/{qdb.student_id}").status_code == 403
+    assert client.get("/first-touch").status_code == 200
+    assert client.get(f"/first-touch/students/{qdb.student_id}").status_code == 200

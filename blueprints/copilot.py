@@ -1,8 +1,10 @@
 """Copilot 2.0 蓝图：七阶段会谈 session、补充材料、项目推荐与报告流。
 
-全部路由要求 admin/advisor 登录；Advisor 只能访问自己名下的学生会谈
-（越权统一 404，避免泄露学生是否存在）。LLM 耗时端点一律投递到
-``growth_talk/jobs.py`` 的子进程作业，路由只返回 jobId 供前端轮询。
+每名学生只有一条 First Touch session，由管理员和该学生顾问共享；可见性以
+“调用者能看到该学生”为准（越权统一 404，避免泄露学生是否存在）。Viewer
+只读：页面与 GET 接口可访问，任何写入 / LLM 端点仍限 admin / advisor。
+LLM 耗时端点一律投递到 ``growth_talk/jobs.py`` 的子进程作业，路由只返回
+jobId 供前端轮询。
 """
 from __future__ import annotations
 
@@ -118,15 +120,30 @@ def _student_profile(student_id: int) -> dict | None:
 
 
 def _session_or_404(session_id: int) -> dict | None:
-    """按住会谈并做顾问隔离；越权与不存在都返回 None。"""
+    """取会谈：调用者能看到该学生即可（session 按学生共享）；归档会话 404。"""
     row = store.get_session(session_id)
-    if not row:
-        return None
-    if session.get("role") == "advisor" and row.get("advisor_id") != _actor_id():
+    if not row or row.get("status") == "ARCHIVED":
         return None
     if not _student_or_404(row["student_id"]):
         return None
     return row
+
+
+def _last_editor(row: dict) -> dict | None:
+    """最近一次写入者的展示名与时间（取自最新 CopilotPhaseEvent）。"""
+    events = row.get("events") or []
+    if not events:
+        return None
+    latest = events[0]
+    name = ""
+    actor_id = latest.get("actor_id")
+    if actor_id is not None:
+        with Session(_db.engine) as sess:
+            user = sess.get(_db.User, int(actor_id))
+            if user:
+                name = (user.display_name or user.advisor_name
+                        or user.username or "")
+    return {"name": name or "系统", "at": latest.get("created_at")}
 
 
 def _revision_error(body: dict, row: dict):
@@ -180,12 +197,11 @@ def _entry_mode(row: dict) -> str:
 # 会话
 # ---------------------------------------------------------------------------
 @bp.route("/api/v2/students/<int:sid>/copilot/sessions")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def api_list_sessions(sid: int):
     if not _student_or_404(sid):
         return _error("学生不存在或未分配至你的本地工作区", 404)
-    advisor_id = None if session.get("role") == "admin" else _actor_id()
-    return jsonify({"sessions": store.list_sessions(sid, advisor_id)})
+    return jsonify({"sessions": store.list_sessions(sid)})
 
 
 @bp.route("/api/v2/students/<int:sid>/copilot/sessions", methods=["POST"])
@@ -208,7 +224,7 @@ def api_create_session(sid: int):
 
 
 @bp.route("/api/v2/copilot/sessions/<int:session_id>")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def api_get_session(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -252,6 +268,7 @@ def api_get_session(session_id: int):
 
     return jsonify({
         "session": row,
+        "lastEditor": _last_editor(row),
         "entryMode": _entry_mode(row),
         "student": _student_profile(row["student_id"]),
         "reportId": report_id,
@@ -643,7 +660,7 @@ def api_prepare_report(session_id: int):
 
 
 @bp.route("/api/v2/copilot/jobs/<job_id>")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def api_job_status(job_id: str):
     if not _JOB_ID_RE.fullmatch(job_id):
         return _error("任务不存在", 404)
@@ -653,9 +670,6 @@ def api_job_status(job_id: str):
     student_id = job.get("student_id")
     if student_id and not _student_or_404(student_id):
         return _error("学生不存在或未分配至你的本地工作区", 404)
-    if (session.get("role") == "advisor"
-            and job.get("advisor_id") not in (None, _actor_id())):
-        return _error("任务不存在", 404)
     return jsonify(job)
 
 
@@ -707,7 +721,7 @@ def api_confirm_report(session_id: int):
 
 
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/report-pdf")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def api_report_pdf(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -813,12 +827,11 @@ def _latest_y4_reports(student_ids: list[int]) -> dict:
 
 def _first_touch_students() -> list[dict]:
     """First Touch 学生卡片：最近会谈阶段、会谈数、已确认报告数、Y4 报告摘要。"""
-    advisor_id = _actor_id() if session.get("role") == "advisor" else None
     students = _visible_students()
     y4_map = _latest_y4_reports([item["id"] for item in students])
     cards = []
     for student in students:
-        sessions = store.list_sessions(student["id"], advisor_id)
+        sessions = store.list_sessions(student["id"])
         latest = sessions[0] if sessions else None
         y4 = y4_map.get(student["id"]) or {}
         cards.append({
@@ -841,31 +854,39 @@ def _first_touch_students() -> list[dict]:
 
 
 @bp.route("/first-touch")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def page_home():
+    can_write = session.get("role") in ("admin", "advisor")
     return render_template(
         "first_touch/home.html", nav_active="first_touch",
         ctx={
             "students": _first_touch_students(),
-            "canImport": True,
+            "canImport": can_write,
             "isAdmin": session.get("role") == "admin",
+            "canWrite": can_write,
+            "readOnly": not can_write,
+            "role": session.get("role") or "",
         })
 
 
 @bp.route("/first-touch/copilot")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def page_chat_picker():
+    can_write = session.get("role") in ("admin", "advisor")
     students = [card for card in _first_touch_students()
                 if card["sessionCount"]]
     for card in students:
         card["chatCount"] = len(store.list_chats(card["id"]))
     return render_template("first_touch/chat_picker.html",
                            nav_active="first_touch.copilot",
-                           ctx={"students": students})
+                           ctx={"students": students,
+                                "canWrite": can_write,
+                                "readOnly": not can_write,
+                                "role": session.get("role") or ""})
 
 
 @bp.route("/first-touch/copilot/<int:sid>")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def page_chat(sid: int):
     profile = _student_profile(sid)
     if not profile or not _student_or_404(sid):
@@ -886,8 +907,8 @@ def page_chat(sid: int):
             active = store.get_chat(chats[0]["chatId"])
         except store.NotFoundError:
             active = None
-    sessions = store.list_sessions(
-        sid, _actor_id() if session.get("role") == "advisor" else None)
+    sessions = store.list_sessions(sid)
+    can_write = session.get("role") in ("admin", "advisor")
     ctx = {
         "sid": sid,
         "name": profile.get("name") or "",
@@ -898,7 +919,9 @@ def page_chat(sid: int):
         "students": _first_touch_students(),
         "activeChat": active,
         "sessionId": sessions[0]["id"] if sessions else None,
-        "canWrite": session.get("role") in ("admin", "advisor"),
+        "canWrite": can_write,
+        "readOnly": not can_write,
+        "role": session.get("role") or "",
         "maxTurns": 20,
         "maxChats": 20,
     }
@@ -907,10 +930,13 @@ def page_chat(sid: int):
 
 
 @bp.route("/first-touch/guide")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def page_guide():
-    return render_template("first_touch/guide.html",
-                           nav_active="first_touch.guide")
+    can_write = session.get("role") in ("admin", "advisor")
+    return render_template(
+        "first_touch/guide.html", nav_active="first_touch.guide",
+        ctx={"canWrite": can_write, "readOnly": not can_write,
+             "role": session.get("role") or ""})
 
 
 @bp.route("/first-touch/archive/<int:sid>")
@@ -939,6 +965,9 @@ def page_archive(sid: int):
         "sources": store.list_sources(sid),
         "runs": store.list_runs(sid),
         "reports": reports,
+        "canWrite": True,
+        "readOnly": False,
+        "role": "admin",
     }
     return render_template("first_touch/archive.html",
                            nav_active="first_touch.archive", ctx=ctx)
@@ -1042,16 +1071,16 @@ def api_import_y4():
 
 
 @bp.route("/first-touch/students/<int:sid>")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def page_workspace(sid: int):
     profile = _student_profile(sid)
     if not profile or not _student_or_404(sid):
         abort(404)
     initial_entry_mode = (
         "direct" if request.args.get("entry") == "direct" else "guided")
-    advisor_id = None if session.get("role") == "admin" else _actor_id()
-    sessions = store.list_sessions(sid, advisor_id)
+    sessions = store.list_sessions(sid)
     row = sessions[0] if sessions else None
+    can_write = session.get("role") in ("admin", "advisor")
     ctx = {
         "sid": sid,
         "code": profile.get("student_code") or "",
@@ -1059,9 +1088,11 @@ def page_workspace(sid: int):
         "grade": profile.get("grade") or "",
         "school": profile.get("school") or "",
         "sessionId": row["id"] if row else None,
-        "entryScreen": row is None,
+        "entryScreen": row is None and can_write,
         "initialEntryMode": initial_entry_mode,
-        "canWrite": session.get("role") in ("admin", "advisor"),
+        "canWrite": can_write,
+        "readOnly": not can_write,
+        "role": session.get("role") or "",
         "phases": copilot.PHASES,
     }
     return render_template("first_touch/workspace.html", nav_active="first_touch",
@@ -1131,7 +1162,7 @@ def api_session_assistant(session_id: int):
 
 
 @bp.route("/api/students/<int:sid>/copilot/chats")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def api_list_chats(sid: int):
     if not _student_or_404(sid):
         return _error("学生不存在或未分配至你的本地工作区", 404)
@@ -1139,7 +1170,7 @@ def api_list_chats(sid: int):
 
 
 @bp.route("/api/copilot/chats/<chat_id>")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def api_get_chat(chat_id: str):
     try:
         chat = store.get_chat(chat_id)
@@ -1261,7 +1292,7 @@ def _activity_hub_profile(report: dict, student: dict) -> dict:
 
 
 @bp.route("/api/first-touch/reports/<int:report_id>/activity-hub.json")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def api_report_activity_hub(report_id: int):
     report = store.get_report(report_id)
     if not report or not _student_or_404(report["student_id"]):

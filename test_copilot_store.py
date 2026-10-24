@@ -75,13 +75,16 @@ def _session(qdb, entry_mode="guided"):
     return store.create_session(qdb.student_id, qdb.advisor_id, entry_mode)
 
 
-def test_create_session_idempotent_per_student_advisor(qdb):
+def test_create_session_idempotent_per_student(qdb):
     s1, created1 = _session(qdb, "guided")
     s2, created2 = _session(qdb, "direct")
     assert created1 is True and created2 is False and s1["id"] == s2["id"]
     assert s1["phase"] == 0
+    # 每名学生只有一条 session：另一位顾问拿到同一条，不再各建一份。
     other, created3 = store.create_session(qdb.student_id, qdb.other_advisor_id)
-    assert created3 is True and other["id"] != s1["id"]
+    assert created3 is False and other["id"] == s1["id"]
+    assert other["advisor_id"] == qdb.advisor_id
+    assert len(store.list_sessions(qdb.student_id)) == 1
 
 
 def test_direct_entry_starts_at_phase_5(qdb):

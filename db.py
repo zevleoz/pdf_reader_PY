@@ -188,6 +188,11 @@ def init_db() -> None:
         _qstore.ensure_indexes()
     except Exception as e:
         print(f"[DB] 问卷部分唯一索引创建失败 (非致命): {e}")
+    try:
+        import growth_talk_store as _gtstore
+        _gtstore.ensure_indexes()
+    except Exception as e:
+        print(f"[DB] First Touch 部分唯一索引创建失败 (非致命，可能仍有重复会谈): {e}")
 
 
 def _migrate_schema() -> None:

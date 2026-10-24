@@ -507,7 +507,7 @@ def api_confirm_report(run_id: int):
 
 
 @bp.route("/api/growth-talk/reports/<int:report_id>/download.json")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def api_download_report_json(report_id: int):
     report = _report_or_404(report_id)
     if not report:
@@ -523,7 +523,7 @@ def api_download_report_json(report_id: int):
 
 
 @bp.route("/api/growth-talk/reports/<int:report_id>/download.pdf")
-@role_required("admin", "advisor")
+@role_required("admin", "advisor", "viewer")
 def api_download_report_pdf(report_id: int):
     report = _report_or_404(report_id)
     if not report:

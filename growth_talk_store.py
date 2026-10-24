@@ -1302,17 +1302,26 @@ def _session_full(sess: Session, row: CopilotSession) -> dict:
     return data
 
 
+def _active_session(sess: Session, student_id: int) -> Optional[CopilotSession]:
+    """学生当前唯一的非归档 session（每名学生共享，按更新时间取最新）。"""
+    return sess.execute(
+        select(CopilotSession).where(
+            CopilotSession.student_id == student_id,
+            CopilotSession.status != "ARCHIVED",
+        ).order_by(CopilotSession.updated_at.desc(),
+                  CopilotSession.id.desc())
+    ).scalars().first()
+
+
 def create_session(student_id: int, advisor_id: int, entry_mode: str = "guided",
                    meeting_at: str | None = None) -> tuple[dict, bool]:
-    """幂等创建：同一学生 + 顾问只存在一条 session。"""
+    """幂等创建：每名学生只保留一条非归档 session（所有顾问共享）。
+
+    ``advisor_id`` 仅记录“创建者”；同一学生已有非 ARCHIVED session 时直接返回它。
+    """
     def _run():
         with Session(_engine()) as sess:
-            existing = sess.execute(
-                select(CopilotSession).where(
-                    CopilotSession.student_id == student_id,
-                    CopilotSession.advisor_id == advisor_id,
-                )
-            ).scalar_one_or_none()
+            existing = _active_session(sess, student_id)
             if existing:
                 return _session_full(sess, existing), False
             mode = "direct" if entry_mode == "direct" else "guided"
@@ -1331,7 +1340,15 @@ def create_session(student_id: int, advisor_id: int, entry_mode: str = "guided",
                 session_id=row.id, actor_id=advisor_id, phase=row.phase,
                 action="created",
             ))
-            sess.commit()
+            try:
+                sess.commit()
+            except IntegrityError:
+                # 并发创建（或部分唯一索引）撞车：返回先落库的那一条。
+                sess.rollback()
+                existing = _active_session(sess, student_id)
+                if existing:
+                    return _session_full(sess, existing), False
+                raise
             sess.refresh(row)
             return _session_full(sess, row), True
 
@@ -1345,15 +1362,34 @@ def get_session(session_id: int) -> Optional[dict]:
 
 
 def list_sessions(student_id: int, advisor_id: int | None = None) -> list[dict]:
+    """返回学生的非归档 session（至多一条）。
+
+    ``advisor_id`` 仅为兼容旧调用保留，不再参与过滤：session 按学生共享。
+    """
     with Session(_engine()) as sess:
-        stmt = select(CopilotSession).where(CopilotSession.student_id == student_id)
-        if advisor_id is not None:
-            stmt = stmt.where(CopilotSession.advisor_id == advisor_id)
+        stmt = select(CopilotSession).where(
+            CopilotSession.student_id == student_id,
+            CopilotSession.status != "ARCHIVED",
+        )
         rows = sess.execute(
             stmt.order_by(CopilotSession.updated_at.desc(), CopilotSession.id.desc())
             .limit(30)
         ).scalars().all()
         return [_copilot_session_dict(row) for row in rows]
+
+
+def ensure_indexes() -> None:
+    """建立“每名学生至多一条非归档 session”的部分唯一索引。
+
+    SQLite / PostgreSQL 均支持该语法；已有重复数据时会抛错，此时应先在
+    *数据库副本* 上运行 ``scripts/merge_duplicate_copilot_sessions.py --apply``。
+    """
+    with _engine().begin() as conn:
+        conn.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "uq_copilot_session_student_active "
+            "ON copilot_sessions(student_id) WHERE status != 'ARCHIVED'"
+        )
 
 
 def claim_revision(session_id: int, expected_revision: int, actor_id: int,
