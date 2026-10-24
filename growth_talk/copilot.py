@@ -434,7 +434,7 @@ def compute_supplement_analysis(session_id: int) -> dict:
         if row["label"] and row["evidence"]:
             new_interests.append(row)
     result["newInterests"] = new_interests
-    result["y4Validation"] = validate_report_y4_validation(analysis.get("y4Validation") or [])
+    result["y4Validation"] = clamp_y4_validation(analysis.get("y4Validation") or [])
     result["analysisVersion"] = str(uuid.uuid4())
     previous = supplement.get("analysis") or {}
     for key in ("projectRecommendations", "projectRecommendationHistory"):
@@ -492,8 +492,8 @@ def _next_steps_prompt(student_name: str, transcript: str, interests: list[dict]
 
 def validate_next_steps(value) -> str:
     summary = value.get("summary") if isinstance(value, dict) else ""
-    summary = summary.strip() if isinstance(summary, str) else ""
-    if len(summary) < 20 or len(summary) > 1400:
+    summary = summary.strip()[:1400] if isinstance(summary, str) else ""
+    if len(summary) < 20:
         raise ValueError("会谈总结草稿长度无效")
     if re.search(r"[（(](?:活动|项目|课程|学校|专业|职业)[：:]", summary):
         raise ValueError("会谈总结不应写出具体活动或路径")
@@ -684,13 +684,31 @@ def has_recommendation_evidence(item: dict, interests: list[dict], transcript: s
     )
 
 
+def _clamp_generated_project(row: dict) -> dict:
+    """AI 生成的项目字段按上限截断，避免个别字段超长导致整批生成失败。"""
+    for key, limit in _PROJECT_ADVISOR_LIMITS.items():
+        value = row.get(key)
+        if isinstance(value, str):
+            effective = _PROJECT_STUDENT_LIMITS.get(key, limit)
+            row[key] = value.strip()[:effective]
+    for key in _PROJECT_LIST_FIELDS:
+        value = row.get(key)
+        if isinstance(value, list):
+            item_limit = 900 if key == "evidenceQuotes" else 500
+            row[key] = [
+                item.strip()[:item_limit] for item in value
+                if isinstance(item, str)
+            ][:8]
+    return row
+
+
 def prepare_generated_recommendations(value, ids: list[str], interests: list[dict],
                                       transcript: str) -> list[dict]:
     if not isinstance(value, list) or len(value) < 2 or len(value) > 5:
         raise ValueError("请重试生成 2–5 个项目推荐")
     rows = []
     for index, raw in enumerate(value):
-        row = dict(_object(raw))
+        row = _clamp_generated_project(dict(_object(raw)))
         row.update({
             "recommendationId": ids[index], "version": 1,
             "contentVersion": PROJECT_CONTENT_VERSION, "status": "draft",

@@ -21,6 +21,8 @@
   .ft-save { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
   .ft-save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
   .ft-save.err .ft-save-dot { background: var(--danger); }
+  .ft-save.warn { color: var(--warn); }
+  .ft-save.warn .ft-save-dot { background: var(--warn); }
   .ft-save button { border: 0; background: none; padding: 0; color: var(--danger); font-size: 12px; cursor: pointer; }
   .ft-ro-badge { margin-left: 6px; vertical-align: 2px; }
 
@@ -114,6 +116,7 @@
   .ft-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
   .ft-timer { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .ft-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .ft-pad-fab { padding-right: 96px; }
 
   /* ---------- ③ 整理与报告 ---------- */
   .ft-cards { display: grid; gap: 12px; }
@@ -144,7 +147,8 @@
   .ft-confirmed { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
   /* ---------- 撤销提示 / 抽屉 ---------- */
-  .ft-toastbar { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 999px; background: var(--ink); color: var(--surface); font-size: 12.5px; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+  .ft-toastbar { position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 999px; background: var(--ink); color: var(--surface); font-size: 12.5px; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+  body.has-toast .ft-toastbar { bottom: 148px; }
   .ft-toastbar button { border: 0; background: none; color: var(--surface); font-size: 12.5px; text-decoration: underline; cursor: pointer; }
   .ft-fab { position: fixed; right: 22px; bottom: 22px; z-index: 35; border-radius: 999px; height: 40px; padding: 0 16px; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); }
   .ft-drawer { position: fixed; right: 18px; bottom: 72px; z-index: 36; width: min(380px, calc(100vw - 32px)); max-height: 72vh; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 12px 40px rgba(0, 0, 0, .2); }
@@ -168,7 +172,6 @@
 <div class="ft-page" :class="{ 'is-readonly': readOnly }"
      data-ft-workspace
      x-data='ftWorkspace({{ ctx | tojson }})'
-     x-init="init()"
      @keydown.escape.window="selectedId = null"
      x-cloak>
 
@@ -182,11 +185,12 @@
         最近编辑：<span x-text="lastEditor ? lastEditor.name : ''"></span>
         <template x-if="lastEditor && lastEditor.at"><span> · <span x-text="fmtEditor(lastEditor.at)"></span></span></template>
       </span>
-      <span class="ft-save" :class="{ 'err': saveFail }">
+      <span class="ft-save" :class="{ 'err': saveFail, 'warn': conflict && conflict.active }">
         <i class="ft-save-dot"></i>
-        <template x-if="saving"><span>正在保存…</span></template>
-        <template x-if="!saving && saveFail"><button type="button" @click="flushSave()">保存失败，点此重试</button></template>
-        <template x-if="!saving && !saveFail"><span x-text="'已自动保存 ' + lastSavedAt"></span></template>
+        <template x-if="conflict && conflict.active"><span>未保存 · 有冲突</span></template>
+        <template x-if="!(conflict && conflict.active) && saving"><span>正在保存…</span></template>
+        <template x-if="!saving && !(conflict && conflict.active) && saveFail"><button type="button" @click="flushSave()">保存失败，点此重试</button></template>
+        <template x-if="!saving && !(conflict && conflict.active) && !saveFail"><span x-text="'已自动保存 ' + lastSavedAt"></span></template>
       </span>
     </div>
   </div>
@@ -324,7 +328,7 @@
             <template x-if="!script.talkingPoints.length">
               <div class="ft-tipbox">还没有生成。也可以直接开始会谈。</div>
             </template>
-            <div class="ft-actions">
+            <div class="ft-actions ft-pad-fab">
               <span class="ft-spacer"></span>
               <button type="button" class="btn btn-primary" :disabled="readOnly" @click="goStep(1)">开始会谈 →</button>
             </div>
@@ -360,10 +364,11 @@
 
               <div class="ft-rows">
                 <template x-for="row in interests" :key="row.id">
-                  <div class="ft-row" :class="{ 'sel': selectedId === row.id }" @click="toggleSelect(row.id)">
+                  <div class="ft-row" :class="{ 'sel': selectedId === row.id }" @click="rowClick($event, row)">
                     <div class="ft-row-top">
                       <template x-if="editingId !== row.id">
-                        <button type="button" class="ft-name" @click.stop="beginRename(row)" x-text="row.label"></button>
+                        <button type="button" class="ft-name" title="双击重命名"
+                                @dblclick.stop="beginRename(row)" x-text="row.label"></button>
                       </template>
                       <template x-if="editingId === row.id">
                         <input class="ft-input ft-name-input" x-model="nameDraft" maxlength="80"
@@ -414,7 +419,7 @@
                       </label>
                     </div>
                     <input class="ft-note" maxlength="2000" placeholder="备注（可选）" :disabled="readOnly"
-                           :value="row.note"
+                           :value="row.note" @click.stop
                            @input="setNote(row, $event.target.value)">
                   </div>
                 </template>
@@ -462,7 +467,7 @@
             </div>
           </section>
         </div>
-        <div class="ft-foot">
+        <div class="ft-foot ft-pad-fab">
           <button type="button" class="btn" @click="goStep(0)">← 会前</button>
           <button type="button" class="btn btn-primary" @click="goStep(2)">结束会谈，去整理 →</button>
         </div>
@@ -635,7 +640,7 @@
                   <li><span class="ok">✓</span><span>必填项已齐全，可确认报告。</span></li>
                 </template>
               </ul>
-              <div class="ft-actions">
+              <div class="ft-actions ft-pad-fab">
                 <button type="button" class="btn btn-primary"
                         :disabled="!confirmReady || confirmBusy" @click="confirmReport()"
                         x-text="confirmBusy ? '生成中…' : (confirmedReport ? '确认并生成新版本' : '确认并生成报告')"></button>
@@ -1047,9 +1052,17 @@ window.ftWorkspace = function (ctx) {
     goStep: function (target) {
       if (target < 0 || target > 2) { return; }
       this.step = target;
-      if (target === 1) { this.startTimer(); }
+      if (target === 1) {
+        this.startTimer();
+        this.focusAddInput();
+      }
       if (target === 2 && this.canWrite) { this.refreshPreview(); }
       if (this.canWrite && this.sessionId && !this.readOnly) { this.syncPhase(target); }
+    },
+    focusAddInput: function () {
+      this.$nextTick(function () {
+        if (this.$refs.addInput) { this.$refs.addInput.focus(); }
+      }.bind(this));
     },
     syncPhase: async function (target) {
       if (!this.canWrite || !this.sessionId || this.readOnly) { return; }
@@ -1370,6 +1383,11 @@ window.ftWorkspace = function (ctx) {
     },
     toggleSelect: function (id) {
       this.selectedId = this.selectedId === id ? null : id;
+    },
+    rowClick: function (event, row) {
+      // 双击名称用于重命名；第二下 click 不再切换选中。
+      if (event && event.detail > 1) { return; }
+      this.toggleSelect(row.id);
     },
     get snapshot() {
       return this.y4 || (this.script && this.script.y4Snapshot) || null;

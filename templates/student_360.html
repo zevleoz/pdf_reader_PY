@@ -606,7 +606,7 @@
                 <template x-for="r in firstTouch.reports" :key="r.id">
                   <tr>
                     <td class="mono" x-text="'v' + r.version"></td>
-                    <td class="mono" x-text="fmtDate(r.confirmedAt)"></td>
+                    <td class="mono" x-text="fmtFTTime(r.confirmedAt)"></td>
                     <td x-text="r.confirmedBy || '—'"></td>
                     <td style="text-align:right; white-space:nowrap">
                       <a class="btn btn-sm btn-sec"
@@ -822,6 +822,25 @@ function pageStudent360(ctx) {
     fmtDate(iso) {
       if (!iso) { return '—'; }
       return window.y4FmtDT ? window.y4FmtDT(iso) : String(iso);
+    },
+    // First Touch 的 confirmedAt 是 naive UTC；按上海时间显示，避免少 8 小时。
+    fmtFTTime(iso) {
+      if (!iso) { return '—'; }
+      var text = String(iso).trim();
+      if (/\d{2}:\d{2}/.test(text) && !/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(text)) {
+        text += 'Z';
+      }
+      var d = new Date(text);
+      if (isNaN(d.getTime())) { return String(iso).slice(0, 16).replace('T', ' '); }
+      var parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      }).formatToParts(d);
+      var map = {};
+      parts.forEach(function (part) { map[part.type] = part.value; });
+      if (!map.year) { return String(iso).slice(0, 16).replace('T', ' '); }
+      return map.year + '-' + map.month + '-' + map.day +
+             ' ' + (map.hour === '24' ? '00' : map.hour) + ':' + map.minute;
     },
     pretty(obj) {
       try { return JSON.stringify(obj, null, 2); } catch (e) { return String(obj); }

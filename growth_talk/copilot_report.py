@@ -200,7 +200,7 @@ def missing_report_fields(draft: dict) -> list[dict]:
     elif not projects:
         missing.append({
             "key": "projects",
-            "label": "项目推荐：尚未选择并保存“推荐给学生”的方案，本次报告不收录项目",
+            "label": "项目建议：未选择（可选，报告中不显示项目）",
             "required": False,
         })
 
@@ -213,7 +213,7 @@ def missing_report_fields(draft: dict) -> list[dict]:
     if not (draft.get("y4Validation") or []):
         missing.append({
             "key": "y4-validation",
-            "label": "会议对 Y4 的验证：未填写",
+            "label": "会议与 Y4 的对照：未填写（可选）",
             "required": False,
         })
 
