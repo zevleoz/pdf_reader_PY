@@ -1,0 +1,574 @@
+<title>First Touch 3.0 Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: platform shell (dark rail + light work area) with a right-hand "logic notes" column; screens switch via the prototype bar. Tokens mirror static/admin_v2.css. */
+:root {
+  --bg: #F7F8FA; --surface: #FFFFFF; --line: #E5E7EB; --line-soft: #F1F2F4;
+  --ink: #18181B; --muted: #71717A; --faint: #A1A1AA;
+  --brand: #D24949; --brand-deep: #B33A3A; --brand-soft: #FAEEEE; --brand-ring: rgba(210,73,73,.32);
+  --ok: #15803D; --ok-soft: #F0FDF4; --warn: #B45309; --warn-soft: #FEF6E7; --danger: #DC2626; --danger-soft: #FEF2F2;
+  --side: #16130F; --side-text: #A8A29E; --side-strong: #FAFAF9; --side-active: rgba(255,255,255,.09);
+  --note-bg: #FFFBEB; --note-line: #F3E3B5; --note-ink: #57400F;
+  --q-both: #E8F5EC; --q-like: #FDF0E6; --q-good: #EEF2FB; --q-low: #F4F4F5;
+  --on-brand: #FFFFFF;
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 8px; --r-sm: 6px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121214; --surface: #1B1B1F; --line: #2C2C32; --line-soft: #232328;
+  --ink: #F4F4F5; --muted: #A1A1AA; --faint: #71717A;
+  --brand: #E05A5A; --brand-deep: #F07A7A; --brand-soft: #3A1F1F; --brand-ring: rgba(224,90,90,.4);
+  --ok: #4ADE80; --ok-soft: #13291B; --warn: #FBBF24; --warn-soft: #2E2410; --danger: #F87171; --danger-soft: #331717;
+  --side: #0B0A09; --side-text: #A8A29E; --side-strong: #FAFAF9; --side-active: rgba(255,255,255,.08);
+  --note-bg: #26210F; --note-line: #4A3F1A; --note-ink: #F1DFA6;
+  --q-both: #16301F; --q-like: #33240F; --q-good: #18223A; --q-low: #222227;
+  --on-brand: #FFFFFF; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121214; --surface: #1B1B1F; --line: #2C2C32; --line-soft: #232328;
+  --ink: #F4F4F5; --muted: #A1A1AA; --faint: #71717A;
+  --brand: #E05A5A; --brand-deep: #F07A7A; --brand-soft: #3A1F1F; --brand-ring: rgba(224,90,90,.4);
+  --ok: #4ADE80; --ok-soft: #13291B; --warn: #FBBF24; --warn-soft: #2E2410; --danger: #F87171; --danger-soft: #331717;
+  --side: #0B0A09; --side-text: #A8A29E; --side-strong: #FAFAF9; --side-active: rgba(255,255,255,.08);
+  --note-bg: #26210F; --note-line: #4A3F1A; --note-ink: #F1DFA6;
+  --q-both: #16301F; --q-like: #33240F; --q-good: #18223A; --q-low: #222227;
+  --on-brand: #FFFFFF; color-scheme: dark; }
+
+*, *::before, *::after { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.55 var(--font); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand-ring); border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* prototype bar */
+.proto { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.proto-in { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; max-width: 1400px; margin: 0 auto; }
+.proto-name { font-weight: 650; font-size: 14px; letter-spacing: -.01em; }
+.proto-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+.proto-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.proto-tabs button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 11px; font-size: 12px; color: var(--muted); }
+.proto-tabs button[aria-selected="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+/* shell */
+.wrap { max-width: 1400px; margin: 0 auto; padding-block: 16px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; grid-template-columns: 190px minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.rail { background: var(--side); color: var(--side-text); border-radius: var(--r); padding: 14px 10px; position: sticky; top: 68px; }
+.rail .brand { color: var(--side-strong); font-weight: 650; padding: 0 8px 12px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 10px; }
+.rail .brand small { display: block; color: var(--side-text); font-weight: 400; font-size: 11px; }
+.rail .grp { font-size: 11px; letter-spacing: .06em; padding: 10px 8px 4px; }
+.rail a { display: block; padding: 6px 8px; border-radius: 6px; color: var(--side-text); text-decoration: none; font-size: 12.5px; }
+.rail a.on { background: var(--side-active); color: var(--side-strong); }
+.rail a s { opacity: .55; }
+.main { min-width: 0; display: grid; gap: 16px; }
+.notes { position: sticky; top: 68px; background: var(--note-bg); border: 1px solid var(--note-line); color: var(--note-ink); border-radius: var(--r); padding: 14px 16px; }
+.notes h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+.notes h4 { margin: 12px 0 4px; font-size: 12.5px; }
+.notes ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.notes p { margin: 0; }
+@media (max-width: 1100px) { .wrap { grid-template-columns: minmax(0, 1fr) 280px; } .rail { display: none; } }
+@media (max-width: 820px) { .wrap { grid-template-columns: minmax(0, 1fr); } .notes { position: static; } }
+
+/* components */
+.surface { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 1px 2px rgba(24,24,27,.04); min-width: 0; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.head h2 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.head .sub { color: var(--muted); font-size: 12px; }
+.sp { flex: 1; }
+.body { padding: 14px 16px; }
+.page-h { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px; }
+.page-h h1 { margin: 0; font-size: 19px; letter-spacing: -.02em; text-wrap: balance; }
+.page-h .meta { color: var(--muted); font-size: 12.5px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; font-size: 12.5px; font-weight: 500; white-space: nowrap; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface); }
+.btn:hover { border-color: var(--faint); }
+.btn.pri { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.btn.pri:hover { background: var(--brand-deep); border-color: var(--brand-deep); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btn.sm { height: 26px; padding: 0 9px; font-size: 12px; }
+.pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--line-soft); color: var(--muted); white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.brand { background: var(--brand-soft); color: var(--brand-deep); } .pill.danger { background: var(--danger-soft); color: var(--danger); }
+.ex { font-size: 11px; color: var(--warn); font-weight: 600; }
+.input { height: 34px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); padding: 0 10px; min-width: 0; }
+textarea.input { height: auto; padding: 8px 10px; width: 100%; resize: vertical; }
+
+/* stepper */
+.steps { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.step { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px 5px 6px; background: var(--surface); font-size: 12.5px; }
+.step b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--line-soft); color: var(--muted); font-size: 11px; }
+.step[aria-current="step"] { border-color: var(--brand); color: var(--brand-deep); background: var(--brand-soft); }
+.step[aria-current="step"] b { background: var(--brand); color: var(--on-brand); }
+.step.done b { background: var(--ok-soft); color: var(--ok); }
+.saved { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.saved i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: inline-block; }
+
+/* table */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11.5px; padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+tr.dim td { color: var(--faint); }
+.code { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+/* Y4 snapshot */
+.y4 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 700px) { .y4 { grid-template-columns: minmax(0, 1fr); } }
+.y4 .blk { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px; min-width: 0; }
+.y4 .k { font-size: 11.5px; color: var(--muted); }
+.y4 .big { font-size: 22px; font-weight: 650; letter-spacing: .04em; margin: 2px 0 8px; }
+.bar { display: grid; grid-template-columns: 52px minmax(0, 1fr) 28px; align-items: center; gap: 8px; font-size: 12px; margin-top: 5px; }
+.bar .t { height: 6px; background: var(--line-soft); border-radius: 99px; overflow: hidden; }
+.bar .t span { display: block; height: 100%; background: var(--faint); border-radius: 99px; }
+.bar.top .t span { background: var(--brand); }
+.rank { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.tip { border: 1px dashed var(--line); border-radius: var(--r-sm); padding: 10px 12px; color: var(--muted); }
+.tip ol { margin: 6px 0 0; padding-left: 18px; color: var(--ink); display: grid; gap: 4px; }
+
+/* capture */
+.cap { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 960px) { .cap { grid-template-columns: minmax(0, 1fr); } }
+.add { display: flex; flex-wrap: wrap; gap: 8px; }
+.add .input { flex: 1 1 180px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 0 9px; height: 28px; font-size: 12px; color: var(--muted); border-left: 1px solid var(--line); min-width: 30px; }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.sugg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { border: 1px dashed var(--faint); background: transparent; border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--muted); }
+.chip:hover { border-color: var(--brand); color: var(--brand-deep); }
+.rows { display: grid; gap: 8px; }
+.row { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; display: grid; gap: 8px; background: var(--surface); }
+.row.sel { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
+.row-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.row-top .name { font-weight: 600; font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; }
+.row-sc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.row-sc label { font-size: 12px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.star { border: 0; background: transparent; font-size: 15px; color: var(--faint); padding: 0 4px; }
+.star[aria-pressed="true"] { color: var(--warn); }
+.cat { font-size: 11px; padding: 1px 7px; border-radius: 4px; background: var(--line-soft); color: var(--muted); }
+.quad { display: grid; grid-template-columns: 34px repeat(4, minmax(0, 1fr)); gap: 4px; }
+.quad .ax { font-size: 11px; color: var(--muted); display: grid; place-items: center; text-align: center; }
+.cell { min-height: 64px; border-radius: 6px; border: 1px solid transparent; padding: 4px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 3px; background: var(--q-low); text-align: left; }
+.cell.both { background: var(--q-both); } .cell.like { background: var(--q-like); } .cell.good { background: var(--q-good); }
+.cell.armed:hover { border-color: var(--brand); }
+.cell span { font-size: 11px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; line-height: 18px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.hint { font-size: 12px; color: var(--muted); }
+.timer { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+/* wrap-up */
+.cards { display: grid; gap: 16px; }
+.cand { display: grid; gap: 8px; }
+.cand .it { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; }
+.cand .it .ev { flex: 1 1 220px; color: var(--muted); font-size: 12px; min-width: 0; }
+.cand .it.gone { opacity: .45; }
+.conf { border-color: var(--warn); background: var(--warn-soft); }
+.drop { border: 1.5px dashed var(--line); border-radius: var(--r-sm); padding: 16px; text-align: center; color: var(--muted); }
+.proj { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.proj .p { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; display: grid; gap: 6px; }
+.proj .p.off { opacity: .45; }
+.proj .p h5 { margin: 0; font-size: 13px; }
+.proj .p p { margin: 0; font-size: 12px; color: var(--muted); }
+.check { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.check li { display: flex; gap: 8px; align-items: baseline; }
+.check .ok { color: var(--ok); } .check .bad { color: var(--warn); }
+
+/* sanity */
+.find { display: grid; gap: 0; }
+.find .f { display: grid; grid-template-columns: 84px minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
+.find .f:last-child { border-bottom: 0; }
+.find .f .sev { font-size: 11.5px; font-weight: 600; }
+.find .f .now { color: var(--muted); }
+.find .hdr { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+@media (max-width: 640px) { .find .f { grid-template-columns: minmax(0, 1fr); gap: 4px; } .find .hdr { display: none; } }
+
+/* drawer */
+.fab { position: fixed; right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 30; border-radius: 999px; height: 40px; padding: 0 16px; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.drawer { position: fixed; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); z-index: 30; width: min(360px, calc(100vw - 32px)); max-height: 70vh; overflow: auto; }
+.msg { border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }
+.msg.q { background: var(--line-soft); }
+.msg.a { border: 1px solid var(--line); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 40; background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 999px; font-size: 12.5px; }
+</style>
+
+<div class="proto">
+  <div class="proto-in">
+    <span class="proto-name">First Touch 3.0</span>
+    <span class="proto-tag">交互原型 · 示例数据</span>
+    <div class="proto-tabs" role="tablist" id="tabs"></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <nav class="rail" aria-label="平台导航示意">
+    <div class="brand">凭远教育<small>Y4 · 综合测评</small></div>
+    <a href="#home" data-go="home">工作台</a>
+    <a href="#s360" data-go="s360">学生档案</a>
+    <div class="grp">FIRST TOUCH</div>
+    <a href="#home" data-go="home" id="railFt">学生列表</a>
+    <a href="#home" data-go="home"><s>聊天中心</s></a>
+    <a href="#home" data-go="home">使用指南</a>
+    <div class="grp">报告</div>
+    <a href="#home" data-go="home">报告生成</a>
+  </nav>
+  <main class="main" id="main"></main>
+  <aside class="notes" id="notes" aria-label="逻辑说明"></aside>
+</div>
+
+<button class="btn pri fab" id="fab" type="button" hidden>问 Copilot</button>
+<section class="surface drawer" id="drawer" hidden aria-label="Copilot 助手"></section>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+  var CATS = { subject: '学科', interest: '课外兴趣', social: '社会话题' };
+  var SUBJECT_WORDS = ['数学', '物理', '化学', '生物', '语文', '英语', '历史', '地理', '政治', '编程', '计算机', '经济'];
+  var SOCIAL_WORDS = ['环保', '气候', '公益', '社会', '新闻', '政策', '心理', 'AI', '人工智能'];
+  var LIKE = ['不喜欢', '一般', '喜欢', '非常喜欢'];
+  var GOOD = ['不擅长', '一般', '擅长', '非常擅长'];
+
+  var state = {
+    screen: 'sanity', step: 1, selected: null, drawer: false, confirmed: false,
+    interests: [
+      { id: 1, name: '数学竞赛', cat: 'subject', like: 3, good: 2, star: true, note: '上学期拿了市二等奖' },
+      { id: 2, name: '篮球', cat: 'interest', like: 3, good: 2, star: false, note: '' },
+      { id: 3, name: '摄影', cat: 'interest', like: 2, good: null, star: false, note: '' },
+      { id: 4, name: '城市交通', cat: 'social', like: null, good: null, star: false, note: '' }
+    ],
+    nextId: 5,
+    candidates: [
+      { name: '乐高机器人', cat: 'interest', like: 3, good: 3, ev: '“周末都在搭机器人，去年参加过 FLL 比赛”', state: 'pending' },
+      { name: '物理', cat: 'subject', like: 2, good: 3, ev: '“物理老师说我是班上最会做实验的”', state: 'pending' },
+      { name: '篮球', cat: 'interest', like: 3, good: 3, ev: '转写显示“校队主力”，你记录的擅长为 2', state: 'pending', conflict: true }
+    ],
+    summary: '',
+    projects: [
+      { t: '城市公交线路数据小研究', fit: '数据 / 研究', why: '结合数学竞赛基础与对城市交通的好奇心，用公开数据做一个线路效率分析。', on: true },
+      { t: '校园机器人社团项目', fit: '设计 / 制作', why: '乐高机器人经验可延伸为一个有用户的校园小装置。', on: true },
+      { t: '体育摄影作品集', fit: '表达 / 传播', why: '把篮球与摄影结合，记录校队赛季。', on: false }
+    ]
+  };
+
+  var SCREENS = [
+    { id: 'sanity', label: '体检结论' },
+    { id: 'home', label: '学生列表' },
+    { id: 'ws1', label: '① 会前 · Y4 速览' },
+    { id: 'ws2', label: '② 会谈中 · 兴趣记录' },
+    { id: 'ws3', label: '③ 会后 · 整理与报告' },
+    { id: 's360', label: '学生 360 卡片' }
+  ];
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function $(id) { return document.getElementById(id); }
+  var toastTimer = null;
+  function toast(t) { var el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.hidden = true; }, 1800); }
+  function nowHM() { var d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  var lastSaved = nowHM();
+  function touch() { lastSaved = nowHM(); }
+
+  function go(id) {
+    state.screen = id;
+    if (id === 'ws1') state.step = 1; if (id === 'ws2') state.step = 2; if (id === 'ws3') state.step = 3;
+    try { localStorage.setItem('ft3-proto-screen', id); } catch (e) {}
+    render(); window.scrollTo(0, 0);
+  }
+
+  function renderTabs() {
+    $('tabs').innerHTML = SCREENS.map(function (s) {
+      return '<button type="button" role="tab" aria-selected="' + (state.screen === s.id) + '" data-go="' + s.id + '">' + esc(s.label) + '</button>';
+    }).join('');
+  }
+
+  /* ---------- notes ---------- */
+  var NOTES = {
+    sanity: '<h3>What this is</h3><p>A clickable walk-through of the reworked First Touch. Every screen runs on example data. The right column explains the rules each screen follows; flash agents implement against it.</p><h4>Design goals</h4><ul><li>Usable live in a 30–45 min meeting, one hand on the keyboard.</li><li>Starts from Y4 data already on the platform. No external approval step.</li><li>Nothing to save: every change autosaves.</li><li>AI is optional help, never a gate.</li></ul>',
+    home: '<h3>List rules</h3><ul><li>Rows = students the user can see (advisor: own students; admin/viewer: all).</li><li><b>开始</b> appears only when the student has at least one Y4 report. Without one the row shows <b>需先完成 Y4</b> and links to report generation.</li><li>Starting creates the single session and opens step ①. No entry-choice screen.</li><li>Status comes from the session: 未开始 / 进行中 (step ①–③) / 已完成 (report confirmed).</li></ul><h4>Removed</h4><ul><li>从 Yuguo 导入, 手动添加学生, 从 Y4 导入 dialog, per-card 直接上传 button, separate 聊天中心.</li></ul>',
+    ws1: '<h3>Step ① rules</h3><ul><li>Y4 snapshot is computed from the latest report’s schema_124 data. No AI call: career-interest code + scores (072–078), top-3 ability strengths (079–094), top-3 career values (095–124).</li><li>Meeting time defaults to now (Shanghai), rounded to 15 min.</li><li><b>AI 会谈提示</b> is one optional click; the result is editable and saved with the session.</li><li>Topic chips from the Y4 code pre-seed step ② suggestions.</li></ul><h4>Replaces</h4><ul><li>Old phases 1–3 (会议准备 / 目标说明 / Y4 结果解读) and the five script text boxes.</li></ul>',
+    ws2: '<h3>Step ② rules</h3><ul><li>Type a name, press Enter. Category is guessed from keywords and can be changed with one click.</li><li>Scores are 0–3 tap buttons, or select a row then click a quadrant cell to set both at once. “–” means 待评.</li><li>Unscored items stay in the list and are left out of the board, the AI input and the report.</li><li>★ marks at most one special-focus item.</li><li>Autosave ~800 ms after the last change. A conflict shows a banner with “载入最新” instead of a modal.</li><li>The timer is local only.</li></ul><h4>Replaces</h4><ul><li>Old phases 4–5 and the dropdown scores.</li></ul>',
+    ws3: '<h3>Step ③ rules</h3><ul><li>Transcript upload is optional. If given, AI proposes missed interests and score conflicts; each needs 采纳 or 忽略.</li><li>Summary and project ideas are generated on request, never automatically; both stay editable.</li><li>The checklist gates confirmation: ≥ 3 scored interests and a summary. Unresolved suggestions also block it.</li><li>Confirming creates an immutable report version (PDF/JSON) and marks the session 已完成. Editing afterwards starts a new version.</li></ul><h4>Replaces</h4><ul><li>Old phases 6–7, the fingerprint, the double checkbox and the 4-step progress widget.</li></ul>',
+    s360: '<h3>360 rules</h3><ul><li>The “Growth Talk” tab is replaced by “First Touch”.</li><li>It shows status, scored interests, the mini board and confirmed report versions.</li><li>Button: 开始 / 继续 / 查看 First Touch, following the same Y4 rule as the list.</li><li>Viewer: read-only, downloads allowed.</li></ul>'
+  };
+
+  /* ---------- screens ---------- */
+  function sanity() {
+    var rows = [
+      ['P0', 'danger', '流程靠外部系统（Yuguo）分配学生和授权；本平台无法独立开始。', '直接从已完成 Y4 的学生开始，删除 Yuguo/CRM 集成。'],
+      ['P0', 'danger', 'AI 全部失效：只读 DEEPSEEK_API_KEY（同事的 key），本项目未配置。', '统一走 DashScope（项目已在用的 key），一处配置。'],
+      ['P1', 'warn', '七个阶段，其中三个是纯话术页面；会谈中要来回切换。', '三步：会前 / 会谈中 / 会后。会谈中只有一个屏幕。'],
+      ['P1', 'warn', '每一步都要点“保存”，切换阶段还会弹确认框。', '自动保存，界面只显示“已自动保存 14:32”。'],
+      ['P1', 'warn', 'Y4 解读需要先跑一次 AI 才有内容。', 'Y4 速览直接由报告数据计算，打开即有。'],
+      ['P1', 'warn', '打分是下拉框，每项要点 4 次。', '0–3 点按按钮，或在象限格里一次点完。'],
+      ['P2', '', '入口二选一（会谈流程 / 直接上传），聊天中心独立成页。', '一个入口；会后可直接上传转写。Copilot 收进工作台浮窗。'],
+      ['P2', '', '报告确认：指纹、双勾选、4 步进度条，术语多。', '一张清单 + 一个“确认并生成报告”按钮。'],
+      ['P2', '', '学生 360 里还是“Growth Talk”，与 First Touch 并存。', '360 只保留 First Touch 卡片。']
+    ];
+    return '<div class="page-h"><h1>First Touch 体检结论</h1><span class="meta">对照现有 7 阶段版本（first-touch-merge 分支）</span></div>' +
+      '<section class="surface"><div class="head"><h2>发现的问题与新设计对应</h2></div><div class="find">' +
+      '<div class="f hdr"><span>级别</span><span>现在</span><span>3.0 做法</span></div>' +
+      rows.map(function (r) { return '<div class="f"><span class="sev"><span class="pill ' + r[1] + '">' + r[0] + '</span></span><span class="now">' + esc(r[2]) + '</span><span>' + esc(r[3]) + '</span></div>'; }).join('') +
+      '</div></section>' +
+      '<section class="surface"><div class="head"><h2>新流程</h2><span class="sub">点击进入每一步</span></div><div class="body steps">' +
+      '<button class="step" data-go="home"><b>·</b>学生列表</button><span class="hint">→</span>' +
+      '<button class="step" data-go="ws1"><b>1</b>会前 · Y4 速览</button><span class="hint">→</span>' +
+      '<button class="step" data-go="ws2"><b>2</b>会谈中 · 兴趣记录</button><span class="hint">→</span>' +
+      '<button class="step" data-go="ws3"><b>3</b>会后 · 整理与报告</button><span class="hint">→</span>' +
+      '<button class="step" data-go="s360"><b>·</b>学生 360</button></div></section>';
+  }
+
+  function home() {
+    var rows = [
+      ['林小舟', 'Y4-0012', '初二', '王老师', '2026-10-18', 'brand', '进行中 · ②', '继续', 'ws2'],
+      ['陈一诺', 'Y4-0011', '高一', '王老师', '2026-10-15', 'ok', '已完成 · v1', '查看', 's360'],
+      ['周子墨', 'Y4-0010', '初三', '陆老师', '2026-10-12', '', '未开始', '开始', 'ws1'],
+      ['吴思远', 'Y4-0009', 'G9', '陆老师', '2026-10-09', '', '未开始', '开始', 'ws1'],
+      ['郑可欣', 'Y4-0008', '高二', '王老师', '', 'warn', '需先完成 Y4', '', '']
+    ];
+    return '<div class="page-h"><h1>First Touch</h1><span class="meta">已完成 Y4 的学生可以直接开始会谈</span></div>' +
+      '<section class="surface"><div class="head"><input class="input" id="q" placeholder="搜索姓名 / 编号 / 学校" style="flex:1 1 220px">' +
+      '<div class="seg" role="group" aria-label="筛选"><button aria-pressed="true">全部 5</button><button>可开始 2</button><button>进行中 1</button><button>已完成 1</button></div>' +
+      '<span class="ex">示例数据</span></div><div class="tbl-wrap"><table><thead><tr><th>学生</th><th>编号</th><th>年级</th><th>顾问</th><th>最新 Y4</th><th>First Touch</th><th></th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        var act = r[7] ? '<button class="btn sm ' + (r[7] === '开始' || r[7] === '继续' ? 'pri' : '') + '" data-go="' + r[8] + '">' + r[7] + '</button>' : '<button class="btn sm" data-toast="跳转到报告生成，为该学生上传 Y4 测评">去生成 Y4</button>';
+        return '<tr class="' + (r[4] ? '' : 'dim') + '"><td><b>' + r[0] + '</b></td><td class="code">' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td><td class="code">' + (r[4] || '—') + '</td><td><span class="pill ' + r[5] + '">' + r[6] + '</span></td><td style="text-align:right">' + act + '</td></tr>';
+      }).join('') + '</tbody></table></div></section>';
+  }
+
+  function wsHead() {
+    var s = state.step;
+    function st(n, label, id) {
+      return '<button class="step ' + (n < s ? 'done' : '') + '" ' + (n === s ? 'aria-current="step"' : '') + ' data-go="' + id + '"><b>' + (n < s ? '✓' : n) + '</b>' + label + '</button>';
+    }
+    return '<div class="page-h"><h1>林小舟 · First Touch</h1><span class="meta">Y4-0012 · 初二 · 示范中学 · 顾问 王老师</span><span class="sp"></span>' +
+      '<span class="saved"><i></i>已自动保存 ' + lastSaved + '</span></div>' +
+      '<section class="surface"><div class="body" style="display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center">' +
+      '<div class="steps">' + st(1, '会前 · Y4 速览', 'ws1') + st(2, '会谈中 · 兴趣记录', 'ws2') + st(3, '会后 · 整理与报告', 'ws3') + '</div><span class="sp"></span>' +
+      '<label class="hint">会谈时间 <input class="input" type="datetime-local" id="mt" value="2026-10-24T15:30" style="height:30px"></label></div></section>';
+  }
+
+  function ws1() {
+    var riasec = [['研究型 I', 78, 1], ['艺术型 A', 71, 1], ['社会型 S', 63, 1], ['现实型 R', 42, 0], ['事业型 E', 40, 0], ['常规型 C', 35, 0]];
+    return wsHead() +
+      '<section class="surface"><div class="head"><h2>Y4 速览</h2><span class="sub">来自 2026-10-18 的 Y4 报告，打开即有，无需等待 AI</span><span class="sp"></span><span class="ex">示例数据</span></div><div class="body"><div class="y4">' +
+      '<div class="blk"><div class="k">职业兴趣代码</div><div class="big">IAS</div>' + riasec.map(function (r) { return '<div class="bar ' + (r[2] ? 'top' : '') + '"><span>' + r[0] + '</span><span class="t"><span style="width:' + r[1] + '%"></span></span><span class="code">' + r[1] + '</span></div>'; }).join('') + '</div>' +
+      '<div class="blk"><div class="k">能力优势 · 前三</div><ol class="rank"><li>逻辑数学能力</li><li>空间能力</li><li>内省能力</li></ol><div class="k" style="margin-top:10px">相对较弱</div><ol class="rank"><li>音乐能力</li></ol></div>' +
+      '<div class="blk"><div class="k">职业价值观 · 前三</div><ol class="rank"><li>智力激发</li><li>创造发明</li><li>独立自主</li></ol></div>' +
+      '</div></div></section>' +
+      '<section class="surface"><div class="head"><h2>会谈提示</h2><span class="sub">可选，点一次生成，可编辑</span><span class="sp"></span><button class="btn sm" id="genTips">AI 生成提示</button></div><div class="body"><div class="tip" id="tips">还没有生成。也可以直接开始会谈。</div></div></section>' +
+      '<div style="display:flex;justify-content:flex-end"><button class="btn pri" data-go="ws2">开始会谈 →</button></div>';
+  }
+
+  function guessCat(name) {
+    if (SUBJECT_WORDS.some(function (w) { return name.indexOf(w) >= 0; })) return 'subject';
+    if (SOCIAL_WORDS.some(function (w) { return name.indexOf(w) >= 0; })) return 'social';
+    return 'interest';
+  }
+  function zone(like, good) {
+    if (like >= 2 && good >= 2) return 'both';
+    if (like >= 2) return 'like';
+    if (good >= 2) return 'good';
+    return '';
+  }
+  function segHtml(item, key, labels) {
+    var v = item[key];
+    var out = '<div class="seg" role="group" aria-label="' + (key === 'like' ? '喜欢' : '擅长') + '">';
+    out += '<button type="button" aria-pressed="' + (v === null) + '" data-score="' + item.id + '|' + key + '|x" title="待评">–</button>';
+    for (var i = 0; i < 4; i++) out += '<button type="button" aria-pressed="' + (v === i) + '" data-score="' + item.id + '|' + key + '|' + i + '" title="' + labels[i] + '">' + i + '</button>';
+    return out + '</div>';
+  }
+
+  function ws2() {
+    var scored = state.interests.filter(function (i) { return i.like !== null && i.good !== null; });
+    var cells = '';
+    for (var g = 3; g >= 0; g--) {
+      cells += '<div class="ax">擅长 ' + g + '</div>';
+      for (var l = 0; l <= 3; l++) {
+        var inCell = scored.filter(function (i) { return i.like === l && i.good === g; });
+        cells += '<button type="button" class="cell ' + zone(l, g) + (state.selected ? ' armed' : '') + '" data-cell="' + l + '|' + g + '" aria-label="喜欢 ' + l + '，擅长 ' + g + '">' +
+          inCell.map(function (i) { return '<span title="' + esc(i.name) + '">' + (i.star ? '★ ' : '') + esc(i.name) + '</span>'; }).join('') + '</button>';
+      }
+    }
+    cells += '<div></div>' + [0, 1, 2, 3].map(function (l) { return '<div class="ax">喜欢 ' + l + '</div>'; }).join('');
+    var pending = state.interests.length - scored.length;
+    var have = state.interests.map(function (i) { return i.name; });
+    var sugg = ['科学实验', '编程', '绘画', '辩论', '志愿服务'].filter(function (s) { return have.indexOf(s) < 0; });
+    return wsHead() +
+      '<div class="cap">' +
+      '<section class="surface"><div class="head"><h2>兴趣事项</h2><span class="sub">' + state.interests.length + ' 项 · ' + pending + ' 项待评</span><span class="sp"></span><span class="timer" id="timer">会谈 00:00</span></div><div class="body" style="display:grid;gap:12px">' +
+      '<form class="add" id="addForm"><input class="input" id="newName" placeholder="输入兴趣，回车添加（如：天文、羽毛球）" autocomplete="off"><button class="btn pri" type="submit">添加</button></form>' +
+      '<div class="sugg"><span class="hint">Y4 话题：</span>' + sugg.map(function (s) { return '<button type="button" class="chip" data-sugg="' + esc(s) + '">+ ' + esc(s) + '</button>'; }).join('') + '</div>' +
+      '<div class="rows">' + state.interests.map(function (i) {
+        return '<div class="row ' + (state.selected === i.id ? 'sel' : '') + '" data-row="' + i.id + '">' +
+          '<div class="row-top"><span class="name">' + esc(i.name) + '</span><button type="button" class="cat" data-cat="' + i.id + '" title="点击切换分类">' + CATS[i.cat] + '</button><span class="sp"></span>' +
+          '<button type="button" class="star" aria-pressed="' + i.star + '" data-star="' + i.id + '" title="特别关注">★</button>' +
+          '<button type="button" class="btn ghost sm" data-del="' + i.id + '" aria-label="删除 ' + esc(i.name) + '">删除</button></div>' +
+          '<div class="row-sc"><label>喜欢 ' + segHtml(i, 'like', LIKE) + '</label><label>擅长 ' + segHtml(i, 'good', GOOD) + '</label></div>' +
+          '<input class="input" data-note="' + i.id + '" placeholder="备注（可选）" value="' + esc(i.note) + '" style="height:30px">' +
+          '</div>';
+      }).join('') + '</div></div></section>' +
+      '<section class="surface"><div class="head"><h2>兴趣分型</h2><span class="sub">' + scored.length + ' 项已评分</span></div><div class="body">' +
+      '<p class="hint" style="margin:0 0 8px">' + (state.selected ? '已选中「' + esc((state.interests.find(function (i) { return i.id === state.selected; }) || {}).name) + '」，点格子即可同时打两个分。' : '点左侧一项选中，再点格子同时打分。') + '</p>' +
+      '<div class="quad">' + cells + '</div>' +
+      '<div class="legend"><span><i style="background:var(--q-both)"></i>喜欢且擅长</span><span><i style="background:var(--q-like)"></i>喜欢</span><span><i style="background:var(--q-good)"></i>擅长</span><span>待评事项不进图</span></div>' +
+      '</div></section></div>' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><button class="btn" data-go="ws1">← 会前</button><button class="btn pri" data-go="ws3">结束会谈，去整理 →</button></div>';
+  }
+
+  function ws3() {
+    var scored = state.interests.filter(function (i) { return i.like !== null && i.good !== null; }).length;
+    var unresolved = state.candidates.filter(function (c) { return c.state === 'pending'; }).length;
+    var checks = [
+      [scored >= 3, '至少 3 项已评分兴趣（当前 ' + scored + ' 项）'],
+      [!!state.summary.trim(), '会谈总结已填写'],
+      [unresolved === 0, '会议转写建议已处理（剩 ' + unresolved + ' 条）']
+    ];
+    var ready = checks.every(function (c) { return c[0]; });
+    var cand = state.candidates.map(function (c, idx) {
+      var tag = c.conflict ? '<span class="pill warn">评分不同</span>' : '<span class="pill">新兴趣</span>';
+      var acts = c.state === 'pending'
+        ? (c.conflict ? '<button class="btn sm pri" data-cand="' + idx + '|ok">改为擅长 3</button><button class="btn sm" data-cand="' + idx + '|no">保留 2</button>'
+                      : '<button class="btn sm pri" data-cand="' + idx + '|ok">采纳</button><button class="btn sm" data-cand="' + idx + '|no">忽略</button>')
+        : '<span class="pill ' + (c.state === 'ok' ? 'ok' : '') + '">' + (c.state === 'ok' ? '已采纳' : '已忽略') + '</span>';
+      return '<div class="it ' + (c.conflict && c.state === 'pending' ? 'conf' : '') + (c.state === 'no' ? ' gone' : '') + '"><b>' + esc(c.name) + '</b><span class="cat">' + CATS[c.cat] + '</span>' + tag +
+        '<span class="ev">' + esc(c.ev) + (c.conflict ? '' : ' · 建议 喜欢 ' + c.like + ' / 擅长 ' + c.good) + '</span>' + acts + '</div>';
+    }).join('');
+    var body = wsHead() + '<div class="cards">' +
+      '<section class="surface"><div class="head"><h2>会议转写</h2><span class="sub">可选。上传后 AI 找出遗漏的兴趣和评分差异</span></div><div class="body" style="display:grid;gap:10px">' +
+      '<div class="drop">已上传 <b>林小舟_会谈记录_1024.docx</b> · 8,214 字 <button class="btn sm ghost" data-toast="选择新文件替换">替换</button></div>' +
+      '<div class="cand">' + cand + '</div></div></section>' +
+      '<section class="surface"><div class="head"><h2>会谈总结</h2><span class="sub">写给家长和学生，可编辑</span><span class="sp"></span><button class="btn sm" id="genSum">AI 起草</button></div><div class="body">' +
+      '<textarea class="input" id="sum" rows="4" maxlength="1400" placeholder="点「AI 起草」或直接输入">' + esc(state.summary) + '</textarea><div class="hint" style="text-align:right"><span id="sumN">' + state.summary.length + '</span> / 1400</div></div></section>' +
+      '<section class="surface"><div class="head"><h2>项目建议</h2><span class="sub">可选，点卡片切换是否放进报告</span><span class="sp"></span><button class="btn sm" data-toast="已重新生成（示例）">重新生成</button></div><div class="body"><div class="proj">' +
+      state.projects.map(function (p, i) { return '<button type="button" class="p ' + (p.on ? '' : 'off') + '" data-proj="' + i + '" style="text-align:left;background:var(--surface)"><h5>' + esc(p.t) + '</h5><span class="pill">' + esc(p.fit) + '</span><p>' + esc(p.why) + '</p><span class="hint">' + (p.on ? '✓ 放进报告' : '不放进报告') + '</span></button>'; }).join('') +
+      '</div></div></section>' +
+      '<section class="surface"><div class="head"><h2>确认报告</h2>' + (state.confirmed ? '<span class="pill ok">已确认 · v1</span>' : '') + '</div><div class="body" style="display:grid;gap:12px">' +
+      '<ul class="check">' + checks.map(function (c) { return '<li><span class="' + (c[0] ? 'ok' : 'bad') + '">' + (c[0] ? '✓' : '!') + '</span>' + esc(c[1]) + '</li>'; }).join('') + '</ul>' +
+      (state.confirmed
+        ? '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-toast="下载 PDF（示例）">下载 PDF</button><button class="btn" data-toast="下载 JSON（示例）">下载 JSON</button><button class="btn ghost" data-go="s360">在学生 360 查看</button></div>'
+        : '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn pri" id="confirm" ' + (ready ? '' : 'disabled') + '>确认并生成报告</button><span class="hint">' + (ready ? '确认后生成不可修改的 v1；之后再改会生成 v2。' : '完成上面的清单后可确认。') + '</span></div>') +
+      '</div></section></div>';
+    return body;
+  }
+
+  function s360() {
+    var scored = state.interests.filter(function (i) { return i.like !== null && i.good !== null; });
+    var top = scored.slice().sort(function (a, b) { return (b.like + b.good) - (a.like + a.good); }).slice(0, 4);
+    return '<div class="page-h"><h1>林小舟</h1><span class="meta">Y4-0012 · 学生 360</span></div>' +
+      '<div class="steps"><span class="step">概览</span><span class="step">Y4 报告</span><span class="step">问卷</span><span class="step" aria-current="step"><b>FT</b>First Touch</span><span class="step">纪要</span></div>' +
+      '<section class="surface"><div class="head"><h2>First Touch</h2><span class="pill ' + (state.confirmed ? 'ok' : 'brand') + '">' + (state.confirmed ? '已完成 · v1' : '进行中 · ②') + '</span><span class="sp"></span><button class="btn sm pri" data-go="ws2">' + (state.confirmed ? '查看 First Touch' : '继续会谈') + '</button></div>' +
+      '<div class="body" style="display:grid;gap:12px">' +
+      '<div><div class="hint">兴趣（喜欢 + 擅长 最高的 4 项）</div><div class="sugg" style="margin-top:6px">' + top.map(function (i) { return '<span class="pill">' + (i.star ? '★ ' : '') + esc(i.name) + ' · ' + i.like + '/' + i.good + '</span>'; }).join('') + '</div></div>' +
+      '<div class="tbl-wrap"><table><thead><tr><th>版本</th><th>确认时间</th><th>确认人</th><th></th></tr></thead><tbody>' +
+      (state.confirmed ? '<tr><td>v1</td><td class="code">2026-10-24 16:12</td><td>王老师</td><td style="text-align:right"><button class="btn sm" data-toast="下载 PDF（示例）">PDF</button> <button class="btn sm" data-toast="下载 JSON（示例）">JSON</button></td></tr>'
+        : '<tr class="dim"><td colspan="4">还没有已确认的报告。在第 ③ 步确认后出现在这里。</td></tr>') +
+      '</tbody></table></div></div></section>';
+  }
+
+  /* ---------- drawer ---------- */
+  function drawer() {
+    return '<div class="head"><h2>Copilot</h2><span class="sub">基于 Y4 和本次记录回答，仅供参考</span><span class="sp"></span><button class="btn ghost sm" id="closeDrawer" aria-label="关闭">关闭</button></div>' +
+      '<div class="body" style="display:grid;gap:8px">' +
+      '<div class="sugg"><button class="chip" data-ask="接下来可以追问什么？">接下来可以追问什么？</button><button class="chip" data-ask="哪些兴趣证据还不够？">哪些兴趣证据还不够？</button></div>' +
+      '<div class="msg q">接下来可以追问什么？</div>' +
+      '<div class="msg a">1. 数学竞赛是自己想参加还是老师推荐？<br>2. 篮球里最喜欢的是比赛还是训练？<br>3. 摄影拍什么最多，是否分享给别人看？<span class="ex"> 示例回答</span></div>' +
+      '<form id="askForm" style="display:flex;gap:6px"><input class="input" id="ask" placeholder="问一个问题，回车发送" style="flex:1"><button class="btn pri" type="submit">发送</button></form></div>';
+  }
+
+  /* ---------- render ---------- */
+  var timerStart = Date.now(), timerId = null;
+  function render() {
+    renderTabs();
+    var map = { sanity: sanity, home: home, ws1: ws1, ws2: ws2, ws3: ws3, s360: s360 };
+    $('main').innerHTML = map[state.screen]();
+    $('notes').innerHTML = NOTES[state.screen];
+    var inWs = state.screen.indexOf('ws') === 0;
+    $('fab').hidden = !inWs;
+    $('drawer').hidden = !(inWs && state.drawer);
+    if (!$('drawer').hidden) $('drawer').innerHTML = drawer();
+    document.querySelectorAll('.rail a').forEach(function (a) { a.classList.toggle('on', a.dataset.go === (inWs ? 'home' : state.screen) && a.id === 'railFt' || (state.screen === 's360' && a.dataset.go === 's360')); });
+    clearInterval(timerId);
+    if (state.screen === 'ws2') {
+      timerId = setInterval(function () {
+        var t = $('timer'); if (!t) return;
+        var s = Math.floor((Date.now() - timerStart) / 1000);
+        t.textContent = '会谈 ' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+      }, 1000);
+    }
+  }
+
+  function find(id) { return state.interests.find(function (i) { return i.id === id; }); }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button, a');
+    if (!t) {
+      var row = e.target.closest('[data-row]');
+      if (row && !e.target.closest('input')) { var rid = +row.dataset.row; state.selected = state.selected === rid ? null : rid; render(); }
+      return;
+    }
+    var d = t.dataset;
+    if (d.go) { e.preventDefault(); go(d.go); return; }
+    if (d.toast) { toast(d.toast); return; }
+    if (d.score) {
+      var p = d.score.split('|'); var it = find(+p[0]);
+      it[p[1]] = p[2] === 'x' ? null : +p[2]; touch(); render(); return;
+    }
+    if (d.cell) {
+      if (!state.selected) { toast('先在左侧点选一项兴趣'); return; }
+      var c = d.cell.split('|'); var si = find(state.selected);
+      si.like = +c[0]; si.good = +c[1]; touch(); toast('「' + si.name + '」喜欢 ' + c[0] + ' · 擅长 ' + c[1]); state.selected = null; render(); return;
+    }
+    if (d.cat) { var ci = find(+d.cat); var keys = Object.keys(CATS); ci.cat = keys[(keys.indexOf(ci.cat) + 1) % keys.length]; touch(); render(); return; }
+    if (d.star) { var st = find(+d.star); var next = !st.star; state.interests.forEach(function (i) { i.star = false; }); st.star = next; touch(); render(); return; }
+    if (d.del) { state.interests = state.interests.filter(function (i) { return i.id !== +d.del; }); if (state.selected === +d.del) state.selected = null; touch(); toast('已删除，可撤销（实装时提供）'); render(); return; }
+    if (d.sugg) { state.interests.push({ id: state.nextId++, name: d.sugg, cat: guessCat(d.sugg), like: null, good: null, star: false, note: '' }); touch(); render(); return; }
+    if (d.cand) {
+      var q = d.cand.split('|'); var cd = state.candidates[+q[0]]; cd.state = q[1];
+      if (q[1] === 'ok') {
+        if (cd.conflict) { var b = state.interests.find(function (i) { return i.name === cd.name; }); if (b) b.good = 3; }
+        else state.interests.push({ id: state.nextId++, name: cd.name, cat: cd.cat, like: cd.like, good: cd.good, star: false, note: '来自会议转写' });
+      }
+      touch(); render(); return;
+    }
+    if (d.proj) { var pj = state.projects[+d.proj]; pj.on = !pj.on; touch(); render(); return; }
+    if (d.ask) { toast('示例：实装时调用 Copilot'); return; }
+    if (t.id === 'genTips') {
+      $('tips').innerHTML = '<b>建议顺序</b><ol><li>先聊研究型（I）：最近哪件事让你想“搞明白为什么”？</li><li>再聊艺术型（A）：平时会自己做或拍点什么吗？</li><li>价值观“独立自主”：喜欢自己定计划还是有人安排？</li></ol><div class="hint" style="margin-top:6px">AI 生成 · 可编辑 · 示例内容</div>';
+      return;
+    }
+    if (t.id === 'genSum') {
+      state.summary = '小舟对“搞清楚原理”的事情最投入：数学竞赛和乐高机器人都喜欢且擅长，与 Y4 中研究型、逻辑数学能力较突出一致。篮球是他稳定的社交与运动出口。摄影和城市交通是新冒出的兴趣，还需要更多观察。建议先从一个小型数据研究项目开始，把数学优势用在他好奇的真实问题上。';
+      touch(); render(); return;
+    }
+    if (t.id === 'confirm') { state.confirmed = true; touch(); toast('报告 v1 已生成'); render(); return; }
+    if (t.id === 'fab') { state.drawer = !state.drawer; render(); return; }
+    if (t.id === 'closeDrawer') { state.drawer = false; render(); return; }
+  });
+
+  document.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (e.target.id === 'addForm') {
+      var inp = $('newName'); var name = inp.value.trim();
+      if (!name) return;
+      state.interests.push({ id: state.nextId++, name: name, cat: guessCat(name), like: null, good: null, star: false, note: '' });
+      touch(); render(); var again = $('newName'); if (again) again.focus();
+    }
+    if (e.target.id === 'askForm') { toast('示例：实装时调用 Copilot'); }
+  });
+
+  document.addEventListener('input', function (e) {
+    var d = e.target.dataset;
+    if (d.note) { find(+d.note).note = e.target.value; touch(); }
+    if (e.target.id === 'sum') { state.summary = e.target.value; var n = $('sumN'); if (n) n.textContent = e.target.value.length; }
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target.id === 'sum') { touch(); render(); }
+  });
+
+  try { var saved = localStorage.getItem('ft3-proto-screen'); if (saved && SCREENS.some(function (s) { return s.id === saved; })) state.screen = saved; } catch (e) {}
+  if (state.screen === 'ws1') state.step = 1; if (state.screen === 'ws2') state.step = 2; if (state.screen === 'ws3') state.step = 3;
+  render();
+})();
+</script>
