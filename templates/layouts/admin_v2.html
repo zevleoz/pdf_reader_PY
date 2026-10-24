@@ -116,7 +116,7 @@
         <span class="here">{% block page_title %}{% endblock %}</span>
       </div>
       <div class="spacer"></div>
-      {% block page_actions %}{% endblock %}
+      <div class="topbar-actions">{% block page_actions %}{% endblock %}</div>
       <button type="button" class="search-trigger" onclick="y4OpenCmdk()" aria-label="打开命令面板（⌘K）">
         {{ icon('search', 14) }}
         <span>搜索或跳转…</span>
@@ -153,10 +153,15 @@ window.v2Toast = function (msg, type) {
                  '<span></span>';
   el.querySelector('span').textContent = msg;
   box.appendChild(el);
+  // F8：有 toast 时给 body 挂 has-toast，页面可据此抬高被遮挡的浮动按钮。
+  document.body.classList.add('has-toast');
   setTimeout(function () {
     el.style.opacity = '0';
     el.style.transition = 'opacity .2s';
-    setTimeout(function () { el.remove(); }, 220);
+    setTimeout(function () {
+      el.remove();
+      if (!box.children.length) { document.body.classList.remove('has-toast'); }
+    }, 220);
   }, 4000);
 };
 // 时间戳统一到分钟（与旧壳 admin.html 的 y4FmtDT 同契约）：YYYY-MM-DD HH:MM

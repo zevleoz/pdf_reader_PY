@@ -171,12 +171,29 @@ input, select, textarea { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 30;
 }
-.crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
-.crumb .here { font-weight: 600; }
+/* F7：面包屑/徽章在 768–1100px 不得逐字换行——整行单行，末段省略。 */
+.crumb {
+  display: flex; align-items: center; gap: 8px; font-size: 13px;
+  min-width: 0; flex: 0 1 auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.crumb .up, .crumb .sep { flex: none; white-space: nowrap; }
+.crumb .here {
+  font-weight: 600; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .crumb .sep { color: var(--faint); font-weight: 300; }
 .crumb .up { color: var(--muted); }
 .crumb .up:hover { color: var(--ink); }
-.topbar .spacer { flex: 1; }
+.topbar .spacer { flex: 1; min-width: 0; }
+
+/* 顶栏主操作区：按钮整块换行，绝不逐字折行 */
+.topbar-actions {
+  display: flex; align-items: center; gap: 8px;
+  flex: 0 1 auto; min-width: 0;
+}
+.topbar-actions > * { flex: none; max-width: 100%; }
+.topbar-actions:empty { display: none; }
 
 .search-trigger {
   display: flex; align-items: center; gap: 8px;
@@ -196,8 +213,13 @@ input, select, textarea { font: inherit; color: inherit; }
   font-size: 11px; font-weight: 500;
   color: var(--ink-2); background: var(--bg); border: 1px solid var(--line);
   border-radius: 999px; padding: 3px 9px;
+  white-space: nowrap; flex: none;
 }
-.topbar .who { font-size: 12.5px; color: var(--ink-2); font-weight: 500; }
+.topbar .who {
+  font-size: 12.5px; color: var(--ink-2); font-weight: 500;
+  white-space: nowrap; flex: none;
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* ---------- 页面头 ---------- */
 .page-head {
@@ -398,8 +420,9 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* ---------- Toast ---------- */
+/* F8：toast 底边留出 88px，避开右下角浮动聊天按钮（46px FAB + 边距）。 */
 .toasts {
-  position: fixed; right: 16px; bottom: 16px; z-index: 90;
+  position: fixed; right: 16px; bottom: 88px; z-index: 90;
   display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
 }
 .toast {
@@ -414,6 +437,10 @@ input, select, textarea { font: inherit; color: inherit; }
 .toast.ok svg { color: #4ADE80; }
 .toast.err svg { color: #F87171; }
 @keyframes toastIn { from { opacity: 0; transform: translateY(6px); } }
+
+/* 与 First Touch 浮动按钮协作：toast 容器已抬到 88px，按钮保持原位即可；
+   若同时再抬升 72px，按钮反而会顶进 toast 卡片（workspace.html 的 has-toast 抬升）。 */
+body.has-toast .ft-page .ft-chat { transform: none; }
 
 /* ---------- 空态 ---------- */
 .empty { padding: 24px 16px 26px; text-align: center; color: var(--muted); }
@@ -746,6 +773,12 @@ input[type="checkbox"]:disabled, input[type="radio"]:disabled { cursor: not-allo
 }
 
 /* ---------- 响应式 ---------- */
+@media (max-width: 1099px) {
+  /* 搜索框收起为图标按钮（点击仍打开现有 ⌘K 面板）。
+     1024px 时侧栏尚在，顶栏可用宽度不足 200px 搜索框，故断点取 1099。 */
+  .search-trigger { min-width: 0; width: 30px; padding: 0; justify-content: center; }
+  .search-trigger span, .search-trigger kbd { display: none; }
+}
 @media (max-width: 1023px) {
   .shell { grid-template-columns: 1fr; }
   .side { position: fixed; left: 0; top: 0; bottom: 0; width: var(--side-w); z-index: 50; transform: translateX(-100%); transition: transform var(--dur) var(--ease); }
@@ -760,6 +793,8 @@ input[type="checkbox"]:disabled, input[type="radio"]:disabled { cursor: not-allo
 }
 @media (max-width: 720px) {
   .topbar { height: auto; min-height: 52px; flex-wrap: wrap; padding: 6px 14px; gap: 8px 10px; }
+  /* 操作按钮整块换行，避免在按钮内部逐字折行 */
+  .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
   .topbar .search-trigger, .topbar .role-pill, .topbar .who { display: none; }
   .crumb .up, .crumb .sep { display: none; }
 }
