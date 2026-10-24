@@ -1356,8 +1356,13 @@ def list_sessions(student_id: int, advisor_id: int | None = None) -> list[dict]:
         return [_copilot_session_dict(row) for row in rows]
 
 
-def bump_session_revision(session_id: int, expected_revision: int, actor_id: int,
-                          action: str, phase: int | None = None) -> int:
+def claim_revision(session_id: int, expected_revision: int, actor_id: int,
+                   action: str, phase: int | None = None) -> int:
+    """先用 CAS 抢占 revision，再允许调用方写数据。
+
+    并发写入方只有一个能把 ``revision`` 从 expected 推到 expected+1；
+    失败方在写任何数据之前就会收到 ``RevisionConflict``。
+    """
     with Session(_engine()) as sess:
         row = sess.get(CopilotSession, session_id)
         if not row:
@@ -1385,6 +1390,38 @@ def bump_session_revision(session_id: int, expected_revision: int, actor_id: int
         sess.commit()
         sess.refresh(row)
         return int(row.revision)
+
+
+def bump_session_revision(session_id: int, expected_revision: int, actor_id: int,
+                          action: str, phase: int | None = None) -> int:
+    """``claim_revision`` 的兼容别名。"""
+    return claim_revision(session_id, expected_revision, actor_id, action,
+                          phase=phase)
+
+
+def update_session_phase(session_id: int, expected_revision: int, phase: int,
+                         actor_id: int, status: str | None = None) -> None:
+    """仅切换阶段（导航），校验 revision 但不递增。"""
+    with Session(_engine()) as sess:
+        if not sess.get(CopilotSession, session_id):
+            raise NotFoundError("会谈不存在")
+        values = {"phase": phase, "updated_at": datetime.utcnow()}
+        if status is not None:
+            values["status"] = status
+        result = sess.execute(
+            update(CopilotSession)
+            .where(CopilotSession.id == session_id,
+                   CopilotSession.revision == expected_revision)
+            .values(**values)
+        )
+        if not result.rowcount:
+            sess.rollback()
+            raise RevisionConflict("会谈已更新，请保留草稿并刷新确认")
+        sess.add(CopilotPhaseEvent(
+            session_id=session_id, actor_id=actor_id,
+            phase=phase, action="phase_saved",
+        ))
+        sess.commit()
 
 
 def update_session_fields(session_id: int, **fields) -> None:

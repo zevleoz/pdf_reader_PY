@@ -392,7 +392,8 @@ def _scorable_interests(interests: list[dict]) -> list[dict]:
     ]
 
 
-def run_supplement_analysis(session_id: int) -> dict:
+def compute_supplement_analysis(session_id: int) -> dict:
+    """只做 LLM 计算与校验，不写库；由作业在抢占 revision 后落库。"""
     session = store.get_session(session_id)
     if not session:
         raise store.NotFoundError("会谈不存在")
@@ -441,7 +442,20 @@ def run_supplement_analysis(session_id: int) -> dict:
     for key in ("projectRecommendations", "projectRecommendationHistory"):
         if key in previous:
             result[key] = previous[key]
+    return result
+
+
+def persist_supplement_analysis(session_id: int, result: dict) -> None:
+    supplement = store.latest_supplement(session_id)
+    if not supplement:
+        raise store.NotFoundError("补充材料不存在")
     store.save_supplement_analysis(supplement["id"], result, "PENDING_REVIEW")
+
+
+def run_supplement_analysis(session_id: int) -> dict:
+    """兼容入口：计算并直接落库（不抢占 revision）。"""
+    result = compute_supplement_analysis(session_id)
+    persist_supplement_analysis(session_id, result)
     return result
 
 
@@ -488,19 +502,33 @@ def validate_next_steps(value) -> str:
     return summary
 
 
-def generate_next_steps(session_id: int) -> str:
+def compute_next_steps(session_id: int) -> str:
+    """生成总结草稿但不写库。"""
     session = store.get_session(session_id)
     if not session:
         raise store.NotFoundError("会谈不存在")
     meeting = store.get_source(session["meeting_source_id"]) if session.get("meeting_source_id") else None
     script = session.get("script") or {}
-    summary = validate_next_steps(call_model(_next_steps_prompt(
+    return validate_next_steps(call_model(_next_steps_prompt(
         _student_name(session["student_id"]),
         (meeting or {}).get("content") or "",
         session.get("interests") or [],
         script.get("closing") if isinstance(script.get("closing"), str) else "",
     )))
+
+
+def persist_next_steps(session_id: int, summary: str) -> None:
+    session = store.get_session(session_id)
+    if not session:
+        raise store.NotFoundError("会谈不存在")
+    script = session.get("script") or {}
     store.update_session_fields(session_id, script={**script, "nextSummary": summary})
+
+
+def generate_next_steps(session_id: int) -> str:
+    """兼容入口：生成并直接写回 script.nextSummary。"""
+    summary = compute_next_steps(session_id)
+    persist_next_steps(session_id, summary)
     return summary
 
 
@@ -726,7 +754,8 @@ def _save_analysis(supplement: dict, analysis: dict) -> None:
     store.save_supplement_analysis(supplement["id"], analysis, supplement["status"])
 
 
-def generate_projects(session_id: int) -> dict:
+def compute_projects(session_id: int):
+    """生成项目推荐但不写库，返回 (batch, supplement, saved_analysis)。"""
     session, supplement, analysis, interests, meeting = _project_context(session_id)
     transcript = meeting.get("content") or ""
     existing = []
@@ -764,7 +793,17 @@ def generate_projects(session_id: int) -> dict:
     if isinstance(previous, dict):
         history.append(previous)
     saved = {**analysis, "projectRecommendations": batch, "projectRecommendationHistory": history}
+    return batch, supplement, saved
+
+
+def persist_projects(supplement: dict, saved: dict) -> None:
     _save_analysis(supplement, saved)
+
+
+def generate_projects(session_id: int) -> dict:
+    """兼容入口：生成并直接落库（不抢占 revision）。"""
+    batch, supplement, saved = compute_projects(session_id)
+    persist_projects(supplement, saved)
     return batch
 
 
@@ -824,7 +863,11 @@ def _sync_project_suggestions(session: dict, items: list[dict], interests: list[
     store.replace_passion_project_suggestions(run_id, rows)
 
 
-def apply_project_edits(session_id: int, items: list[dict], actor: str) -> dict:
+def compute_project_edits(session_id: int, items: list[dict], actor: str):
+    """校验项目审核结果但不写库。
+
+    返回 ``(batch, session, supplement, validated, interests, saved_analysis)``。
+    """
     session, supplement, analysis, interests, meeting = _project_context(session_id)
     source_id = supplement["source_id"]
     if not recommendations_current(source_id, interests, analysis):
@@ -850,8 +893,20 @@ def apply_project_edits(session_id: int, items: list[dict], actor: str) -> dict:
     history = list(analysis.get("projectRecommendationHistory") or [])
     history.append(previous)
     saved = {**analysis, "projectRecommendations": batch, "projectRecommendationHistory": history}
+    return batch, session, supplement, validated, interests, saved
+
+
+def persist_project_edits(session: dict, supplement: dict, validated: list[dict],
+                          interests: list[dict], saved: dict) -> None:
     _sync_project_suggestions(session, validated, interests)
     _save_analysis(supplement, saved)
+
+
+def apply_project_edits(session_id: int, items: list[dict], actor: str) -> dict:
+    """兼容入口：校验并直接落库（不抢占 revision）。"""
+    batch, session, supplement, validated, interests, saved = compute_project_edits(
+        session_id, items, actor)
+    persist_project_edits(session, supplement, validated, interests, saved)
     return batch
 
 

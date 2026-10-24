@@ -9,7 +9,7 @@ import json
 import os
 from datetime import datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 import db as _db
@@ -315,7 +315,8 @@ def _run_matches(run: dict | None, source_id, draft: dict) -> bool:
 # ---------------------------------------------------------------------------
 # Handoff
 # ---------------------------------------------------------------------------
-def handoff_report(session_id: int) -> dict:
+def handoff_report(session_id: int, expected_revision: int | None = None) -> dict:
+    """物化第一阶段 run；给定 ``expected_revision`` 时在同一事务内 CAS。"""
     session = _session_or_404(session_id)
     student = _student(session["student_id"])
     draft = _assert_report_ready(session, student)
@@ -440,15 +441,25 @@ def handoff_report(session_id: int) -> dict:
             **(current.script and json.loads(current.script or "{}") or {}),
             "reportInputFingerprint": fingerprint,
         }, ensure_ascii=False)
-        current.revision += 1
-        current.updated_at = _now()
+        expected = (expected_revision if expected_revision is not None
+                    else current.revision)
+        claim = sess.execute(
+            update(CopilotSession)
+            .where(CopilotSession.id == session_id,
+                   CopilotSession.revision == expected)
+            .values(revision=CopilotSession.revision + 1,
+                    updated_at=_now())
+        )
+        if not claim.rowcount:
+            sess.rollback()
+            raise RevisionConflict("会谈在生成期间已被修改，请刷新后重新生成。")
         sess.add(CopilotPhaseEvent(
             session_id=session_id, actor_id=current.advisor_id,
             phase=6, action="report_prepared",
         ))
         sess.commit()
         run_id = run.id
-        revision = current.revision
+        revision = expected + 1
 
     latest = store.get_session(session_id) or {}
     supplement = (latest.get("supplements") or [{}])[0] or {}
@@ -493,7 +504,7 @@ def _ensure_quadrant(run_id: int) -> None:
 def prepare_report(session_id: int, expected_revision: int) -> dict:
     session = _session_or_404(session_id)
     if expected_revision != session["revision"]:
-        raise RevisionConflict("会谈已更新，请刷新后重新生成")
+        raise RevisionConflict("会谈在生成期间已被修改，请刷新后重新生成。")
 
     student = _student(session["student_id"])
     draft = report_draft(session, student)
@@ -515,7 +526,7 @@ def prepare_report(session_id: int, expected_revision: int) -> dict:
             "runId": run_id, "reportId": None,
         }
 
-    prepared = handoff_report(session_id)
+    prepared = handoff_report(session_id, expected_revision)
     run_id = prepared["runId"]
     revision = prepared["revision"]
     _ensure_quadrant(run_id)

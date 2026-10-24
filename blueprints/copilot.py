@@ -12,6 +12,7 @@ import os
 import re
 import time
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 from urllib.parse import quote
 
@@ -32,6 +33,10 @@ bp = Blueprint("copilot", __name__)
 
 _JOB_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _UPLOAD_SUFFIXES = {".pdf", ".docx", ".txt", ".md"}
+
+# 阶段 PATCH 中视为“内容写入”的字段；都不存在时按纯导航处理（不递增 revision）。
+_PHASE_CONTENT_KEYS = ("interests", "script", "meetingAt", "entryMode",
+                       "supplementAnalysis", "interestReview")
 
 # 手动建档 requestId 幂等缓存：{(actor_id, request_id): (monotonic, student_id)}
 _MANUAL_STUDENT_IDEMPOTENCY: dict[tuple, tuple[float, int]] = {}
@@ -62,6 +67,17 @@ def _error_response(exc: Exception):
     if isinstance(exc, analysis.AnalysisError):
         return _error(str(exc) or "画像分析服务暂不可用", 502)
     raise exc
+
+
+def _conflict_guard(fn):
+    """写路由统一把 ``RevisionConflict`` 映射为 409（抢占失败时尚未写数据）。"""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except store.RevisionConflict as exc:
+            return _error_response(exc)
+    return wrapper
 
 
 def _json_body() -> dict:
@@ -251,6 +267,7 @@ def api_get_session(session_id: int):
 # ---------------------------------------------------------------------------
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/phase", methods=["PATCH"])
 @role_required("admin", "advisor")
+@_conflict_guard
 def api_save_phase(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -263,6 +280,14 @@ def api_save_phase(session_id: int):
     error = _revision_error(body, row)
     if error:
         return error
+
+    # 纯导航：只切换阶段，不写内容，也不递增 revision。
+    if all(body.get(key) is None for key in _PHASE_CONTENT_KEYS):
+        store.update_session_phase(
+            session_id, body["revision"], phase, _actor_id(),
+            status="REVIEW" if phase == len(copilot.PHASES) - 1 else None)
+        return jsonify({"revision": body["revision"],
+                        "result": store.get_session(session_id)})
 
     interests = None
     if body.get("interests") is not None:
@@ -303,7 +328,6 @@ def api_save_phase(session_id: int):
         }
 
     supplement = store.latest_supplement(session_id)
-    saved_supplement = None
     analysis_update = None
     if supplement and (supplement_patch is not None or interests is not None):
         current_analysis = supplement.get("analysis") or {}
@@ -319,6 +343,10 @@ def api_save_phase(session_id: int):
                 return _error(str(exc) or "请确认兴趣评分差异", 409)
         status = "REVIEWED" if interests is not None else supplement.get("status")
         analysis_update = (supplement["id"], next_analysis, status)
+
+    # 先抢占 revision，任何数据写入都发生在抢占成功之后。
+    revision = store.claim_revision(
+        session_id, body["revision"], _actor_id(), "phase_saved", phase=phase)
 
     if interests is not None:
         store.replace_session_interests(session_id, interests)
@@ -338,8 +366,6 @@ def api_save_phase(session_id: int):
         fields["status"] = "REVIEW"
     store.update_session_fields(session_id, **fields)
 
-    revision = store.bump_session_revision(
-        session_id, body["revision"], _actor_id(), "phase_saved")
     result = store.get_session(session_id)
     if analysis_update:
         result = {
@@ -356,6 +382,7 @@ def api_save_phase(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/career-calibration",
           methods=["PATCH"])
 @role_required("admin", "advisor")
+@_conflict_guard
 def api_save_calibration(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -372,12 +399,12 @@ def api_save_calibration(session_id: int):
         if not isinstance(value, str) or len(value) > 4000:
             return _error("文本格式或长度无效", 400)
         values[key] = value.strip()
+    revision = store.claim_revision(
+        session_id, body["revision"], _actor_id(), "calibration_saved")
     store.upsert_calibration(
         session_id,
         values["careerInterests"], values["abilityTendencies"],
         values["valuePreferences"], values["notes"])
-    revision = store.bump_session_revision(
-        session_id, body["revision"], _actor_id(), "calibration_saved")
     current = store.get_session(session_id) or {}
     return jsonify({"revision": revision,
                     "result": current.get("calibration")})
@@ -386,6 +413,7 @@ def api_save_calibration(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/interest-draft",
           methods=["PATCH"])
 @role_required("admin", "advisor")
+@_conflict_guard
 def api_save_interest_draft(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -399,19 +427,22 @@ def api_save_interest_draft(session_id: int):
     if error:
         return error
 
-    store.replace_session_interests(session_id, interests)
     supplement = store.latest_supplement(session_id)
+    bindings_update = None
     if supplement:
         current_analysis = supplement.get("analysis") or {}
         bindings = copilot.bind_interest_analysis(
             row.get("interests") or [], current_analysis)
-        store.save_supplement_analysis(
+        bindings_update = (
             supplement["id"],
             {**current_analysis, "interestBindings": bindings},
             supplement.get("status"))
 
-    revision = store.bump_session_revision(
+    revision = store.claim_revision(
         session_id, body["revision"], _actor_id(), "interests_saved")
+    store.replace_session_interests(session_id, interests)
+    if bindings_update:
+        store.save_supplement_analysis(*bindings_update)
     return jsonify({"revision": revision,
                     "result": store.get_session(session_id)})
 
@@ -422,14 +453,15 @@ def api_save_interest_draft(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/sources",
           methods=["POST"])
 @role_required("admin", "advisor")
+@_conflict_guard
 def api_upload_source(session_id: int):
     row = _session_or_404(session_id)
     if not row:
         return _error("会谈不存在", 404)
-    revision = request.form.get("revision", type=int)
-    if revision is None or revision < 1:
+    expected_revision = request.form.get("revision", type=int)
+    if expected_revision is None or expected_revision < 1:
         return _error("请提供会谈修订号", 400)
-    if revision != row["revision"]:
+    if expected_revision != row["revision"]:
         return _error("会谈已更新，请保留草稿并刷新确认", 409)
 
     kind = (request.form.get("kind") or "MEETING").strip()
@@ -460,14 +492,14 @@ def api_upload_source(session_id: int):
         "file_size": len(data),
         "source_format": suffix.lstrip(".") or "text",
     }
+    revision = store.claim_revision(
+        session_id, expected_revision, _actor_id(), "source_uploaded")
     source = store.create_source(
         row["student_id"], "GROWTH_TALK", "GROWTH_TALK", file_name, content,
         **create_kwargs)
     store.delete_superseded_sources(row["student_id"], "GROWTH_TALK")
     store.update_session_fields(session_id, meeting_source_id=source["id"])
     store.create_supplement(session_id, source["id"])
-    revision = store.bump_session_revision(
-        session_id, revision, _actor_id(), "source_uploaded")
     return jsonify({
         "revision": revision,
         "result": {"sourceId": source["id"], "fileName": file_name},
@@ -477,6 +509,7 @@ def api_upload_source(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/y4-calibrate",
           methods=["POST"])
 @role_required("admin", "advisor")
+@_conflict_guard
 def api_y4_calibrate(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -515,13 +548,13 @@ def api_y4_calibrate(session_id: int):
     except analysis.AnalysisError as exc:
         return _error_response(exc)
 
+    revision = store.claim_revision(
+        session_id, body["revision"], _actor_id(), "career_analysis_completed")
     store.upsert_calibration(
         session_id, calibration["career_interests"],
         calibration["ability_tendencies"],
         calibration["value_preferences"], "")
     store.update_session_fields(session_id, y4_report_id=report.id)
-    revision = store.bump_session_revision(
-        session_id, body["revision"], _actor_id(), "career_analysis_completed")
     return jsonify({
         "revision": revision,
         "analysis": {

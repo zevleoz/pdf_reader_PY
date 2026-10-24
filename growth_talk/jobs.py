@@ -20,6 +20,7 @@ from app_utils import BASE_DIR, DATA_DIR
 JOB_DIR = Path(DATA_DIR) / "_gt_jobs"
 COPILOT_JOB_DIR = Path(DATA_DIR) / "_copilot_jobs"
 LAUNCH_GRACE_SECONDS = 0.3
+STALE_JOB_MESSAGE = "会谈在生成期间已被修改，请刷新后重新生成。"
 
 
 class JobLaunchError(RuntimeError):
@@ -208,34 +209,40 @@ def _dispatch_copilot_job(kind: str, payload: dict) -> dict:
     expected_revision = payload.get("revision")
     actor_id = payload.get("advisor_id")
 
+    def claim(action: str) -> int:
+        """LLM 计算完成后再抢占 revision；失败时作业不落任何数据。"""
+        try:
+            return store.claim_revision(
+                int(session_id), int(expected_revision), actor_id, action)
+        except store.RevisionConflict as exc:
+            raise store.RevisionConflict(STALE_JOB_MESSAGE) from exc
+
     if kind == "supplement":
-        analysis = copilot.run_supplement_analysis(int(session_id))
-        revision = store.bump_session_revision(
-            int(session_id), int(expected_revision), actor_id,
-            "supplement_analyzed")
+        analysis = copilot.compute_supplement_analysis(int(session_id))
+        revision = claim("supplement_analyzed")
+        copilot.persist_supplement_analysis(int(session_id), analysis)
         return {"revision": revision, "analysis": analysis}
 
     if kind == "next_steps":
-        summary = copilot.generate_next_steps(int(session_id))
-        revision = store.bump_session_revision(
-            int(session_id), int(expected_revision), actor_id,
-            "next_steps_generated")
+        summary = copilot.compute_next_steps(int(session_id))
+        revision = claim("next_steps_generated")
+        copilot.persist_next_steps(int(session_id), summary)
         return {"revision": revision, "result": {"summary": summary}}
 
     if kind == "projects_generate":
-        batch = copilot.generate_projects(int(session_id))
-        revision = store.bump_session_revision(
-            int(session_id), int(expected_revision), actor_id,
-            "project_recommendations_generated")
+        batch, supplement, saved = copilot.compute_projects(int(session_id))
+        revision = claim("project_recommendations_generated")
+        copilot.persist_projects(supplement, saved)
         return {"revision": revision, "batch": batch}
 
     if kind == "projects_review":
-        batch = copilot.apply_project_edits(
-            int(session_id), payload.get("items") or [],
-            payload.get("actor") or "")
-        revision = store.bump_session_revision(
-            int(session_id), int(expected_revision), actor_id,
-            "project_recommendations_reviewed")
+        batch, session_row, supplement, validated, interests, saved = \
+            copilot.compute_project_edits(
+                int(session_id), payload.get("items") or [],
+                payload.get("actor") or "")
+        revision = claim("project_recommendations_reviewed")
+        copilot.persist_project_edits(
+            session_row, supplement, validated, interests, saved)
         return {"revision": revision, "batch": batch}
 
     if kind == "report_prepare":
