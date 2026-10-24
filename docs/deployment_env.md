@@ -47,10 +47,9 @@
 | `FT_LLM_API_KEY` | 选 | First Touch（Growth Talk）AI 调用专用 key；未设置时依次回退 `DASHSCOPE_API_KEY`、`extract.py` 内置默认 key。全部缺失时分析作业报「AI 服务未配置（DASHSCOPE_API_KEY），请联系管理员」 |
 | `FT_LLM_BASE_URL` | 选 | OpenAI 兼容端点，缺省 `https://dashscope.aliyuncs.com/compatible-mode/v1`；调用路径为 `{BASE_URL}/chat/completions` |
 | `FT_LLM_MODEL` | 选 | First Touch 文本 AI 模型，缺省 `qwen-plus` |
-| `YUGUO_BASE_URL` | Yuguo 集成必 | Yuguo 服务根地址（如 `https://yuguo.example.com`），不带末尾斜杠。未设置时导师目录同步/学生导入返回「尚未配置」类 503 |
-| `YUGUO_STUDENT_READ_TOKEN` | Yuguo 集成必 | 调用 Yuguo 学生导入接口的 Bearer token，需与 Yuguo 侧配置一致；本平台只校验非空，建议同样使用至少 32 字符的独立强随机值 |
-| `FIRST_TOUCH_DIRECTORY_TOKEN` | Yuguo 集成必 | Yuguo / First Touch 调用本平台导师目录（`GET/POST /api/integrations/teachers`）的 Bearer token，**至少 32 字符**（代码强制，不足即按未配置返回 503） |
-| `CRM_INTEGRATION_TOKEN` | CRM 集成必 | CRM 投递预约/学生交付到 `POST /api/integrations/crm/deliveries` 的 Bearer token，**至少 32 字符**（代码强制，不足按未授权返回 401）；必须与导师目录 token 分开 |
 
+> 已移除：`FIRST_TOUCH_DIRECTORY_TOKEN`、`CRM_INTEGRATION_TOKEN` 与 `YUGUO_*`
+> 不再被任何代码读取（Yuguo/CRM 集成已下线）；若 `.env.production` 仍保留这些值可安全清除。
+>
 > 已移除：旧 `ADMIN_PASSWORD` 不再被任何代码读取（登录走 users 表），常量已删除；
 > 若 `.env.production` 仍保留该值可安全清除。

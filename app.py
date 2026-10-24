@@ -203,7 +203,6 @@ def create_app() -> Flask:
     import hmac as _hmac
     CSRF_EXEMPT_PREFIXES = (
         "/api/v1/",           # Bearer token 面，无 cookie，豁免
-        "/api/integrations/", # Yuguo/CRM Bearer 面，无 cookie，豁免
         "/q/",                # 一次性 token 端点（/q/<token>/submit），靠不可枚举 token 防 CSRF
     )
     CSRF_EXEMPT_PATHS = {
@@ -234,7 +233,6 @@ def create_app() -> Flask:
     from blueprints.copilot import bp as copilot_bp
     from blueprints.growth_talk import bp as growth_talk_bp
     from blueprints.insights import bp as insights_bp
-    from blueprints.integrations import bp as integrations_bp
     from blueprints.questionnaires import bp as questionnaires_bp
     from blueprints.reports import bp as reports_bp
     from blueprints.students import bp as students_bp
@@ -243,7 +241,7 @@ def create_app() -> Flask:
     from blueprints.workspace import bp as workspace_bp
 
     for _bp in (auth_bp, workspace_bp, students_bp, reports_bp,
-                growth_talk_bp, copilot_bp, integrations_bp, questionnaires_bp,
+                growth_talk_bp, copilot_bp, questionnaires_bp,
                 insights_bp, tools_bp, system_bp, api_v1_bp):
         app.register_blueprint(_bp)
 

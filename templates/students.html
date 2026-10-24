@@ -5,11 +5,6 @@
 {% block page_title %}学生档案{% endblock %}
 
 {% block page_actions %}
-{% if current_role == 'advisor' %}
-<button type="button" class="btn btn-sec" id="yuguoImportBtn" onclick="openYuguoImport()">
-  {{ icon('refresh', 13) }} 从 Yuguo 导入
-</button>
-{% endif %}
 <a class="btn btn-sec" href="/api/export">{{ icon('download', 13) }} 导出 CSV</a>
 <button type="button" class="btn btn-sec" onclick="loadStudents()">{{ icon('refresh', 13) }} 刷新</button>
 {% endblock %}
@@ -235,26 +230,6 @@
     .search-box { max-width: none; flex: 1 1 100%; }
     .st-result-count { margin-left: 0; }
   }
-
-  /* 从 Yuguo 导入结果 */
-  #yuguoImportDialog[hidden] { display: none !important; }
-  .yuguo-summary {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-  }
-  .yuguo-cell {
-    border: 1px solid var(--line-soft); border-radius: var(--r-sm);
-    padding: 10px 12px; background: var(--bg);
-  }
-  .yuguo-cell .n {
-    display: block; font-size: 20px; font-weight: 650; line-height: 1.2;
-    font-variant-numeric: tabular-nums; color: var(--ink);
-  }
-  .yuguo-cell .k { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted); }
-  .yuguo-cell.is-warn .n { color: var(--danger); }
-  @media (max-width: 720px) {
-    .yuguo-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
 </style>
 {% endblock %}
 
@@ -304,36 +279,6 @@
     <span>学生</span><span>学校</span><span>顾问</span><span>测评状态</span><span>当前阶段</span><span class="r">操作</span>
   </div>
   <div id="studentList"></div>
-</div>
-
-<!-- 从 Yuguo 导入结果 -->
-<div class="dialog-backdrop" id="yuguoImportDialog" hidden
-     onclick="if (event.target === this) closeYuguoImport()">
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="yuguoImportTitle">
-    <div class="dialog-title" id="yuguoImportTitle">从 Yuguo 导入学生</div>
-    <div class="dialog-body">
-      <div id="yuguoImportLoading" class="page-sub" style="margin:0">
-        正在拉取 Yuguo 学生名单，请稍候…
-      </div>
-      <div id="yuguoImportResult" hidden>
-        <div class="yuguo-summary" id="yuguoImportSummary"></div>
-        <div id="yuguoImportRejectedWrap" hidden>
-          <div class="field-label" style="margin:14px 0 6px">未导入学生</div>
-          <div style="overflow-x:auto">
-            <table class="table" id="yuguoImportRejected">
-              <thead><tr><th>姓名</th><th>Yuguo ID</th><th>原因</th></tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div id="yuguoImportError" hidden style="color:var(--danger); font-size:13px"></div>
-    </div>
-    <div class="dialog-actions">
-      <button type="button" class="btn btn-primary" id="yuguoImportClose"
-              onclick="closeYuguoImport()">关闭</button>
-    </div>
-  </div>
 </div>
 {% endblock %}
 
@@ -1023,74 +968,6 @@
       } else {
         alert('删除失败：' + (data.error || '未知错误'));
       }
-    }
-
-    // --- 从 Yuguo 导入 ---
-    let yuguoImportBusy = false;
-
-    function openYuguoImport() {
-      if (yuguoImportBusy) return;
-      document.getElementById('yuguoImportDialog').hidden = false;
-      document.getElementById('yuguoImportLoading').hidden = false;
-      document.getElementById('yuguoImportResult').hidden = true;
-      document.getElementById('yuguoImportError').hidden = true;
-      document.getElementById('yuguoImportClose').disabled = true;
-      runYuguoImport();
-    }
-
-    function closeYuguoImport() {
-      if (yuguoImportBusy) return;
-      document.getElementById('yuguoImportDialog').hidden = true;
-    }
-
-    async function runYuguoImport() {
-      yuguoImportBusy = true;
-      try {
-        const resp = await fetch('/students/import-yuguo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{}',
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok || data.ok === false) {
-          throw new Error(data.error || ('HTTP ' + resp.status));
-        }
-        renderYuguoImport(data);
-        loadStudents();
-      } catch (e) {
-        const el = document.getElementById('yuguoImportError');
-        el.textContent = '导入失败：' + e.message;
-        el.hidden = false;
-      } finally {
-        yuguoImportBusy = false;
-        document.getElementById('yuguoImportLoading').hidden = true;
-        document.getElementById('yuguoImportClose').disabled = false;
-      }
-    }
-
-    function renderYuguoImport(data) {
-      const summary = data.localImport || {};
-      const cells = [
-        ['新建', summary.created || 0, false],
-        ['关联', summary.attached || 0, false],
-        ['更新', summary.refreshed || 0, false],
-        ['已存在', summary.alreadyLocal || 0, false],
-        ['冲突', summary.conflicts || 0, true],
-        ['未导入', summary.rejected || 0, true],
-      ];
-      document.getElementById('yuguoImportSummary').innerHTML = cells.map(([label, value, warn]) =>
-        '<div class="yuguo-cell' + (warn && value ? ' is-warn' : '') + '">' +
-        '<span class="n">' + Number(value) + '</span>' +
-        '<span class="k">' + label + '</span></div>').join('');
-
-      const rejected = data.rejectedStudents || [];
-      document.querySelector('#yuguoImportRejected tbody').innerHTML = rejected.map(item =>
-        '<tr><td>' + escapeHtml(item.name || '—') + '</td>' +
-        '<td class="mono">' + escapeHtml(item.id || '—') + '</td>' +
-        '<td style="font-size:12.5px;color:var(--muted)">' +
-        escapeHtml(item.message || item.reasonCode || '—') + '</td></tr>').join('');
-      document.getElementById('yuguoImportRejectedWrap').hidden = !rejected.length;
-      document.getElementById('yuguoImportResult').hidden = false;
     }
 
     // URL ?stage= 可分享：首屏按初始阶段高亮并筛选

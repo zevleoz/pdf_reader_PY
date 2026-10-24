@@ -1,11 +1,17 @@
-"""Growth Talk 页面契约测试（Task 9）。
+"""Growth Talk 旧入口与模板清理测试。
 
 覆盖：
-- workspace 页面路由：admin / 名下 advisor 可访问，越权或只读角色不可访问；
-- 页面注入学生上下文与已确认报告历史；
-- student_360 的 Growth Talk 区块、students 页的 Yuguo 导入入口存在。
+- ``GET /students/<sid>/growth-talk`` 302 跳转到 First Touch；
+- Advisor 仍只能访问自己名下的学生，只读角色被拒绝；
+- student_360 保留报告下载入口，students 页不再有 Yuguo 导入入口；
+- 集成蓝图下线后 ``POST /api/integrations/crm/deliveries`` 返回 404。
 """
 from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
 
 import pytest
 from flask import Flask
@@ -82,45 +88,33 @@ def login_as(client, role="admin", advisor_name=None):
             sess["advisor_name"] = advisor_name
 
 
-def test_workspace_page_renders_with_student_context(client, ui_db):
+def test_growth_talk_page_redirects_to_first_touch(client, ui_db):
     login_as(client, "admin")
     resp = client.get(f"/students/{ui_db.student_id}/growth-talk")
-    assert resp.status_code == 200
-    body = resp.get_data(as_text=True)
-    assert "gtWorkspace(" in body
-    assert "界面学生" in body
-    assert "Growth Talk" in body
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith(
+        f"/first-touch/students/{ui_db.student_id}")
 
 
-def test_workspace_page_lists_confirmed_reports(client, ui_db):
-    source = store.create_source(ui_db.student_id, "GROWTH_TALK", "GROWTH_TALK",
-                                 "会谈记录", "会议正文")
-    run = store.create_run(ui_db.student_id, source["id"])
-    store.create_report(ui_db.student_id, run["id"], "{}", "顾问A")
-
-    login_as(client, "admin")
-    resp = client.get(f"/students/{ui_db.student_id}/growth-talk")
-    body = resp.get_data(as_text=True)
-    assert resp.status_code == 200
-    assert '"version": 1' in body or '"version":1' in body
-    assert "顾问A" in body
-    assert "/api/growth-talk/reports/" in body
-
-
-def test_workspace_page_advisor_scope(client, ui_db):
+def test_growth_talk_page_advisor_scope(client, ui_db):
     login_as(client, "advisor", advisor_name="Bob")
     assert client.get(
         f"/students/{ui_db.student_id}/growth-talk").status_code == 404
 
     login_as(client, "advisor", advisor_name="Alice")
     assert client.get(
-        f"/students/{ui_db.student_id}/growth-talk").status_code == 200
+        f"/students/{ui_db.student_id}/growth-talk").status_code == 302
 
 
-def test_workspace_page_viewer_forbidden(client, ui_db):
+def test_growth_talk_page_viewer_forbidden(client, ui_db):
     login_as(client, "viewer")
     assert client.get(
         f"/students/{ui_db.student_id}/growth-talk").status_code == 403
+
+
+def test_growth_talk_page_missing_student_404(client):
+    login_as(client, "admin")
+    assert client.get("/students/9999/growth-talk").status_code == 404
 
 
 def test_student_360_template_has_growth_talk_section():
@@ -132,9 +126,35 @@ def test_student_360_template_has_growth_talk_section():
     assert "download.pdf" in text
 
 
-def test_students_template_has_yuguo_import_entry():
+def test_students_template_has_no_yuguo_import_entry():
     text = open("templates/students.html", encoding="utf-8").read()
-    assert "从 Yuguo 导入" in text
-    assert "/students/import-yuguo" in text
-    assert "rejectedStudents" in text
-    assert "alreadyLocal" in text
+    assert "从 Yuguo 导入" not in text
+    assert "/students/import-yuguo" not in text
+    assert "yuguoImport" not in text
+
+
+def test_integrations_route_removed(tmp_path):
+    """全量 app 中不再注册集成蓝图：CRM 投递端点应 404。"""
+    env = os.environ.copy()
+    env["DATABASE_URL"] = f"sqlite:///{tmp_path / 'app.db'}"
+    env.pop("SECRET_KEY", None)
+    probe = (
+        "import json\n"
+        "import app as app_module\n"
+        "client = app_module.app.test_client()\n"
+        "resp = client.post('/api/integrations/crm/deliveries', json={})\n"
+        "print(json.dumps({'status': resp.status_code}))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=".",
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload["status"] == 404

@@ -1,9 +1,0 @@
-{
-  "schema": "junction.identity_link.1.0.0",
-  "linkId": "link-001", "junctionStudentId": "crm-issued-student-001", "revision": 1,
-  "status": "active", "issuedAt": "2026-09-24T10:30:00Z", "idempotencyKey": "crm-link-001-v1-first-touch",
-  "source": {"system": "sales_crm", "recordId": "crm-record-001"},
-  "external": {"system": "first_touch", "studentId": "ft-local-001"},
-  "review": {"reviewedBy": "crm-operator-001", "reviewedAt": "2026-09-24T10:25:00Z", "method": "manual_identity_verification", "evidenceRef": "review-case-001"},
-  "authorization": {"grantId": "grant-002", "recipient": "first_touch", "purpose": "service_delivery", "grantedAt": "2026-09-24T10:20:00Z", "expiresAt": null}
-}
