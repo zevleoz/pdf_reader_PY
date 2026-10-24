@@ -1,4 +1,4 @@
-"""First Touch 分区外壳：首页 / 聊天中心 / 指南 / 归档 / 手动建档 / Y4 导入。"""
+"""First Touch 分区外壳：学生列表 / 指南 / 归档，以及已移除入口的回归检查。"""
 from __future__ import annotations
 
 from datetime import date
@@ -26,7 +26,7 @@ def test_nav_group_registered():
     assert "first_touch" in keys
     group = next(g for g in app_utils.ADMIN_NAV if g["key"] == "first_touch")
     assert [item["href"] for item in group["links"]] == [
-        "/first-touch", "/first-touch/copilot", "/first-touch/guide"]
+        "/first-touch", "/first-touch/guide"]
 
 
 def test_home_page_renders(client, qdb):
@@ -65,8 +65,8 @@ def test_guide_page_renders(client, qdb):
     resp = client.get("/first-touch/guide")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert "初谈访谈与证据指南" in html
-    assert "深挖校内科目" in html
+    assert "三步完成一次 First Touch" in html
+    assert "会前" in html and "会谈中" in html and "会后" in html
 
 
 def test_archive_requires_admin(client, qdb):
@@ -90,14 +90,6 @@ def test_manual_create_student_route_removed(client, qdb):
     resp = client.post("/api/first-touch/students",
                        json={"name": "王同学", "grade": "9"})
     assert resp.status_code in (404, 405)
-
-
-def test_home_lists_y4_students(client, qdb):
-    _seed_report(qdb, qdb.student_id)
-    login_as(client, qdb)
-    html = client.get("/first-touch").get_data(as_text=True)
-    assert "从 Y4 导入" in html
-    assert "Y4 1 份" in html
 
 
 def test_import_y4_route_removed(client, qdb):

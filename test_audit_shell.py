@@ -21,16 +21,17 @@ def _crumb_block(css: str) -> str:
     return css[start:css.index("}", start) + 1]
 
 
-def test_topbar_wraps_page_actions(client, qdb):
+def test_topbar_actions_area_precedes_search(client, qdb):
     login_as(client, qdb)
     html = client.get("/first-touch").get_data(as_text=True)
     assert '<div class="topbar-actions">' in html
     start = html.index('<div class="topbar-actions">')
     end = html.index("</div>", start)
     actions = html[start:end]
-    assert "从 Y4 导入" in actions
-    assert "手动添加学生" in actions
-    # 操作按钮在搜索框之前、面包屑之后
+    # 已移除的导入 / 手动建档入口不再出现在顶栏
+    assert "从 Y4 导入" not in actions
+    assert "手动添加学生" not in actions
+    # 操作区在搜索框之前、面包屑之后
     assert html.index('class="crumb"') < start < html.index('class="search-trigger"')
 
 
@@ -78,7 +79,7 @@ def test_viewer_gets_first_touch_nav():
     groups = app_utils.nav_for_role("viewer")
     first_touch = next(g for g in groups if g["key"] == "first_touch")
     assert [link["href"] for link in first_touch["links"]] == [
-        "/first-touch", "/first-touch/copilot", "/first-touch/guide"]
+        "/first-touch", "/first-touch/guide"]
 
 
 def test_viewer_first_touch_pages_read_only(client, qdb):

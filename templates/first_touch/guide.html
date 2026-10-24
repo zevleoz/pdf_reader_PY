@@ -5,7 +5,7 @@
 {% block page_title %}使用指南{% endblock %}
 
 {% block page_actions %}
-<a class="btn btn-sec" href="/first-touch">{{ icon('chevron-left', 13) }} 返回工作台</a>
+<a class="btn btn-sec" href="/first-touch">{{ icon('chevron-left', 13) }} 返回学生列表</a>
 {% endblock %}
 
 {% block head_extra %}
@@ -19,66 +19,22 @@
   .ft-guide-intro p {
     margin-top: 6px; max-width: 780px; font-size: 12.5px; line-height: 1.75; color: var(--muted);
   }
-  .ft-guide-index {
-    display: flex; flex-wrap: wrap; gap: 6px;
-    margin-bottom: 14px;
-  }
-  .ft-guide-index a {
-    padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px;
-    background: var(--surface); font-size: 12px; color: var(--ink-2);
-    transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
-  }
-  .ft-guide-index a:hover { border-color: var(--brand); color: var(--brand-deep); }
 
-  .ft-guide-domain { padding: 16px 18px 18px; }
-  .ft-guide-domain-head { display: flex; align-items: flex-start; gap: 12px; }
-  .ft-guide-domain-head > span {
-    flex: none; font-family: var(--mono); font-size: 12px; color: var(--brand);
-    padding-top: 2px;
+  .ft-guide-step { padding: 16px 18px 18px; }
+  .ft-guide-step-head { display: flex; align-items: flex-start; gap: 12px; }
+  .ft-guide-step-head > span {
+    flex: none; font-family: var(--mono); font-size: 16px; color: var(--brand);
+    line-height: 1.3;
   }
-  .ft-guide-domain-head h2 {
+  .ft-guide-step-head h2 {
     font-size: 15.5px; font-weight: 650; color: var(--ink); letter-spacing: -.01em;
   }
-  .ft-guide-domain-head p { margin-top: 3px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
-  .ft-guide-domain-body {
-    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px; margin-top: 14px; padding-left: 30px;
+  .ft-guide-step-head p { margin-top: 3px; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+  .ft-guide-step ul {
+    margin: 12px 0 0; padding-left: 17px;
+    display: flex; flex-direction: column; gap: 6px;
   }
-  @media (max-width: 900px) { .ft-guide-domain-body { grid-template-columns: minmax(0, 1fr); padding-left: 0; } }
-  .ft-guide-domain-body h3 {
-    font-size: 11.5px; font-weight: 650; letter-spacing: .05em; color: var(--muted);
-    margin-bottom: 5px;
-  }
-  .ft-guide-domain-body h3 + h3 { margin-top: 12px; }
-  .ft-guide-domain-body ol {
-    margin: 0; padding-left: 17px; display: flex; flex-direction: column; gap: 6px;
-  }
-  .ft-guide-domain-body li,
-  .ft-guide-domain-body p { font-size: 12.5px; line-height: 1.72; color: var(--ink-2); }
-
-  .ft-guide-method { padding: 16px 18px 18px; }
-  .ft-guide-method h2 {
-    margin-top: 4px; font-size: 16px; font-weight: 650; letter-spacing: -.01em; color: var(--ink);
-  }
-  .ft-guide-method > p {
-    margin-top: 6px; font-size: 12.5px; line-height: 1.72; color: var(--muted);
-  }
-  .ft-guide-steps {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 12px; margin-top: 14px;
-  }
-  .ft-guide-steps article {
-    padding: 12px 13px; border: 1px solid var(--line-soft); border-radius: var(--r-sm);
-    background: var(--bg);
-  }
-  .ft-guide-steps strong { font-size: 12.5px; font-weight: 650; color: var(--ink); }
-  .ft-guide-steps p { margin-top: 5px; font-size: 12.5px; line-height: 1.7; color: var(--ink-2); }
-  .ft-guide-example {
-    margin-top: 14px; padding: 12px 14px; border-radius: var(--r-sm);
-    background: var(--brand-soft); border: 1px solid #F2D2D2;
-  }
-  .ft-guide-example strong { font-size: 12px; font-weight: 650; color: var(--brand-deep); }
-  .ft-guide-example p { margin-top: 4px; font-size: 12.5px; line-height: 1.72; color: var(--ink-2); }
+  .ft-guide-step li { font-size: 12.5px; line-height: 1.72; color: var(--ink-2); }
 </style>
 {% endblock %}
 
@@ -86,137 +42,53 @@
 <div class="ft-page">
   <section class="surface ft-guide-intro">
     <span class="ft-kicker">First Touch Guide</span>
-    <h1>初谈访谈与证据指南</h1>
-    <p>把学生说出的偏好还原为具体经历、可核验的行动与可继续探索的问题。先记录事实与不确定点，再进行兴趣评分和发展判断。</p>
+    <h1>三步完成一次 First Touch</h1>
+    <p>从学生已有的 Y4 结果开始，在会谈中记录兴趣，会后整理并生成报告。所有修改自动保存，AI 只是可选的帮手。</p>
   </section>
 
-  <nav class="ft-guide-index" aria-label="本页目录">
-    <a href="#subjects">校内科目</a>
-    <a href="#activities">课外兴趣</a>
-    <a href="#issues">社会话题</a>
-    <a href="#synthesis">形成关键词</a>
-    <a href="#focus">特别关注</a>
-  </nav>
-
-  <section class="surface ft-guide-domain" id="subjects">
-    <div class="ft-guide-domain-head">
-      <span>01</span>
+  <section class="surface ft-guide-step">
+    <div class="ft-guide-step-head">
+      <span>①</span>
       <div>
-        <h2>深挖校内科目</h2>
-        <p>从“喜欢哪门课”问到“在哪个问题上主动多走了一步”。</p>
+        <h2>会前</h2>
+        <p>打开学生列表，点「开始」进入会谈。学生需要先有一份完整的 Y4 报告。</p>
       </div>
     </div>
-    <div class="ft-guide-domain-body">
-      <div>
-        <h3>访谈追问</h3>
-        <ol>
-          <li>最近一次在课堂上主动追问的问题是什么？课本答案哪里不够？</li>
-          <li>哪份作业、实验或阅读让你改变了原来的看法？你如何验证？</li>
-          <li>如果把这门课与另一门学科连接，你会研究什么具体问题？</li>
-        </ol>
-      </div>
-      <div>
-        <h3>证据核验</h3>
-        <p>请看课程作品、实验记录、阅读批注、老师反馈和迭代版本。区分成绩好、做得熟练与真正愿意持续研究。</p>
-        <h3>当场记录</h3>
-        <p>写下具体主题、使用的方法和可继续追问的学科概念。例如：城市热岛测量 → 环境科学、数据采样、空间分析。</p>
-      </div>
-    </div>
+    <ul>
+      <li>进入后直接看到 Y4 速览：职业兴趣代码、能力优势与职业价值观，由报告数据算出，无需等待 AI。</li>
+      <li>需要时点一次「AI 生成提示」，生成的会谈提示可以修改。</li>
+    </ul>
   </section>
 
-  <section class="surface ft-guide-domain" id="activities">
-    <div class="ft-guide-domain-head">
-      <span>02</span>
+  <section class="surface ft-guide-step">
+    <div class="ft-guide-step-head">
+      <span>②</span>
       <div>
-        <h2>深挖课外兴趣</h2>
-        <p>从“参加过什么”问到“持续做了什么、为何继续做”。</p>
+        <h2>会谈中</h2>
+        <p>边聊边记，一个屏幕完成所有兴趣记录。</p>
       </div>
     </div>
-    <div class="ft-guide-domain-body">
-      <div>
-        <h3>访谈追问</h3>
-        <ol>
-          <li>最愿意在没有要求时投入时间的活动是什么？持续了多久？</li>
-          <li>一次卡住或失败后，你具体改了什么方法？</li>
-          <li>你做过的作品、训练、组织或带领他人的行为有哪些可展示的证据？</li>
-        </ol>
-      </div>
-      <div>
-        <h3>证据核验</h3>
-        <p>记录频率、时长、角色、作品、训练日志、比赛级别及可核实结果。避免只按奖项数量判断深度。</p>
-        <h3>当场记录</h3>
-        <p>区分兴趣动力、能力积累和外部影响。把下一步设计成小规模体验：访谈、观察、制作、测试、复盘。</p>
-      </div>
-    </div>
+    <ul>
+      <li>输入兴趣名称后按回车添加；分类会自动猜测，也可以点一下修改。</li>
+      <li>点 0–3 按钮打分，或先选中一行再点象限格，一次设定喜欢与擅长。</li>
+      <li>★ 用于标记特别关注，最多一项。</li>
+      <li>改动后自动保存；如果提示内容冲突，载入最新版本即可。</li>
+    </ul>
   </section>
 
-  <section class="surface ft-guide-domain" id="issues">
-    <div class="ft-guide-domain-head">
-      <span>03</span>
+  <section class="surface ft-guide-step">
+    <div class="ft-guide-step-head">
+      <span>③</span>
       <div>
-        <h2>深挖社会话题参与</h2>
-        <p>从“关心什么议题”问到“接触过谁、观察到什么真实差异”。</p>
+        <h2>会后</h2>
+        <p>整理记录并确认报告。</p>
       </div>
     </div>
-    <div class="ft-guide-domain-body">
-      <div>
-        <h3>访谈追问</h3>
-        <ol>
-          <li>这个问题在你的学校或社区具体发生在哪里？你从谁那里听到了不同看法？</li>
-          <li>你参与过什么行动？受益者如何反馈？有没有意料之外的后果？</li>
-          <li>有哪些数据或事实可以检验你的判断，哪些人的声音还没听到？</li>
-        </ol>
-      </div>
-      <div>
-        <h3>证据核验</h3>
-        <p>保存一手访谈、观察笔记、公开数据来源、行动记录与利益相关者反馈；保护隐私并取得必要同意。不要将一次志愿活动夸大为持续影响。</p>
-        <h3>当场记录</h3>
-        <p>用“问题—群体—机制—可检验假设”收束议题。例如：校园食物浪费 → 行为设计、供应链、公共政策。</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="surface ft-guide-method" id="synthesis">
-    <span class="ft-kicker">From Evidence to Direction</span>
-    <h2>形成 Experiential Learning 与学术关键词</h2>
-    <div class="ft-guide-steps">
-      <article>
-        <strong>1. 写出事实</strong>
-        <p>用“学生做了什么、持续多久、留下什么、谁能核实”代替形容词。标明材料来源，分开学生陈述、他人反馈和顾问推测。</p>
-      </article>
-      <article>
-        <strong>2. 找交叉问题</strong>
-        <p>把校内概念、课外行动和社会场景并排看：有没有同一个问题反复出现？写出学生自己的提问，不急于套专业名称。</p>
-      </article>
-      <article>
-        <strong>3. 设计体验</strong>
-        <p>选一个两到四周可执行的 Experiential Learning 小试验：明确对象、方法、产出与复盘时间。可以是实地观察、原型、实验、访谈或数据分析。</p>
-      </article>
-      <article>
-        <strong>4. 提炼关键词</strong>
-        <p>优先写具体学术概念与方法，例如“运动生理、训练负荷、纵向数据”而非“热爱体育”。每个词都应能追溯到经历或待验证的问题。</p>
-      </article>
-    </div>
-    <div class="ft-guide-example">
-      <strong>记录示例</strong>
-      <p>事实：连续一学期记录校队训练后的恢复情况；问题：不同训练强度是否影响睡眠和表现；体验：在同意与隐私保护下设计匿名训练日志并分析趋势；关键词：运动生理、研究设计、数据可视化。</p>
-    </div>
-  </section>
-
-  <section class="surface ft-guide-method" id="focus">
-    <span class="ft-kicker">Special Focus</span>
-    <h2>特别关注兴趣的后续核验</h2>
-    <p>兴趣卡可在象限评分之外单独标记一项特别关注。它表示值得继续取证，不等于已经具备运动员发展或重大奖项的条件，也不改变现有报告结论。</p>
-    <div class="ft-guide-steps">
-      <article>
-        <strong>运动员发展线索</strong>
-        <p>核对项目、训练年限与周期、比赛层级、成绩趋势、教练评价、健康与学业平衡。询问学生是否愿意继续投入，区分校内参与和更高层级竞争。</p>
-      </article>
-      <article>
-        <strong>重大奖项线索</strong>
-        <p>核对作品原创性、问题深度、个人贡献、公开评审标准、往届层级与时间线。奖项是后续验证结果，先看长期研究或创作过程，不预设获奖概率。</p>
-      </article>
-    </div>
+    <ul>
+      <li>可选上传会谈转写，AI 会指出漏记的兴趣和打分冲突，逐条选择「采纳」或「忽略」。</li>
+      <li>需要时生成总结和项目建议，内容都可以修改。</li>
+      <li>至少 3 个已打分兴趣并写好总结后，确认生成报告。已生成的版本不能修改，之后再改会创建新版本。</li>
+    </ul>
   </section>
 </div>
 {% endblock %}
