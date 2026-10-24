@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from datetime import datetime
 
 from sqlalchemy import delete, func, select, update
@@ -27,11 +26,23 @@ from growth_talk_store import (
     RevisionConflict,
 )
 
-from . import analysis, report_contract
-from .copilot import _sync_project_suggestions, recommendations_current
+from . import analysis, report_contract, y4_snapshot
+from .copilot import (
+    _sync_project_suggestions,
+    interest_candidates,
+    recommendations_current,
+)
 from .errors import ActionError
 
 EVIDENCE_FALLBACK = "顾问会议评分，待核对证据。"
+
+
+class MissingReportFields(Exception):
+    """确认前仍有必填内容，携带缺失清单供 422 返回。"""
+
+    def __init__(self, missing: list[dict]):
+        super().__init__("请先补充报告内容")
+        self.missing = missing
 
 
 # ---------------------------------------------------------------------------
@@ -98,8 +109,8 @@ def _report_result(row: dict) -> dict:
     return {
         "id": row["id"],
         "version": row["version"],
-        "confirmedAt": row.get("confirmed_at"),
-        "confirmedBy": row.get("confirmed_by"),
+        "confirmedAt": row.get("confirmed_at") or row.get("confirmedAt"),
+        "confirmedBy": row.get("confirmed_by") or row.get("confirmedBy"),
     }
 
 
@@ -129,8 +140,8 @@ def missing_report_fields(draft: dict) -> list[dict]:
     if not draft.get("meetingSourceId"):
         missing.append({
             "key": "meeting",
-            "label": "会议文字稿：未上传",
-            "required": True,
+            "label": "会议文字稿：未上传（可选）",
+            "required": False,
         })
 
     interests = draft.get("interests") or []
@@ -138,6 +149,17 @@ def missing_report_fields(draft: dict) -> list[dict]:
         missing.append({
             "key": "interests",
             "label": "兴趣事项：尚未确认",
+            "required": True,
+        })
+    scored = [
+        item for item in interests
+        if item.get("preferenceScore") is not None
+        and item.get("competenceScore") is not None
+    ]
+    if len(scored) < 3:
+        missing.append({
+            "key": "min-interests",
+            "label": "已评分兴趣不足 3 项",
             "required": True,
         })
     for item in interests:
@@ -153,11 +175,26 @@ def missing_report_fields(draft: dict) -> list[dict]:
                 "required": True,
             })
 
+    if not str(draft.get("nextSummary") or "").strip():
+        missing.append({
+            "key": "summary",
+            "label": "会谈总结未填写",
+            "required": True,
+        })
+
+    pending = draft.get("pendingSuggestions") or 0
+    if pending:
+        missing.append({
+            "key": "pending-suggestions",
+            "label": f"还有 {pending} 条会议转写建议未处理",
+            "required": True,
+        })
+
     projects = draft.get("projects") or []
     if draft.get("projectsStale"):
         missing.append({
             "key": "projects-stale",
-            "label": "项目推荐已过期：旧清单不收录报告，可返回上一阶段重新生成并审核",
+            "label": "项目推荐已过期：旧清单不收录报告，可重新生成并审核",
             "required": (draft.get("approvedProjectCount") or 0) > 0,
         })
     elif not projects:
@@ -194,6 +231,7 @@ def missing_report_fields(draft: dict) -> list[dict]:
 
 def report_draft(session: dict, student: dict | None = None) -> dict:
     student = student or _student(session["student_id"])
+    script = session.get("script") or {}
     interests = [
         dict(item) for item in (session.get("interests") or [])
         if isinstance(item, dict)
@@ -203,6 +241,14 @@ def report_draft(session: dict, student: dict | None = None) -> dict:
     analysis_data = (supplement or {}).get("analysis") or {}
     if not isinstance(analysis_data, dict):
         analysis_data = {}
+    pending_suggestions = 0
+    if supplement and isinstance(analysis_data.get("newInterests"), list):
+        pending_suggestions = sum(
+            1 for candidate in interest_candidates(interests, analysis_data)
+            if candidate.get("sourceIndex") is not None
+            and not candidate.get("excluded")
+            and candidate.get("decision") is None
+        )
 
     source_id = session.get("meeting_source_id")
     batch = analysis_data.get("projectRecommendations")
@@ -244,6 +290,11 @@ def report_draft(session: dict, student: dict | None = None) -> dict:
         str(calibration.get(key) or "").strip()
         for key in ("careerInterests", "abilityTendencies", "valuePreferences")
     )
+    if not has_y4:
+        snapshot = script.get("y4Snapshot")
+        if isinstance(snapshot, dict) and snapshot:
+            calibration = y4_snapshot.snapshot_summary_text(snapshot)
+            has_y4 = True
     draft = {
         "student": {
             "name": student["name"],
@@ -253,6 +304,11 @@ def report_draft(session: dict, student: dict | None = None) -> dict:
         "meetingAt": session.get("meeting_at") or session.get("created_at"),
         "meetingSourceId": source_id,
         "meetingSummary": meeting_summary,
+        "nextSummary": (
+            script.get("nextSummary")
+            if isinstance(script.get("nextSummary"), str) else ""
+        ),
+        "pendingSuggestions": pending_suggestions,
         "interests": interests,
         "y4Validation": y4_validation,
         "calibration": calibration if has_y4 else None,
@@ -265,11 +321,13 @@ def report_draft(session: dict, student: dict | None = None) -> dict:
 
 
 def report_input_fingerprint(session: dict, student: dict | None = None,
-                             draft: dict | None = None) -> str:
+                             draft: dict | None = None,
+                             source_id=None) -> str:
     student = student or _student(session["student_id"])
     draft = draft or report_draft(session, student)
     payload = {
-        "sourceId": session.get("meeting_source_id"),
+        "sourceId": (source_id if source_id is not None
+                     else session.get("meeting_source_id")),
         "student": {"name": student["name"], "grade": student.get("grade")},
         "interests": draft["interests"],
         "summary": draft["meetingSummary"],
@@ -315,21 +373,41 @@ def _run_matches(run: dict | None, source_id, draft: dict) -> bool:
 # ---------------------------------------------------------------------------
 # Handoff
 # ---------------------------------------------------------------------------
-def handoff_report(session_id: int, expected_revision: int | None = None) -> dict:
+BASELINE_SOURCE_TITLE = "会谈记录（无文字稿）"
+
+
+def _report_source(student_id: int, session: dict) -> dict:
+    """报告要引用的资料来源；没有会议文字稿时复用/创建占位记录。"""
+    meeting_source_id = session.get("meeting_source_id")
+    if meeting_source_id:
+        source = _latest_meeting_source(student_id)
+        if not source or source["id"] != meeting_source_id:
+            raise ActionError(409, "会议文字稿已变化，请核对当前资料")
+        return source
+    baselines = store.list_sources(
+        student_id, type="GROWTH_TALK", purpose="REPORT_BASELINE")
+    if baselines:
+        return baselines[0]
+    return store.create_source(
+        student_id, "GROWTH_TALK", "GROWTH_TALK", BASELINE_SOURCE_TITLE, "",
+        purpose="REPORT_BASELINE")
+
+
+def handoff_report(session_id: int, expected_revision: int | None = None,
+                   *, allow_confirmed: bool = False) -> dict:
     """物化第一阶段 run；给定 ``expected_revision`` 时在同一事务内 CAS。"""
     session = _session_or_404(session_id)
     student = _student(session["student_id"])
     draft = _assert_report_ready(session, student)
 
-    source = _latest_meeting_source(student["id"])
-    if not source or source["id"] != session.get("meeting_source_id"):
-        raise ActionError(
-            409, "会议文字稿已变化，请返回上一阶段核对当前资料")
+    source = _report_source(student["id"], session)
 
-    fingerprint = report_input_fingerprint(session, student, draft)
+    fingerprint = report_input_fingerprint(
+        session, student, draft, source_id=source["id"])
     script = session.get("script") or {}
     existing_run_id = session.get("run_id")
-    if existing_run_id and script.get("reportInputFingerprint") == fingerprint:
+    if (existing_run_id and not allow_confirmed
+            and script.get("reportInputFingerprint") == fingerprint):
         if _run_matches(store.get_run_full(existing_run_id), source["id"], draft):
             return {"runId": existing_run_id, "revision": session["revision"]}
 
@@ -338,14 +416,17 @@ def handoff_report(session_id: int, expected_revision: int | None = None) -> dic
         current = sess.get(CopilotSession, session_id)
         if not current:
             raise NotFoundError("会谈不存在")
-        if current.meeting_source_id != source["id"]:
+        if (current.meeting_source_id
+                and current.meeting_source_id != source["id"]):
             raise ActionError(409, "会谈资料已变化，请刷新")
 
         run = sess.get(GtRun, current.run_id) if current.run_id else None
         if run and sess.execute(select(GtReport).where(
                 GtReport.run_id == run.id,
                 GtReport.status == "CONFIRMED")).scalar_one_or_none():
-            raise ActionError(409, "报告已确认，请查看已确认版本")
+            if not allow_confirmed:
+                raise ActionError(409, "报告已确认，请查看已确认版本")
+            run = None
 
         if run is None:
             version = (sess.execute(
@@ -355,7 +436,7 @@ def handoff_report(session_id: int, expected_revision: int | None = None) -> dic
             run = GtRun(
                 student_id=student["id"], source_id=source["id"],
                 version=version, revision=1, status="PENDING_REVIEW",
-                model=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+                model=analysis.model_name(),
             )
             sess.add(run)
             sess.flush()
@@ -532,7 +613,8 @@ def prepare_report(session_id: int, expected_revision: int) -> dict:
     _ensure_quadrant(run_id)
     _check_report_session(session_id, revision)
     preview = report_contract.build_report_preview(
-        run_id, meeting_at=session.get("meeting_at") or session.get("created_at"))
+        run_id, meeting_at=session.get("meeting_at") or session.get("created_at"),
+        career=draft.get("calibration"))
     _check_report_session(session_id, revision)
 
     draft["calibration"] = dict(preview["career"]) if preview.get("career") else None
@@ -592,8 +674,61 @@ def confirm_session_report(
         actor_id=session["advisor_id"],
         session_id=session_id,
         session_revision=revision,
+        career=report_draft(session).get("calibration"),
     )
     return report, 201
+
+
+def confirm_session_report_simple(
+    session_id: int, *, revision: int, confirmed_by: str,
+    actor_id=None,
+) -> tuple[dict, int]:
+    """一步确认：服务端自建草稿、校验必填项并生成不可变报告版本。"""
+    session = _session_or_404(session_id)
+    if revision is None or revision != session["revision"]:
+        raise RevisionConflict("会谈已更新，请刷新后重试")
+
+    existing = _confirmed_report(session.get("run_id"), session["student_id"])
+    if existing and session.get("status") == "COMPLETED":
+        return ({
+            "report": _report_result(existing),
+            "revision": session["revision"],
+        }, 200)
+
+    student = _student(session["student_id"])
+    draft = report_draft(session, student)
+    required = [item for item in draft["missing"] if item.get("required")]
+    if required:
+        raise MissingReportFields(required)
+
+    prepared = handoff_report(
+        session_id, revision, allow_confirmed=bool(existing))
+    run_id = prepared["runId"]
+    _ensure_quadrant(run_id)
+    preview = report_contract.build_report_preview(
+        run_id,
+        meeting_at=session.get("meeting_at") or session.get("created_at"),
+        career=draft.get("calibration"),
+    )
+    report = report_contract.confirm_report(
+        run_id,
+        reviewed_meeting=True,
+        reviewed_narrative=True,
+        suggestion_ids=[
+            item["id"] for item in preview.get("suggestions") or []
+        ],
+        fingerprint=preview["fingerprint"],
+        confirmed_by=confirmed_by,
+        actor_id=(session["advisor_id"] if actor_id is None else actor_id),
+        session_id=session_id,
+        session_revision=prepared["revision"],
+        career=draft.get("calibration"),
+    )
+    current = store.get_session(session_id) or {}
+    return ({
+        "report": _report_result(report),
+        "revision": current.get("revision", prepared["revision"]),
+    }, 201)
 
 
 def assert_report_pdf_fresh(session_id: int, revision: int,

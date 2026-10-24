@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 import uuid
 from datetime import datetime
@@ -644,6 +643,8 @@ def delete_superseded_sources(student_id: int, type: str) -> None:
 # ---------------------------------------------------------------------------
 def create_run(student_id: int, source_id: int) -> dict:
     def _run():
+        from growth_talk.analysis import model_name as _analysis_model_name
+
         with Session(_engine()) as sess:
             current = sess.execute(
                 select(func.max(GtRun.version)).where(GtRun.student_id == student_id)
@@ -651,7 +652,7 @@ def create_run(student_id: int, source_id: int) -> dict:
             row = GtRun(
                 student_id=student_id, source_id=source_id,
                 version=current + 1, revision=1, status="RUNNING",
-                model=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+                model=_analysis_model_name(),
             )
             sess.add(row)
             sess.commit()

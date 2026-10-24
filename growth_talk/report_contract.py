@@ -236,17 +236,20 @@ def _yuguo_student_id(student: dict) -> str:
     return student.get("student_code") or str(student["id"])
 
 
-def build_report_preview(run_id: int, meeting_at: str | None = None) -> dict:
+def build_report_preview(run_id: int, meeting_at: str | None = None,
+                         career: dict | None = None) -> dict:
     run = store.get_run_full(run_id)
     if not run:
         raise NotFoundError("分析不存在")
     if not run.get("understanding") or not run.get("quadrant") \
             or run["quadrant"]["status"] == "STALE":
         raise ActionError(409, "请先完成会议理解及当前兴趣的象限分析")
-    latest_source = store.list_sources(
-        run["student_id"], type="GROWTH_TALK", purpose="MEETING")
-    if not latest_source or latest_source[0]["id"] != run["source_id"]:
-        raise ActionError(409, "会议资料已替换，请分析当前版本")
+    source = store.get_source(run["source_id"]) or {}
+    if source.get("purpose") == "MEETING":
+        latest_source = store.list_sources(
+            run["student_id"], type="GROWTH_TALK", purpose="MEETING")
+        if not latest_source or latest_source[0]["id"] != run["source_id"]:
+            raise ActionError(409, "会议资料已替换，请分析当前版本")
 
     interests = [
         item for item in run["interests"]
@@ -275,10 +278,12 @@ def build_report_preview(run_id: int, meeting_at: str | None = None) -> dict:
     career_sources = store.list_sources(
         student["id"], type="Y4_CAREER_PROFILE")
     career_source = career_sources[0] if career_sources else None
-    career = read_career_profile(
+    career_profile = read_career_profile(
         (career_source or {}).get("key_points_confirmed")
         or (career_source or {}).get("key_points_draft")
     )
+    if not career_profile and isinstance(career, dict):
+        career_profile = career
 
     interest_ids = {str(item["id"]) for item in interests}
     suggestions = []
@@ -318,7 +323,6 @@ def build_report_preview(run_id: int, meeting_at: str | None = None) -> dict:
             item["preference_score"], item["competence_score"]),
     } for item in interests]
 
-    source = store.get_source(run["source_id"]) or {}
     source_summary = {
         "id": str(run["source_id"]),
         "type": source.get("type") or "GROWTH_TALK",
@@ -340,7 +344,7 @@ def build_report_preview(run_id: int, meeting_at: str | None = None) -> dict:
         "meetingSummary": f"访谈日期：{_format_meeting_at(meeting_at)}\n\n{meeting_summary}",
         "narrative": analysis.personalize_student_references(
             run["quadrant"]["narrative"], student["name"]),
-        "career": career,
+        "career": career_profile,
         "careerSourceId": career_source["id"] if career_source else None,
         "interests": payload_interests,
         "suggestions": suggestions,
@@ -357,7 +361,8 @@ def confirm_report(run_id: int, *, reviewed_meeting: bool,
                    fingerprint: str, confirmed_by: str,
                    actor_id: int | str | None = None,
                    session_id: int | None = None,
-                   session_revision: int | None = None) -> dict:
+                   session_revision: int | None = None,
+                   career: dict | None = None) -> dict:
     run = store.get_run(run_id)
     if not run:
         raise NotFoundError("分析不存在")
@@ -368,7 +373,7 @@ def confirm_report(run_id: int, *, reviewed_meeting: bool,
             or not isinstance(suggestion_ids, list)):
         raise ActionError(400, "请完成报告内容复核")
 
-    preview = build_report_preview(run_id)
+    preview = build_report_preview(run_id, career=career)
     if fingerprint != preview["fingerprint"]:
         raise RevisionConflict("报告内容已变化，请重新预览")
 
@@ -427,4 +432,5 @@ def confirm_report(run_id: int, *, reviewed_meeting: bool,
         "id": row["id"],
         "version": row["version"],
         "confirmedAt": row["confirmed_at"],
+        "confirmedBy": row["confirmed_by"],
     }

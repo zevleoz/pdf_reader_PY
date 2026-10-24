@@ -155,13 +155,27 @@ def _ready_session(qdb):
         "学生每周训练篮球，非常喜欢投篮，也喜欢看比赛录像。",
         purpose="MEETING", file_name="meeting.txt")
     store.update_session_fields(
-        session["id"], meeting_source_id=source["id"])
+        session["id"], meeting_source_id=source["id"],
+        script={"nextSummary": "本次会谈围绕篮球训练与比赛观察展开，"
+                              "后续会继续设计、观察和验证这些线索。"})
     supplement = store.create_supplement(session["id"], source["id"])
-    store.replace_session_interests(session["id"], [{
-        "id": "i1", "label": "篮球", "topicType": "interest",
-        "preferenceScore": 3, "competenceScore": 2,
-        "note": "每周训练", "evidence": "每周训练篮球",
-    }])
+    store.replace_session_interests(session["id"], [
+        {
+            "id": "i1", "label": "篮球", "topicType": "interest",
+            "preferenceScore": 3, "competenceScore": 2,
+            "note": "每周训练", "evidence": "每周训练篮球",
+        },
+        {
+            "id": "i2", "label": "足球", "topicType": "interest",
+            "preferenceScore": 2, "competenceScore": 1,
+            "note": "周末踢球", "evidence": "周末和朋友踢球",
+        },
+        {
+            "id": "i3", "label": "阅读", "topicType": "interest",
+            "preferenceScore": 2, "competenceScore": 3,
+            "note": "爱看传记", "evidence": "常读人物传记",
+        },
+    ])
     store.save_supplement_analysis(supplement["id"], {
         "analysisVersion": "v1", "newInterests": [],
     }, "PENDING_REVIEW")

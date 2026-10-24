@@ -337,9 +337,12 @@ def api_save_phase(session_id: int):
 
     # 纯导航：只切换阶段，不写内容，也不递增 revision。
     if all(body.get(key) is None for key in _PHASE_CONTENT_KEYS):
+        status = None
+        if (phase == len(copilot.PHASES) - 1
+                and row.get("status") != "COMPLETED"):
+            status = "REVIEW"
         store.update_session_phase(
-            session_id, body["revision"], phase, _actor_id(),
-            status="REVIEW" if phase == len(copilot.PHASES) - 1 else None)
+            session_id, body["revision"], phase, _actor_id(), status=status)
         return jsonify({"revision": body["revision"],
                         "result": store.get_session(session_id)})
 
@@ -410,7 +413,7 @@ def api_save_phase(session_id: int):
         merged_script = dict(row.get("script") or {})
         merged_script.update(script_content)
         fields["script"] = merged_script
-    if phase == len(copilot.PHASES) - 1:
+    if phase == len(copilot.PHASES) - 1 or row.get("status") == "COMPLETED":
         fields["status"] = "REVIEW"
     store.update_session_fields(session_id, **fields)
 
@@ -461,6 +464,8 @@ def api_save_interest_draft(session_id: int):
     revision = store.claim_revision(
         session_id, body["revision"], _actor_id(), "interests_saved")
     store.replace_session_interests(session_id, interests)
+    if row.get("status") == "COMPLETED":
+        store.update_session_fields(session_id, status="REVIEW")
     if bindings_update:
         store.save_supplement_analysis(*bindings_update)
     return jsonify({"revision": revision,
@@ -518,7 +523,10 @@ def api_upload_source(session_id: int):
         row["student_id"], "GROWTH_TALK", "GROWTH_TALK", file_name, content,
         **create_kwargs)
     store.delete_superseded_sources(row["student_id"], "GROWTH_TALK")
-    store.update_session_fields(session_id, meeting_source_id=source["id"])
+    fields = {"meeting_source_id": source["id"]}
+    if row.get("status") == "COMPLETED":
+        fields["status"] = "REVIEW"
+    store.update_session_fields(session_id, **fields)
     store.create_supplement(session_id, source["id"])
     return jsonify({
         "revision": revision,
@@ -641,14 +649,24 @@ def api_preview_report(session_id: int):
     row = _session_or_404(session_id)
     if not row:
         return _error("会谈不存在", 404)
-    if not row.get("run_id"):
-        return _error("请先将会谈资料送入报告审核", 409)
-    try:
-        preview = report_contract.build_report_preview(row["run_id"])
-    except (store.NotFoundError, store.RevisionConflict, ActionError,
-            ValueError) as exc:
-        return _error_response(exc)
-    return jsonify(preview)
+    student = _student_profile(row["student_id"]) or {
+        "id": row["student_id"], "name": "", "grade": "", "school": ""}
+    current = store.get_session(session_id) or row
+    draft = copilot_report.report_draft(current, student)
+    preview = None
+    if row.get("run_id"):
+        try:
+            preview = report_contract.build_report_preview(
+                row["run_id"], meeting_at=current.get("meeting_at"),
+                career=draft.get("calibration"))
+        except (store.NotFoundError, store.RevisionConflict, ActionError,
+                ValueError) as exc:
+            return _error_response(exc)
+    return jsonify({
+        "draft": draft,
+        "preview": preview,
+        "missing": draft.get("missing") or [],
+    })
 
 
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/report-confirm",
@@ -659,6 +677,19 @@ def api_confirm_report(session_id: int):
     if not row:
         return _error("会谈不存在", 404)
     body = _json_body()
+    if "fingerprint" not in body:
+        try:
+            payload, status = copilot_report.confirm_session_report_simple(
+                session_id,
+                revision=body.get("revision"),
+                confirmed_by=_actor_name(),
+            )
+        except copilot_report.MissingReportFields as exc:
+            return jsonify({"missing": exc.missing}), 422
+        except (store.NotFoundError, store.RevisionConflict, ActionError,
+                ValueError) as exc:
+            return _error_response(exc)
+        return jsonify(payload), status
     try:
         report, status = copilot_report.confirm_session_report(
             session_id,
@@ -709,7 +740,7 @@ def api_report_pdf(session_id: int):
         "meetingAt": current.get("meeting_at") or current.get("created_at"),
         "meetingSummary": preview["meetingSummary"],
         "narrative": preview["narrative"],
-        "career": preview.get("career"),
+        "career": preview.get("career") or draft.get("calibration"),
         "interests": [
             item for item in draft.get("interests") or []
             if item.get("preferenceScore") is not None

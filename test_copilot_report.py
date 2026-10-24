@@ -36,13 +36,27 @@ class ReportDB:
             purpose="MEETING",
         )
         store.update_session_fields(
-            session["id"], meeting_source_id=source["id"], phase=6)
+            session["id"], meeting_source_id=source["id"], phase=6,
+            script={"nextSummary": "本次会谈围绕篮球训练与比赛观察展开，"
+                                  "后续会继续设计、观察和验证这些线索。"})
         supplement = store.create_supplement(session["id"], source["id"])
-        store.replace_session_interests(session["id"], [{
-            "id": "i1", "label": "篮球", "topicType": "interest",
-            "preferenceScore": 3, "competenceScore": 2,
-            "note": note, "evidence": evidence,
-        }])
+        store.replace_session_interests(session["id"], [
+            {
+                "id": "i1", "label": "篮球", "topicType": "interest",
+                "preferenceScore": 3, "competenceScore": 2,
+                "note": note, "evidence": evidence,
+            },
+            {
+                "id": "i2", "label": "足球", "topicType": "interest",
+                "preferenceScore": 2, "competenceScore": 1,
+                "note": "周末踢球", "evidence": "周末和朋友踢球",
+            },
+            {
+                "id": "i3", "label": "阅读", "topicType": "interest",
+                "preferenceScore": 2, "competenceScore": 3,
+                "note": "爱看传记", "evidence": "常读人物传记",
+            },
+        ])
         store.save_supplement_analysis(supplement["id"], {
             "analysisVersion": "v1", "newInterests": [],
         }, "PENDING_REVIEW")
@@ -105,9 +119,11 @@ def test_handoff_idempotent_and_materializes_evidence(qdb):
     assert first["runId"] == second["runId"]
     assert first["revision"] == second["revision"]
     full = store.get_run_full(first["runId"])
-    assert len(full["interests"]) == 1
-    assert full["interests"][0]["status"] == "CONFIRMED"
-    assert full["interests"][0]["evidence"] == "每周训练篮球；顾问 Note：每周训练"
+    assert len(full["interests"]) == 3
+    basketball = next(
+        item for item in full["interests"] if item["label"] == "篮球")
+    assert basketball["status"] == "CONFIRMED"
+    assert basketball["evidence"] == "每周训练篮球；顾问 Note：每周训练"
     current = store.get_session(session["id"])
     assert current["phase"] == 6
     assert current["status"] == "REVIEW"
@@ -117,16 +133,30 @@ def test_handoff_idempotent_and_materializes_evidence(qdb):
 def test_handoff_renamed_interest_reuses_run_without_duplicates(qdb):
     session, _source = qdb.session()
     first = copilot_report.handoff_report(session["id"])
-    store.replace_session_interests(session["id"], [{
-        "id": "i1", "label": "篮球训练", "topicType": "interest",
-        "preferenceScore": 3, "competenceScore": 2,
-        "note": "每周训练", "evidence": "每周训练篮球",
-    }])
+    store.replace_session_interests(session["id"], [
+        {
+            "id": "i1", "label": "篮球训练", "topicType": "interest",
+            "preferenceScore": 3, "competenceScore": 2,
+            "note": "每周训练", "evidence": "每周训练篮球",
+        },
+        {
+            "id": "i2", "label": "足球", "topicType": "interest",
+            "preferenceScore": 2, "competenceScore": 1,
+            "note": "周末踢球", "evidence": "周末和朋友踢球",
+        },
+        {
+            "id": "i3", "label": "阅读", "topicType": "interest",
+            "preferenceScore": 2, "competenceScore": 3,
+            "note": "爱看传记", "evidence": "常读人物传记",
+        },
+    ])
     second = copilot_report.handoff_report(session["id"])
 
     assert first["runId"] == second["runId"]
     full = store.get_run_full(first["runId"])
-    assert [item["label"] for item in full["interests"]] == ["篮球训练"]
+    labels = [item["label"] for item in full["interests"]]
+    assert len(labels) == 3
+    assert "篮球训练" in labels and "篮球" not in labels
 
 
 def test_prepare_returns_draft_only_when_grade_missing(qdb):
