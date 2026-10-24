@@ -60,7 +60,7 @@ def test_suggestions_empty_rejected(monkeypatch):
 
 
 def test_call_model_maps_finish_reason_length(monkeypatch):
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("FT_LLM_API_KEY", "test-key")
 
     class FakeResponse:
         def read(self):
@@ -74,7 +74,7 @@ def test_call_model_maps_finish_reason_length(monkeypatch):
 
 
 def test_call_model_success(monkeypatch):
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("FT_LLM_API_KEY", "test-key")
 
     class FakeResponse:
         def read(self):
@@ -84,12 +84,6 @@ def test_call_model_success(monkeypatch):
 
     monkeypatch.setattr(urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse())
     assert analysis.call_model("prompt") == {"ok": True}
-
-
-def test_call_model_requires_key(monkeypatch):
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    with pytest.raises(analysis.AnalysisError, match="未配置画像分析服务"):
-        analysis.call_model("prompt")
 
 
 def test_validate_editable_interest_label_and_exclusions():

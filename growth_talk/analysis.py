@@ -13,8 +13,8 @@ from .upload import UploadError
 
 GROWTH_TALK_LIMITS = prompts.GROWTH_TALK_LIMITS
 
-DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_DEFAULT_MODEL = "deepseek-chat"
+DASHSCOPE_DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+DASHSCOPE_DEFAULT_MODEL = "qwen-plus"
 
 _SUBJECT_CANDIDATES = ["语文", "数学", "英语", "道法", "体育", "美术", "音乐", "艺术", "生物", "化学", "物理", "历史", "地理"]
 _SOCIAL_CANDIDATES = [
@@ -68,13 +68,26 @@ def validate_suggestion_lengths(title: str, introduction: str, growth_value: str
 # ---------------------------------------------------------------------------
 # LLM 调用
 # ---------------------------------------------------------------------------
+def _api_key() -> str:
+    key = os.environ.get("FT_LLM_API_KEY") or os.environ.get("DASHSCOPE_API_KEY")
+    if key:
+        return key.strip()
+    # extract 是重模块，按需导入，避免拖慢应用启动
+    from extract import DEFAULT_DASHSCOPE_KEY
+    return (DEFAULT_DASHSCOPE_KEY or "").strip()
+
+
+def model_name() -> str:
+    return os.environ.get("FT_LLM_MODEL") or DASHSCOPE_DEFAULT_MODEL
+
+
 def call_model(prompt: str) -> dict:
-    key = os.environ.get("DEEPSEEK_API_KEY")
+    key = _api_key()
     if not key:
-        raise AnalysisError("未配置画像分析服务，请联系管理员")
-    base_url = (os.environ.get("DEEPSEEK_BASE_URL") or DEEPSEEK_DEFAULT_BASE_URL).rstrip("/")
+        raise AnalysisError("AI 服务未配置（DASHSCOPE_API_KEY），请联系管理员")
+    base_url = (os.environ.get("FT_LLM_BASE_URL") or DASHSCOPE_DEFAULT_BASE_URL).rstrip("/")
     body = {
-        "model": os.environ.get("DEEPSEEK_MODEL") or DEEPSEEK_DEFAULT_MODEL,
+        "model": model_name(),
         "temperature": 0.1,
         "response_format": {"type": "json_object"},
         "messages": [
@@ -92,9 +105,13 @@ def call_model(prompt: str) -> dict:
         method="POST",
     )
     try:
-        response = urllib.request.urlopen(request, timeout=60)
+        response = urllib.request.urlopen(request, timeout=90)
         raw = response.read()
     except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            raise AnalysisError(f"AI 服务密钥无效或无权限（{exc.code}）")
+        if exc.code == 429:
+            raise AnalysisError("AI 服务繁忙，请稍后重试")
         raise AnalysisError(f"画像分析服务返回 {exc.code}")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise AnalysisError(f"画像分析服务连接失败：{exc}") from exc

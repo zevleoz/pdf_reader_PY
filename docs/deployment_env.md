@@ -23,7 +23,7 @@
 
 | 变量 | 必/选 | 说明 |
 |---|---|---|
-| `DASHSCOPE_API_KEY` | 选（现状保留） | 阿里云百炼（DashScope）API key，视觉 OCR 使用。未设置时代码回退到 `extract.py` 内置 key（**生产在用，需求方 2026-10-15 确认保留，不删不轮换**）；设置则覆盖。本期不需要为它做任何变更 |
+| `DASHSCOPE_API_KEY` | 选（现状保留） | 阿里云百炼（DashScope）API key，视觉 OCR 使用；同时是 First Touch / Growth Talk 文本 AI 的默认 key 来源（未设置 `FT_LLM_API_KEY` 时复用）。未设置时代码回退到 `extract.py` 内置 key（**生产在用，需求方 2026-10-15 确认保留，不删不轮换**）；设置则覆盖。本期不需要为它做任何变更 |
 | `SECRET_KEY` | 生产必 | Flask session / CSRF 签名密钥，强随机值，缺省开发值 `dev-key-change-in-production`。**生产（`Y4_ENV=production`）缺失或等于开发默认值 → 启动时抛 `RuntimeError` 拒绝启动**；非生产环境回退默认值并打一条 warning |
 | `Y4_ENV` | 生产必 | 生产环境标识，唯一有效值 `production`，缺省未设置（视为非生产）。未设置且 `SECRET_KEY` 缺失时应用会以开发默认 key 启动，**生产务必设置**（写入 `.env.production`）。也兼容读取 `FLASK_ENV=production`，但 `Y4_ENV` 优先 |
 | `Y4_COOKIE_SECURE` | 选 | 会话 Cookie 的 `Secure` 标记，取值 `1/0/true/false/yes/no/on/off`；缺省生产 `true`、非生产 `false`。生产经 Cloudflare Tunnel 走 HTTPS，默认开启；若 HTTPS 未就绪需临时登录可设 `false` |
@@ -44,9 +44,9 @@
 | `ITERATION_MODEL` | 选 | 迭代模型（速度优先，缺省 `qwen-turbo`） |
 | `DASHBOARD_AI_MODEL` / `DASHBOARD_AI_TIMEOUT` | 选 | Dashboard AI 分析模型与超时 |
 | `Y4_LOGIN_RATE_LIMIT` | 选 | 登录限流阈值（每 IP 每分钟失败次数），缺省 5 |
-| `DEEPSEEK_API_KEY` | Growth Talk 必 | 画像分析（Growth Talk）使用的 DeepSeek API key。未设置时分析作业报「未配置画像分析服务，请联系管理员」；不配置则 Growth Talk 分析不可用 |
-| `DEEPSEEK_BASE_URL` | 选 | DeepSeek OpenAI 兼容端点，缺省 `https://api.deepseek.com`；调用路径为 `{BASE_URL}/chat/completions` |
-| `DEEPSEEK_MODEL` | 选 | 画像分析模型，缺省 `deepseek-chat` |
+| `FT_LLM_API_KEY` | 选 | First Touch（Growth Talk）AI 调用专用 key；未设置时依次回退 `DASHSCOPE_API_KEY`、`extract.py` 内置默认 key。全部缺失时分析作业报「AI 服务未配置（DASHSCOPE_API_KEY），请联系管理员」 |
+| `FT_LLM_BASE_URL` | 选 | OpenAI 兼容端点，缺省 `https://dashscope.aliyuncs.com/compatible-mode/v1`；调用路径为 `{BASE_URL}/chat/completions` |
+| `FT_LLM_MODEL` | 选 | First Touch 文本 AI 模型，缺省 `qwen-plus` |
 | `YUGUO_BASE_URL` | Yuguo 集成必 | Yuguo 服务根地址（如 `https://yuguo.example.com`），不带末尾斜杠。未设置时导师目录同步/学生导入返回「尚未配置」类 503 |
 | `YUGUO_STUDENT_READ_TOKEN` | Yuguo 集成必 | 调用 Yuguo 学生导入接口的 Bearer token，需与 Yuguo 侧配置一致；本平台只校验非空，建议同样使用至少 32 字符的独立强随机值 |
 | `FIRST_TOUCH_DIRECTORY_TOKEN` | Yuguo 集成必 | Yuguo / First Touch 调用本平台导师目录（`GET/POST /api/integrations/teachers`）的 Bearer token，**至少 32 字符**（代码强制，不足即按未配置返回 503） |
