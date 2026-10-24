@@ -241,23 +241,37 @@
   .ft-evidence { margin: 6px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); line-height: 1.55; }
   .ft-chat-foot { border-top: 1px solid var(--line-soft); padding: 9px 12px; display: flex; gap: 8px; align-items: flex-end; }
   .ft-chat-foot .textarea { min-height: 38px; font-size: 12.5px; }
+
+  /* ---------- 只读查看（Viewer） ---------- */
+  /* 所有写操作按钮在只读模式下都被禁用，这里直接隐藏，避免误点 */
+  .ft-page.is-readonly .ft-body button[disabled],
+  .ft-page.is-readonly .ft-body .ft-row-remove { display: none !important; }
+  .ft-page.is-readonly .ft-project-read { cursor: default; }
+  .ft-ro-badge { margin-left: 8px; vertical-align: 2px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="ft-page" x-data='ftWorkspace({{ ctx | tojson }})' x-init="init()">
+<div class="ft-page" :class="{ 'is-readonly': readOnly }"
+     x-data='ftWorkspace({{ ctx | tojson }})' x-init="init()">
 
   <div class="page-head">
     <div>
-      <div class="page-title">{{ ctx.name }} · First Touch</div>
+      <div class="page-title">{{ ctx.name }} · First Touch
+        {% if ctx.readOnly %}<span class="badge badge-neutral ft-ro-badge">只读查看</span>{% endif %}
+      </div>
       <div class="page-sub">
         {{ ctx.grade or '年级未填写' }} · {{ ctx.school or '学校未填写' }} ·
         七阶段会谈工作台，随时保存与跳转。
       </div>
+      <div class="page-sub" x-show="lastEditor" x-cloak>
+        最近编辑：<span x-text="lastEditor ? lastEditor.name : ''"></span>
+        <span x-show="lastEditor && lastEditor.at"> · <span x-text="lastEditor ? fmtEditorAt(lastEditor.at) : ''"></span></span>
+      </div>
     </div>
   </div>
 
-  <section class="surface" x-show="!entryScreen" x-cloak>
+  <section class="surface" x-show="!entryScreen && !noSessionReadOnly" x-cloak>
     <div class="ft-body" style="display:flex;flex-direction:column;gap:10px">
       <div class="ft-sessionbar">
         <fieldset class="ft-time-picker" :disabled="busy || !canWrite">
@@ -287,7 +301,7 @@
   </section>
 
   <!-- ============ 入口选择屏 ============ -->
-  <section class="surface v2-entry-choice" x-show="entryScreen" data-entry-screen
+  <section class="surface v2-entry-choice" x-show="entryScreen && canWrite" data-entry-screen
            data-initial-entry="{{ ctx.initialEntryMode }}" x-cloak>
     <div class="ft-body ft-entry">
       <div class="ft-entry-intro">
@@ -327,17 +341,24 @@
       </div>
       <div class="ft-error-panel" x-show="entryError">
         <p x-text="entryError"></p>
-        <div class="acts"><button type="button" class="btn btn-sm btn-sec" @click="startSession(initialEntryMode)">重试</button></div>
+        <div class="acts"><button type="button" class="btn btn-sm btn-sec" x-show="canWrite" @click="startSession(initialEntryMode)">重试</button></div>
       </div>
     </div>
   </section>
 
-  <template x-if="!loaded && !entryScreen">
+  <!-- 只读且尚未创建会谈 -->
+  <section class="surface" x-show="noSessionReadOnly" x-cloak>
+    <div class="ft-body">
+      <p class="page-sub" style="margin:0">该学生尚未开始 First Touch 会谈。</p>
+    </div>
+  </section>
+
+  <template x-if="!loaded && !entryScreen && !noSessionReadOnly">
     <div class="surface"><div class="ft-body"><span class="ft-status">正在加载会谈…</span></div></div>
   </template>
 
   <!-- ============ 阶段 0 会议准备 ============ -->
-  <template x-if="loaded && phase === 0">
+  <template x-if="loaded && !noSessionReadOnly && phase === 0">
     <div style="display:flex;flex-direction:column;gap:14px">
       <section class="surface">
         <div class="surface-head">
@@ -357,7 +378,7 @@
           </div>
           <div class="ft-error-panel" x-show="errors.calibration">
             <p x-text="errors.calibration"></p>
-            <div class="acts"><button type="button" class="btn btn-sm btn-sec" @click="generateCalibration()">重试</button></div>
+            <div class="acts"><button type="button" class="btn btn-sm btn-sec" x-show="canWrite" @click="generateCalibration()">重试</button></div>
           </div>
           <div class="ft-grid-2" style="margin-top:12px">
             <div class="ft-field ft-ai-field">
@@ -366,7 +387,7 @@
                 <span class="n" x-text="len(calibration.careerInterests) + ' / 4000'"></span>
               </label>
               <textarea class="textarea" maxlength="4000" x-model="calibration.careerInterests"
-                        @input="dirty = true"></textarea>
+                        :disabled="readOnly" @input="dirty = true"></textarea>
               <div class="ft-field-actions">
                 <span class="ft-status" x-text="calibration.careerInterests ? '已生成 · 可编辑' : '待生成'"></span>
                 <span class="spacer"></span>
@@ -382,7 +403,7 @@
                 <span class="n" x-text="len(calibration.abilityTendencies) + ' / 4000'"></span>
               </label>
               <textarea class="textarea" maxlength="4000" x-model="calibration.abilityTendencies"
-                        @input="dirty = true"></textarea>
+                        :disabled="readOnly" @input="dirty = true"></textarea>
               <div class="ft-field-actions">
                 <span class="ft-status" x-text="calibration.abilityTendencies ? '已生成 · 可编辑' : '待生成'"></span>
                 <span class="spacer"></span>
@@ -398,7 +419,7 @@
                 <span class="n" x-text="len(calibration.valuePreferences) + ' / 4000'"></span>
               </label>
               <textarea class="textarea" maxlength="4000" x-model="calibration.valuePreferences"
-                        @input="dirty = true"></textarea>
+                        :disabled="readOnly" @input="dirty = true"></textarea>
               <div class="ft-field-actions">
                 <span class="ft-status" x-text="calibration.valuePreferences ? '已生成 · 可编辑' : '待生成'"></span>
                 <span class="spacer"></span>
@@ -411,7 +432,7 @@
             <div class="ft-field">
               <label>顾问备注 <span class="n" x-text="len(calibration.notes) + ' / 4000'"></span></label>
               <textarea class="textarea" maxlength="4000" x-model="calibration.notes"
-                        @input="dirty = true"></textarea>
+                        :disabled="readOnly" @input="dirty = true"></textarea>
             </div>
           </div>
           <div class="ft-actions">
@@ -433,7 +454,7 @@
               <label><span x-text="field.label"></span>
                 <span class="n" x-text="len(script[field.key]) + ' / ' + field.limit"></span></label>
               <textarea class="textarea" :maxlength="field.limit" x-model="script[field.key]"
-                        @input="dirty = true"></textarea>
+                        :disabled="readOnly" @input="dirty = true"></textarea>
             </div>
           </template>
           <div class="ft-actions">
@@ -446,7 +467,7 @@
   </template>
 
   <!-- ============ 阶段 1 / 2 演示版式 ============ -->
-  <template x-if="loaded && (phase === 1 || phase === 2)">
+  <template x-if="loaded && !noSessionReadOnly && (phase === 1 || phase === 2)">
     <section class="surface v2-present">
       <div class="ft-present" x-show="phase === 1">
         <span class="ft-kicker">02 / FIRST TALK</span>
@@ -477,7 +498,7 @@
         <div class="ft-actions">
           <button type="button" class="btn btn-sec" @click="goPhase(0)">回到会议准备修改</button>
           <span class="spacer"></span>
-          <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
+          <button type="button" class="btn btn-primary" :disabled="busy"
                   @click="goPhase(phase + 1)">进入下一阶段</button>
         </div>
       </div>
@@ -485,7 +506,7 @@
   </template>
 
   <!-- ============ 阶段 3 兴趣事项 ============ -->
-  <template x-if="loaded && phase === 3">
+  <template x-if="loaded && !noSessionReadOnly && phase === 3">
     <section class="surface">
       <div class="surface-head">
         <span class="surface-title">兴趣事项与评分</span>
@@ -512,17 +533,18 @@
                     <div class="ft-interest-item">
                       <div class="ft-item-row">
                         <input class="input" maxlength="80" placeholder="兴趣事项名称"
-                               x-model="item.label" @input="dirty = true">
-                        <select class="select" x-model="item.topicType" @change="dirty = true">
+                               x-model="item.label" :disabled="readOnly" @input="dirty = true">
+                        <select class="select" x-model="item.topicType" :disabled="readOnly" @change="dirty = true">
                           <option value="subject">学校学科</option>
                           <option value="interest">课外兴趣</option>
                           <option value="social">社会话题</option>
                         </select>
-                        <button type="button" class="ft-row-remove" @click="removeInterest(item.id)">删除</button>
+                        <button type="button" class="ft-row-remove" x-show="canWrite"
+                                @click="removeInterest(item.id)">删除</button>
                       </div>
                       <div class="ft-scores">
                         <label>喜欢
-                          <select class="select" :value="scoreValue(item.preferenceScore)"
+                          <select class="select" :value="scoreValue(item.preferenceScore)" :disabled="readOnly"
                                   @change="setScore(item, 'preferenceScore', $event.target.value)">
                             <option value="">待评</option>
                             <template x-for="opt in preferenceOptions" :key="opt.value">
@@ -533,7 +555,7 @@
                           </select>
                         </label>
                         <label>擅长
-                          <select class="select" :value="scoreValue(item.competenceScore)"
+                          <select class="select" :value="scoreValue(item.competenceScore)" :disabled="readOnly"
                                   @change="setScore(item, 'competenceScore', $event.target.value)">
                             <option value="">待评</option>
                             <template x-for="opt in competenceOptions" :key="opt.value">
@@ -544,17 +566,17 @@
                           </select>
                         </label>
                         <label class="ft-focus-toggle">
-                          <input type="checkbox" :checked="item.specialFocus"
+                          <input type="checkbox" :checked="item.specialFocus" :disabled="readOnly"
                                  @change="toggleSpecialFocus(item)">
                           特别关注
                         </label>
                       </div>
                       <label class="ft-note">备注
-                        <textarea class="textarea" maxlength="2000" x-model="item.note"
+                        <textarea class="textarea" maxlength="2000" x-model="item.note" :disabled="readOnly"
                                   @input="dirty = true" placeholder="对话中的证据或顾问校准"></textarea>
                       </label>
                       <label class="ft-note">会议证据
-                        <textarea class="textarea" maxlength="4000" x-model="item.evidence"
+                        <textarea class="textarea" maxlength="4000" x-model="item.evidence" :disabled="readOnly"
                                   @input="dirty = true" placeholder="会议原文或观察记录"></textarea>
                       </label>
                     </div>
@@ -568,7 +590,7 @@
               <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
                       @click="saveInterests()">保存兴趣事项与评分</button>
               <span class="spacer"></span>
-              <button type="button" class="btn btn-sec" :disabled="busy || !canWrite"
+              <button type="button" class="btn btn-sec" :disabled="busy"
                       @click="goPhase(4)">进入总结与下一步</button>
             </div>
           </div>
@@ -610,7 +632,7 @@
   </template>
 
   <!-- ============ 阶段 4 总结与下一步 ============ -->
-  <template x-if="loaded && phase === 4">
+  <template x-if="loaded && !noSessionReadOnly && phase === 4">
     <section class="surface v2-present">
       <div class="surface-head">
         <span class="surface-title">总结与下一步</span>
@@ -635,12 +657,13 @@
               <span class="n" x-text="len(script.nextSummary) + ' / 1400'"></span>
             </label>
             <textarea class="textarea" data-next-summary-editor maxlength="1400"
-                      x-model="script.nextSummary" @input="dirty = true"
+                      x-model="script.nextSummary" :disabled="readOnly" @input="dirty = true"
                       placeholder="尚未生成。可点击下方按钮生成，再人工审核调整。"></textarea>
           </div>
           <div class="ft-error-panel" x-show="errors.nextSteps">
             <p x-text="errors.nextSteps"></p>
-            <div class="acts"><button type="button" class="btn btn-sm btn-sec" @click="generateNextSteps()">重试</button></div>
+            <div class="acts"><button type="button" class="btn btn-sm btn-sec" x-show="canWrite"
+                    @click="generateNextSteps()">重试</button></div>
           </div>
           <div class="ft-actions">
             <button type="button" class="btn btn-sec" :disabled="busy || !canWrite || nextBusy"
@@ -684,7 +707,7 @@
         <div class="ft-actions">
           <button type="button" class="btn btn-sec" @click="goPhase(3)">回到兴趣事项</button>
           <span class="spacer"></span>
-          <button type="button" class="btn btn-primary" :disabled="busy || !canWrite"
+          <button type="button" class="btn btn-primary" :disabled="busy"
                   @click="goPhase(5)">进入会后补充</button>
         </div>
       </div>
@@ -692,7 +715,7 @@
   </template>
 
   <!-- ============ 阶段 5 会后补充 ============ -->
-  <template x-if="loaded && phase === 5">
+  <template x-if="loaded && !noSessionReadOnly && phase === 5">
     <div style="display:flex;flex-direction:column;gap:14px">
       <section class="surface">
         <div class="surface-head">
@@ -704,7 +727,7 @@
         </div>
         <div class="ft-body">
           <div class="ft-sub">支持 PDF / DOCX / TXT / MD，最大 25 MB；上传后自动提取正文并替换当前版本。</div>
-          <label class="btn btn-sec" style="display:inline-flex;margin-top:10px;cursor:pointer">
+          <label class="btn btn-sec" x-show="canWrite" style="display:inline-flex;margin-top:10px;cursor:pointer">
             <span x-text="uploading ? '正在上传…' : (sessionRow.meeting_source_id ? '替换文字稿' : '上传 PDF / DOCX / TXT / MD')"></span>
             <input type="file" accept=".pdf,.docx,.txt,.md" style="display:none"
                    :disabled="busy || !canWrite || !!projectEditingIndex" @change="uploadMeeting($event)">
@@ -718,7 +741,8 @@
           </div>
           <div class="ft-error-panel" x-show="errors.analysis">
             <p x-text="errors.analysis"></p>
-            <div class="acts"><button type="button" class="btn btn-sm btn-sec" @click="analyzeSupplement()">重试</button></div>
+            <div class="acts"><button type="button" class="btn btn-sm btn-sec" x-show="canWrite"
+                    @click="analyzeSupplement()">重试</button></div>
           </div>
         </div>
       </section>
@@ -736,9 +760,9 @@
               <div class="ft-candidate" :data-conflict="candidate.conflicts.length ? 'true' : null">
                 <div class="ft-candidate-main">
                   <input class="input name" maxlength="80" :aria-label="'候选事项 ' + (index + 1) + ' 名称'"
-                         x-model="candidate.label" @input="dirty = true">
+                         x-model="candidate.label" :disabled="readOnly" @input="dirty = true">
                   <select class="select" :aria-label="candidate.label + ' 分类'"
-                          x-model="candidate.topicType" @change="dirty = true">
+                          x-model="candidate.topicType" :disabled="readOnly" @change="dirty = true">
                     <option value="subject">学校学科</option>
                     <option value="interest">课外兴趣</option>
                     <option value="social">社会话题</option>
@@ -757,7 +781,7 @@
                 <div class="ft-candidate-scores">
                   <label>喜欢
                     <select class="select" :aria-label="candidate.label + ' 喜欢程度'"
-                            :value="scoreValue(candidate.preferenceScore)"
+                            :value="scoreValue(candidate.preferenceScore)" :disabled="readOnly"
                             @change="setCandidateScore(index, 'preferenceScore', $event.target.value)">
                       <option value="">待评</option>
                       <template x-for="opt in preferenceOptions" :key="opt.value">
@@ -769,7 +793,7 @@
                   </label>
                   <label>擅长
                     <select class="select" :aria-label="candidate.label + ' 擅长程度'"
-                            :value="scoreValue(candidate.competenceScore)"
+                            :value="scoreValue(candidate.competenceScore)" :disabled="readOnly"
                             @change="setCandidateScore(index, 'competenceScore', $event.target.value)">
                       <option value="">待评</option>
                       <template x-for="opt in competenceOptions" :key="opt.value">
@@ -788,10 +812,10 @@
                     <p x-text="(key === 'preferenceScore' ? '喜欢' : '擅长') + '：已确认 ' + scoreLabel(key, confirmedScore(candidate, key)) + ' → 会议建议 ' + scoreLabel(key, candidate.proposal && candidate.proposal[key])"></p>
                   </template>
                   <div class="acts">
-                    <button type="button" class="btn btn-sm btn-sec"
+                    <button type="button" class="btn btn-sm btn-sec" x-show="canWrite"
                             :aria-pressed="candidate.decision === 'apply'"
                             @click="decideCandidate(index, 'apply')">采用会议建议</button>
-                    <button type="button" class="btn btn-sm btn-sec"
+                    <button type="button" class="btn btn-sm btn-sec" x-show="canWrite"
                             :aria-pressed="candidate.decision === 'keep'"
                             @click="decideCandidate(index, 'keep')">保留已确认评分</button>
                   </div>
@@ -823,7 +847,7 @@
             <template x-for="(text, index) in y4Validation" :key="index">
               <div class="ft-validation-row">
                 <input class="input" maxlength="100" :aria-label="'Y4 验证第 ' + (index + 1) + ' 条'"
-                       x-model="y4Validation[index]" @input="dirty = true">
+                       x-model="y4Validation[index]" :disabled="readOnly" @input="dirty = true">
                 <span class="n" x-text="len(y4Validation[index]) + ' / 100'"></span>
                 <button type="button" class="btn btn-sm btn-sec"
                         :disabled="busy || !canWrite" @click="removeY4Validation(index)">删除</button>
@@ -833,7 +857,8 @@
           </div>
           <div class="ft-error-panel" x-show="errors.y4Validation">
             <p x-text="errors.y4Validation"></p>
-            <div class="acts"><button type="button" class="btn btn-sm btn-sec" @click="analyzeSupplement()">重试</button></div>
+            <div class="acts"><button type="button" class="btn btn-sm btn-sec" x-show="canWrite"
+                    @click="analyzeSupplement()">重试</button></div>
           </div>
           <div class="ft-actions">
             <button type="button" class="btn btn-sec" :disabled="busy || !canWrite || y4Validation.length >= 3"
@@ -875,7 +900,8 @@
           </div>
           <div class="ft-error-panel" x-show="errors.projects">
             <p x-text="errors.projects"></p>
-            <div class="acts"><button type="button" class="btn btn-sm btn-sec" @click="generateProjects()">重试生成</button></div>
+            <div class="acts"><button type="button" class="btn btn-sm btn-sec" x-show="canWrite"
+                    @click="generateProjects()">重试生成</button></div>
           </div>
           <div class="ft-empty-line" x-show="!projectItems.length && !projectEditingIndex">
             先保存并确认兴趣，再生成项目推荐。推荐会围绕兴趣锚点，比较不同探索方式。
@@ -889,7 +915,7 @@
                   <span class="spacer"></span>
                   <select class="select" style="height:26px;font-size:12px"
                           :aria-label="(item.title || '未命名方案') + ' 审核状态'"
-                          x-model="item.status" @change="markProjectDirty()">
+                          x-model="item.status" :disabled="readOnly" @change="markProjectDirty()">
                     <template x-for="option in projectStatusOptions" :key="option.value">
                       <option :value="option.value" x-text="option.label"></option>
                     </template>
@@ -897,7 +923,7 @@
                 </div>
                 <span class="ft-project-fit" x-text="fitLabel(item.fitType) + ' · v' + item.version"></span>
                 <div class="ft-project-read" x-show="projectEditingIndex !== index"
-                     @click="editProject(index)" role="button" tabindex="0">
+                     @click="canWrite && editProject(index)" role="button" tabindex="0">
                   <div><strong>兴趣锚点</strong><p x-text="item.interestAnchor || '未填写'"></p></div>
                   <div><strong>探索问题</strong><p x-text="item.coreQuestion || '未填写'"></p></div>
                   <div><strong>起步尝试</strong><p x-text="item.example || '未填写'"></p></div>
@@ -908,7 +934,7 @@
                     </template>
                   </ul>
                   <p class="ft-project-meta" x-text="'兴趣引用：' + projectRefLabels(item)"></p>
-                  <span class="ft-status">点击内容编辑</span>
+                  <span class="ft-status" x-show="canWrite">点击内容编辑</span>
                 </div>
                 <div x-show="projectEditingIndex === index" style="display:flex;flex-direction:column;gap:8px">
                   <div class="ft-field">
@@ -980,9 +1006,9 @@
   </template>
 
   <!-- ============ 阶段 6 报告确认 ============ -->
-  <template x-if="loaded && phase === 6">
+  <template x-if="loaded && !noSessionReadOnly && phase === 6">
     <div style="display:flex;flex-direction:column;gap:14px">
-      <section class="surface" x-show="!confirmedReport">
+      <section class="surface" x-show="!confirmedReport && canWrite">
         <div class="surface-head">
           <span class="surface-title">报告准备</span>
           <span class="spacer"></span>
@@ -999,7 +1025,8 @@
           <div class="ft-error-panel" x-show="reportError">
             <p x-text="reportError"></p>
             <div class="acts">
-              <button type="button" class="btn btn-sm btn-sec" @click="prepareReport()">重试</button>
+              <button type="button" class="btn btn-sm btn-sec" x-show="canWrite"
+                      @click="prepareReport()">重试</button>
               <button type="button" class="btn btn-sm btn-sec" @click="goPhase(5)">返回补充资料</button>
             </div>
           </div>
@@ -1040,7 +1067,13 @@
         </div>
       </section>
 
-      <section class="surface" x-show="preview && !confirmedReport">
+      <section class="surface" x-show="readOnly && !confirmedReport">
+        <div class="ft-body">
+          <p class="page-sub" style="margin:0">报告尚未确认</p>
+        </div>
+      </section>
+
+      <section class="surface" x-show="preview && !confirmedReport && canWrite">
         <div class="surface-head">
           <span class="surface-title">报告草稿</span>
           <span class="spacer"></span>
@@ -1100,11 +1133,11 @@
             </div>
           </div>
           <label class="ft-check">
-            <input type="checkbox" x-model="reviewedMeeting">
+            <input type="checkbox" x-model="reviewedMeeting" :disabled="readOnly">
             <span>我已核对会议总结与访谈信息</span>
           </label>
           <label class="ft-check">
-            <input type="checkbox" x-model="reviewedNarrative">
+            <input type="checkbox" x-model="reviewedNarrative" :disabled="readOnly">
             <span>我已核对兴趣分型说明与学生姓名</span>
           </label>
           <div class="ft-actions">
@@ -1143,7 +1176,7 @@
   </template>
 
   <!-- ============ 浮动聊天（仅 0 / 3 / 5 / 6） ============ -->
-  <div class="ft-chat" x-show="advisorPhase && !entryScreen" x-cloak>
+  <div class="ft-chat" x-show="advisorPhase && !entryScreen && !noSessionReadOnly" x-cloak>
     <div class="ft-chat-panel" x-show="chat.open" x-transition>
       <div class="ft-chat-head">
         <div>
@@ -1151,7 +1184,7 @@
           <span class="sub" style="display:block">回答仅作为顾问审核草稿</span>
         </div>
         <span class="spacer"></span>
-        <button type="button" class="btn btn-sm btn-sec" :disabled="chat.sending"
+        <button type="button" class="btn btn-sm btn-sec" x-show="canWrite" :disabled="chat.sending"
                 @click="newChat()">新对话</button>
         <a class="btn btn-sm btn-sec" :href="chatFullHref()" target="_blank" rel="noopener">展开为全页</a>
         <button type="button" class="btn btn-sm btn-sec" @click="chat.open = false">收起</button>
@@ -1184,17 +1217,20 @@
         <div class="ft-empty-line" x-show="!chat.turns.length">询问会谈资料、兴趣或下一步安排。</div>
         <div class="ft-empty-line" x-show="chat.turns.length >= 20">已达 20 轮，请开始新对话。</div>
       </div>
-      <div class="ft-chat-foot">
+      <div class="ft-chat-foot" x-show="canWrite">
         <textarea class="textarea" maxlength="1000"
                   placeholder="输入问题，Ctrl / ⌘ + Enter 发送，Enter 换行"
                   :disabled="chat.turns.length >= 20"
                   x-model="chat.question"
                   @keydown="chatKeydown($event)"></textarea>
-        <button type="button" class="btn btn-sec" x-show="chat.sending"
+        <button type="button" class="btn btn-sec" x-show="canWrite && chat.sending"
                 @click="stopChat()">停止</button>
-        <button type="button" class="btn btn-primary" x-show="!chat.sending"
+        <button type="button" class="btn btn-primary" x-show="canWrite && !chat.sending"
                 :disabled="!chat.question.trim() || chat.turns.length >= 20"
                 @click="sendChat()">发送</button>
+      </div>
+      <div class="ft-chat-foot" x-show="readOnly">
+        <span class="ft-status">只读账号可查看历史对话，不能发起提问。</span>
       </div>
     </div>
     <button type="button" class="ft-chat-launcher" x-show="!chat.open"
@@ -1210,6 +1246,7 @@
 function ftWorkspace(ctx) {
   return {
     sid: ctx.sid, sessionId: ctx.sessionId, canWrite: ctx.canWrite,
+    readOnly: !!ctx.readOnly, role: ctx.role || '', lastEditor: null,
     phases: ctx.phases || [],
     entryScreen: !!ctx.entryScreen, initialEntryMode: ctx.initialEntryMode || 'guided',
     entryBusy: false, entryError: '',
@@ -1289,6 +1326,7 @@ function ftWorkspace(ctx) {
         .some((key) => (this.calibration[key] || '').trim());
     },
     get advisorPhase() { return [0, 3, 5, 6].includes(this.phase); },
+    get noSessionReadOnly() { return this.readOnly && !this.sessionId; },
     get meetingStatus() {
       if (this.busy) { return '正在保存…'; }
       if (this.dirty) { return '内容待保存'; }
@@ -1468,6 +1506,10 @@ function ftWorkspace(ctx) {
         time: (map.hour === '24' ? '00' : map.hour) + ':' + map.minute
       };
     },
+    fmtEditorAt(value) {
+      const parts = this._shanghaiParts(value);
+      return parts ? parts.date + ' ' + parts.time : (value || '');
+    },
     initMeetingDefaults() {
       const value = this.sessionRow && this.sessionRow.meeting_at;
       if (value) {
@@ -1566,6 +1608,7 @@ function ftWorkspace(ctx) {
         this.projectsCurrent = data.projectsCurrent !== false;
         this.reportId = data.reportId || null;
         this.confirmedReport = data.report || null;
+        this.lastEditor = data.lastEditor || null;
         this.applyRow(data.session || {});
         const sourceId = this.sessionRow.meeting_source_id;
         this.meetingFileName = (data.sourceFileNames || {})[String(sourceId)] || '';
@@ -1630,6 +1673,7 @@ function ftWorkspace(ctx) {
     },
 
     async goPhase(target) {
+      if (this.readOnly) { this.phase = target; return; }
       if (this.busy) { return; }
       if (target === this.phase && !this.dirty && this.projectEditingIndex === null) {
         return;

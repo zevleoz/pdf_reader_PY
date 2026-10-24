@@ -166,11 +166,13 @@
       <span class="count-pill" x-text="chats.length">{{ ctx.chats | length }}</span>
       <span class="spacer"></span>
     </div>
+    {% if ctx.canWrite %}
     <div class="ft-chat-new">
       <button type="button" class="btn btn-primary btn-sm" @click="newChat()" :disabled="sending">
         {{ icon('plus', 13) }} 开始聊天
       </button>
     </div>
+    {% endif %}
     <div class="ft-chat-list">
       <template x-for="c in chats" :key="c.chatId">
         <div class="ft-chat-item" :class="{ 'is-active': active && active.chatId === c.chatId }">
@@ -179,6 +181,7 @@
             <span class="q" x-text="c.question || '（空对话）'"></span>
             <span class="m"><span x-text="c.turnCount + ' 轮'"></span> · <span x-text="fmt(c.updatedAt)"></span></span>
           </button>
+          {% if ctx.canWrite %}
           <button type="button" class="ft-chat-del" @click="requestDelete(c)"
                   :aria-label="'删除对话：' + (c.question || '新对话')" title="删除对话">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
@@ -187,6 +190,7 @@
               <path d="M10 11v5"/><path d="M14 11v5"/>
             </svg>
           </button>
+          {% endif %}
         </div>
       </template>
       <div class="ft-chat-empty" x-show="!chats.length">还没有对话</div>
@@ -273,11 +277,14 @@
       </template>
       <div class="empty" x-show="!active || !(active.turns || []).length">
         <div class="ic">{{ icon('sparkle', 16) }}</div>
-        <div class="t">开始一段提问</div>
+        <div class="t">{{ '暂无历史对话' if ctx.readOnly else '开始一段提问' }}</div>
+        {% if ctx.canWrite %}
         <div class="d">例如：这次会谈里，学生关于篮球的兴趣有哪些可核验的证据？</div>
+        {% endif %}
       </div>
     </div>
 
+    {% if ctx.canWrite %}
     <div class="ft-composer">
       <textarea class="textarea" x-model="draft" maxlength="1000" rows="3"
                 :disabled="isFull()"
@@ -299,8 +306,14 @@
                 x-text="sending ? '正在回答…' : '发送'"></button>
       </div>
     </div>
+    {% else %}
+    <div class="ft-composer">
+      <p class="hint" style="margin:0;font-size:12.5px;color:var(--muted)">只读账号可查看历史对话，不能发起提问。</p>
+    </div>
+    {% endif %}
   </section>
 
+  {% if ctx.canWrite %}
   <div class="dialog-backdrop" x-show="pendingDelete" x-cloak @click.self="cancelDelete()">
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="ft-delete-title">
       <div class="dialog-title" id="ft-delete-title">删除对话</div>
@@ -314,6 +327,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}
 

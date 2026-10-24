@@ -5,6 +5,7 @@
 {% block page_title %}First Touch{% endblock %}
 
 {% block page_actions %}
+{% if ctx.canWrite %}
 <button type="button" class="btn btn-sec" onclick="openY4Import()">
   {{ icon('download', 13) }} 从 Y4 导入
 </button>
@@ -17,6 +18,7 @@
 <button type="button" class="btn btn-primary" onclick="ftOpenAddDialog()">
   {{ icon('users', 13) }} 手动添加学生
 </button>
+{% endif %}
 {% endblock %}
 
 {% block head_extra %}
@@ -117,8 +119,10 @@
           <span>已确认报告 <b>{{ s.reportCount }}</b></span>
         </div>
         <div class="ft-card-actions">
-          <a class="btn btn-primary btn-sm" href="/first-touch/students/{{ s.id }}">进入工作台</a>
+          <a class="btn btn-primary btn-sm" href="/first-touch/students/{{ s.id }}">{{ '查看' if ctx.readOnly else '进入工作台' }}</a>
+          {% if ctx.canWrite and s.sessionCount == 0 %}
           <a class="btn btn-sec btn-sm" href="/first-touch/students/{{ s.id }}?entry=direct">直接上传会后资料</a>
+          {% endif %}
           <a class="btn btn-sec btn-sm" href="/first-touch/copilot/{{ s.id }}">聊天</a>
           <a class="btn btn-sec btn-sm" href="/students/{{ s.code }}">360 档案</a>
           {% if ctx.isAdmin %}
@@ -132,11 +136,16 @@
     <div class="empty">
       <div class="ic">{{ icon('users', 16) }}</div>
       <div class="t">还没有学生</div>
+      {% if ctx.readOnly %}
+      <div class="d">当前没有可查看的学生。</div>
+      {% else %}
       <div class="d">手动添加学生或从 Yuguo 导入后，即可开始首次会谈。</div>
+      {% endif %}
     </div>
     {% endif %}
   </section>
 
+  {% if ctx.canWrite %}
   <!-- 手动添加学生 -->
   <div class="dialog-backdrop" x-cloak x-show="addOpen" @click.self="closeAdd()">
     <div class="dialog" role="dialog" aria-modal="true" aria-label="手动添加学生">
@@ -265,6 +274,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}
 
@@ -351,6 +361,7 @@ function ftHome() {
   };
 }
 
+{% if ctx.canWrite %}
 // --- 从 Y4 导入（平台已有报告） ---
 let y4ImportBusy = false;
 
@@ -543,5 +554,6 @@ function renderYuguoImport(data) {
   document.getElementById('yuguoImportResult').hidden = false;
   document.getElementById('yuguoImportRefresh').hidden = changed <= 0;
 }
+{% endif %}
 </script>
 {% endblock %}
