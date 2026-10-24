@@ -25,7 +25,7 @@
   .ft-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   @media (max-width: 1023px) { .ft-grid-2 { grid-template-columns: minmax(0, 1fr); } }
   .ft-field { margin-bottom: 10px; }
-  .ft-field > label { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+  .ft-field > label { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
   .ft-field > label .n { margin-left: auto; font-variant-numeric: tabular-nums; }
   .ft-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .ft-actions .spacer { flex: 1; }
@@ -34,16 +34,16 @@
   .ft-status.ok { color: var(--ok); }
 
   .ft-interest-table { width: 100%; border-collapse: collapse; }
-  .ft-interest-table th { font-size: 11px; color: var(--muted); font-weight: 500; text-align: left; padding: 0 6px 6px; }
+  .ft-interest-table th { font-size: 12px; color: var(--muted); font-weight: 500; text-align: left; padding: 0 6px 6px; }
   .ft-interest-table td { padding: 5px 6px; vertical-align: top; border-top: 1px solid var(--line-soft); }
   .ft-interest-table .input, .ft-interest-table .textarea, .ft-interest-table .select { font-size: 12px; }
   .ft-interest-table .textarea { min-height: 44px; }
-  .ft-row-remove { color: var(--danger); background: none; border: 0; cursor: pointer; font-size: 12px; }
+  .ft-row-remove { color: var(--danger); background: none; border: 0; cursor: pointer; font-size: 12px; white-space: nowrap; }
 
   /* ---------- 入口选择 / 会谈时间 ---------- */
   .ft-entry { display: flex; flex-direction: column; gap: 18px; }
   .ft-entry-intro { display: flex; flex-direction: column; gap: 8px; max-width: 720px; }
-  .ft-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: var(--muted); }
+  .ft-kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: var(--muted); }
   .ft-entry-title { margin: 0; font-size: 20px; font-weight: 600; color: var(--ink); }
   .ft-entry-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   @media (max-width: 1023px) { .ft-entry-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -54,12 +54,12 @@
   }
   .ft-entry-card:hover { border-color: var(--brand); background: var(--brand-soft); }
   .ft-entry-card[disabled] { opacity: .55; pointer-events: none; }
-  .ft-entry-number { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .08em; }
+  .ft-entry-number { font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: .08em; }
   .ft-entry-card strong { font-size: 14px; color: var(--ink); }
   .ft-entry-card p { margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.7; }
   .ft-entry-action { font-size: 12.5px; color: var(--brand-deep); font-weight: 500; }
   .ft-time-picker { display: flex; gap: 10px; align-items: flex-end; margin: 0; padding: 0; border: 0; min-width: 0; }
-  .ft-time-picker label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
+  .ft-time-picker label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .ft-time-picker input, .ft-time-picker select {
     height: 32px; border: 1px solid var(--line); border-radius: var(--r-sm);
     background: var(--bg); color: var(--ink); padding: 0 8px; font-size: 12.5px;
@@ -74,7 +74,7 @@
   .ft-profile { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   @media (max-width: 1023px) { .ft-profile { grid-template-columns: minmax(0, 1fr); } }
   .ft-profile article { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); padding: 12px 14px; min-width: 0; }
-  .ft-profile article small { font-size: 11.5px; color: var(--muted); }
+  .ft-profile article small { font-size: 12px; color: var(--muted); }
   .ft-profile article p { margin-top: 6px; font-size: 12.5px; line-height: 1.7; }
   .ft-profile-note { font-size: 12.5px; color: var(--muted); line-height: 1.7; }
   .ft-lead { font-size: 13px; color: var(--ink-2); line-height: 1.7; margin: 0 0 12px; white-space: pre-wrap; }
@@ -99,11 +99,11 @@
   .ft-item-row .input { flex: 1 1 auto; min-width: 0; }
   .ft-item-row .select { flex: none; width: 118px; }
   .ft-scores { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-  .ft-scores label { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--muted); }
+  .ft-scores label { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
   .ft-scores .select { height: 28px; font-size: 12px; width: 104px; }
   .ft-focus-toggle { margin-left: auto; color: var(--ink-2); }
   .ft-focus-toggle input { accent-color: var(--brand); }
-  .ft-note { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
+  .ft-note { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .ft-note .textarea { min-height: 42px; font-size: 12px; }
   .ft-quadrant-panel { position: sticky; top: 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); padding: 12px 14px; min-width: 0; }
   .ft-quadrant-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -117,16 +117,16 @@
   .ft-qcell.zone-core { background: var(--ok-soft); border-color: transparent; }
   .ft-qcell.zone-interest { background: var(--brand-soft); border-color: transparent; }
   .ft-qcell.zone-ability { background: var(--brand-soft); border-color: transparent; opacity: .82; }
-  .ft-qtag { font-size: 11.5px; color: var(--ink-2); line-height: 1.4; overflow-wrap: anywhere; }
+  .ft-qtag { font-size: 12px; color: var(--ink-2); line-height: 1.4; overflow-wrap: anywhere; }
   .ft-qscore { font-family: var(--mono); font-size: 10px; color: var(--muted); }
-  .ft-legend { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: 11.5px; color: var(--muted); }
+  .ft-legend { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: 12px; color: var(--muted); }
   .ft-legend .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
   .ft-legend .sw.zone-core { background: var(--ok-soft); box-shadow: inset 0 0 0 1px var(--ok); }
   .ft-legend .sw.zone-interest { background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
   .ft-legend .sw.zone-ability { background: var(--brand-soft); opacity: .7; box-shadow: inset 0 0 0 1px var(--brand); }
   .ft-legend-axes { margin-left: auto; }
   .ft-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-  .ft-chip { font-size: 11.5px; color: var(--ink-2); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; }
+  .ft-chip { font-size: 12px; color: var(--ink-2); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; }
 
   .ft-candidates { display: flex; flex-direction: column; gap: 8px; }
   .ft-candidate {
@@ -136,11 +136,11 @@
   }
   .ft-candidate-main { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
   .ft-candidate-main .name { flex: 1 1 240px; min-width: 0; }
-  .ft-candidate .evi { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted); line-height: 1.55; }
+  .ft-candidate .evi { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); line-height: 1.55; }
   .ft-candidate .acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .ft-candidate .acts .btn[aria-pressed="true"] { border-color: var(--brand); color: var(--brand-deep); background: var(--brand-soft); }
   .ft-candidate-scores { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .ft-candidate-scores label { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--muted); }
+  .ft-candidate-scores label { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
   .ft-candidate-scores .select { height: 28px; font-size: 12px; width: 110px; }
   .ft-conflict { border: 1px solid var(--warn); background: var(--warn-soft); border-radius: var(--r-sm); padding: 8px 10px; font-size: 12px; color: var(--warn); display: flex; flex-direction: column; gap: 6px; }
   .ft-conflict strong { color: var(--warn); }
@@ -157,29 +157,29 @@
   .ft-project.is-stale { opacity: .6; }
   .ft-project-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .ft-project-head .spacer { flex: 1; }
-  .ft-project-fit { font-size: 11.5px; color: var(--muted); }
+  .ft-project-fit { font-size: 12px; color: var(--muted); }
   .ft-project-read { display: flex; flex-direction: column; gap: 6px; }
   .ft-project-read strong { font-size: 13px; color: var(--ink); }
   .ft-project-read p { margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.7; }
-  .ft-project-read .ft-project-meta { color: var(--muted); font-size: 11.5px; }
-  .ft-evidence-list { margin: 0; padding-left: 16px; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+  .ft-project-read .ft-project-meta { color: var(--muted); font-size: 12px; }
+  .ft-evidence-list { margin: 0; padding-left: 16px; font-size: 12px; color: var(--muted); line-height: 1.6; }
   .ft-project .input, .ft-project .textarea { font-size: 12.5px; }
   .ft-project .textarea { min-height: 56px; }
   .ft-project-extra { border-top: 1px solid var(--line-soft); margin-top: 4px; padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
   .ft-project-extra p { margin: 0; font-size: 12px; color: var(--ink-2); line-height: 1.65; }
-  .ft-project-extra .k { font-size: 11.5px; color: var(--muted); }
+  .ft-project-extra .k { font-size: 12px; color: var(--muted); }
   .ft-ref-checks { display: flex; gap: 10px; flex-wrap: wrap; }
   .ft-ref-checks label { display: flex; gap: 5px; align-items: center; font-size: 12px; color: var(--ink-2); }
 
   .ft-missing-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
   @media (max-width: 1023px) { .ft-missing-groups { grid-template-columns: minmax(0, 1fr); } }
-  .ft-missing-group h5 { margin: 0 0 6px; font-size: 11.5px; font-weight: 600; color: var(--muted); letter-spacing: .04em; }
+  .ft-missing-group h5 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .04em; }
   .ft-missing { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); line-height: 1.7; }
   .ft-missing li { margin-bottom: 4px; }
   .ft-missing li.req { color: var(--danger); }
   .ft-missing li .btn { margin-left: 6px; }
   .ft-steps { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
-  .ft-step { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
+  .ft-step { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
   .ft-step.is-done { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
   .ft-step.is-active { color: var(--brand-deep); border-color: var(--brand); background: var(--brand-soft); }
   .ft-error-panel { border: 1px solid var(--danger); background: var(--danger-soft); border-radius: var(--r-sm); padding: 10px 12px; font-size: 12.5px; color: var(--danger); margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -209,7 +209,9 @@
   .ft-empty-line { font-size: 12.5px; color: var(--muted); padding: 6px 0; }
 
   /* ---------- 浮动聊天 ---------- */
-  .ft-chat { position: fixed; right: 22px; bottom: 22px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .ft-chat { position: fixed; right: 22px; bottom: 22px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; transition: transform .18s ease; }
+  /* C1 给 <body> 加 has-toast 时抬升浮动聊天按钮，避免被 toast 覆盖 */
+  body.has-toast .ft-chat { transform: translateY(-72px); }
   .ft-chat-launcher {
     width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--brand);
     background: var(--brand); color: #fff; cursor: pointer; display: flex;
@@ -223,7 +225,7 @@
   }
   .ft-chat-head { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
   .ft-chat-head .t { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-  .ft-chat-head .sub { font-size: 11px; color: var(--muted); }
+  .ft-chat-head .sub { font-size: 12px; color: var(--muted); }
   .ft-chat-head .spacer { flex: 1; }
   .ft-chat-history { border-bottom: 1px solid var(--line-soft); padding: 8px 12px; max-height: 148px; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
   .ft-chat-history button { text-align: left; border: 1px solid transparent; border-radius: var(--r-sm); background: none; padding: 5px 7px; cursor: pointer; font-size: 12px; color: var(--ink-2); }
@@ -236,7 +238,7 @@
   .ft-msg.a { align-self: flex-start; background: var(--bg); border: 1px solid var(--line-soft); color: var(--ink-2); }
   .ft-msg.err { color: var(--danger); }
   .ft-msg-pre { margin: 0; font-family: inherit; font-size: inherit; line-height: inherit; white-space: pre-wrap; word-break: break-word; color: inherit; background: none; padding: 0; }
-  .ft-evidence { margin: 6px 0 0; padding-left: 16px; font-size: 11.5px; color: var(--muted); line-height: 1.55; }
+  .ft-evidence { margin: 6px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); line-height: 1.55; }
   .ft-chat-foot { border-top: 1px solid var(--line-soft); padding: 9px 12px; display: flex; gap: 8px; align-items: flex-end; }
   .ft-chat-foot .textarea { min-height: 38px; font-size: 12.5px; }
 </style>
@@ -271,9 +273,7 @@
             </select>
           </label>
         </fieldset>
-        <span class="ft-status" x-text="meetingStatus"></span>
-        <span class="spacer" style="flex:1"></span>
-        <span class="ft-status" x-text="dirty ? '内容待保存' : ('修订 ' + revision)"></span>
+        <span class="ft-status" x-text="meetingStatus" :title="'revision ' + revision"></span>
       </div>
       <div class="ft-phasebar">
         <template x-for="(name, index) in phases" :key="index">
@@ -449,12 +449,12 @@
   <template x-if="loaded && (phase === 1 || phase === 2)">
     <section class="surface v2-present">
       <div class="ft-present" x-show="phase === 1">
-        <span class="ft-kicker">01 / FIRST TALK</span>
+        <span class="ft-kicker">02 / FIRST TALK</span>
         <h3 x-text="script.goal || '本次会谈目标'"></h3>
         <p x-text="script.opening || '尚未填写开场说明'"></p>
       </div>
       <div class="ft-present" x-show="phase === 2">
-        <span class="ft-kicker">02 / Y4 REPORT</span>
+        <span class="ft-kicker">03 / Y4 REPORT</span>
         <h3>从测评线索开始</h3>
         <p x-text="script.interpretation || '尚未填写 Y4 结果解读'"></p>
         <div class="ft-profile">
@@ -526,7 +526,9 @@
                                   @change="setScore(item, 'preferenceScore', $event.target.value)">
                             <option value="">待评</option>
                             <template x-for="opt in preferenceOptions" :key="opt.value">
-                              <option :value="opt.value" x-text="opt.label"></option>
+                              <option :value="opt.value"
+                                      :selected="scoreValue(item.preferenceScore) === String(opt.value)"
+                                      x-text="opt.label"></option>
                             </template>
                           </select>
                         </label>
@@ -535,7 +537,9 @@
                                   @change="setScore(item, 'competenceScore', $event.target.value)">
                             <option value="">待评</option>
                             <template x-for="opt in competenceOptions" :key="opt.value">
-                              <option :value="opt.value" x-text="opt.label"></option>
+                              <option :value="opt.value"
+                                      :selected="scoreValue(item.competenceScore) === String(opt.value)"
+                                      x-text="opt.label"></option>
                             </template>
                           </select>
                         </label>
@@ -545,7 +549,7 @@
                           特别关注
                         </label>
                       </div>
-                      <label class="ft-note">Note
+                      <label class="ft-note">备注
                         <textarea class="textarea" maxlength="2000" x-model="item.note"
                                   @input="dirty = true" placeholder="对话中的证据或顾问校准"></textarea>
                       </label>
@@ -756,10 +760,11 @@
                             :value="scoreValue(candidate.preferenceScore)"
                             @change="setCandidateScore(index, 'preferenceScore', $event.target.value)">
                       <option value="">待评</option>
-                      <option value="0">不喜欢</option>
-                      <option value="1">一般喜欢</option>
-                      <option value="2">喜欢</option>
-                      <option value="3">非常喜欢</option>
+                      <template x-for="opt in preferenceOptions" :key="opt.value">
+                        <option :value="opt.value"
+                                :selected="scoreValue(candidate.preferenceScore) === String(opt.value)"
+                                x-text="opt.label"></option>
+                      </template>
                     </select>
                   </label>
                   <label>擅长
@@ -767,10 +772,11 @@
                             :value="scoreValue(candidate.competenceScore)"
                             @change="setCandidateScore(index, 'competenceScore', $event.target.value)">
                       <option value="">待评</option>
-                      <option value="0">不擅长</option>
-                      <option value="1">一般擅长</option>
-                      <option value="2">擅长</option>
-                      <option value="3">非常擅长</option>
+                      <template x-for="opt in competenceOptions" :key="opt.value">
+                        <option :value="opt.value"
+                                :selected="scoreValue(candidate.competenceScore) === String(opt.value)"
+                                x-text="opt.label"></option>
+                      </template>
                     </select>
                   </label>
                   <span class="ft-status" x-text="candidate.statusLabel"></span>
@@ -881,7 +887,7 @@
                   <span class="ft-project-fit" x-text="String(index + 1).padStart(2, '0')"></span>
                   <strong x-text="item.title || '未命名方案'"></strong>
                   <span class="spacer"></span>
-                  <select class="select" style="height:26px;font-size:11.5px"
+                  <select class="select" style="height:26px;font-size:12px"
                           :aria-label="(item.title || '未命名方案') + ' 审核状态'"
                           x-model="item.status" @change="markProjectDirty()">
                     <template x-for="option in projectStatusOptions" :key="option.value">
@@ -1213,7 +1219,7 @@ function ftWorkspace(ctx) {
     script: {}, interests: [], analysis: {}, projectsStale: false, projectsCurrent: true,
     projectItems: [], projectDirty: false, projectEditingIndex: null,
     meetingFileName: '', supplementBusy: false, uploading: false,
-    y4Validation: [], nextBusy: false,
+    y4Validation: [], nextBusy: false, nextStepsAttempted: false,
     meetingDate: '', meetingTime: '', meetingDirty: false, timeSlots: [],
     errors: {},
     preview: null, prepared: false, missing: [], reportDraft: null, reportId: null,
@@ -1235,14 +1241,16 @@ function ftWorkspace(ctx) {
       { key: 'nextSummary', label: '会谈总结', limit: 1400 }
     ],
     preferenceOptions: [
-      { value: 0, label: '喜欢低（0–1）' },
-      { value: 2, label: '喜欢中（2）' },
-      { value: 3, label: '喜欢高（3）' }
+      { value: 0, label: '不喜欢' },
+      { value: 1, label: '一般喜欢' },
+      { value: 2, label: '喜欢' },
+      { value: 3, label: '非常喜欢' }
     ],
     competenceOptions: [
-      { value: 0, label: '擅长低（0–1）' },
-      { value: 2, label: '擅长中（2）' },
-      { value: 3, label: '擅长高（3）' }
+      { value: 0, label: '不擅长' },
+      { value: 1, label: '一般擅长' },
+      { value: 2, label: '擅长' },
+      { value: 3, label: '非常擅长' }
     ],
     projectStatusOptions: [
       { value: 'draft', label: '待审核' },
@@ -1431,8 +1439,22 @@ function ftWorkspace(ctx) {
 
     // ---------- 会谈时间 ----------
     _pad(value) { return String(value).padStart(2, '0'); },
+    // 服务端历史数据里存在无时区的 UTC 字符串（datetime.utcnow），按 UTC 解析
+    _normalizeMeetingIso(value) {
+      const text = String(value || '').trim();
+      if (!text || !/\d{2}:\d{2}/.test(text)) { return text; }
+      if (/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(text)) { return text; }
+      return text + 'Z';
+    },
+    _slotFloor(time) {
+      const parts = String(time || '').split(':').map(Number);
+      if (parts.length < 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) {
+        return '';
+      }
+      return this._pad(parts[0]) + ':' + this._pad(Math.floor(parts[1] / 15) * 15);
+    },
     _shanghaiParts(value) {
-      const date = new Date(value);
+      const date = new Date(this._normalizeMeetingIso(value));
       if (Number.isNaN(date.getTime())) { return null; }
       const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit',
@@ -1451,9 +1473,11 @@ function ftWorkspace(ctx) {
       if (value) {
         const parsed = this._shanghaiParts(value);
         if (parsed) {
+          const slot = this._slotFloor(parsed.time);
           this.meetingDate = parsed.date;
-          this.meetingTime = parsed.time;
-          this.meetingDirty = false;
+          this.meetingTime = slot || parsed.time;
+          // 不在 15 分钟刻度上的历史时间向下取整，并标记为待保存，避免显示成 00:00
+          this.meetingDirty = !!slot && slot !== parsed.time;
           return;
         }
       }
@@ -1607,6 +1631,9 @@ function ftWorkspace(ctx) {
 
     async goPhase(target) {
       if (this.busy) { return; }
+      if (target === this.phase && !this.dirty && this.projectEditingIndex === null) {
+        return;
+      }
       if (this.projectEditingIndex !== null) {
         v2Toast('请先完成或取消方案编辑', 'error');
         return;
@@ -1642,10 +1669,35 @@ function ftWorkspace(ctx) {
       if (this.dirty && !window.confirm('当前页面有未保存草稿，仍要切换阶段吗？')) {
         return;
       }
-      const data = await this.savePhase(target);
-      if (data && target === 4 && this.canWrite && !this.script.nextSummary) {
-        await this.generateNextSteps();
+      if (this.dirty) {
+        await this.savePhase(target);
+      } else {
+        this.phase = target;
+        this.syncPhase(target);
       }
+      if (target === 4 && this.canWrite && !this.script.nextSummary
+          && !this.nextStepsAttempted) {
+        this.generateNextSteps();
+      }
+    },
+
+    // 阶段切换只同步 phase，不阻塞界面，也不制造版本号变化（A1 后端落地后）
+    syncPhase(target) {
+      if (!this.sessionId || !this.canWrite) { return; }
+      const body = { phase: target, revision: this.revision };
+      if (this.meetingDirty) {
+        const meetingAt = this.meetingAtValue();
+        if (meetingAt) { body.meetingAt = meetingAt; }
+      }
+      this.api('/api/v2/copilot/sessions/' + this.sessionId + '/phase', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then((data) => {
+        if (data && typeof data.revision === 'number') { this.revision = data.revision; }
+        if (body.meetingAt) { this.meetingDirty = false; }
+      }).catch((error) => {
+        this.handleError(error, '阶段同步失败');
+      });
     },
 
     supplementPayload() {
@@ -1829,6 +1881,7 @@ function ftWorkspace(ctx) {
 
     async generateNextSteps() {
       if (!this.canWrite || this.nextBusy) { return; }
+      this.nextStepsAttempted = true;
       this.nextBusy = true;
       this.errors.nextSteps = '';
       try {
@@ -2038,11 +2091,10 @@ function ftWorkspace(ctx) {
       this.dirty = true;
     },
     scoreLabel(key, value) {
-      const labels = key === 'preferenceScore'
-        ? ['不喜欢', '一般喜欢', '喜欢', '非常喜欢']
-        : ['不擅长', '一般擅长', '擅长', '非常擅长'];
-      if (value === null || value === undefined) { return '待评'; }
-      return labels[value] || '待评';
+      const options = key === 'preferenceScore'
+        ? this.preferenceOptions : this.competenceOptions;
+      const match = options.find((option) => option.value === value);
+      return match ? match.label : '待评';
     },
     confirmedScore(candidate, key) {
       return key === 'preferenceScore'
