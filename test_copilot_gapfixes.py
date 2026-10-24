@@ -35,7 +35,9 @@ def test_workspace_get_does_not_autocreate_session(client, qdb):
     response = client.get(f"/first-touch/students/{qdb.student_id}")
 
     assert response.status_code == 200
-    assert "v2-entry-choice" in response.get_data(as_text=True)
+    html = response.get_data(as_text=True)
+    assert "v2-entry-choice" not in html
+    assert "entryScreen" not in html
     assert store.list_sessions(qdb.student_id) == []
 
 
@@ -107,16 +109,6 @@ def test_workspace_page_has_pending_score_option(client, qdb):
 
     assert "待评" in html
     assert "?? 1" not in html and "|| 1" not in html
-
-
-def test_three_level_mapping_labels(client, qdb):
-    login_as(client, qdb)
-    qdb.session()
-
-    html = client.get(f"/first-touch/students/{qdb.student_id}").get_data(as_text=True)
-
-    assert "喜欢高（3）" in html and "喜欢低（0–1）" in html
-    assert "擅长高（3）" in html and "擅长低（0–1）" in html
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +184,7 @@ def test_workspace_phase_one_has_no_interpretation(client, qdb):
     html = client.get(f"/first-touch/students/{qdb.student_id}").get_data(as_text=True)
 
     assert 'data-phase-section="interpretation"' not in html
-    assert "v2-present" in html
+    assert "Y4 速览" in html
 
 
 def test_workspace_has_y4_cards_and_editable_next_summary(client, qdb):
@@ -201,7 +193,7 @@ def test_workspace_has_y4_cards_and_editable_next_summary(client, qdb):
 
     html = client.get(f"/first-touch/students/{qdb.student_id}").get_data(as_text=True)
 
-    assert "职业兴趣" in html and "能力倾向" in html and "价值偏好" in html
+    assert "职业兴趣" in html and "能力优势" in html and "职业价值观" in html
     assert 'data-next-summary-editor' in html
 
 

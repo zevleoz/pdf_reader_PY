@@ -327,4 +327,4 @@ def test_workspace_page_renders(client, qdb):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "ftWorkspace" in body
-    assert "会议准备" in body
+    assert "Y4 速览" in body
