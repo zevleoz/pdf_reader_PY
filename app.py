@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import traceback
@@ -32,12 +33,56 @@ from app_utils import (BASE_DIR, INPUT_DIR, OUTPUT_DIR, DATA_DIR, TEMPLATE_DIR,
                        BRANDING_DIR, UPLOAD_DIR, JOB_FILE, JOB_LOG_FILE,
                        Y4_API_CORS_ORIGINS)
 
-# 保留旧环境变量读取（迁移期不再用于放行；仅保留读取，见 app_utils 装饰器）。
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'y4admin2026')
+# 会话/Cookie 配置加固（F10）：
+# 生产环境由 Y4_ENV=production（或 FLASK_ENV=production）标识；缺少强 SECRET_KEY 时
+# 拒绝启动，避免 session / CSRF token 用公开的开发默认值签名。
+DEV_SECRET_KEY = 'dev-key-change-in-production'
+_TRUE_VALUES = {'1', 'true', 'yes', 'on'}
+_FALSE_VALUES = {'0', 'false', 'no', 'off'}
+
+_dev_secret_warned = False
+
+
+def _is_production() -> bool:
+    """生产环境判定：Y4_ENV 优先，兼容旧部署脚本写入的 FLASK_ENV。"""
+    env = (os.environ.get('Y4_ENV') or os.environ.get('FLASK_ENV') or '').strip().lower()
+    return env == 'production'
+
+
+def _resolve_secret_key(is_production: bool) -> str:
+    """解析 SECRET_KEY：生产缺失/仍为开发默认值即拒绝启动；开发环境回退并警告一次。"""
+    global _dev_secret_warned
+    secret = (os.environ.get('SECRET_KEY') or '').strip()
+    if is_production and (not secret or secret == DEV_SECRET_KEY):
+        raise RuntimeError(
+            "生产环境必须设置强随机 SECRET_KEY（当前缺失或仍为开发默认值），拒绝启动。"
+            " / SECRET_KEY must be set to a strong random value in production; refusing to start."
+        )
+    if not secret or secret == DEV_SECRET_KEY:
+        if not _dev_secret_warned:
+            logging.getLogger(__name__).warning(
+                "SECRET_KEY 未设置或仍为开发默认值，使用开发默认值（仅限本地开发；生产环境会拒绝启动）。")
+            _dev_secret_warned = True
+        return DEV_SECRET_KEY
+    return secret
+
+
+def _resolve_cookie_secure(is_production: bool) -> bool:
+    """SESSION_COOKIE_SECURE：显式 Y4_COOKIE_SECURE 优先，缺省生产 True、开发 False。"""
+    raw = (os.environ.get('Y4_COOKIE_SECURE') or '').strip().lower()
+    if raw in _TRUE_VALUES:
+        return True
+    if raw in _FALSE_VALUES:
+        return False
+    return is_production
 
 
 def create_app() -> Flask:
     """构建 Flask app：全局配置 + 静态资源路由 + 注册全部蓝图。"""
+    # 配置校验先于任何 IO（建目录 / 初始化数据库），生产配置错误直接 fail fast。
+    is_production = _is_production()
+    secret_key = _resolve_secret_key(is_production)
+
     INPUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -47,7 +92,13 @@ def create_app() -> Flask:
     # 全部生成产物）。/output/<filename> 统一由 reports 蓝图带鉴权的 download 处理。
     app = Flask(__name__, template_folder=str(TEMPLATE_DIR), static_folder=None)
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
-    app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+    app.secret_key = secret_key
+    app.config.update(
+        # 会话 Cookie 加固：禁止 JS 读取、限制跨站携带、HTTPS 下强制 Secure。
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        SESSION_COOKIE_SECURE=_resolve_cookie_secure(is_production),
+    )
     # 会话总寿命（登录时 session.permanent=True）：把 Flask 默认的 31 天收敛到 7 天，
     # 缩短被停用/删除用户既有 session 的最长残留窗口（另有 app_utils 的 DB 复核兜底）。
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
