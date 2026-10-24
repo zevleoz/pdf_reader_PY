@@ -275,17 +275,95 @@ def _student_progress_context(student_id):
     }
 
 
+def _first_touch_context(student_id):
+    """学生 360 的 First Touch 卡片：能否开始、当前步骤、兴趣与已确认报告。"""
+    import growth_talk_store as gt_store
+    from growth_talk import y4_snapshot
+
+    complete_y4 = y4_snapshot.latest_complete_y4(student_id)
+    sessions = gt_store.list_sessions(student_id)
+    session = sessions[0] if sessions else None
+
+    raw_reports = [report for report in gt_store.list_reports(student_id)
+                   if report.get("status") == "CONFIRMED"]
+    reports = [{
+        "id": report.get("id"),
+        "version": report.get("version"),
+        "confirmedAt": report.get("confirmed_at") or "",
+        "confirmedBy": report.get("confirmed_by") or "",
+    } for report in raw_reports]
+
+    def _score(item, *keys):
+        for key in keys:
+            value = item.get(key)
+            if value is None or value == "":
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    scored = []
+    pending = 0
+    for item in (session or {}).get("interests") or []:
+        if not isinstance(item, dict):
+            continue
+        preference = _score(item, "preferenceScore", "preference_score")
+        competence = _score(item, "competenceScore", "competence_score")
+        if preference is None or competence is None:
+            pending += 1
+            continue
+        scored.append({
+            "label": str(item.get("label") or ""),
+            "preferenceScore": preference,
+            "competenceScore": competence,
+            "specialFocus": bool(item.get("specialFocus")
+                                 or item.get("special_focus")),
+            "_rank": preference + competence,
+        })
+
+    # 按「喜欢 + 擅长」取前 6 项；同分保持原始顺序，特别关注置顶。
+    top = sorted(scored, key=lambda entry: entry["_rank"], reverse=True)[:6]
+    top = ([entry for entry in top if entry["specialFocus"]]
+           + [entry for entry in top if not entry["specialFocus"]])
+    interests = [{key: value for key, value in entry.items() if key != "_rank"}
+                 for entry in top]
+
+    run_id = (session or {}).get("run_id")
+    confirmed_for_run = bool(run_id) and any(
+        report.get("run_id") == run_id for report in raw_reports)
+    completed = bool(session) and (
+        session.get("status") == "COMPLETED" or confirmed_for_run)
+
+    can_start = complete_y4 is not None
+    if not can_start:
+        status = "needs_y4"
+    elif session is None:
+        status = "not_started"
+    elif completed:
+        status = "completed"
+    else:
+        status = "in_progress"
+
+    return {
+        "status": status,
+        "step": session.get("phase") if session else None,
+        "canStart": can_start,
+        "sessionId": session.get("id") if session else None,
+        "interests": interests,
+        "scoredCount": len(scored),
+        "pendingCount": pending,
+        "reports": reports,
+    }
+
+
 @bp.route("/students/<code>")
 @page_login_required
 def student_360(code):
     st, err = _scoped_student(code)
     if err:
         abort(err[1])
-    import growth_talk_store as gt_store
-    gt_reports = [
-        report for report in gt_store.list_reports(st["id"])
-        if report.get("status") == "CONFIRMED"
-    ]
     return render_template(
         "student_360.html",
         nav_active="students",
@@ -294,7 +372,7 @@ def student_360(code):
         is_admin=session.get("role") == "admin",
         stage=_student_progress_context(st["id"]),
         stage_meta=PROGRESS_STAGES,
-        gt_reports=gt_reports,
+        first_touch=_first_touch_context(st["id"]),
     )
 
 

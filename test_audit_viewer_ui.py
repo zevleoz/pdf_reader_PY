@@ -118,7 +118,10 @@ def test_viewer_360_shows_first_touch_link_but_not_archive(qdb):
         html = render_template(
             "student_360.html", nav_active="students", profile=profile,
             can_write=False, is_admin=False, stage={}, stage_meta=[],
-            gt_reports=[])
+            first_touch={"status": "in_progress", "step": 1,
+                         "canStart": True, "sessionId": 1,
+                         "interests": [], "scoredCount": 0,
+                         "pendingCount": 0, "reports": []})
 
     assert "/first-touch/students/" in html
     assert "/first-touch/archive/" not in html

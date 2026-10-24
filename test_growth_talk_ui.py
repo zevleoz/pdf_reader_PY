@@ -117,11 +117,11 @@ def test_growth_talk_page_missing_student_404(client):
     assert client.get("/students/9999/growth-talk").status_code == 404
 
 
-def test_student_360_template_has_growth_talk_section():
+def test_student_360_template_has_first_touch_section():
     text = open("templates/student_360.html", encoding="utf-8").read()
-    assert "Growth Talk" in text
-    assert "gt_reports" in text
-    assert "/growth-talk" in text
+    assert "First Touch" in text
+    assert "first_touch" in text
+    assert "Growth Talk" not in text
     assert "download.json" in text
     assert "download.pdf" in text
 

@@ -1,7 +1,7 @@
 {% extends "layouts/admin_v2.html" %}
 {% from "layouts/_icons.html" import icon %}
 
-{% set ctx = {"id": profile.id, "code": profile.student_code, "canWrite": can_write, "stage": stage, "stageMeta": stage_meta, "meta": {"advisor_name": profile.advisor_name, "school": profile.school}, "gtReports": gt_reports} %}
+{% set ctx = {"id": profile.id, "code": profile.student_code, "canWrite": can_write, "stage": stage, "stageMeta": stage_meta, "meta": {"advisor_name": profile.advisor_name, "school": profile.school}, "firstTouch": first_touch|default({})} %}
 
 {% block title %}{{ profile.name }} · 学生档案{% endblock %}
 {% block page_title %}学生 360° 档案{% endblock %}
@@ -536,39 +536,99 @@
     </div>
   </div>
 
-  <!-- Growth Talk -->
-  <div x-show="tab === 'growth'" x-cloak class="tab-pane">
-    <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px">
-      <div class="page-sub" style="margin:0">
-        已确认 Growth Talk 报告与原始会谈分析会保留版本历史；新版本按学生单调递增。
-      </div>
-      <span class="spacer"></span>
-      <a class="btn btn-sec btn-sm" :href="'/first-touch/students/' + id">进入会谈工作台</a>
-      <a class="btn btn-primary btn-sm" :href="'/students/' + id + '/growth-talk'">进入 Growth Talk</a>
-    </div>
-    <div class="empty" x-show="!gtReports.length">
-      <div class="ic">{{ icon('target', 16) }}</div>
-      <div class="t">暂无已确认的 Growth Talk 报告</div>
-      <div class="d">进入工作台完成会议理解、兴趣审核与建议确认后，报告会出现在这里。</div>
-    </div>
-    <template x-for="r in gtReports" :key="r.id">
-      <section class="surface">
-        <div class="surface-head">
-          <div style="min-width:0">
-            <div class="surface-title">版本 v<span x-text="r.version"></span></div>
-            <div class="card-title-sub">
-              确认于 <span class="mono" x-text="fmtDate(r.confirmed_at)"></span>
-              <span x-show="r.confirmed_by"> · <span x-text="r.confirmed_by"></span></span>
-            </div>
+  <!-- First Touch -->
+  {% set ft = first_touch|default({}) %}
+  {% set ft_status = ft.get('status') or 'not_started' %}
+  {% if ft_status == 'completed' %}
+    {% set ft_label = '已完成' %}
+    {% if ft.get('reports') %}{% set ft_label = '已完成 · v' ~ ft['reports'][0]['version'] %}{% endif %}
+    {% set ft_class = 'badge-ok' %}
+  {% elif ft_status == 'in_progress' %}
+    {% set ft_marks = ['①', '②', '③'] %}
+    {% set ft_label = '进行中 · ' ~ ft_marks[ft.get('step') or 0] %}
+    {% set ft_class = 'badge-brand' %}
+  {% elif ft_status == 'needs_y4' %}
+    {% set ft_label = '需先完成 Y4' %}
+    {% set ft_class = 'badge-warn' %}
+  {% else %}
+    {% set ft_label = '未开始' %}
+    {% set ft_class = 'badge-neutral' %}
+  {% endif %}
+  <div x-show="tab === 'first_touch'" x-cloak class="tab-pane">
+    <section class="surface">
+      <div class="surface-head">
+        <div style="min-width:0">
+          <div class="surface-title">First Touch</div>
+          <div class="card-title-sub">
+            {% if ft_status == 'needs_y4' %}
+              该学生还没有完整的 Y4 报告，不能开始会谈。
+            {% elif ft.get('sessionId') %}
+              三步会谈：会前准备 · 会谈记录 · 会后整理
+            {% else %}
+              已完成 Y4，可以直接开始首次会谈。
+            {% endif %}
           </div>
-          <span class="spacer"></span>
-          <a class="btn btn-sm btn-sec" :href="'/api/growth-talk/reports/' + r.id + '/download.json'"
-             download>JSON</a>
-          <a class="btn btn-sm btn-sec" :href="'/api/growth-talk/reports/' + r.id + '/download.pdf'"
-             target="_blank">PDF</a>
         </div>
-      </section>
-    </template>
+        <span class="badge {{ ft_class }}">{{ ft_label }}</span>
+        <span class="spacer"></span>
+        {% if not ft.get('canStart') %}
+        <button type="button" class="btn btn-sec btn-sm" disabled>需先完成 Y4</button>
+        <a class="btn btn-sec btn-sm" href="/generate">去生成 Y4</a>
+        {% else %}
+        <a class="btn btn-primary btn-sm" href="/first-touch/students/{{ profile.id }}">
+          {%- if not can_write or ft_status == 'completed' or not ft.get('sessionId') -%}
+            {% if can_write and not ft.get('sessionId') %}开始 First Touch{% else %}查看 First Touch{% endif %}
+          {%- else -%}
+            继续会谈
+          {%- endif -%}
+        </a>
+        {% endif %}
+      </div>
+      <div style="padding:12px 16px 16px; display:grid; gap:14px">
+        <div x-show="firstTouch.interests && firstTouch.interests.length">
+          <div class="page-sub" style="margin:0 0 6px">兴趣（喜欢 + 擅长 最高的 6 项）</div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px">
+            <template x-for="i in firstTouch.interests" :key="i.label">
+              <span class="badge badge-neutral">
+                <span x-show="i.specialFocus">★ </span><span x-text="i.label"></span><span x-text="' · ' + i.preferenceScore + '/' + i.competenceScore"></span>
+              </span>
+            </template>
+          </div>
+          <div class="page-sub" style="margin:8px 0 0"
+               x-text="(firstTouch.scoredCount || 0) + ' 项已评分 · ' + (firstTouch.pendingCount || 0) + ' 项待评'"></div>
+        </div>
+        <div>
+          <div class="page-sub" style="margin:0 0 6px">已确认报告</div>
+          <div style="overflow-x:auto">
+            <table class="table">
+              <thead><tr><th>版本</th><th>确认时间</th><th>确认人</th><th></th></tr></thead>
+              <tbody>
+                <template x-for="r in firstTouch.reports" :key="r.id">
+                  <tr>
+                    <td class="mono" x-text="'v' + r.version"></td>
+                    <td class="mono" x-text="fmtDate(r.confirmedAt)"></td>
+                    <td x-text="r.confirmedBy || '—'"></td>
+                    <td style="text-align:right; white-space:nowrap">
+                      <a class="btn btn-sm btn-sec"
+                         :href="'/api/growth-talk/reports/' + r.id + '/download.pdf'"
+                         target="_blank">PDF</a>
+                      <a class="btn btn-sm btn-sec"
+                         :href="'/api/growth-talk/reports/' + r.id + '/download.json'"
+                         download>JSON</a>
+                    </td>
+                  </tr>
+                </template>
+                <tr x-show="!firstTouch.reports || !firstTouch.reports.length">
+                  <td colspan="4" style="color:var(--muted)">
+                    还没有已确认的 First Touch 报告。在会谈第 ③ 步确认后出现在这里。
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <!-- 发起问卷任务对话框 -->
@@ -635,9 +695,9 @@ function pageStudent360(ctx) {
       { key: 'profile', label: '画像' }, { key: 'reports', label: '报告' },
       { key: 'questionnaires', label: '问卷' }, { key: 'bookings', label: '预约' },
       { key: 'minutes', label: '纪要' }, { key: 'sixam', label: '6AM' },
-      { key: 'growth', label: 'Growth Talk' }
+      { key: 'first_touch', label: 'First Touch' }
     ],
-    gtReports: ctx.gtReports || [],
+    firstTouch: ctx.firstTouch || {},
     loaded: {}, loading: {}, profile: null,
     reports: [], questionnaires: null, bookings: [], minutes: [], sixam: [],
     showAnswers: {}, openMinutes: {}, openSixam: {}, v1Href: {},
@@ -650,7 +710,11 @@ function pageStudent360(ctx) {
       // arrow function 保持 this 指向（旧版 function 写法导致 stageIdx 恒为 0）
       // 生命周期进度顺序来自 PROGRESS_STAGES；找不到 key 时保持 -1，不默认点亮第一步
       this.stageIdx = this.stageMeta.findIndex((s) => s.key === this.stage.stage);
-      this.loadTab('profile');
+      // 旧链接 #growth 映射到新的 First Touch 标签页
+      var hash = (window.location.hash || '').replace('#', '');
+      if (hash === 'growth') { hash = 'first_touch'; }
+      if (this.tabs.some((t) => t.key === hash)) { this.setTab(hash); }
+      else { this.loadTab('profile'); }
     },
 
     stepState(i) {
