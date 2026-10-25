@@ -920,13 +920,13 @@
         const blob = base64ToBlob(report.pdfBase64, 'application/pdf');
         lastBlobUrl = URL.createObjectURL(blob);
         lastPdfFilename = report.pdfFilename || '综合测评报告.pdf';
-        document.getElementById('downloadBtn').disabled = false;
-        setStatus('已恢复上次生成的报告，可直接下载。', 'ok');
-        // 上次任务若产出了 v2 新版，恢复时显示“旧版”备用按钮
-        fetch('/api/generate/result?v=2', { method: 'HEAD' })
+        // 仅当上次任务确有新版（v2）时才恢复下载；缓存里可能是旧版，不能直接给出
+        fetch('/api/generate/result', { method: 'HEAD' })
           .then(r => {
             v2Available = r.ok;
+            document.getElementById('downloadBtn').disabled = !v2Available;
             document.getElementById('downloadLegacyBtn').style.display = v2Available ? '' : 'none';
+            if (v2Available) setStatus('已恢复上次生成的报告，可直接下载。', 'ok');
           })
           .catch(() => {});
       }
@@ -1397,7 +1397,16 @@
       const resp = await fetch('/api/generate/result');
       if (!resp.ok) {
         let msg = '获取报告失败 (HTTP ' + resp.status + ')';
-        try { const e = await resp.json(); if (e && e.error) msg = e.error; } catch (_) {}
+        try {
+          const e = await resp.json();
+          if (e && e.error) msg = e.error;
+          // 新版失败：不自动给旧版，只露出「旧版报告」按钮供显式选择
+          if (e && e.legacy_available) {
+            v2Available = false;
+            document.getElementById('downloadBtn').disabled = true;
+            document.getElementById('downloadLegacyBtn').style.display = '';
+          }
+        } catch (_) {}
         throw new Error(msg);
       }
 
@@ -1550,19 +1559,16 @@
   // =====================================
   // Download PDF
   // =====================================
-  // 主下载：新版（v2）优先，缺失时回落旧版（v1）
+  // 主下载：只下载新版（v2）。lastBlobUrl 来自 /api/generate/result 默认响应，
+  // 该接口在新版缺失时报错而不回落旧版，因此这里永远不会拿到旧版。
   function downloadPdf() {
-    if (v2Available) {
-      window.location.href = '/api/generate/result?v=2';
-      return;
-    }
+    if (!v2Available) return;
     downloadBlob(lastBlobUrl, lastPdfFilename);
   }
 
-  // 旧版（v1）备用下载
+  // 旧版（v1）备份：仅在管理员点击「旧版报告」时显式下载
   function downloadLegacyPdf() {
-    const name = (lastPdfFilename || '综合测评报告.pdf').replace(/\.pdf$/i, '') + '_旧版.pdf';
-    downloadBlob(lastBlobUrl, name);
+    window.location.href = '/api/generate/result?v=1';
   }
 
   function downloadBlob(url, filename) {

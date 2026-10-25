@@ -294,7 +294,7 @@ def _run_pipeline_job(job: dict) -> int:
         if not pdf_path or not pdf_path.exists():
             raise RuntimeError("生成流程完成，但未在 output/ 下找到 PDF。请检查 Chrome 是否可用。")
 
-        # 并行产出的新版设计（原 v2；对外默认下载即此版；缺失时回落旧版）
+        # 并行产出的新版设计（原 v2；对外默认下载即此版；缺失时报错，不自动回落旧版）
         filename_v2 = ""
         m = re.match(r"^凭远Y4评测报告_(.+)\.pdf$", pdf_path.name)
         if m:
@@ -630,9 +630,17 @@ def api_generate_result():
         base = job.get("filename") or "凭远Y4评测报告.pdf"
         download_name = base.replace(".pdf", "_旧版.pdf") if base.endswith(".pdf") else base + "_旧版"
     else:
-        # 默认 = 新版设计（原 v2，含 ?v=2 的兼容调用）；本次未产出新版时回落旧版文件
-        name = job.get("filename_v2") or job.get("filename") or ""
+        # 默认 = 新版设计（原 v2，含 ?v=2 的兼容调用）。新版缺失时绝不自动回落旧版：
+        # 返回错误，由管理员显式选择是否下载旧版（?v=1）。
+        name = job.get("filename_v2") or ""
         download_name = job.get("filename") or name
+        if not name or not (OUTPUT_DIR / name).exists():
+            legacy = job.get("filename") or ""
+            return jsonify({
+                "ok": False,
+                "error": "新版报告生成失败（详见 data/_job.log）。旧版备份未自动下载，如需旧版请点「旧版报告」。",
+                "legacy_available": bool(legacy and (OUTPUT_DIR / legacy).exists()),
+            }), 404
     pdf_path = OUTPUT_DIR / name
     if not name or not pdf_path.exists():
         return jsonify({"ok": False, "error": "生成的文件已不存在，请重新生成"}), 404
@@ -963,20 +971,21 @@ def api_report_regenerate(report_id):
     if not safe_name or not v1_path.exists():
         return jsonify({"ok": False, "error": "生成流程完成，但未找到 PDF 文件"}), 500
 
-    # 新版（v2）为默认下载，v2 缺失时回落旧版（v1）；对外统一用不带 _v2_ 的文件名
+    # 新版（v2）为默认下载；v2 缺失时报错，绝不自动改发旧版（v1）。对外统一用不带 _v2_ 的文件名
     v2_path = OUTPUT_DIR / f"凭远Y4评测报告_v2_{safe_name}.pdf"
-    primary = v2_path if v2_path.exists() else v1_path
+    if not v2_path.exists():
+        return jsonify({"ok": False,
+                        "error": "新版报告生成失败（详见服务日志），未自动改用旧版。"}), 500
     download_name = f"凭远Y4评测报告_{safe_name}.pdf"
     resp = send_from_directory(
-        str(OUTPUT_DIR), primary.name,
+        str(OUTPUT_DIR), v2_path.name,
         as_attachment=True, download_name=download_name,
         mimetype="application/pdf",
     )
     from urllib.parse import quote
     resp.headers["Content-Disposition"] = \
         f"attachment; filename*=UTF-8''{quote(download_name)}"
-    if v2_path.exists():
-        resp.headers["X-V1-Filename"] = quote(v1_path.name)
+    resp.headers["X-V1-Filename"] = quote(v1_path.name)
     return resp
 @bp.route("/api/reports/<int:report_id>/raw")
 @admin_required
