@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -40,8 +41,11 @@ def load_data():
 
 
 def fnum(x):
-    """格式化数字: 整数去小数点, 否则保留一位"""
-    v = float(x)
+    """格式化数字: 整数去小数点, 否则保留一位；空值/非数字占位为 -（同 v1 fmt）"""
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return "-"
     if abs(v - round(v)) < 1e-9:
         return str(int(round(v)))
     return f"{v:g}"
@@ -57,9 +61,41 @@ def to_float(val, default=0.0):
         return default
 
 
-def build_context(student, d):
+SLOTS = ("A2", "B3", "B4", "B6")
+
+
+def code_slot(code):
+    """数据项编号 → 来源输入 PDF 槽位。每个输出页只用一个槽位的数据。"""
+    try:
+        n = int(str(code)[:3])
+    except ValueError:
+        return ""
+    if 9 <= n <= 50:
+        return "A2"   # 情绪稳定性 / 人格 / 依恋 / 体质健康
+    if 63 <= n <= 71 or 128 <= n <= 133:
+        return "B3"   # 执行功能 / 学习动机与策略
+    if 72 <= n <= 124:
+        return "B6"   # 职业兴趣 / 能力优势 / 职业价值观
+    return "B4"       # 认知资源 001-008 / 自我概念 051-058 / 内驱力 059-062, 125-127
+
+
+def present_slots(raw, d):
+    """本次实际上传的输入槽位。优先用 extract 记录的 pdf_titles；
+    旧快照没有该字段时，按槽位是否有任一非空值推断（059 可被手填思维模式覆盖，不计入）。"""
+    titles = raw.get("pdf_titles")
+    if titles:
+        return {s for s in titles if s in SLOTS}
+    return {code_slot(c) for c, v in d.items()
+            if c != "059" and str(v if v is not None else "").strip()} & set(SLOTS)
+
+
+def build_context(student, d, slots=SLOTS):
+    # 缺失的输入 PDF 对应的整页不出（见模版 has.*）；下方兜底只针对已上传 PDF 中
+    # 个别字段抽取失败：缺失键按空值处理、数值占位为 -，不让单个空值导致整份 v2 失败。
+    d = defaultdict(str, d)
     ctx = {}
     ctx["student"] = student
+    ctx["has"] = {s: s in slots for s in SLOTS}
 
     # ---- Jinja helpers for cover geometry ----
     ctx["cos"] = lambda deg: math.cos(math.radians(deg))
@@ -79,8 +115,8 @@ def build_context(student, d):
         "dims": [
             {
                 "l_zh": l_zh, "l_en": l_en, "r_zh": r_zh, "r_en": r_en,
-                "pct": round(float(d[code]) / 15.0 * 100, 1),
-                "val_pct": round(min(max(float(d[code]) / 15.0 * 100, 8), 92), 1),
+                "pct": round(to_float(d[code]) / 15.0 * 100, 1),
+                "val_pct": round(min(max(to_float(d[code]) / 15.0 * 100, 8), 92), 1),
                 "val": fnum(d[code]),
                 "lic": lic, "ric": ric, "ric_bg": ric_bg,
             }
@@ -103,7 +139,7 @@ def build_context(student, d):
         "band_pct": round(max(5, min(95, to_float(d["051"], 80))), 1),
         "rows": [
             {"zh": zh, "en": en, "val": fnum(d[code]),
-             "pct": round(float(d[code]) / 10.0 * 100, 1)}
+             "pct": round(to_float(d[code]) / 10.0 * 100, 1)}
             for (zh, en, code) in sc_items
         ],
     }
@@ -132,11 +168,12 @@ def build_context(student, d):
     ]:
         rows = []
         for i, who in enumerate(["母亲", "父亲", "同伴"]):
-            sc = float(d[str(int(base_s) + i).zfill(3)])
+            sc_raw = d[str(int(base_s) + i).zfill(3)]
+            sc = to_float(sc_raw)
             lv = d[str(int(base_l) + i).zfill(3)]
             rows.append({
                 "who": who, "pct": round(sc / maxv * 100, 1),
-                "sc": fnum(sc), "max": fnum(maxv),
+                "sc": fnum(sc_raw), "max": fnum(maxv),
                 "lv": lv, "lv_text": lv_text(lv),
             })
         at_dims.append({"zh": zh, "en": en, "rows": rows})
@@ -150,11 +187,11 @@ def build_context(student, d):
     ]
     ctx["drive"] = {
         "mindset": fnum(d["059"]),
-        "mindset_pct": round(float(d["059"]), 1),
+        "mindset_pct": round(to_float(d["059"]), 1),
         "dims": [
             {"zh": zh, "en": en, "val": fnum(d[vc]), "avg": fnum(d[ac]),
-             "pct": round(float(d[vc]) / 10 * 100, 1),
-             "avg_pct": round(float(d[ac]) / 10 * 100, 1)}
+             "pct": round(to_float(d[vc]) / 10 * 100, 1),
+             "avg_pct": round(to_float(d[ac]) / 10 * 100, 1)}
             for (zh, en, vc, ac) in drive_dims
         ],
     }
@@ -170,7 +207,7 @@ def build_context(student, d):
     cx, cy, R = 200.0, 170.0, 105.0
     # 五轴角度: 开放性在顶部, 顺时针
     angles = [-90, -18, 54, 126, 198]
-    vals = [float(d[code]) for (_, _, code) in pers_items]
+    vals = [to_float(d[code]) for (_, _, code) in pers_items]
 
     def pt(angle, r):
         a = math.radians(angle)
@@ -232,7 +269,7 @@ def build_context(student, d):
     }
 
     # ---- P12 认知资源 / P13 六项子指标 ----
-    pct_val = float(d["002"])
+    pct_val = to_float(d["002"])
     ctx["cognition"] = {
         "total": fnum(d["001"]),
         "percentile": fnum(d["002"]),
@@ -268,35 +305,35 @@ def build_context(student, d):
         {"zh": "学习动机", "en": "Learning Motivation", "rows": [
             {"zh": "深层动机", "en": "Deep Motivation",
              "val": fnum(d["066"]), "avg": fnum(d["128"]),
-             "pct": round(float(d["066"]) / 10 * 100, 1),
-             "avg_pct": round(float(d["128"]) / 10 * 100, 1),
+             "pct": round(to_float(d["066"]) / 10 * 100, 1),
+             "avg_pct": round(to_float(d["128"]) / 10 * 100, 1),
              "desc": "深层动机是对学习本身感兴趣，学习本身使个体感到满足和兴奋的内部动机。深层动机得分高的个体一般学习动力足，主动学习、不需要外部监督和督促。"},
             {"zh": "表面动机", "en": "Surface Motivation",
              "val": fnum(d["067"]), "avg": fnum(d["129"]),
-             "pct": round(float(d["067"]) / 10 * 100, 1),
-             "avg_pct": round(float(d["129"]) / 10 * 100, 1),
+             "pct": round(to_float(d["067"]) / 10 * 100, 1),
+             "avg_pct": round(to_float(d["129"]) / 10 * 100, 1),
              "desc": "表面动机是对学习不感兴趣，为了通过考试、得到奖励或避免惩罚而学习的外部动机。表面动机难以维持长期学习，一旦外部奖励或惩罚退去，个体可能不再学习。"},
             {"zh": "自我效能感", "en": "Self-Efficacy",
              "val": fnum(d["068"]), "avg": fnum(d["130"]),
-             "pct": round(float(d["068"]) / 10 * 100, 1),
-             "avg_pct": round(float(d["130"]) / 10 * 100, 1),
+             "pct": round(to_float(d["068"]) / 10 * 100, 1),
+             "avg_pct": round(to_float(d["130"]) / 10 * 100, 1),
              "desc": "自我效能感是个体对自己能否成功完成某事的主观判断。个体的自我效能感源于过往的成功经验以及对自己的准确的评估。"},
         ]},
         {"zh": "学习方法与策略", "en": "Learning Methods", "rows": [
             {"zh": "学习深层方法与策略", "en": "Deep Methods and Strategies",
              "val": fnum(d["069"]), "avg": fnum(d["131"]),
-             "pct": round(float(d["069"]) / 10 * 100, 1),
-             "avg_pct": round(float(d["131"]) / 10 * 100, 1),
+             "pct": round(to_float(d["069"]) / 10 * 100, 1),
+             "avg_pct": round(to_float(d["131"]) / 10 * 100, 1),
              "desc": "学习深层方法与策略是为了深入理解知识本身而采取的学习方法和策略，是一种建立在理解和应用基础之上的深度学习。这种学习方法使学习记忆更牢、理解更深刻。"},
             {"zh": "学习表面方法与策略", "en": "Surface Methods and Strategies",
              "val": fnum(d["070"]), "avg": fnum(d["132"]),
-             "pct": round(float(d["070"]) / 10 * 100, 1),
-             "avg_pct": round(float(d["132"]) / 10 * 100, 1),
+             "pct": round(to_float(d["070"]) / 10 * 100, 1),
+             "avg_pct": round(to_float(d["132"]) / 10 * 100, 1),
              "desc": "学习表面方法与策略是为了记住某具体内容或为了某次考试通过而学习的方法与策略，这种方法策略可以在短期内看到效果，对长期发展非常不利。因为这种不求甚解的学习方法记得快，忘得也快。"},
             {"zh": "学习自我调节", "en": "Self-Regulation",
              "val": fnum(d["071"]), "avg": fnum(d["133"]),
-             "pct": round(float(d["071"]) / 10 * 100, 1),
-             "avg_pct": round(float(d["133"]) / 10 * 100, 1),
+             "pct": round(to_float(d["071"]) / 10 * 100, 1),
+             "avg_pct": round(to_float(d["133"]) / 10 * 100, 1),
              "desc": "学习自我调节是学习过程中遇到困难或挫折时采取的自我调节的方法。比如即使遇到了自己不喜欢的老师或科目，但为了取得好成绩也会进行自我调节、努力学习。"},
         ]},
     ]}
@@ -370,6 +407,8 @@ def build_context(student, d):
     vlist = []
     for i in range(1, 16):
         name = d[str(109 + i).zfill(3)]  # 110..124
+        if name not in val_map:  # 未抽到/抽错的排序项跳过，不让整份 v2 失败
+            continue
         en, desc, quote = val_map[name]
         vlist.append({"zh": name, "en": en, "desc": desc, "quote": quote,
                       "top": i <= 5})
@@ -412,7 +451,7 @@ def render_html_to(data_path, out_html):
     d = {}
     for item in raw["schema_124"]:
         d[item["code"]] = item["value"]
-    ctx = build_context(raw["student"], d)
+    ctx = build_context(raw["student"], d, present_slots(raw, d))
 
     env = Environment(
         loader=FileSystemLoader(str(HERE)),
@@ -426,7 +465,8 @@ def render_html_to(data_path, out_html):
 
 def main():
     student, d = load_data()
-    ctx = build_context(student, d)
+    raw = json.loads(DATA_PATH.read_text(encoding="utf-8"))
+    ctx = build_context(student, d, present_slots(raw, d))
 
     env = Environment(
         loader=FileSystemLoader(str(HERE)),

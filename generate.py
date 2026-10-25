@@ -1482,7 +1482,9 @@ def main() -> None:
         generate_pdf_with_chrome(v2_html, v2_pdf)
         print(f"\n[4/4] v2 新版已生成: {v2_pdf.name}")
     except Exception as exc:
+        import traceback as _tb
         print(f"\n  [警告] v2 新版生成失败（不影响主报告）: {exc}")
+        _tb.print_exc()
 
     print("\n" + "=" * 60)
     print(f"完成！输出目录: {output_dir}")

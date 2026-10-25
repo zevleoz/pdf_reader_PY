@@ -786,6 +786,7 @@ html, body {
   </div>
 </div>
 
+{% if has.A2 or has.B4 %}{# 分隔页：A2 与 B4 均缺失才不出 #}
 <!-- ================= P3 心力 分隔页 ================= -->
 <div class="page divider dv-xin">
   <div class="wrap">
@@ -810,6 +811,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.A2 %}{# 输入 A2 缺失则整页不出 #}
 <!-- ================= P4 情绪稳定性 ================= -->
 <div class="page">
   <div class="phead">
@@ -859,6 +862,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B4 %}{# 输入 B4 缺失则整页不出 #}
 <!-- ================= P5 自我概念 ================= -->
 <div class="page">
   <div class="phead">
@@ -909,6 +914,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.A2 %}{# 输入 A2 缺失则整页不出 #}
 <!-- ================= P6 依恋关系 ================= -->
 <div class="page">
   <div class="phead">
@@ -950,6 +957,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B4 %}{# 输入 B4 缺失则整页不出 #}
 <!-- ================= P7 内驱力 ================= -->
 <div class="page">
   <div class="phead">
@@ -992,6 +1001,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.A2 %}{# 输入 A2 缺失则整页不出 #}
 <!-- ================= P8 人格 ================= -->
 <div class="page">
   <div class="phead">
@@ -1030,6 +1041,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.A2 %}{# 输入 A2 缺失则整页不出 #}
 <!-- ================= P9 精力 分隔页 ================= -->
 <div class="page divider dv-jing">
   <div class="wrap">
@@ -1051,6 +1064,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.A2 %}{# 输入 A2 缺失则整页不出 #}
 <!-- ================= P10 体质健康 ================= -->
 <div class="page">
   <div class="phead">
@@ -1119,6 +1134,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B4 or has.B3 %}{# 分隔页：B4 与 B3 均缺失才不出 #}
 <!-- ================= P11 学习力 分隔页 ================= -->
 <div class="page divider dv-xue">
   <div class="wrap">
@@ -1141,6 +1158,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B4 %}{# 输入 B4 缺失则整页不出 #}
 <!-- ================= P12 认知资源 ================= -->
 <div class="page">
   <div class="phead">
@@ -1184,6 +1203,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B4 %}{# 输入 B4 缺失则整页不出 #}
 <!-- ================= P13 认知子指标 ================= -->
 <div class="page">
   <div class="phead">
@@ -1212,6 +1233,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B3 %}{# 输入 B3 缺失则整页不出 #}
 <!-- ================= P14 执行功能 ================= -->
 <div class="page">
   <div class="phead">
@@ -1246,6 +1269,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B3 %}{# 输入 B3 缺失则整页不出 #}
 <!-- ================= P15 学习动机与策略 ================= -->
 <div class="page">
   <div class="phead">
@@ -1280,6 +1305,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B6 %}{# 输入 B6 缺失则整页不出 #}
 <!-- ================= P16 生涯力 分隔页 ================= -->
 <div class="page divider dv-sheng">
   <div class="wrap">
@@ -1302,6 +1329,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B6 %}{# 输入 B6 缺失则整页不出 #}
 <!-- ================= P17 职业兴趣 ================= -->
 <div class="page">
   <div class="phead">
@@ -1333,6 +1362,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B6 %}{# 输入 B6 缺失则整页不出 #}
 <!-- ================= P18 能力优势 ================= -->
 <div class="page">
   <div class="phead">
@@ -1360,6 +1391,8 @@ html, body {
   </div>
 </div>
 
+{% endif %}
+{% if has.B6 %}{# 输入 B6 缺失则整页不出 #}
 <!-- ================= P19 职业价值观 ================= -->
 <div class="page">
   <div class="phead">
@@ -1385,6 +1418,7 @@ html, body {
   </div>
 </div>
 
+{% endif %}
 <!-- ================= P20 阅读与说明 ================= -->
 <div class="page">
   <div class="notes-head"><img src="branding/logo_inline.png"></div>
