@@ -17,6 +17,7 @@
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -24,17 +25,54 @@ import unittest
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 
-# 必须在 import db 之前指向临时库，避免触碰真实数据
-_TMP_DIR = tempfile.mkdtemp(prefix="six_am_overrides_test_")
-os.environ["DATABASE_URL"] = "sqlite:///%s" % os.path.join(_TMP_DIR, "test.db")
+from sqlalchemy import create_engine, event  # noqa: E402
 
 import db  # noqa: E402
-
-db.init_db()
-
+import app_utils  # noqa: E402
 import six_am  # noqa: E402
 from flask import Flask  # noqa: E402
 from blueprints.insights import bp as insights_bp  # noqa: E402
+
+
+# ── 临时库：模块级重绑 db.engine，绝不触碰 data/y4_students.db ──────────
+# db.py 在 import 时读取 DATABASE_URL，全量 pytest 下 db 往往已被其它模块先导入，
+# 因此不能靠 import 前设置环境变量；这里直接重绑 engine / DATABASE_URL。
+_ORIG = {}
+_USER_IDS = {}  # role -> users.id（登录校验 _session_user_valid 会查 users 表）
+
+
+def setUpModule():
+    import questionnaire_store
+    tmp_dir = tempfile.mkdtemp(prefix="six_am_overrides_test_")
+    url = "sqlite:///%s" % os.path.join(tmp_dir, "test.db")
+    engine = create_engine(url, connect_args={"check_same_thread": False})
+
+    @event.listens_for(engine, "connect")
+    def _enable_fk(dbapi_connection, _record):
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
+    _ORIG.update(tmp_dir=tmp_dir, url=db.DATABASE_URL, engine=db.engine,
+                 q_engine=questionnaire_store.engine)
+    db.engine = engine
+    db.DATABASE_URL = url
+    questionnaire_store.engine = engine
+    assert os.path.realpath(engine.url.database) != os.path.realpath(
+        str(db.DEFAULT_DB)), "测试不得连接真实库"
+    db.init_db()
+    for role, advisor in (("admin", ""), ("advisor", "顾问甲"), ("viewer", "")):
+        _USER_IDS[role] = db.create_user("t_" + role, "x" * 12, role,
+                                         advisor_name=advisor)
+    app_utils._SESSION_USER_CACHE.clear()
+
+
+def tearDownModule():
+    import questionnaire_store
+    app_utils._SESSION_USER_CACHE.clear()
+    db.engine.dispose()
+    db.engine = _ORIG["engine"]
+    db.DATABASE_URL = _ORIG["url"]
+    questionnaire_store.engine = _ORIG["q_engine"]
+    shutil.rmtree(_ORIG["tmp_dir"], ignore_errors=True)
 
 
 # ── 测试夹具 ────────────────────────────────────────────────────
@@ -78,7 +116,7 @@ def _make_app():
 
 def _login(client, role="admin", advisor_name=""):
     with client.session_transaction() as sess:
-        sess["user_id"] = 1
+        sess["user_id"] = _USER_IDS[role]
         sess["role"] = role
         sess["advisor_name"] = advisor_name
 
