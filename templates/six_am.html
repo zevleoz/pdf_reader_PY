@@ -4,65 +4,29 @@
 {% block page_title %}6AM 启动模型{% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="/css/six_am.css?v=20261019">
+<link rel="stylesheet" href="/css/six_am.css?v=20261027">
 {% endblock %}
 
 {% block content %}
-<div class="sa-root">
-  <div class="sa-wrap">
-    <div class="page-head">
-      <div>
-        <div class="page-title">6AM 启动模型</div>
-        <p class="sa-sub">先在左侧按状态定位维度，再在右侧“判断 / 依据 / 行动”中查看结论、补证据或修订行动。</p>
-      </div>
-      <div class="sa-head-spacer"></div>
-      <div class="sa-controls">
-        <label class="sa-visually-hidden" for="sa-student">选择学生</label>
-        <select id="sa-student" class="sa-select"><option value="">选择学生</option></select>
-        <label class="sa-visually-hidden" for="sa-report">选择报告</label>
-        <select id="sa-report" class="sa-select"><option value="">选择报告</option></select>
-        <label class="sa-visually-hidden" for="sa-version">选择档案版本</label>
-        <select id="sa-version" class="sa-select"><option value="">版本</option></select>
-        <button id="sa-rerun" type="button" class="sa-btn">重跑档案</button>
-        <button id="sa-docx" type="button" class="sa-btn">下载 Word</button>
-        <button id="sa-json" type="button" class="sa-btn">下载 JSON</button>
-        <a class="sa-btn" href="/insights/six-am/rules">规则与参数</a>
-      </div>
-    </div>
-    <div id="sa-status" class="sa-status" role="status"></div>
-
-    <div id="sa-main" class="sa-main" hidden>
-      <nav id="sa-nav" class="sa-nav" aria-label="六维导航"></nav>
-
-      <section id="sa-workspace" class="sa-workspace" aria-label="当前维度工作区">
-        <div id="sa-workspace-head" class="sa-workspace-head"></div>
-
-        <div class="sa-tabs" role="tablist" aria-label="维度工作区分类">
-          <button type="button" class="sa-tab" role="tab" id="sa-tab-judgment"
-                  aria-controls="sa-panel-judgment" aria-selected="true"
-                  data-tab="judgment">判断</button>
-          <button type="button" class="sa-tab" role="tab" id="sa-tab-evidence"
-                  aria-controls="sa-panel-evidence" aria-selected="false" tabindex="-1"
-                  data-tab="evidence">依据</button>
-          <button type="button" class="sa-tab" role="tab" id="sa-tab-action"
-                  aria-controls="sa-panel-action" aria-selected="false" tabindex="-1"
-                  data-tab="action">行动</button>
-        </div>
-
-        <div class="sa-tabpanels">
-          <section class="sa-tabpanel" role="tabpanel" id="sa-panel-judgment"
-                   aria-labelledby="sa-tab-judgment" tabindex="0"></section>
-          <section class="sa-tabpanel" role="tabpanel" id="sa-panel-evidence"
-                   aria-labelledby="sa-tab-evidence" tabindex="0" hidden></section>
-          <section class="sa-tabpanel" role="tabpanel" id="sa-panel-action"
-                   aria-labelledby="sa-tab-action" tabindex="0" hidden></section>
-        </div>
-      </section>
-    </div>
+<div class="sa2" id="sa2" data-can-write="{{ 'false' if current_role == 'viewer' else 'true' }}">
+  <div class="row">
+    <span class="spacer"></span>
+    <nav class="views" id="sa2-tabs" role="tablist" aria-label="6AM 视图">
+      <button role="tab" type="button" id="sa2-tab-overview" data-view="overview" aria-selected="true">总览</button>
+      <button role="tab" type="button" id="sa2-tab-profile" data-view="profile" aria-selected="false" tabindex="-1">学生档案</button>
+      <button role="tab" type="button" id="sa2-tab-review" data-view="review" aria-selected="false" tabindex="-1">评审会</button>
+    </nav>
   </div>
+
+  <section class="sa2-view" id="sa2-overview" aria-label="总览"></section>
+  <section class="sa2-view" id="sa2-profile" aria-label="学生档案" hidden></section>
+  <section class="sa2-view" id="sa2-review" aria-label="评审会" hidden></section>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="/js/six_am.js?v=20261019" defer></script>
+<script src="/js/six_am/common.js?v=20261027" defer></script>
+<script src="/js/six_am/overview.js?v=20261027" defer></script>
+<script src="/js/six_am/profile.js?v=20261027" defer></script>
+<script src="/js/six_am/review.js?v=20261027" defer></script>
 {% endblock %}
