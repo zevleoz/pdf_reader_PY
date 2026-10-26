@@ -16,18 +16,21 @@
   它们移出 trace，展示信息在此恢复）。
 
 卡片字段：dim, title, state, state_label, evidence_state, evidence_label,
-headline, y4_facts, hypotheses, confirmed_evidence, next_actions,
-avoid_actions, questions, audit, priority_rank, priority_reason,
-priority_label, deferred, deferred_reason, manually_edited。
+headline, verdict, subtype_display, rationale, y4_facts, hypotheses,
+confirmed_evidence, next_actions, avoid_actions, questions, audit,
+priority_rank, priority_reason, priority_label, deferred, deferred_reason,
+manually_edited。
 """
 
 from __future__ import annotations
 
+import copy
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import action_guidance
 from . import rules as R
+from .rationale import SUBTYPE_DISPLAY, build_rationale, verdict_for
 
 DIM_ORDER = ["A1", "A2", "A3", "A4", "A5", "A6"]
 
@@ -58,17 +61,23 @@ def build_view_model(profile: Dict[str, Any]) -> Dict[str, Any]:
     profile = profile or {}
     dims = profile.get("dimensions") or {}
     a6_rec = dims.get("A6") or {}
-    support_plan = profile.get("support_plan") or a6_rec.get("support_ranking") or {}
+    support_plan = copy.deepcopy(
+        profile.get("support_plan") or a6_rec.get("support_ranking") or {})
+    for key in ("ranked", "avoid"):
+        for entry in support_plan.get(key) or []:
+            if isinstance(entry, dict) and entry.get("direction") == "权威施压":
+                entry["direction"] = "导师督促"
     overrides = profile.get("action_overrides") or {}
     deferred_reasons = {str(d.get("dim")): str(d.get("reason") or "")
                         for d in (profile.get("deferred") or []) if isinstance(d, dict)}
     questions = profile.get("questions") or []
+    answers = profile.get("answers") or []
     refuted = _refuted_entries(profile.get("refuted") or {})
 
     cards = [
         _build_card(dim, dims.get(dim) or {}, support_plan,
                     overrides.get(dim) or {}, deferred_reasons, questions,
-                    [r for r in refuted if r["dim"] == dim])
+                    [r for r in refuted if r["dim"] == dim], answers)
         for dim in DIM_ORDER
     ]
     return {"summary": _summary(profile, cards, refuted), "cards": cards}
@@ -97,7 +106,8 @@ def _refuted_entries(refuted_map: Dict[str, Any]) -> List[Dict[str, str]]:
 def _build_card(dim: str, rec: Dict[str, Any], support_plan: Dict[str, Any],
                 override: Dict[str, Any], deferred_reasons: Dict[str, str],
                 questions: List[Dict[str, Any]],
-                refuted_rules: List[Dict[str, str]]) -> Dict[str, Any]:
+                refuted_rules: List[Dict[str, str]],
+                answers: List[Dict[str, Any]]) -> Dict[str, Any]:
     rec = rec or {}
     if dim == "A6":
         state: Optional[str] = None
@@ -140,6 +150,9 @@ def _build_card(dim: str, rec: Dict[str, Any], support_plan: Dict[str, Any],
         "headline": _headline(dim, rec, state, state_label, evidence_state,
                               y4_facts, hypotheses, confirmed_evidence,
                               support_plan),
+        "verdict": verdict_for(dim, rec),
+        "subtype_display": SUBTYPE_DISPLAY.get(str(rec.get("subtype") or "")),
+        "rationale": build_rationale(dim, rec, questions, answers),
         "y4_facts": y4_facts,
         "hypotheses": hypotheses,
         "confirmed_evidence": confirmed_evidence,
