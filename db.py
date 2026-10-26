@@ -150,6 +150,26 @@ class SixAmRuleVersion(Base):
     published_at = Column(DateTime)
 
 
+class SixAmReview(Base):
+    """6AM 团队评议：对某一档案的单个维度记录结论（只追加，不覆盖旧行）。
+
+    verdict: agree / adjust / evidence；adjust 时 adjusted_state 记录团队状态。
+    评议不改变模型判定，也不产生新档案版本。
+    """
+    __tablename__ = "six_am_reviews"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    profile_id = Column(Integer, ForeignKey("six_am_profiles.id"), nullable=False)
+    report_id = Column(Integer, nullable=False)
+    dim = Column(String(4), nullable=False)
+    verdict = Column(String(16), nullable=False)
+    adjusted_state = Column(String(16))
+    note = Column(Text)
+    owner = Column(String(50))
+    due_date = Column(String(10))
+    author = Column(String(100))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class User(Base):
     """平台用户（Admin / Advisor / Viewer 三角色）。
 
@@ -1401,6 +1421,88 @@ def delete_six_am_rule_version(vid: int) -> None:
         sess.execute(delete(SixAmRuleVersion).where(SixAmRuleVersion.id == vid,
                                                      SixAmRuleVersion.status == "draft"))
         sess.commit()
+
+
+# ─── 6AM 团队评议 / 概览 ────────────────────────────────────────
+
+def _six_am_review_row(m: "SixAmReview") -> Dict[str, Any]:
+    return {
+        "id": m.id,
+        "profile_id": m.profile_id,
+        "report_id": m.report_id,
+        "dim": m.dim,
+        "verdict": m.verdict,
+        "adjusted_state": m.adjusted_state,
+        "note": m.note or "",
+        "owner": m.owner or "",
+        "due_date": m.due_date or "",
+        "author": m.author or "",
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+    }
+
+
+def add_six_am_review(**fields: Any) -> Dict[str, Any]:
+    """追加一条团队评议（不改档案、不新增版本）。Returns review row."""
+    with Session(engine) as sess:
+        result = sess.execute(insert(SixAmReview).values(**fields))
+        sess.commit()
+        m = sess.get(SixAmReview, result.lastrowid)
+        return _six_am_review_row(m)
+
+
+def latest_six_am_reviews(profile_id: int) -> Dict[str, Dict[str, Any]]:
+    """该档案每个维度最新的一条评议（{dim: row}）。"""
+    with Session(engine) as sess:
+        stmt = (select(SixAmReview).where(SixAmReview.profile_id == int(profile_id))
+                .order_by(SixAmReview.id.desc()))
+        rows = sess.execute(stmt).scalars().all()
+    out: Dict[str, Dict[str, Any]] = {}
+    for m in rows:
+        out.setdefault(m.dim, _six_am_review_row(m))
+    return out
+
+
+def list_latest_six_am_profiles(advisor_scope: Optional[str] = None) -> List[Dict[str, Any]]:
+    """每个学生最新报告的最新档案，附学生与报告信息（概览页用）。
+
+    advisor_scope 非 None 时只返回 advisor_name 匹配的学生。
+    """
+    with Session(engine) as sess:
+        stmt = (select(SixAmProfile, Student.name, Student.grade, Student.advisor_name,
+                       Report.report_date)
+                .join(Student, Student.id == SixAmProfile.student_id)
+                .join(Report, Report.id == SixAmProfile.report_id))
+        if advisor_scope is not None:
+            stmt = stmt.where(Student.advisor_name == advisor_scope)
+        rows = sess.execute(stmt).all()
+    best: Dict[int, Any] = {}
+    for m, name, grade, advisor_name, report_date in rows:
+        key = (report_date or date.min, m.report_id, m.version or 0, m.id)
+        cur = best.get(m.student_id)
+        if cur is None or key > cur[0]:
+            best[m.student_id] = (key, m, name, grade, advisor_name, report_date)
+    out: List[Dict[str, Any]] = []
+    for _key, m, name, grade, advisor_name, report_date in best.values():
+        row = _six_am_profile_row(m)
+        row.update({"name": name or "", "grade": grade or "",
+                    "advisor_name": advisor_name or "",
+                    "report_date": report_date.isoformat() if report_date else None})
+        out.append(row)
+    return sorted(out, key=lambda r: (r.get("name") or "", r.get("student_id") or 0))
+
+
+def get_previous_six_am_profile(profile_id: int) -> Optional[Dict[str, Any]]:
+    """同一报告的上一版档案（version 次小）；无上一版返回 None。"""
+    with Session(engine) as sess:
+        m = sess.get(SixAmProfile, int(profile_id)) if profile_id else None
+        if not m:
+            return None
+        stmt = (select(SixAmProfile)
+                .where(SixAmProfile.report_id == m.report_id,
+                       SixAmProfile.version < m.version)
+                .order_by(SixAmProfile.version.desc(), SixAmProfile.id.desc()).limit(1))
+        prev = sess.execute(stmt).scalars().first()
+        return _six_am_profile_row(prev) if prev else None
 
 
 # ─── Dashboard aggregation ─────────────────────────────────────

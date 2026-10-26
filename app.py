@@ -146,6 +146,12 @@ def create_app() -> Flask:
         return send_from_directory(str(BASE_DIR / "static" / "js"), "six_am.js",
                                    mimetype="text/javascript")
 
+    @app.route("/js/six_am/<path:filename>")
+    def serve_six_am_module_js(filename):
+        """6AM 2.0 模块脚本（static/js/six_am/）。"""
+        return send_from_directory(str(BASE_DIR / "static" / "js" / "six_am"), filename,
+                                   mimetype="text/javascript")
+
     @app.route("/favicon.ico")
     def favicon():
         """站点图标（浏览器默认请求 /favicon.ico）：静态品牌 logo 缩图。"""
