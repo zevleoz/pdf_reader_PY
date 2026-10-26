@@ -14,7 +14,8 @@
 5. 其余维度：证据状态 Confirmed > Supported > Hypothesis/None，
    再按状态 Blocked > At-Risk > Watch，最后按 A1–A5 固定顺序；
 6. A4 与 A5 同级并列时 A4 在前（由固定顺序保证：先低风险第一步，再增加任务要求）；
-7. A6 不进入障碍排序，只跟随 A1–A5 输出支持方案。
+7. A6 不进入障碍排序，只跟随 A1–A5 输出支持方案；
+8. v0.4：R3.7 情绪安全复核命中时，sequence_note 以安全复核开头（先于一切启动推进）。
 
 compute() 同时把 priority_rank / priority_reason 写回每个非 Secure 维度，
 供追问选择（questionnaire）与页面标记使用。
@@ -41,6 +42,7 @@ def compute(dims: Dict[str, Any], constraints: Dict[str, Any]) -> Dict[str, Any]
     x3_top = bool(constraints.get("x3_top"))
     x6 = bool(constraints.get("x6"))
     x7 = bool(constraints.get("x7"))
+    safety = "情绪安全复核" in (((dims.get("A3") or {}).get("flags")) or [])
 
     def _state(dim: str) -> str:
         return str((dims.get(dim) or {}).get("state") or "Secure")
@@ -96,7 +98,7 @@ def compute(dims: Dict[str, Any], constraints: Dict[str, Any]) -> Dict[str, Any]
         "obstacles": obstacles,
         "priority_order": [o["dim"] for o in obstacles],
         "deferred": deferred,
-        "sequence_note": _sequence_note(x1, x3_top, x6, x7),
+        "sequence_note": _sequence_note(x1, x3_top, x6, x7, safety),
     }
 
 
@@ -118,8 +120,14 @@ def _reason(dim: str, dims: Dict[str, Any],
     return "证据状态 %s · 状态 %s" % (evidence, state)
 
 
-def _sequence_note(x1: bool, x3_top: bool, x6: bool, x7: bool) -> str:
+SAFETY_NOTE = ("情绪安全复核：Y4 情绪指标落在最严重档。先由顾问了解学生近况，"
+               "必要时建议家长寻求专业评估；评估前不新增任务、不做启动推进。")
+
+
+def _sequence_note(x1: bool, x3_top: bool, x6: bool, x7: bool, safety: bool = False) -> str:
     notes: List[str] = []
+    if safety:
+        notes.append(SAFETY_NOTE)
     if x3_top:
         notes.append("X.3 命中：A3 过载优先排除，先处理容量问题；"
                      "A4/A5 的 Hypothesis 级结论待 A3 处理后复测。")

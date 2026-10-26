@@ -75,6 +75,50 @@ class Ctx:
                 continue
         return None
 
+    def raw_num(self, label: str) -> Optional[float]:
+        it = self.item(label)
+        if not it:
+            return None
+        try:
+            return float(str(it.get("raw_value")).strip())
+        except (TypeError, ValueError):
+            return None
+
+    def tier_of(self, label: str) -> Optional[str]:
+        """v0.4 证据强度：'strong' / 'mild' / None。
+
+        Y4 档位是给报告读者的描述（如常模参照 '偏低' = 低于均分 0.5 分、
+        执行功能 '偏低' = 百分位 < 60），直接当干预触发会覆盖大多数学生。
+        这里把每个风险档位再分强弱；没有原始分时退回档位本身（偏低 = 弱）。
+        """
+        ev = self.eval_of(label)
+        if ev is None:
+            return None
+        key = _norm_label(label)
+        if key.startswith(("执行功能-", "认知能力")):
+            pct = self.raw_num(label)
+            if pct is None:
+                return "mild" if ev in R.LOW_OR_BELOW else None
+            if pct < float(self.params.get("pct_strong_max", 10)):
+                return "strong"
+            if pct < float(self.params.get("pct_mild_max", 25)):
+                return "mild"
+            return None
+        if key.startswith(("自驱力-", "学习动机-", "学习方法与策略-")):
+            if ev != "偏低":
+                return None
+            raw = self.raw_num(label)
+            norm = self.num_of(key + "常模平均数")
+            gap = float(self.params.get("norm_strong_gap", 1.5))
+            if raw is not None and norm is not None and raw <= norm - gap:
+                return "strong"
+            return "mild"
+        if ev in R.SEVERE:
+            return "strong"
+        if ev in R.MILD_RISK:
+            return "mild"
+        return None
+
     def order_pos(self, value: str) -> Optional[int]:
         return self._order_map.get(str(value))
 
@@ -165,6 +209,14 @@ def eval_cond(cond: Dict[str, Any], ctx: Ctx) -> Tuple[bool, List[Dict[str, Any]
             if ok:
                 return True, ev, desc
         return False, [], ""
+    if "all" in cond:
+        ev_all: List[Dict[str, Any]] = []
+        for sub in cond.get("all") or []:
+            ok, ev, _desc = eval_cond(sub, ctx)
+            if not ok:
+                return False, [], ""
+            ev_all.extend(ev)
+        return True, ev_all, "全部"
     if "not" in cond:
         ok, _ev, _desc = eval_cond(cond.get("not") or {}, ctx)
         return (not ok), [], "非"
@@ -193,6 +245,14 @@ def eval_cond(cond: Dict[str, Any], ctx: Ctx) -> Tuple[bool, List[Dict[str, Any]
             ev = [{"point": label, "eval_value": ctx.eval_of(label), "raw_value": it.get("raw_value"),
                    "source": it.get("eval_source", ""), "bias": it.get("data_bias") or ""}]
             return ok, (ev if ok else []), f"{label}={num}"
+        if "tier" in cond:
+            tier = ctx.tier_of(label)
+            want = str(cond.get("tier"))
+            ok = tier == "strong" if want == "strong" else tier in ("mild", "strong")
+            ev = [{"point": label, "eval_value": evv, "raw_value": it.get("raw_value"),
+                   "tier": tier, "source": it.get("eval_source", ""),
+                   "bias": it.get("data_bias") or ""}]
+            return ok, (ev if ok else []), f"{label}:{tier}"
         if cond.get("missing"):
             return False, [], f"{label}"
     if "order_top" in cond:
@@ -447,6 +507,12 @@ def _finalize_dim(acc: DimAcc, ctx: Ctx, conf_overrides: Dict[str, str],
         confidence = max(confs, key=lambda c: CONF_ORDER.index(c) if c in CONF_ORDER else 0)
     if state == "Secure" and not confs:
         confidence = None
+    # v0.4：核心指标缺失时，"稳固/关注"只说明没有数据，不说明没有障碍
+    missing = [l for l in (R.CORE_POINTS.get(acc.dim) or []) if ctx.eval_of(l) is None]
+    if missing and state in ("Secure", "Watch"):
+        acc.flags.append("Y4 数据缺失")
+        acc.notes.append("核心 Y4 指标缺失（%s）：当前状态只反映已有数据，不能据此排除障碍"
+                         % "、".join(missing))
     triggered = []
     for t in acc.trace:
         rec = dict(t)
@@ -644,6 +710,7 @@ def run(eval_items: List[Dict[str, Any]],
         "deferred": prio["deferred"],
         "sequence_note": prio["sequence_note"],
         "support_plan": dims["A6"]["support_ranking"],
+        "safety_review": "情绪安全复核" in (dims["A3"].get("flags") or []),
         "questions": questions,
         "evidence_log": _evidence_log(evidence),
         "gaps": _gaps(evidence),

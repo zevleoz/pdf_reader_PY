@@ -6,20 +6,21 @@
 结构：
   BANDS          档位词集合（v0.2 §1.2）
   QUESTIONS      29 条追问题 Q1.1–Q6.4（v0.2 §8.3 原文）
-  RULES          47 条单维规则 R1.1–R6.8（数据化，条件可被规则版本覆盖）
+  RULES          49 条单维规则 R1.1–R6.8（v0.4 新增 R3.7 情绪安全复核、R4.10 能力-自评落差）（数据化，条件可被规则版本覆盖）
   CROSS_RULES    7 条跨维度规则 X.1–X.7（条件求值在 cross_rules.py）
   DEFAULT_PARAMS 可配置参数默认值（v0.2 §4.1；标 "v0.2 暂定" 的为文档待定项现值）
 
 条件（when）语法（engine.py 求值）：
   {"point": "<指标名>", "is": [档位词…]}        eval_value ∈ 集合
   {"point": "…", "num_lt": n} / {"num_gt": n}   eval_value（或 raw_value）数值比较
+  {"point": "…", "tier": "mild"|"strong"}        v0.4 证据强度：mild = 弱及以上，strong = 仅强（见 engine.Ctx.tier_of）
   {"order_top": "<排序值>"}                      该值进入排序前 order_top_n 位
   {"rule": "R1.1"}                               另一条规则命中
   {"evidence": "observation.xxx", "is_true": True} 证据字段为真（FT/家长/观察）
   {"predicate": "name"}                          命名谓词（本文件实现，单独可测）
   {"dim_state": {"dim": "A1", "is": "Secure"}}   某维度当前 state 等于
   {"subtype": "A5-S3"}                           某维度亚型命中
-  {"any": [cond, …]} / {"not": cond}             组合子（默认同级 AND）
+  {"any": [cond, …]} / {"all": [cond, …]} / {"not": cond}   组合子（默认同级 AND）
 
 规则 questions 字段 = 追问选择锚点（用于 questionnaire.py 选择算法）；
 QUESTIONS[id].verify = v0.2 §8.3 表格的"验证目标"标注（条目级对照）。
@@ -33,7 +34,7 @@ from typing import Any, Dict, List, Optional
 SEVERE = ["需特殊关注", "明显偏低", "严重偏低"]
 MILD_RISK = ["偏低", "需关注"]
 LOW_OR_BELOW = ["偏低", "需关注", "需特殊关注", "明显偏低", "严重偏低"]  # 偏低及以下
-BODY_PROBLEM = ["差", "低"]
+BODY_PROBLEM = ["差", "低", "较差", "很差"]  # Y4 体质评级实际输出含"较差"
 BODY_WATCH = ["中等", "一般"]
 STRONG_ASSET = ["高", "较好"]
 NEUTRAL_HEALTHY = ["不低", "相对健康", "正常"]
@@ -100,7 +101,7 @@ QUESTIONS: Dict[str, Dict[str, Any]] = {
              "ask": "你有没有跟自己说过'等我再准备准备就开始'？后来真开始了吗？"},
     "Q4.4": {"id": "Q4.4", "dim": "A4", "verify": ["R4.4"],
              "ask": "假如前三次尝试谁都看不见，只有你自己知道结果，你会不会更敢上手？"},
-    "Q4.5": {"id": "Q4.5", "dim": "A4", "verify": ["R4.9"],
+    "Q4.5": {"id": "Q4.5", "dim": "A4", "verify": ["R4.9", "R4.10"],
              "ask": "你觉得自己最强的学科是哪个？咱拿最近几次成绩对对，看跟你说的是不是一回事儿。"},
     "Q5.1": {"id": "Q5.1", "dim": "A5", "verify": ["R5.1"],
              "ask": "要是明天就得开工，你猜你第一个小时会干啥？"},
@@ -123,7 +124,7 @@ QUESTIONS: Dict[str, Dict[str, Any]] = {
 # A6 追问补充顺序（当命中规则未给出候选时按此顺序补足；v0.2 §8.2 步骤④的落地）
 A6_FILL_ORDER = ["Q6.2", "Q6.1", "Q6.4", "Q6.3"]
 
-# ── 单维规则（47 条）──────────────────────────────────────────
+# ── 单维规则（49 条）──────────────────────────────────────────
 # then 字段语义见文件头；subtype_priority 用于同维多亚型命中时取更具体分支。
 
 RULES: Dict[str, Dict[str, Any]] = {}
@@ -144,7 +145,10 @@ def _rule(**kw: Any) -> Dict[str, Any]:
 _rule(
     id="R1.1", dim="A1", title="自主性偏低",
     when=[{"point": "自驱力-自主性", "is": ["偏低"]}],
-    then={"state": "At-Risk", "confidence": "Hypothesis"},
+    then={"state": "Watch", "confidence": "Hypothesis",
+          "effects": [{"if": {"point": "自驱力-自主性", "tier": "strong"}, "state": "At-Risk",
+                       "notes": ["自主性明显低于常模（强信号）→ At-Risk"]}],
+          "notes": ["v0.4：自主性略低于常模只是弱信号（Watch）；明显低于常模才判 At-Risk"]},
     questions=["Q1.1"],
     text="习惯从自身目标出发行动的程度低，是自主空间不足的核心信号（→Q1.1）",
 )
@@ -158,16 +162,16 @@ _rule(
     text="表面配合、行为拒绝；不制造冲突，用拖延表达'不'",
 )
 _rule(
-    id="R1.3", dim="A1", title="高叛逆风险（双条件）",
+    id="R1.3", dim="A1", title="逆反风险（自主需求×自主缺口）",
     when=[{"order_top": "独立自主"},
-          {"any": [{"point": "自驱力-自主性", "is": LOW_OR_BELOW},
-                   {"point": "情绪稳定性-无力感掌控感", "is": LOW_OR_BELOW}]}],
-    then={"state": "Blocked", "subtype": "A1-S2", "subtype_name": "Rebellion 逆反型（高叛逆风险）",
-          "subtype_priority": 3, "confidence": "Hypothesis", "flags": ["高叛逆风险人群"],
+          {"point": "自驱力-自主性", "is": LOW_OR_BELOW}],
+    then={"state": "At-Risk", "subtype": "A1-S2", "subtype_name": "Rebellion 逆反型",
+          "subtype_priority": 3, "confidence": "Hypothesis", "flags": ["逆反风险（待验证）"],
           "notes": ["自主需求强 × 无自主空间 → 以反抗权威索取自主感",
+                    "v0.4：'无空间'只认自驱力-自主性；掌控感是非特异的情绪信号，不再单独构成逆反判定",
                     "亲子依恋为调节因子：信任/沟通偏低 → 反抗外显化（顶撞、对着干）；依恋正常 → 反抗隐性化（消极、疏离）"]},
     questions=["Q1.3", "Q1.4"],
-    text="自主选择对学生重要（独立自主前 5）且当前无自主选择空间（自主性偏低 或 掌控感偏低及以下）",
+    text="自主选择对学生重要（独立自主前 5）且当前无自主选择空间（自主性偏低）",
 )
 _rule(
     id="R1.4", dim="A1", title="压抑顺从型分型",
@@ -315,13 +319,17 @@ _rule(
     id="R3.3", dim="A3", title="情绪资源占用",
     when=[{"any": [{"point": "情绪稳定性-焦虑安详", "is": ["需关注", "需特殊关注"]},
                    {"point": "情绪稳定性-抑郁愉快", "is": ["需关注", "需特殊关注"]}]}],
-    then={"state": "At-Risk", "confidence": "Hypothesis",
-          "effects": [{"if": {"rule": "R3.1"}, "state_add": 1,
+    then={"state": "Watch", "confidence": "Hypothesis",
+          "effects": [{"if": {"any": [{"point": "情绪稳定性-焦虑安详", "tier": "strong"},
+                                      {"point": "情绪稳定性-抑郁愉快", "tier": "strong"}]},
+                       "state": "At-Risk",
+                       "notes": ["焦虑或抑郁达到'需特殊关注'（强信号）→ At-Risk"]},
+                      {"if": {"rule": "R3.1"}, "state_add": 1,
                        "subtype": "A3-S1", "subtype_name": "Capacity Overload 过载型",
                        "subtype_priority": 4,
                        "notes": ["与 R3.1 叠加 → 亚型 A3-S1 Capacity Overload，state → Blocked"]}]},
     questions=["Q3.1", "Q3.2"],
-    text="持续情绪压力占用大量认知资源（与 R3.1 叠加时 state → Blocked）",
+    text="持续情绪压力占用大量认知资源（需关注 → Watch；需特殊关注 → At-Risk；与 R3.1 叠加升一级）",
 )
 _rule(
     id="R3.4", dim="A3", title="情绪整体低水位",
@@ -349,12 +357,28 @@ _rule(
     text="First Touch 排期问询：当前课程与活动负荷高、自由时间极少",
 )
 
+_rule(
+    id="R3.7", dim="A3", title="情绪安全复核",
+    when=[{"any": [{"point": "情绪稳定性-抑郁愉快", "is": ["需特殊关注"]},
+                   {"point": "情绪稳定性-焦虑安详", "is": ["需特殊关注"]},
+                   {"point": "情绪稳定性总分", "is": ["明显偏低"]},
+                   {"point": "自我概念-幸福与满足", "is": ["严重偏低"]}]}],
+    then={"noop": True, "flags": ["情绪安全复核"],
+          "notes": ["Y4 情绪指标落在最严重档：先由顾问做情绪安全了解，必要时建议家长寻求专业评估；"
+                    "评估前不新增任务、不做启动推进（6 A.M. 不是心理诊断工具）"]},
+    questions=["Q3.1", "Q3.2"],
+    text="情绪指标最严重档 → 先做安全复核，再谈启动",
+)
+
 # ── A4 Assurance 胜任信心 ──
 _rule(
     id="R4.1", dim="A4", title="自我效能偏低",
     when=[{"point": "学习动机-自我效能感", "is": ["偏低"]}],
-    then={"state": "At-Risk", "subtype": "A4-S2", "subtype_name": "Low Self-Efficacy 低自我效能型",
-          "subtype_priority": 1, "confidence": "Hypothesis"},
+    then={"state": "Watch", "subtype": "A4-S2", "subtype_name": "Low Self-Efficacy 低自我效能型",
+          "subtype_priority": 1, "confidence": "Hypothesis",
+          "effects": [{"if": {"point": "学习动机-自我效能感", "tier": "strong"}, "state": "At-Risk",
+                       "notes": ["自我效能感明显低于常模（强信号）→ At-Risk"]}],
+          "notes": ["v0.4：单项略低于常模为 Watch；与胜任感（R4.2）互证或明显偏低时才到 At-Risk"]},
     questions=["Q4.1"],
     text="自我效能是胜任信心最直接的指标",
 )
@@ -380,8 +404,13 @@ _rule(
     id="R4.4", dim="A4", title="评价焦虑",
     when=[{"point": "情绪稳定性-焦虑安详", "is": ["需关注", "需特殊关注"]},
           {"point": "情绪稳定性-自卑自尊", "is": ["需关注", "需特殊关注"]}],
-    then={"state": "At-Risk", "subtype": "A4-S3", "subtype_name": "Evaluation Anxiety 评价焦虑型",
-          "subtype_priority": 2, "confidence": "Hypothesis"},
+    then={"state": "Watch", "subtype": "A4-S3", "subtype_name": "Evaluation Anxiety 评价焦虑型",
+          "subtype_priority": 2, "confidence": "Hypothesis",
+          "effects": [{"if": {"any": [{"point": "情绪稳定性-焦虑安详", "tier": "strong"},
+                                      {"point": "情绪稳定性-自卑自尊", "tier": "strong"}]},
+                       "state": "At-Risk",
+                       "notes": ["焦虑或自尊达到'需特殊关注'（强信号）→ At-Risk"]}],
+          "notes": ["v0.4：'需关注'档（5–10 分）在实际学生中占多数，两项同时命中只到 Watch"]},
     questions=["Q4.4"],
     text="核心恐惧是被评价：作品被看、父母失望、老师批评",
 )
@@ -428,6 +457,19 @@ _rule(
     text="校准能力与自我认知的偏差：低估自己的学生问题在信心，高估自己的问题不在本维度",
 )
 
+_rule(
+    id="R4.10", dim="A4", title="能力-自评落差（Y4 内部）",
+    when=[{"point": "认知能力", "num_gt": "@miscal_cog_pct_min"},
+          {"any": [{"point": "学习动机-自我效能感", "is": ["偏低"]},
+                   {"point": "自我概念-能力与学校表现", "is": ["偏低", "严重偏低"]}]}],
+    then={"state": "Watch", "subtype": "A4-S4", "subtype_name": "Miscalibration 认知偏差型",
+          "subtype_priority": 2, "confidence": "Hypothesis",
+          "notes": ["认知能力是 Y4 中少数的客观测验（百分位），自我效能/学业自我概念是自评："
+                    "客观能力不低而自评偏低 → 低估型认知偏差的初步线索，需用成绩或教师反馈确认"]},
+    questions=["Q4.5"],
+    text="客观认知能力不低，但学业自评偏低：疑似低估自己",
+)
+
 # ── A5 Accessibility 可起步性 ──
 _rule(
     id="R5.1", dim="A5", title="疑似规划瘫痪",
@@ -455,9 +497,12 @@ _rule(
     when=[{"point": "学习动机-深层动机", "is": ["较好", "不低"]},
           {"point": "学习方法与策略-学习自我调节", "is": ["偏低"]},
           {"point": "自驱力-自主性", "is": ["较好", "不低"]}],
-    then={"state": "At-Risk", "subtype": "A5-S3", "subtype_name": "Structure Dependence 结构依赖型（疑似）",
+    then={"state": "Watch", "subtype": "A5-S3", "subtype_name": "Structure Dependence 结构依赖型（疑似）",
           "subtype_priority": 3, "confidence": "Hypothesis",
-          "notes": ["不是不想做，是没有外部结构时不知如何开始"]},
+          "effects": [{"if": {"point": "学习方法与策略-学习自我调节", "tier": "strong"}, "state": "At-Risk",
+                       "notes": ["自我调节明显低于常模（强信号）→ At-Risk"]}],
+          "notes": ["不是不想做，是没有外部结构时不知如何开始",
+                    "v0.4：只有自我调节一个缺口信号，略低时只到 Watch，靠标准化任务（R5.7）确认"]},
     questions=["Q5.4"],
     text="拆得出、有意愿，但没有外部结构就不动（启动障碍）",
 )
@@ -486,10 +531,10 @@ _rule(
     id="R5.7", dim="A5", title="标准化任务测试（FT 确诊）",
     when=[{"predicate": "standard_task_done"}],
     then={"effects": [
-        {"if_predicate": "standard_task_cannot_split", "subtype": "A5-S1",
+        {"if_predicate": "standard_task_cannot_split", "state": "At-Risk", "subtype": "A5-S1",
          "subtype_name": "Planning Paralysis 规划瘫痪型（确诊）", "subtype_priority": 5,
          "confidence_to": "Supported", "notes": ["拆不出步骤 → 确诊规划障碍（规划瘫痪型）"]},
-        {"if_predicate": "standard_task_cannot_commit", "subtype": "A5-S3",
+        {"if_predicate": "standard_task_cannot_commit", "state": "At-Risk", "subtype": "A5-S3",
          "subtype_name": "Structure Dependence 结构依赖型（确诊）", "subtype_priority": 5,
          "confidence_to": "Supported", "notes": ["拆得出但无法承诺开始时间/第一步 → 确诊启动障碍（结构依赖型）"]},
     ]},
@@ -607,14 +652,28 @@ DEFAULT_PARAMS: Dict[str, Any] = {
     "schedule_free_hours_max": 5,
     # v0.2 待定：任务可连接价值默认列表为空（需任务信息才评估 R2.5）
     "value_link_defaults": [],
+    # v0.4 证据强度（tier）：Y4 自身档位为描述用，6 A.M. 触发干预需要更强的信号
+    "norm_strong_gap": 1.5,           # 常模参照项：低于常模均分 ≥ 1.5（0–10 分制）为强信号
+    "pct_mild_max": 25,               # 百分位项（执行功能/注意力）：< 25 为弱信号
+    "pct_strong_max": 10,             # 百分位项：< 10 为强信号
+    "miscal_cog_pct_min": 75,         # R4.10：认知能力百分位 > 75 视为客观能力不低
+}
+
+# v0.4 每维核心指标：全部缺失时不得显示为"稳固"，标注数据缺失
+CORE_POINTS: Dict[str, List[str]] = {
+    "A1": ["自驱力-自主性"],
+    "A2": ["学习动机-深层动机", "职业兴趣-研究型"],
+    "A3": ["体质健康-睡眠评级", "情绪稳定性-焦虑安详", "情绪稳定性-抑郁愉快"],
+    "A4": ["学习动机-自我效能感", "自驱力-胜任感"],
+    "A5": ["学习方法与策略-学习自我调节", "人格-责任心"],
 }
 
 # ── 规则 ID 全集（覆盖检查对照）──────────────────────────────
 RULE_IDS: List[str] = [
     "R1.1", "R1.2", "R1.3", "R1.4", "R1.5", "R1.6", "R1.7", "R1.8",
     "R2.1", "R2.2", "R2.3", "R2.4", "R2.5", "R2.6", "R2.7", "R2.8",
-    "R3.1", "R3.2", "R3.3", "R3.4", "R3.5", "R3.6",
-    "R4.1", "R4.2", "R4.3", "R4.4", "R4.5", "R4.6", "R4.7", "R4.8", "R4.9",
+    "R3.1", "R3.2", "R3.3", "R3.4", "R3.5", "R3.6", "R3.7",
+    "R4.1", "R4.2", "R4.3", "R4.4", "R4.5", "R4.6", "R4.7", "R4.8", "R4.9", "R4.10",
     "R5.1", "R5.2", "R5.3", "R5.4", "R5.5", "R5.6", "R5.7", "R5.8",
     "R6.1", "R6.2", "R6.3", "R6.4", "R6.5", "R6.6", "R6.7", "R6.8",
 ]
@@ -630,7 +689,7 @@ QUESTION_IDS: List[str] = [
 
 SUBTYPE_NAMES = {
     "A1-S1": "Passive Resistance 被动抵抗型",
-    "A1-S2": "Rebellion 逆反型（高叛逆风险）",
+    "A1-S2": "Rebellion 逆反型",
     "A1-S3": "Suppressed Compliance 压抑顺从型",
     "A2-S1": "Task Misalignment 任务错位型",
     "A2-S2": "Motivation Snapping 动机绷断型",

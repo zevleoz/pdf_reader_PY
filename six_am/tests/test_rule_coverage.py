@@ -120,7 +120,7 @@ PREDICATE_FIXTURES = {
 # 亚型 → 使其成立的最小 fixture（供 subtype 条件引用）
 SUBTYPE_FIXTURES = {
     "A1-S2": lambda fx: (fx.add_order("独立自主", 2),
-                         fx.add_point("情绪稳定性-无力感掌控感", "偏低")),
+                         fx.add_point("自驱力-自主性", "偏低")),
     "A1-S3": lambda fx: (fx.add_point("自驱力-自主性", "偏低"),
                          fx.add_point("人格-宜人性", "高"),
                          fx.add_point("依恋关系-信任-母亲", "不低")),
@@ -153,6 +153,13 @@ def _satisfy(cond, fx, rules_data=None):
         if "is" in cond:
             vals = cond.get("is") or []
             fx.add_point(label, str(vals[0]) if vals else "不低")
+        elif "tier" in cond:
+            if label.startswith(("执行功能-", "认知能力")):
+                fx.items["P:" + label] = dict(_it(label, "偏低"), raw_value="5")
+            elif label.startswith("情绪稳定性-"):
+                fx.add_point(label, "需特殊关注")
+            else:
+                fx.add_point(label, "明显偏低")
         elif "num_lt" in cond:
             fx.add_num(label, _resolve_num(cond["num_lt"]) - 1)
         elif "num_gt" in cond:
@@ -208,8 +215,8 @@ def _cross_mod_ids(profile):
 
 # ── 测试 ──────────────────────────────────────────────────────
 class RegistryCoverage(unittest.TestCase):
-    def test_r_rules_47(self):
-        self.assertEqual(len(R.RULE_IDS), 47)
+    def test_r_rules_49(self):
+        self.assertEqual(len(R.RULE_IDS), 49)
         self.assertEqual(set(R.RULE_IDS), set(R.RULES.keys()))
         for rid in R.RULE_IDS:
             self.assertTrue(R.RULES[rid].get("dim"), rid)
@@ -282,7 +289,8 @@ class CrossRuleCoverage(unittest.TestCase):
 
     def test_x1_double_lock(self):
         def b(fx):
-            fx.add_point("自驱力-自主性", "偏低")                      # A1 At-Risk
+            fx.add_order("独立自主", 2)                               # R1.3 → A1 At-Risk
+            fx.add_point("自驱力-自主性", "偏低")
             fx.add_point("学习动机-深层动机", "偏低")                  # A2 At-Risk
             fx.add_point("学习动机-表面动机", "偏低")
         p = self._run(b)
@@ -311,14 +319,16 @@ class CrossRuleCoverage(unittest.TestCase):
 
     def test_x4_constrains_a5(self):
         def b(fx):
-            fx.add_point("学习动机-自我效能感", "偏低")   # A4 At-Risk
+            fx.add_point("学习动机-自我效能感", "偏低")   # R4.1 + R4.2 互证 → A4 At-Risk
+            fx.add_point("自驱力-胜任感", "偏低")
         p = self._run(b)
         self.assertIn("X.4", _cross_mod_ids(p))
 
     def test_x5_a6_arbitration(self):
         def b(fx):
             SUBTYPE_FIXTURES["A1-S2"](fx)   # R6.6
-            SUBTYPE_FIXTURES["A5-S3"](fx)   # R6.7
+            # A5-S3 由标准化任务确认（Y4 推出的 A5-S3 与 A1-S2 互斥）→ R6.7
+            fx.add_evidence("ft.standard_task", {"can_split": True, "can_commit": False})
         p = self._run(b)
         self.assertIn("X.5", _cross_mod_ids(p))
 

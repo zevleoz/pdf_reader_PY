@@ -59,12 +59,13 @@ class WorkedExample1(unittest.TestCase):
         self.p = run(items)
         self.dims = self.p["dimensions"]
 
-    def test_a1_blocked_rebellion(self):
+    def test_a1_at_risk_rebellion(self):
+        # v0.4：独立自主前 5 + 自主性略低 = 两个弱信号互证 → 风险（R1.3 不再直接判阻塞）
         a1 = self.dims["A1"]
-        self.assertEqual(a1["state"], "Blocked")
+        self.assertEqual(a1["state"], "At-Risk")
         self.assertEqual(a1["subtype"], "A1-S2")
         self.assertEqual(a1["confidence"], "Hypothesis")
-        self.assertIn("高叛逆风险人群", a1["flags"])
+        self.assertIn("逆反风险（待验证）", a1["flags"])
         self.assertNotIn("score", a1)
 
     def test_a2_watch_with_x2(self):
@@ -133,9 +134,10 @@ class WorkedExample2(unittest.TestCase):
         self.assertNotIn("score", a3)
 
     def test_a4_a5_x3_annotated(self):
-        for dim in ("A4", "A5"):
+        # v0.4：自我效能感单项略低 → A4 Watch；责任心+自我调节双低 → A5 At-Risk
+        for dim, state in (("A4", "Watch"), ("A5", "At-Risk")):
             rec = self.dims[dim]
-            self.assertEqual(rec["state"], "At-Risk", dim)
+            self.assertEqual(rec["state"], state, dim)
             self.assertEqual(rec["confidence"], "Hypothesis", dim)
             self.assertNotIn("score", rec, dim)
             self.assertIn("X.3", _ids(rec["cross_mods"]))
@@ -144,8 +146,8 @@ class WorkedExample2(unittest.TestCase):
     def test_a3_sequence_first(self):
         obs = {o["dim"]: o for o in self.p["obstacles"]}
         self.assertEqual(obs["A3"]["sequence"], 1)
-        # X.3 置顶后，A4 与 A5 同级并列时 A4 在前
-        self.assertEqual(self.p["priority_order"], ["A3", "A4", "A5"])
+        # X.3 置顶后，A5（At-Risk）排在 A4（Watch）之前
+        self.assertEqual(self.p["priority_order"], ["A3", "A5", "A4"])
         self.assertIn("X.3", self.p["sequence_note"])
 
     def test_questions_contain(self):

@@ -41,15 +41,16 @@ class DenyScalesBackSingleRule(unittest.TestCase):
 
     items = [item("自驱力-自主性", "偏低")]
 
-    def test_baseline_at_risk(self):
+    def test_baseline_watch(self):
+        # v0.4：自主性单项略低 = 弱信号 → Watch
         a1 = run(self.items)["dimensions"]["A1"]
-        self.assertEqual(a1["state"], "At-Risk")
+        self.assertEqual(a1["state"], "Watch")
         self.assertIn("R1.1", _ids(a1))
 
     def test_deny_q1_1_reverts_a1(self):
         profile = run(self.items, answers=[{"q": "Q1.1", "result": "deny"}])
         a1 = profile["dimensions"]["A1"]
-        # R1.1 的 state 贡献必须回退：不再 At-Risk
+        # R1.1 的 state 贡献必须回退：不再 Watch
         self.assertEqual(a1["state"], "Secure")
         # 规则被移出命中集
         self.assertNotIn("R1.1", _ids(a1))
@@ -62,9 +63,10 @@ class DenyBlocksDependentRule(unittest.TestCase):
     items = [item("学习动机-自我效能感", "偏低"),
              item("自驱力-胜任感", "偏低")]
 
-    def test_baseline_blocked(self):
+    def test_baseline_at_risk(self):
+        # v0.4：自我效能感 + 胜任感两个弱信号互证 → At-Risk
         a4 = run(self.items)["dimensions"]["A4"]
-        self.assertEqual(a4["state"], "Blocked")
+        self.assertEqual(a4["state"], "At-Risk")
         self.assertEqual(a4["subtype"], "A4-S2")
         self.assertIn("R4.1", _ids(a4))
         self.assertIn("R4.2", _ids(a4))

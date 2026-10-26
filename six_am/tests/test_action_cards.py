@@ -42,7 +42,7 @@ def run(items, evidence=None, answers=None):
 
 
 def rebellion_items():
-    """v0.2 §10 例 1：逆反型（A1 Blocked / A1-S2 / Hypothesis）。"""
+    """v0.4 例 1：逆反型（A1 At-Risk / A1-S2 / Hypothesis）。"""
     return [
         item("自驱力-自主性", "偏低"),
         order("独立自主", 2),
@@ -96,8 +96,8 @@ class HypothesisCard(unittest.TestCase):
         a1 = self.cards["A1"]
         for field in CARD_FIELDS:
             self.assertIn(field, a1, field)
-        self.assertEqual(a1["state"], "Blocked")
-        self.assertEqual(a1["state_label"], "阻塞 Blocked")
+        self.assertEqual(a1["state"], "At-Risk")
+        self.assertEqual(a1["state_label"], "风险 At-Risk")
         self.assertEqual(a1["evidence_state"], "Hypothesis")
         self.assertEqual(a1["evidence_label"], "仅线索 Hypothesis")
         # 固定模板：Y4 显示：{Y4事实}；可能指向：{规则标题}，需要进一步确认。
@@ -108,9 +108,9 @@ class HypothesisCard(unittest.TestCase):
         self.assertIn("自驱力-自主性", a1["headline"])
         self.assertIn("偏低", a1["headline"])
         # 规则标题进入 headline 与 hypotheses
-        self.assertIn("高叛逆风险", a1["headline"])
+        self.assertIn("逆反风险", a1["headline"])
         self.assertTrue(any("自驱力-自主性" in f and "偏低" in f for f in a1["y4_facts"]))
-        self.assertTrue(any("高叛逆风险" in h for h in a1["hypotheses"]))
+        self.assertTrue(any("逆反风险" in h for h in a1["hypotheses"]))
         # 不得把线索写成结论
         self.assertNotIn("当前判断为", a1["headline"])
 
@@ -135,7 +135,7 @@ class ConfirmedCard(unittest.TestCase):
         self.assertEqual(a1["evidence_label"], "已证实 Confirmed")
         # 固定模板：根据目前证据，当前判断为：{状态中文}{亚型}；依据包括：{证据原文}。
         self.assertTrue(a1["headline"].startswith("根据目前证据，当前判断为："), a1["headline"])
-        self.assertIn("阻塞", a1["headline"])
+        self.assertIn("风险", a1["headline"])
         self.assertIn("逆反", a1["headline"])
         self.assertIn("依据包括：", a1["headline"])
         self.assertTrue(a1["confirmed_evidence"])
@@ -311,7 +311,7 @@ class RefutedSurfacing(unittest.TestCase):
         self.assertEqual(len(refuted), 1)
         entry = refuted[0]
         self.assertEqual(entry["rule"], "R1.3")
-        self.assertEqual(entry["title"], "高叛逆风险（双条件）")
+        self.assertEqual(entry["title"], "逆反风险（自主需求×自主缺口）")
         self.assertEqual(entry["refuted_by"], "Q1.3")
         self.assertEqual(entry["dim"], "A1")
         self.assertEqual(entry["label"], "被排除 Refuted")
@@ -346,7 +346,7 @@ class V1Degrade(unittest.TestCase):
                        "confidence": "Hypothesis",
                        "score": {"total": 12.3, "base": 3.0},
                        "triggered_rules": [
-                           {"id": "R1.3", "title": "高叛逆风险（双条件）",
+                           {"id": "R1.3", "title": "逆反风险（自主需求×自主缺口）",
                             "evidence": [{"point": "自驱力-自主性", "eval_value": "偏低",
                                           "source": "规则推导"}],
                             "effect": {"state": "Blocked"}, "confidence": "Hypothesis",
@@ -527,7 +527,7 @@ class DocxActionCards(unittest.TestCase):
                        "confidence": "Hypothesis",
                        "score": {"total": 12.3, "base": 3.0},
                        "triggered_rules": [
-                           {"id": "R1.3", "title": "高叛逆风险（双条件）",
+                           {"id": "R1.3", "title": "逆反风险（自主需求×自主缺口）",
                             "evidence": [{"point": "自驱力-自主性", "eval_value": "偏低"}],
                             "effect": {"state": "Blocked"}, "confidence": "Hypothesis",
                             "contributing": True}],

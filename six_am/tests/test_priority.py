@@ -257,14 +257,14 @@ class A6QualitativeFit(unittest.TestCase):
 
     def test_r66_r67_conflict_authority_is_caution_with_x5(self):
         # A1-S2（逆反）→ R6.6 慎用；A5-S3（结构依赖）→ R6.7 推荐 Structure
+        # v0.4：A1-S2 要求自主性偏低，与 Y4 推出的 A5-S3（要求自主性不低）互斥，
+        # 冲突只会在标准化任务确认结构依赖（R5.7）时出现
         items = [
             _order_item("独立自主", 2),
-            _item("情绪稳定性-无力感掌控感", "偏低"),
-            _item("学习动机-深层动机", "较好"),
-            _item("学习方法与策略-学习自我调节", "偏低"),
-            _item("自驱力-自主性", "较好"),
+            _item("自驱力-自主性", "偏低"),
         ]
-        plan = self._plan(items)
+        evidence = {"ft": {"standard_task": {"can_split": True, "can_commit": False}}}
+        plan = self._plan(items, evidence)
         authority = self._entry(plan, "权威施压")
         # 不得显示为高分推荐：必须慎用，并保留 X.5 裁决说明
         self.assertEqual(authority["fit_label"], "慎用")
