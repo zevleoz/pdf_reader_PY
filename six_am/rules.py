@@ -566,7 +566,7 @@ _rule(
           {"predicate": "peer_attachment_not_low"}],
     then={"support_ops": [{"direction": "家长陪同", "delta": -2, "kind": "慎用"},
                           {"direction": "同伴协作", "delta": 1},
-                          {"direction": "权威施压", "delta": 1,
+                          {"direction": "导师督促", "delta": 1,
                            "note": "导师方向（非家庭权威）"}]},
     questions=["Q6.2"],
     text="关键不是'需不需要别人'，而是'谁、以什么方式出现才有效'",
@@ -574,7 +574,7 @@ _rule(
 _rule(
     id="R6.3", dim="A6", title="责任机制有效",
     when=[{"point": "人格-宜人性", "is": STRONG_ASSET}],
-    then={"support_ops": [{"direction": "权威施压", "delta": 2, "sub": ["Accountability"]}]},
+    then={"support_ops": [{"direction": "导师督促", "delta": 2, "sub": ["Accountability"]}]},
     questions=["Q6.2"],
     text="对他人期待敏感，责任机制有效",
 )
@@ -591,7 +591,7 @@ _rule(
     when=[{"any": [{"point": "人格-神经质", "is": ["高"]},
                    {"point": "情绪稳定性-焦虑安详", "is": ["需关注", "需特殊关注"]}]}],
     then={"support_ops": [
-        {"direction": "权威施压", "delta": -1, "kind": "避免",
+        {"direction": "导师督促", "delta": -1, "kind": "避免",
          "sub_note": "高压 Accountability 避免；Feedback 改为私密、高频、低 stakes"},
         {"direction": "同伴协作", "delta": -1, "kind": "避免", "sub_note": "公开 Competition 避免"},
     ]},
@@ -602,16 +602,16 @@ _rule(
     id="R6.6", dim="A6", title="自主受损：成人方向慎用",
     when=[{"any": [{"subtype": "A1-S2"}, {"subtype": "A1-S3"}]}],
     then={"support_ops": [
-        {"direction": "权威施压", "delta": -2, "kind": "慎用"},
+        {"direction": "导师督促", "delta": -2, "kind": "慎用"},
         {"direction": "家长陪同", "delta": -2, "kind": "慎用"},
         {"direction": "同伴协作", "delta": 1, "note": "Privacy 调节投递"},
     ]},
-    text="对自主感受损的学生，来自成人方向的监督本身就是新的阻力；权威施压方向仅对 A1 安全的学生开放",
+    text="对自主感受损的学生，来自成人方向的监督本身就是新的阻力；导师督促方向仅对 A1 安全的学生开放",
 )
 _rule(
     id="R6.7", dim="A6", title="结构依赖：Structure 排前",
     when=[{"subtype": "A5-S3"}],
-    then={"support_ops": [{"direction": "权威施压", "delta": 2, "sub": ["Structure"],
+    then={"support_ops": [{"direction": "导师督促", "delta": 2, "sub": ["Structure"],
                            "note": "与 R6.6 冲突时以 R6.6 为准"}]},
     questions=["Q6.2"],
     text="结构依赖型学生需要外部脚手架",

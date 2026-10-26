@@ -429,7 +429,7 @@ class V1SequenceNoteNotRendered(unittest.TestCase):
                                        "score": 3.0,
                                        "basis_rules": ["R6.8"],
                                        "cautions": ""}],
-                           "avoid": [{"direction": "权威施压", "kind": "避免",
+                           "avoid": [{"direction": "导师督促", "kind": "避免",
                                       "basis_rules": ["R6.6"],
                                       "reason": "高压 Accountability 避免"}],
                        }},

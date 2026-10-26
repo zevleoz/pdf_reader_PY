@@ -20,10 +20,10 @@ LEVEL_SEV = {"Secure": 0, "Watch": 1, "At-Risk": 2, "Blocked": 3}
 CONF_ORDER = ["Hypothesis", "Supported", "Confirmed"]
 DEFAULT_SUBS = {
     "同伴协作": ["Companion", "Group"],
-    "权威施压": ["Accountability", "Structure", "Deadline", "正式 Feedback"],
+    "导师督促": ["Accountability", "Structure", "Deadline", "正式 Feedback"],
     "家长陪同": ["家庭 Recognition", "陪跑", "低压力关注"],
 }
-DIRECTIONS = ["同伴协作", "权威施压", "家长陪同"]
+DIRECTIONS = ["同伴协作", "导师督促", "家长陪同"]
 
 
 # ── 求值上下文 ────────────────────────────────────────────────
@@ -199,6 +199,14 @@ def _order_entry(it: Dict[str, Any]) -> Optional[Tuple[str, Optional[int]]]:
 
 
 # ── 条件求值 ──────────────────────────────────────────────────
+def _point_evidence(ctx: "Ctx", label: str, it: Dict[str, Any], evv: Optional[str]) -> Dict[str, Any]:
+    """Y4 指标证据：附原始分、同龄常模与证据强度，供视图模型画判定依据。"""
+    return {"point": label, "eval_value": evv, "raw_value": it.get("raw_value"),
+            "norm": ctx.num_of(_norm_label(label) + "常模平均数"),
+            "tier": ctx.tier_of(label),
+            "source": it.get("eval_source", ""), "bias": it.get("data_bias") or ""}
+
+
 def eval_cond(cond: Dict[str, Any], ctx: Ctx) -> Tuple[bool, List[Dict[str, Any]], str]:
     """返回 (是否命中, 证据列表, 描述)。"""
     if not isinstance(cond, dict):
@@ -228,8 +236,7 @@ def eval_cond(cond: Dict[str, Any], ctx: Ctx) -> Tuple[bool, List[Dict[str, Any]
             return False, [], f"{label} 缺失"
         if "is" in cond:
             ok = evv in [str(x) for x in cond.get("is") or []]
-            ev = [{"point": label, "eval_value": evv, "source": it.get("eval_source", ""),
-                   "bias": it.get("data_bias") or ""}]
+            ev = [_point_evidence(ctx, label, it, evv)]
             return ok, (ev if ok else []), f"{label}={evv}"
         if "num_lt" in cond or "num_gt" in cond:
             num = ctx.num_of(label)
@@ -242,16 +249,13 @@ def eval_cond(cond: Dict[str, Any], ctx: Ctx) -> Tuple[bool, List[Dict[str, Any]
             if "num_gt" in cond:
                 th = _resolve_num(cond["num_gt"], ctx)
                 ok = ok and th is not None and num > th
-            ev = [{"point": label, "eval_value": ctx.eval_of(label), "raw_value": it.get("raw_value"),
-                   "source": it.get("eval_source", ""), "bias": it.get("data_bias") or ""}]
+            ev = [_point_evidence(ctx, label, it, ctx.eval_of(label))]
             return ok, (ev if ok else []), f"{label}={num}"
         if "tier" in cond:
             tier = ctx.tier_of(label)
             want = str(cond.get("tier"))
             ok = tier == "strong" if want == "strong" else tier in ("mild", "strong")
-            ev = [{"point": label, "eval_value": evv, "raw_value": it.get("raw_value"),
-                   "tier": tier, "source": it.get("eval_source", ""),
-                   "bias": it.get("data_bias") or ""}]
+            ev = [_point_evidence(ctx, label, it, evv)]
             return ok, (ev if ok else []), f"{label}:{tier}"
         if cond.get("missing"):
             return False, [], f"{label}"
@@ -620,10 +624,10 @@ def _run_a6(ctx: Ctx, rules_data: Dict[str, Dict[str, Any]], hits_by_dim: Dict[s
             "cautions": "；".join(cautions[d]) if cautions[d] else "",
         })
     ranked.sort(key=lambda item: (FIT_RANK[item["fit_label"]], DIRECTIONS.index(item["direction"])))
-    # 权威施压与 R6.6 冲突提示（X.5：以 R6.6 为准）
-    if any(a["direction"] == "权威施压" and a["basis_rules"] == ["R6.6"] for a in avoid):
+    # 导师督促与 R6.6 冲突提示（X.5：以 R6.6 为准）
+    if any(a["direction"] == "导师督促" and a["basis_rules"] == ["R6.6"] for a in avoid):
         for item in ranked:
-            if item["direction"] == "权威施压" and "R6.7" in item["basis_rules"]:
+            if item["direction"] == "导师督促" and "R6.7" in item["basis_rules"]:
                 item["cautions"] = (item["cautions"] + "；" if item["cautions"] else "") + \
                     "X.5：与 R6.6 冲突时以 R6.6 慎用为准"
     dim_rec = {

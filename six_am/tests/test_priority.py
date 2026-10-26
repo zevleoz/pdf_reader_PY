@@ -265,11 +265,11 @@ class A6QualitativeFit(unittest.TestCase):
         ]
         evidence = {"ft": {"standard_task": {"can_split": True, "can_commit": False}}}
         plan = self._plan(items, evidence)
-        authority = self._entry(plan, "权威施压")
+        authority = self._entry(plan, "导师督促")
         # 不得显示为高分推荐：必须慎用，并保留 X.5 裁决说明
         self.assertEqual(authority["fit_label"], "慎用")
         self.assertIn("X.5", authority["cautions"])
-        self.assertNotEqual(plan["ranked"][0]["direction"], "权威施压")
+        self.assertNotEqual(plan["ranked"][0]["direction"], "导师督促")
 
     def test_peer_collaboration_with_behavioral_evidence_is_preferred(self):
         # R6.1：外倾性高 + 同伴依恋高 + 团队行为经观察佐证 → 同伴协作 优先
@@ -284,8 +284,8 @@ class A6QualitativeFit(unittest.TestCase):
         self.assertIn("R6.1", peer["basis_rules"])
 
     def test_no_signal_direction_is_considerable(self):
-        plan = self._plan([_item("人格-宜人性", "高")])   # 仅 R6.3 → 权威施压 优先
-        self.assertEqual(self._entry(plan, "权威施压")["fit_label"], "优先")
+        plan = self._plan([_item("人格-宜人性", "高")])   # 仅 R6.3 → 导师督促 优先
+        self.assertEqual(self._entry(plan, "导师督促")["fit_label"], "优先")
         self.assertEqual(self._entry(plan, "同伴协作")["fit_label"], "可考虑")
         self.assertEqual(self._entry(plan, "家长陪同")["fit_label"], "可考虑")
 
@@ -298,7 +298,7 @@ class A6QualitativeFit(unittest.TestCase):
         plan = self._plan(items)
         peer = self._entry(plan, "同伴协作")
         parent = self._entry(plan, "家长陪同")
-        authority = self._entry(plan, "权威施压")
+        authority = self._entry(plan, "导师督促")
         self.assertIn("Competition", peer["sub_mechanisms"])
         self.assertIn("Recognition", parent["sub_mechanisms"])
         # “认可、适度竞争”必须携带高压力评价 caution

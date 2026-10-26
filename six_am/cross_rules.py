@@ -89,7 +89,7 @@ def apply(dims: Dict[str, Any], ctx, params: Dict[str, Any]) -> Dict[str, Any]:
     if ctx.rule_hit("R6.6") and ctx.rule_hit("R6.7"):
         constraints["x5"] = True
         _add_mod("A6", "X.5",
-                 "A6 统筹约束：R6.6（自主受损 → 权威施压/家长陪同慎用）与 R6.7（结构依赖 → Structure 排前）"
+                 "A6 统筹约束：R6.6（自主受损 → 导师督促/家长陪同慎用）与 R6.7（结构依赖 → Structure 排前）"
                  "冲突，以 R6.6 的慎用为准")
 
     # ── X.6 全局无兴趣优先级 ──────────────────────────────────

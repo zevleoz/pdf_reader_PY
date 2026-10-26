@@ -93,14 +93,14 @@ class WorkedExample1(unittest.TestCase):
         self.assertEqual(plan["ranked"][0]["direction"], "同伴协作")
         by_dir = {r["direction"]: r for r in plan["ranked"]}
         # 定性适配：R6.6 命中 → 成人方向慎用；同伴协作有正向规则支持 → 优先
-        self.assertEqual(by_dir["权威施压"]["fit_label"], "慎用")
+        self.assertEqual(by_dir["导师督促"]["fit_label"], "慎用")
         self.assertEqual(by_dir["家长陪同"]["fit_label"], "慎用")
         self.assertEqual(by_dir["同伴协作"]["fit_label"], "优先")
         for r in plan["ranked"]:
             self.assertNotIn("score", r)
             self.assertNotIn("predicted_effectiveness", r)
         avoid = {(a["direction"], a["kind"]) for a in plan["avoid"]}
-        self.assertIn(("权威施压", "慎用"), avoid)
+        self.assertIn(("导师督促", "慎用"), avoid)
         self.assertIn(("家长陪同", "慎用"), avoid)
 
     def test_questions_contain(self):
@@ -202,9 +202,9 @@ class WorkedExample3(unittest.TestCase):
         plan = self.p["support_plan"]
         top2 = [r["direction"] for r in plan["ranked"][:2]]
         self.assertIn("同伴协作", top2)
-        self.assertIn("权威施压", top2)
+        self.assertIn("导师督促", top2)
         by_dir = {r["direction"]: r for r in plan["ranked"]}
-        authority = by_dir["权威施压"]
+        authority = by_dir["导师督促"]
         self.assertIn("Structure", authority["sub_mechanisms"])
         # R6.1 团队行为经观察佐证 → 同伴协作 优先
         self.assertEqual(by_dir["同伴协作"]["fit_label"], "优先")
