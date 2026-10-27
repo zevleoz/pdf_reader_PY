@@ -25,7 +25,7 @@ class EvidenceFieldsTest(unittest.TestCase):
             _item("自驱力-自主性", "偏低", "3.3"),
             _item("自驱力-自主性常模平均数", None, "6.1"),
         ]
-        profile = engine.run(items)
+        profile = engine.run(items, engine_version="v0.4")
         traces = [t for t in profile["dimensions"]["A1"]["triggered_rules"] if t["id"] == "R1.1"]
         self.assertEqual(len(traces), 1)
         ev = traces[0]["evidence"][0]

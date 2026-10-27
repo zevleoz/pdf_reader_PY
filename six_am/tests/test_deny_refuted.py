@@ -29,7 +29,7 @@ def item(label, value):
 
 def run(items, answers=None):
     return engine.run(items, student={"name": "测试学生", "grade": "高二"},
-                      answers=answers)
+                      answers=answers, engine_version="v0.4")
 
 
 def _ids(rec):

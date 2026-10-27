@@ -27,7 +27,8 @@ def order(value, pos, total=15):
 
 
 def run(items):
-    return engine.run(items, student={"name": "测试学生", "grade": "高二"})
+    return engine.run(items, student={"name": "测试学生", "grade": "高二"},
+                      engine_version="v0.4")
 
 
 def cards_by_dim(profile):

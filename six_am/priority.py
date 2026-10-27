@@ -78,6 +78,7 @@ def compute(dims: Dict[str, Any], constraints: Dict[str, Any]) -> Dict[str, Any]
         _group(d),
         _EVIDENCE_RANK.get(_evidence(d), 2),
         _STATE_RANK.get(_state(d), 3),
+        _distance(dims, d),
         DIM_ORDER.index(d),
     ))
 
@@ -102,6 +103,14 @@ def compute(dims: Dict[str, Any], constraints: Dict[str, Any]) -> Dict[str, Any]
         "deferred": deferred,
         "sequence_note": _sequence_note(x1, x3_top, x6, x7, safety),
     }
+
+
+def _distance(dims: Dict[str, Any], dim: str) -> tuple:
+    """同组同证据同状态内：distance 越小（越负）越靠前；缺失排最后。"""
+    value = (dims.get(dim) or {}).get("distance")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return (1, 0.0)
+    return (0, float(value))
 
 
 def _reason(dim: str, dims: Dict[str, Any],

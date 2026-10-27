@@ -195,6 +195,12 @@ def evidence_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     st = gaps.get("standard_task")
     if isinstance(st, dict) and st.get("can_split") is not None:
         ft["standard_task"] = st
+    goal = gaps.get("goal")
+    if isinstance(goal, dict):
+        judgement = str(goal.get("judgement") or "").strip()
+        text = str(goal.get("text") or "").strip()
+        if judgement or text:
+            ft["goal"] = {"text": text, "judgement": judgement}
     if ft:
         ev["ft"] = ft
 
@@ -221,7 +227,7 @@ def recover_evidence(profile: Optional[Dict[str, Any]]) -> Optional[Dict[str, An
         src = item.get("source")
         kind = item.get("kind")
         detail = item.get("detail")
-        if src == "FT" and kind in ("schedule", "standard_task", "subject_status", "notes"):
+        if src == "FT" and kind in ("schedule", "standard_task", "subject_status", "notes", "goal"):
             ev.setdefault("ft", {})[kind] = detail
         elif src == "FT" and kind == "task":
             ev["task"] = detail

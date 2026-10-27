@@ -187,7 +187,8 @@ class EngineV2Profile(unittest.TestCase):
              "eval_value": "偏低", "eval_source": "规则推导", "dimension": "",
              "data_bias": "正常"},
         ]
-        self.p = engine.run(items, student={"name": "t", "grade": "g"})
+        self.p = engine.run(items, student={"name": "t", "grade": "g"},
+                            engine_version="v0.4")
 
     def test_no_score_is_written_to_dimensions(self):
         for dim, rec in self.p["dimensions"].items():
@@ -211,7 +212,8 @@ class EngineV2Profile(unittest.TestCase):
              "eval_value": "偏低", "eval_source": "规则推导", "dimension": "",
              "data_bias": "正常"},
         ]
-        p = engine.run(items, evidence={"parent": {"cannot_relinquish": True}})
+        p = engine.run(items, evidence={"parent": {"cannot_relinquish": True}},
+                       engine_version="v0.4")
         self.assertIn("A1", {d["dim"] for d in p["deferred"]})
         self.assertNotIn("A1", {q["dim"] for q in p["questions"]})
         # A6 题仍按规则保留
@@ -238,7 +240,8 @@ class A6QualitativeFit(unittest.TestCase):
     FIT_LABELS = {"优先", "可考虑", "慎用", "避免"}
 
     def _plan(self, items, evidence=None):
-        p = engine.run(items, student={"name": "t", "grade": "g"}, evidence=evidence)
+        p = engine.run(items, student={"name": "t", "grade": "g"}, evidence=evidence,
+                       engine_version="v0.4")
         return p["support_plan"]
 
     def _entry(self, plan, direction):

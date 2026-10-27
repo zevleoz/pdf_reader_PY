@@ -38,7 +38,7 @@ def order(value, pos, total=15):
 
 def run(items, evidence=None, answers=None):
     return engine.run(items, student={"name": "测试学生", "grade": "高二"},
-                      evidence=evidence, answers=answers)
+                      evidence=evidence, answers=answers, engine_version="v0.4")
 
 
 def rebellion_items():
@@ -496,6 +496,7 @@ class DocxActionCards(unittest.TestCase):
             rebellion_items(),
             student={"name": "测试学生", "grade": "高二"},
             evidence={"ft": {"schedule": {"load_level": "高", "free_hours_per_week": 2}}},
+            engine_version="v0.4",
         )
         text = _docx_text(profile)
         # 每维行动卡字段

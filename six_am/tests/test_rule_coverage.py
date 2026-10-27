@@ -202,7 +202,7 @@ def _rule_fixture(rid):
     for cond in R.RULES[rid].get("when") or []:
         _satisfy(cond, fx)
     items, evidence = fx.finish()
-    return engine.run(items, evidence=evidence)
+    return engine.run(items, evidence=evidence, engine_version="v0.4")
 
 
 def _cross_mod_ids(profile):
@@ -264,7 +264,7 @@ class RuleReachability(unittest.TestCase):
         fx.add_point("自驱力-胜任感", "偏低")         # R4.2
         fx.add_evidence("observation.first_failure_quit", True)  # R4.8
         items, evidence = fx.finish()
-        a4 = engine.run(items, evidence=evidence)["dimensions"]["A4"]
+        a4 = engine.run(items, evidence=evidence, engine_version="v0.4")["dimensions"]["A4"]
         self.assertEqual(a4["subtype"], "A4-S2")
         self.assertEqual(a4["confidence"], "Supported")
 
@@ -273,7 +273,7 @@ class RuleReachability(unittest.TestCase):
         fx = _Fixture()
         fx.add_evidence("observation.first_failure_quit", True)
         items, evidence = fx.finish()
-        a4 = engine.run(items, evidence=evidence)["dimensions"]["A4"]
+        a4 = engine.run(items, evidence=evidence, engine_version="v0.4")["dimensions"]["A4"]
         self.assertEqual(a4["state"], "Secure")
         self.assertIsNone(a4["confidence"])
 
@@ -285,7 +285,7 @@ class CrossRuleCoverage(unittest.TestCase):
         fx = _Fixture()
         builder(fx)
         items, evidence = fx.finish()
-        return engine.run(items, evidence=evidence)
+        return engine.run(items, evidence=evidence, engine_version="v0.4")
 
     def test_x1_double_lock(self):
         def b(fx):

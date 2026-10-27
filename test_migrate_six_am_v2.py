@@ -58,6 +58,13 @@ def _v1_profile(report_id: int, name: str = "迁移学生") -> dict:
     }
 
 
+def _rebuild_v04(report_id: int, source_profile: dict):
+    """迁移测试固定用 v0.4 引擎重算（v2 档案结构），v0.5 为现行默认引擎。"""
+    from six_am import build_profile
+    return build_profile(int(report_id), source_profile=source_profile,
+                         params={"engine": "v0.4"})
+
+
 class MigrationBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -134,7 +141,7 @@ class ApplyMigration(MigrationBase):
         self._add_profile(version=2)
         before = self._snapshot()
         backup = self._backup_path("bk.db")
-        items = mig.run_apply(backup)
+        items = mig.run_apply(backup, rebuild=_rebuild_v04)
         self.assertEqual(len(items), 2)
         self.assertTrue(os.path.exists(backup))
         self.assertGreater(os.path.getsize(backup), 0)

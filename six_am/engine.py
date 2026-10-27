@@ -653,13 +653,26 @@ def run(eval_items: List[Dict[str, Any]],
         rule_version: Optional[Dict[str, Any]] = None,
         report_id: Optional[int] = None,
         answers: Optional[List[Dict[str, Any]]] = None,
-        rule_overrides: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
-    """执行 6 A.M. 全流程，返回 profile dict（结构见实施计划 §3.3）。"""
-    from . import cross_rules, priority, questionnaire
-    params = R.merge_params(params)
+        rule_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
+        engine_version: Optional[str] = None) -> Dict[str, Any]:
+    """执行 6 A.M. 全流程，返回 profile dict（结构见实施计划 §3.3）。
+
+    v0.5（默认）：按 params["spec"] 的规则配置求值（见 evaluator）。
+    v0.4：保留原规则引擎，供已固定的旧测试与历史档案复算。
+    """
+    from . import cross_rules, priority, questionnaire, evaluator
+    raw_params = params or {}
+    spec = raw_params.get("spec")
+    version = engine_version
+    if version is None:
+        version = "v0.4" if raw_params.get("engine") == "v0.4" else "v0.5"
+    params = R.merge_params({k: v for k, v in raw_params.items() if k != "spec"})
     rules_data = R.apply_rule_overrides(overrides=rule_overrides)
     answers = answers or []
     ctx = Ctx(eval_items, evidence, params)
+    if version == "v0.5":
+        from .spec import DEFAULT_SPEC
+        spec = spec or DEFAULT_SPEC
 
     def _pass(refuted: Dict[str, str]) -> Tuple[Dict[str, DimAcc], Dict[str, List[Dict[str, Any]]]]:
         ctx._hits = {}
@@ -677,15 +690,41 @@ def run(eval_items: List[Dict[str, Any]],
         return accs, hits
 
     # 两遍：先无否定跑一遍，把答案映射到规则；再带否定重跑
-    accs, hits = _pass({})
-    conf_overrides, refuted = _map_answers(hits, answers)
-    if refuted:
-        accs, hits = _pass(refuted)
+    if version == "v0.5":
+        # v0.5：信号求值两遍；否定答案移出对应信号，确认答案抬升维度置信
+        dims, hits = evaluator.evaluate_dims(ctx, spec, {}, {})
+        refuted: Dict[str, str] = {}
+        conf_overrides: Dict[str, str] = {}
+        for ans in answers:
+            q = str(ans.get("q") or "")
+            result = str(ans.get("result") or "")
+            if not q:
+                continue
+            for dim, dhits in hits.items():
+                for h in dhits:
+                    if q not in (h.get("questions") or []):
+                        continue
+                    if result == "confirm":
+                        conf_overrides[dim] = "Confirmed"
+                    elif result == "partial" and conf_overrides.get(dim) != "Confirmed":
+                        conf_overrides[dim] = "Supported"
+                    elif result == "deny":
+                        refuted[h["id"]] = q
+        if refuted or conf_overrides:
+            dims, hits = evaluator.evaluate_dims(ctx, spec, refuted, conf_overrides)
+        a6_rec, a6_hits = evaluator.assign_supports(ctx, spec, dims)
+        banners = evaluator.banners(ctx, spec)
+    else:
+        accs, hits = _pass({})
+        conf_overrides, refuted = _map_answers(hits, answers)
+        if refuted:
+            accs, hits = _pass(refuted)
 
-    dims: Dict[str, Any] = {}
-    for dim in ["A1", "A2", "A3", "A4", "A5"]:
-        dims[dim] = _finalize_dim(accs[dim], ctx, conf_overrides, refuted)
-    a6_rec, a6_hits = _run_a6(ctx, rules_data, hits, params, dims)
+        dims = {}
+        for dim in ["A1", "A2", "A3", "A4", "A5"]:
+            dims[dim] = _finalize_dim(accs[dim], ctx, conf_overrides, refuted)
+        a6_rec, a6_hits = _run_a6(ctx, rules_data, hits, params, dims)
+        banners = {"flags": [], "safety": False}
     dims["A6"] = a6_rec
     hits["A6"] = a6_hits
 
@@ -702,8 +741,16 @@ def run(eval_items: List[Dict[str, Any]],
     # 追问选择
     questions = questionnaire.select(dims, hits, params, prio["priority_order"])
 
+    evidence_log = _evidence_log(evidence)
+    goal = ((evidence or {}).get("ft") or {}).get("goal")
+    if goal:
+        evidence_log.append({"source": "FT", "kind": "goal", "detail": goal})
+
     profile = {
-        "schema": "six-am-profile-v2",
+        "schema": "six-am-profile-v3" if version == "v0.5" else "six-am-profile-v2",
+        "engine": version,
+        "spec_version": str((spec or {}).get("version") or "") if version == "v0.5" else None,
+        "flags_global": list(banners["flags"]),
         "generated_at": _dt.datetime.now().isoformat(timespec="seconds"),
         "rule_version": rule_version or {"id": None, "label": "default", "status": None},
         "student": {"name": (student or {}).get("name", ""), "grade": (student or {}).get("grade", "")},
@@ -714,9 +761,10 @@ def run(eval_items: List[Dict[str, Any]],
         "deferred": prio["deferred"],
         "sequence_note": prio["sequence_note"],
         "support_plan": dims["A6"]["support_ranking"],
-        "safety_review": "情绪安全复核" in (dims["A3"].get("flags") or []),
+        "safety_review": bool(banners["safety"]) if version == "v0.5"
+        else ("情绪安全复核" in (dims["A3"].get("flags") or [])),
         "questions": questions,
-        "evidence_log": _evidence_log(evidence),
+        "evidence_log": evidence_log,
         "gaps": _gaps(evidence),
         "answers": answers,
         "refuted": refuted,

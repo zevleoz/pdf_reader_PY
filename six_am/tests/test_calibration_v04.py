@@ -30,7 +30,8 @@ def order(value, pos):
 
 
 def run(items, evidence=None):
-    return engine.run(items, student={"name": "t", "grade": "g"}, evidence=evidence)
+    return engine.run(items, student={"name": "t", "grade": "g"}, evidence=evidence,
+                      engine_version="v0.4")
 
 
 def ids(rec):

@@ -30,7 +30,7 @@ def order(value, pos, total=15):
 
 def run(items, evidence=None):
     return engine.run(items, student={"name": "测试学生", "grade": "高二"},
-                      evidence=evidence)
+                      evidence=evidence, engine_version="v0.4")
 
 
 def _ids(mods):
