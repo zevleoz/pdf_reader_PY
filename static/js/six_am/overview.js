@@ -150,7 +150,7 @@
     el.innerHTML =
       '<div class="row"><div><h1>6AM 启动模型 · 总览</h1><p class="sub">' +
         state.students.length + ' 名学生有档案</p></div><span class="spacer"></span>' +
-        '<a class="btn" href="/insights/six-am/rules">规则与参数</a>' +
+        '<a class="btn" href="/insights/six-am/board">规则与参数</a>' +
         '<button class="btn primary" type="button" data-go="review">开始评审会</button></div>' +
       kpis() + distributionCard() + filtersRow() +
       '<div id="sa2-ov-list">' + listHTML() + '</div>';
