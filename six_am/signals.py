@@ -219,7 +219,7 @@ SIGNALS: Dict[str, Dict[str, Any]] = {
         "params": [], "official_labels": _PCT_LABELS,
     },
     "extraversion_low": {
-        "id": "extraversion_low", "label": "人格-外倾性 偏低 or lower", "source": "Y4 测评",
+        "id": "extraversion_low", "label": "人格-外倾性 偏低及以下", "source": "Y4 测评",
         "kind": "a6", "dims": [], "questions": ["Q6.1"],
         "params": [], "official_labels": _PERSON_LABELS,
     },

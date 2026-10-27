@@ -108,23 +108,26 @@ def _gate_levels(spec: Dict[str, Any],
     return out
 
 
-def _evidence_confirm(dim: str, ctx) -> bool:
-    """Y4 之外的佐证（First Touch：时间 / 任务 / 目标；A2 另加家长主诉）。"""
-    if dim == "A2":
-        return bool(ctx.ev("ft.goal.judgement")) or bool(ctx.ev("parent.complaint"))
-    if dim == "A3":
-        return bool(ctx.ev("ft.schedule"))
-    if dim == "A5":
-        return bool(ctx.ev("ft.standard_task"))
-    return False
+# 只有"显示出问题"的 Y4 之外证据才算佐证：目标部分/不认同、家长主诉、
+# 时间排满、规划小任务未通过。仅"填写过"First Touch 不算。
+_CONFIRM_SIGNALS = {
+    "A2": ("ft_goal", "parent_complaint"),
+    "A3": ("schedule_full",),
+    "A5": ("ft_task",),
+}
 
 
-def _confidence(dim: str, ctx, conf_overrides: Optional[Dict[str, str]],
+def _evidence_confirm(dim: str, results: Dict[str, Dict[str, Any]]) -> bool:
+    return any((results.get(sid) or {}).get("hit") for sid in _CONFIRM_SIGNALS.get(dim, ()))
+
+
+def _confidence(dim: str, results: Dict[str, Dict[str, Any]],
+                conf_overrides: Optional[Dict[str, str]],
                 any_hit: bool) -> Optional[str]:
     override = (conf_overrides or {}).get(dim)
     if override in ("Confirmed", "Supported"):
         return override
-    if _evidence_confirm(dim, ctx):
+    if _evidence_confirm(dim, results):
         return "Supported"
     return "Hypothesis" if any_hit else None
 
@@ -190,6 +193,8 @@ def _eval_a1(dim_spec: Dict[str, Any], results, conf) -> Dict[str, Any]:
             subtype = st
             break
     ids = _dim_signal_ids(dim_spec)
+    if level != "Secure":   # 稳固确认信号（幸福与满足等）只在稳固时作为依据列出
+        ids = [sid for sid in ids if sid not in (dim_spec.get("secure") or [])]
     return _record("A1", level, subtype, conf if level != "Secure" else None,
                    ids, results, _distance(results, ids + main + supporting))
 
@@ -199,18 +204,17 @@ _A2_SUBTYPE_ORDER = ("A2-S3", "A2-S4", "A2-S2", "A2-S1")
 
 
 def _eval_a2(dim_spec: Dict[str, Any], results, conf) -> Dict[str, Any]:
-    main_level = _worst([(results.get(sid) or {}).get("level")
-                         for sid in dim_spec.get("main") or []])
+    # 学习场景：深层动机 → +辅助 → +佐证；活动场景（First Touch 目标）单独定级，取较重者
+    learning = None
+    if _hit_ids(dim_spec.get("main") or [], results):
+        learning = "Watch"
+        if _hit_ids(dim_spec.get("supporting") or [], results):
+            learning = "At-Risk"
+            if conf in ("Supported", "Confirmed"):
+                learning = "Blocked"
     activity = dim_spec.get("activity")
     activity_level = (results.get(activity) or {}).get("level") if activity else None
-    level = _worst([main_level, activity_level]) or "Secure"
-    supporting = _hit_ids(dim_spec.get("supporting") or [], results)
-    escalated = False
-    if level == "Watch" and supporting:
-        level = "At-Risk"
-        escalated = True
-    if escalated and conf in ("Supported", "Confirmed"):
-        level = "Blocked"
+    level = _worst([learning, activity_level]) or "Secure"
     subtypes = [(results.get(sid) or {}).get("subtype") for sid in _dim_signal_ids(dim_spec)]
     subtype = None
     for wanted in _A2_SUBTYPE_ORDER:
@@ -235,6 +239,9 @@ def _eval_a3(dim_spec: Dict[str, Any], results, conf,
             wm = (results.get(sid) or {}).get("level")
             break
     level = _worst([body, emotion, time, wm]) or "Secure"
+    # 阻塞 = Y4 闸门（身体 / 情绪）已到风险 + 佐证（时间排满或追问证实）
+    if _sev(_worst([body, emotion])) >= 2 and conf in ("Supported", "Confirmed"):
+        level = "Blocked"
     subtype = None
     if _sev(body) >= 1:
         subtype = "A3-S2"
@@ -293,7 +300,7 @@ def _eval_a5(dim_spec: Dict[str, Any], results, conf) -> Dict[str, Any]:
         if supporting:
             level = "At-Risk"
     if level == "At-Risk" and conf in ("Supported", "Confirmed"):
-        level = "Blocked"
+        level = "Blocked"   # 追问证实，或规划小任务未通过（见下）
     confirm = dim_spec.get("confirm")
     task = results.get(confirm) if confirm else None
     if task and task.get("hit"):
@@ -329,7 +336,7 @@ def evaluate_dims(ctx, spec: Dict[str, Any], refuted_signals=None,
         dim_spec = dims_spec.get(dim) or {}
         ids = _dim_signal_ids(dim_spec)
         any_hit = any((results.get(sid) or {}).get("hit") for sid in ids)
-        conf = _confidence(dim, ctx, conf_overrides, any_hit)
+        conf = _confidence(dim, results, conf_overrides, any_hit)
         if dim == "A1":
             rec = _eval_a1(dim_spec, results, conf)
         elif dim == "A2":
@@ -341,6 +348,8 @@ def evaluate_dims(ctx, spec: Dict[str, Any], refuted_signals=None,
         else:
             rec = _eval_a5(dim_spec, results, conf)
         dims[dim] = rec
+        if rec["state"] != "Secure":
+            ids = [sid for sid in ids if sid not in (dim_spec.get("secure") or [])]
         hits[dim] = [_hit_dict(dim, sid, results[sid], rec["confidence"]) for sid in ids
                      if (results.get(sid) or {}).get("hit")]
     return dims, hits

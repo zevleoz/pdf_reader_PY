@@ -243,5 +243,55 @@ class ViewCompat(unittest.TestCase):
                          "时间已经排满，没有空间开始新的事情。")
 
 
+class FirstTouchConfirmsOnlyWhenItShowsAProblem(unittest.TestCase):
+    """填写过 First Touch 不等于佐证：只有目标部分/不认同、时间排满、小任务未通过才算。"""
+
+    LOW2 = [item("学习动机-深层动机", "偏低"), item("学习动机-表面动机", "偏低")]
+
+    def _dim(self, items, ft, dim):
+        return run(items, evidence={"ft": ft})["dimensions"][dim]
+
+    def test_a2_goal_agreed_does_not_block(self):
+        a2 = self._dim(self.LOW2, {"goal": {"text": "x", "judgement": "认同"}}, "A2")
+        self.assertEqual(a2["state"], "At-Risk")
+        self.assertEqual(a2["confidence"], "Hypothesis")
+
+    def test_a2_goal_disagreed_confirms_learning_risk(self):
+        a2 = self._dim(self.LOW2, {"goal": {"text": "x", "judgement": "不认同"}}, "A2")
+        self.assertEqual(a2["state"], "Blocked")
+
+    def test_a2_goal_partial_with_surface_low_only_is_watch(self):
+        a2 = self._dim([item("学习动机-表面动机", "偏低")],
+                       {"goal": {"text": "x", "judgement": "部分认同"}}, "A2")
+        self.assertEqual(a2["state"], "Watch")
+
+    def test_a5_task_passed_does_not_block(self):
+        a5 = self._dim([item("人格-责任心", "偏低"), item("职业兴趣-常规型", "高")],
+                       {"standard_task": {"can_split": True, "can_commit": True}}, "A5")
+        self.assertEqual(a5["state"], "At-Risk")
+
+    def test_a3_y4_risk_plus_full_schedule_blocks(self):
+        a3 = self._dim([item("体质健康-睡眠评级", "差")],
+                       {"schedule": {"load_level": "高"}}, "A3")
+        self.assertEqual(a3["state"], "Blocked")
+        self.assertEqual(a3["subtype"], "A3-S2")
+
+    def test_a3_light_schedule_does_not_confirm(self):
+        a3 = self._dim([item("体质健康-睡眠评级", "差")],
+                       {"schedule": {"load_level": "低", "free_hours_per_week": 20}}, "A3")
+        self.assertEqual(a3["state"], "At-Risk")
+
+    def test_a1_secure_signal_not_listed_as_risk_reason(self):
+        a1 = run([item("自驱力-自主性", "偏低"), item("自我概念-幸福与满足", "高"),
+                  order("独立自主", 2), order("上司关系", 4)])["dimensions"]["A1"]
+        self.assertEqual(a1["state"], "At-Risk")
+        self.assertNotIn("wellbeing_ok", [t["id"] for t in a1["triggered_rules"]])
+
+    def test_a3_full_schedule_alone_is_risk(self):
+        a3 = self._dim([], {"schedule": {"load_level": "高"}}, "A3")
+        self.assertEqual(a3["state"], "At-Risk")
+        self.assertEqual(a3["subtype"], "A3-S4")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
