@@ -442,6 +442,16 @@
     var fam = g.family_complaint || {};
     var tags = fam.tags || [];
     var sch = g.schedule || {};
+    var goal = g.goal || {};
+    if (!goal.text && !goal.judgement) {
+      ((d.profile && d.profile.evidence_log) || []).some(function (item) {
+        if (item && item.source === 'FT' && item.kind === 'goal' && item.detail) {
+          goal = item.detail;
+          return true;
+        }
+        return false;
+      });
+    }
     var subj = Array.isArray(g.subject_status) ? g.subject_status : [];
     var st = g.standard_task || {};
     var nextV = parseInt(d.version, 10);
@@ -478,6 +488,17 @@
         return '<option value="' + v + '"' + ((sch.load_level || '') === v ? ' selected' : '') + '>' +
           (v || '请选择') + '</option>';
       }).join('') + '</select></div></fieldset>' +
+
+      '<fieldset class="gap"><legend>当前目标</legend>' +
+      '<input class="inp gp-goal-text" maxlength="200" placeholder="目标描述（≤ 200 字）" value="' +
+      SA.esc(goal.text || '') + '">' +
+      '<label class="sub" for="p5-goal-judge">学生对目标的认同</label>' +
+      '<select class="inp gp-goal-judge" id="p5-goal-judge">' +
+      ['', '认同', '部分认同', '不认同'].map(function (v) {
+        return '<option value="' + v + '"' + ((goal.judgement || '') === v ? ' selected' : '') + '>' +
+          (v || '（未填）') + '</option>';
+      }).join('') + '</select>' +
+      '<p class="sub">用于 A2 活动场景：认同 → 稳固，部分认同 → 关注，不认同 → 风险。</p></fieldset>' +
 
       '<fieldset class="gap"><legend>学科状态</legend><div id="p5-subj-rows">' +
       subj.map(subjectRow).join('') + '</div>' +
@@ -528,6 +549,15 @@
       load_level: schLoad ? schLoad.value : ''
     };
     if (sch.overview || sch.free_hours_per_week != null || sch.load_level) gaps.schedule = sch;
+
+    var goalText = q('.gp-goal-text');
+    var goalJudge = q('.gp-goal-judge');
+    if (goalJudge && goalJudge.value) {
+      gaps.goal = {
+        text: goalText ? goalText.value.trim().slice(0, 200) : '',
+        judgement: goalJudge.value
+      };
+    }
 
     var rows = [];
     Array.prototype.forEach.call(el.querySelectorAll('.subj-row'), function (row) {
