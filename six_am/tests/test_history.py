@@ -96,5 +96,23 @@ class Timeline(unittest.TestCase):
         self.assertEqual(out[0]["created_at"], "b")
 
 
+class DropToSecure(unittest.TestCase):
+    """维度降为稳固（证据等级清空）时只输出状态行，不输出空的证据行。"""
+
+    def test_no_empty_evidence_line(self):
+        lines = diff_profiles(profile("Watch", "Hypothesis"), profile("Secure", None))
+        self.assertIn("A1 关注 → 稳固", lines)
+        self.assertFalse(any(l.startswith("A1 证据") for l in lines))
+
+
+class OrderReasonInChinese(unittest.TestCase):
+    def test_fallback_reason_is_chinese(self):
+        from six_am import priority
+        dims = {"A4": {"state": "Watch", "confidence": "Hypothesis"}}
+        out = priority.compute(dims, {})
+        self.assertEqual(dims["A4"]["priority_reason"], "关注 · 仅线索")
+        self.assertEqual(out["priority_order"], ["A4"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

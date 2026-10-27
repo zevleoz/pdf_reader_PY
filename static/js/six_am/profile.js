@@ -140,7 +140,7 @@
       '<h1>' + SA.esc(stu.name || '') +
       ' <span class="sub" style="font-size:14px;font-weight:400">' + SA.esc(stu.grade || '') + '</span></h1>' +
       '<p class="sub">报告 ' + SA.esc(data.report_date || '—') + ' · 档案 v' + SA.esc(data.version || '') +
-      (rv.label ? ' · ' + SA.esc(rv.label) : '') + '</p></div>' +
+      ' · ' + SA.esc(!rv.label || rv.label === 'default' ? '默认规则' : '规则 ' + rv.label) + '</p></div>' +
       '<span class="spacer"></span><div class="row">';
     if (data.previous_states) {
       h += '<label class="row" style="gap:6px;font-size:12.5px;color:var(--muted)">' +
@@ -222,7 +222,7 @@
   /* ── 指标条 ─────────────────────────────────────────────── */
   function meter(ind) {
     if (ind.text) {
-      return '<div class="meter"></div><div class="val">' + SA.esc(ind.text) + '</div>';
+      return '<div class="val" style="grid-column:2 / 4;text-align:left">' + SA.esc(ind.text) + '</div>';
     }
     if (ind.rank != null) {
       var total = ind.rank_total || 15;

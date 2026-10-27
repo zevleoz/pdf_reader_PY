@@ -140,12 +140,6 @@ def create_app() -> Flask:
         return send_from_directory(str(BASE_DIR / "static" / "css"), "six_am.css",
                                    mimetype="text/css")
 
-    @app.route("/js/six_am.js")
-    def serve_six_am_js():
-        """6AM 主页面脚本（static/js/six_am.js）。"""
-        return send_from_directory(str(BASE_DIR / "static" / "js"), "six_am.js",
-                                   mimetype="text/javascript")
-
     @app.route("/js/six_am/<path:filename>")
     def serve_six_am_module_js(filename):
         """6AM 2.0 模块脚本（static/js/six_am/）。"""

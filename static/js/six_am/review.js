@@ -82,7 +82,7 @@
   /* ── 指标条 ─────────────────────────────────────────────── */
   function meter(ind) {
     if (ind.text) {
-      return '<div class="meter"></div><div class="val">' + SA.esc(ind.text) + '</div>';
+      return '<div class="val" style="grid-column:2 / 4;text-align:left">' + SA.esc(ind.text) + '</div>';
     }
     if (ind.rank != null) {
       var total = ind.rank_total || 15;

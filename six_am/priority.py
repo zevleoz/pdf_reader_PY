@@ -28,6 +28,8 @@ from typing import Any, Dict, List, Optional
 DIM_ORDER = ["A1", "A2", "A3", "A4", "A5"]
 _EVIDENCE_RANK = {"Confirmed": 0, "Supported": 1, "Hypothesis": 2, None: 2}
 _STATE_RANK = {"Blocked": 0, "At-Risk": 1, "Watch": 2, "Secure": 3}
+_STATE_ZH = {"Secure": "稳固", "Watch": "关注", "At-Risk": "风险", "Blocked": "阻塞"}
+_EVIDENCE_ZH = {"Hypothesis": "仅线索", "Supported": "有佐证", "Confirmed": "已证实"}
 
 X7_DEFER_REASON = ("长期目标：家长无法或不愿让渡主导权；"
                    "当前优先级转向 A2 意义连接（在家长划定的边界内帮学生找到"
@@ -117,7 +119,7 @@ def _reason(dim: str, dims: Dict[str, Any],
     if dim == "A1" and x1:
         return "X.1 双锁：A1×A2 同时受阻，先恢复所有权再谈意义（先 A1 后 A2）"
     evidence = (dims.get(dim) or {}).get("confidence") or "Hypothesis"
-    return "证据状态 %s · 状态 %s" % (evidence, state)
+    return "%s · %s" % (_STATE_ZH.get(state, state), _EVIDENCE_ZH.get(evidence, evidence))
 
 
 SAFETY_NOTE = ("情绪安全复核：Y4 情绪指标落在最严重档。先由顾问了解学生近况，"

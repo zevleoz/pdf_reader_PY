@@ -51,7 +51,8 @@ def diff_profiles(old: Optional[Dict[str, Any]],
     for dim in DIMS:
         o = old_dims.get(dim) or {}
         n = new_dims.get(dim) or {}
-        if o.get("confidence") != n.get("confidence"):
+        # 一侧无证据等级（维度变为/来自稳固）时，状态行已说明变化，不再输出空的证据行
+        if o.get("confidence") and n.get("confidence") and o.get("confidence") != n.get("confidence"):
             lines.append("%s 证据 %s → %s"
                          % (dim, _zh(EVIDENCE_LABELS, o.get("confidence")),
                             _zh(EVIDENCE_LABELS, n.get("confidence"))))
