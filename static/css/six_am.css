@@ -160,6 +160,8 @@
 .sa2 .tl .it small { color: var(--muted); font-size: 11.5px; }
 .sa2 .support { display: flex; flex-direction: column; gap: 8px; }
 .sa2 .support .s { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; align-items: baseline; }
+.sa2 .support-more { margin-top: 10px; }
+.sa2 .support-more summary { cursor: pointer; margin-bottom: 8px; }
 .sa2 .fit { font-size: 11.5px; font-weight: 600; }
 .sa2 .fit.p { color: var(--ok); }
 .sa2 .fit.k { color: var(--muted); }

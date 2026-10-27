@@ -93,9 +93,9 @@ class TestPageShell:
         assert 'id="sa2"' in body
         assert 'data-can-write="true"' in body
         for name in NEW_JS:
-            assert "/js/six_am/%s?v=20261027" % name in body
+            assert "/js/six_am/%s?v=20261030" % name in body
         assert 'src="/js/six_am.js' not in body
-        assert "/css/six_am.css?v=20261027" in body
+        assert "/css/six_am.css?v=20261030" in body
 
     def test_viewer_page_is_read_only(self, probe):
         assert probe["viewer_status"] == 200

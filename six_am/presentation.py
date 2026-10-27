@@ -288,7 +288,7 @@ def _sanitize_cross_mods(mods: Any) -> List[Dict[str, Any]]:
 
 # A6 支持排序审计白名单：v1 条目带数值 score 字段（predicted_effectiveness 为定性标签，保留）
 _RANKED_FIELDS = ("direction", "sub_mechanisms", "fit_label",
-                  "predicted_effectiveness", "basis_rules", "cautions")
+                  "predicted_effectiveness", "basis_rules", "cautions", "top")
 _AVOID_FIELDS = ("direction", "kind", "basis_rules", "reason")
 
 

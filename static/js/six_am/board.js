@@ -86,7 +86,8 @@
   var PARAM_DIM = {
     top_n_values: 'A1', control_low_max: 'A1', control_high_min: 'A1',
     schedule_free_hours_max: 'A3',
-    top_n_safety: 'A4', mindset_low_max: 'A4', cog_pct_min: 'A4'
+    top_n_safety: 'A4', mindset_low_max: 'A4', cog_pct_min: 'A4',
+    a5_min_supporting: 'A5', a6_top_n: 'A6'
   };
 
   var state = {
@@ -574,14 +575,20 @@
       return [
         ['Secure', labelOf('conscientiousness') + ' 不低及以上'],
         ['Watch', labelOf('conscientiousness') + ' 偏低 或更低'],
-        ['At-Risk', '关注 + 任一辅助：' + sup],
-        ['Blocked', '规划小任务确认（拆不出 / 不肯开始）']
+        ['At-Risk', '关注 + 至少 ' + paramVal('a5_min_supporting', 2) + ' 个辅助：' + sup +
+          '；或 规划小任务未通过'],
+        ['Blocked', '风险 + 规划小任务未通过（拆不出 / 不肯开始）或会谈确认']
       ];
     }
     return [
       ['Watch', '答题状态提示：自我概念整体 偏低 + 情绪稳定性总分 明显偏低'],
       ['At-Risk', '抑郁或焦虑 需特殊关注 → 安全提示']
     ];
+  }
+
+  function paramVal(name, fallback) {
+    var v = ((state.spec || {}).params || {})[name];
+    return typeof v === 'number' ? v : fallback;
   }
 
   function paramsFor(k) {

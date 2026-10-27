@@ -291,13 +291,14 @@ def _eval_a4(dim_spec: Dict[str, Any], results, conf) -> Dict[str, Any]:
 
 
 # ── A5 ───────────────────────────────────────────────────────
-def _eval_a5(dim_spec: Dict[str, Any], results, conf) -> Dict[str, Any]:
+def _eval_a5(dim_spec: Dict[str, Any], results, conf,
+             min_supporting: int = 2) -> Dict[str, Any]:
     main = _hit_ids(dim_spec.get("main") or [], results)
     supporting = _hit_ids(dim_spec.get("supporting") or [], results)
     level = "Secure"
     if main:
         level = "Watch"
-        if supporting:
+        if len(supporting) >= min_supporting:   # 辅助信号多，单个太容易命中
             level = "At-Risk"
     if level == "At-Risk" and conf in ("Supported", "Confirmed"):
         level = "Blocked"   # 追问证实，或规划小任务未通过（见下）
@@ -346,7 +347,8 @@ def evaluate_dims(ctx, spec: Dict[str, Any], refuted_signals=None,
         elif dim == "A4":
             rec = _eval_a4(dim_spec, results, conf)
         else:
-            rec = _eval_a5(dim_spec, results, conf)
+            rec = _eval_a5(dim_spec, results, conf,
+                           int((spec.get("params") or {}).get("a5_min_supporting", 2)))
         dims[dim] = rec
         if rec["state"] != "Secure":
             ids = [sid for sid in ids if sid not in (dim_spec.get("secure") or [])]
@@ -445,6 +447,30 @@ def _cond(cond: Any, ctx, results, dims, gate_levels) -> Tuple[bool, List[str]]:
     return False, []
 
 
+def _linked_dims(cond: Any, ctx, results, dims, gate_levels,
+                 dims_spec: Dict[str, Any]) -> List[str]:
+    """满足的条件叶子关联到哪些非稳固维度（用于 A6 排序；纯特质条件不关联）。"""
+    if not isinstance(cond, dict) or not _cond(cond, ctx, results, dims, gate_levels)[0]:
+        return []
+    keys = set(cond)
+    out: List[str] = []
+    if keys == {"any"} or keys == {"all"}:
+        for sub in cond[next(iter(keys))] or []:
+            out.extend(_linked_dims(sub, ctx, results, dims, gate_levels, dims_spec))
+    elif keys == {"signal"}:
+        out = [d for d in _DIMS if str(cond["signal"]) in _dim_signal_ids(dims_spec.get(d) or {})]
+    elif keys == {"dim", "min"}:
+        out = [str(cond["dim"])]
+    elif keys == {"dim_any_min"}:
+        out = [d for d in _DIMS if _level_at_least((dims.get(d) or {}).get("state"),
+                                                   str(cond["dim_any_min"]))]
+    elif keys == {"gate", "min"}:
+        out = [str(cond["gate"]).split(".")[0]]
+    elif keys == {"subtype"}:
+        out = [str(cond["subtype"]).split("-")[0]]
+    return [d for d in out if _sev((dims.get(d) or {}).get("state")) >= 1]
+
+
 def assign_supports(ctx, spec: Dict[str, Any],
                     dims: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """按 A6 目录求值 assign / caution / avoid，输出 support_ranking。"""
@@ -454,6 +480,8 @@ def assign_supports(ctx, spec: Dict[str, Any],
     avoid: List[Dict[str, Any]] = []
     trace: List[Dict[str, Any]] = []
     hits: List[Dict[str, Any]] = []
+    dims_spec = spec.get("dimensions") or {}
+    link_sev: Dict[str, Tuple[int, int]] = {}
 
     for entry in spec.get("a6") or []:
         name = entry.get("name") or entry.get("id") or ""
@@ -478,6 +506,9 @@ def assign_supports(ctx, spec: Dict[str, Any],
         caution_ok, caution_fired = (False, []) if entry.get("caution") is None else \
             _cond(entry["caution"], ctx, results, dims, gate_levels)
         fit = "慎用" if caution_ok else "优先"
+        linked = _linked_dims(entry["assign"], ctx, results, dims, gate_levels, dims_spec)
+        link_sev[name] = (max([_sev((dims.get(d) or {}).get("state")) for d in linked] or [0]),
+                          len(set(linked)))
         ranked.append({
             "direction": name,
             "sub_mechanisms": [entry.get("group") or ""],
@@ -497,6 +528,20 @@ def assign_supports(ctx, spec: Dict[str, Any],
             "evidence": [], "effect": effect, "confidence": None,
             "contributing": True, "questions": [], "text": entry.get("note") or "",
         })
+
+    # 排序：关联维度越严重越靠前，其次关联维度越多；同级保持目录顺序。
+    # 前 a6_top_n 项保留 优先/慎用，其余标 可选（页面折叠）。
+    order = {r["direction"]: i for i, r in enumerate(ranked)}
+    ranked.sort(key=lambda r: (-link_sev[r["direction"]][0], -link_sev[r["direction"]][1],
+                               order[r["direction"]]))
+    top_n = int((spec.get("params") or {}).get("a6_top_n", 4))
+    for i, r in enumerate(ranked):
+        r["top"] = i < top_n
+        if not r["top"] and r["fit_label"] == "优先":
+            r["fit_label"] = "可选"
+    fit_of = {r["direction"]: r["fit_label"] for r in ranked}
+    for t in trace:
+        t["effect"]["fit_label"] = fit_of.get(t["title"], t["effect"]["fit_label"])
 
     rec = {
         "state": None,

@@ -6,7 +6,7 @@
 
   var DIM_ZH = { A1: '自主感', A2: '认同感', A3: '可用空间', A4: '胜任信心', A5: '可起步性', A6: '启动支持' };
   var DIM_KEYS = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6'];
-  var FIT_CLASS = { '优先': 'p', '可考虑': 'k', '慎用': 'c', '避免': 'a' };
+  var FIT_CLASS = { '优先': 'p', '可考虑': 'k', '可选': 'k', '慎用': 'c', '避免': 'a' };
 
   var state = {
     report_id: null,
@@ -42,6 +42,23 @@
     if (prof.support_plan && (prof.support_plan.ranked || []).length) return prof.support_plan;
     var audit = (a6 && a6.audit) || {};
     return audit.support_ranking || prof.support_plan || {};
+  }
+  /* v0.5：top=false 的支持折叠到"其他可选"；旧档案无 top 字段时全部展示 */
+  function supportList(ranked) {
+    function row(r) {
+      var fit = r.fit_label || '';
+      return '<div class="s"><span>' + SA.esc(r.direction || '') + '</span>' +
+        (fit ? '<span class="fit ' + (FIT_CLASS[fit] || 'k') + '">' + SA.esc(fit) + '</span>' : '') +
+        '</div>';
+    }
+    var head = ranked.filter(function (r) { return r.top !== false; });
+    var rest = ranked.filter(function (r) { return r.top === false; });
+    var h = '<div class="support">' + head.map(row).join('') + '</div>';
+    if (rest.length) {
+      h += '<details class="support-more"><summary class="sub">其他可选（' + rest.length + '）</summary>' +
+        '<div class="support">' + rest.map(row).join('') + '</div></details>';
+    }
+    return h;
   }
   function topDirection(plan) {
     var ranked = (plan && plan.ranked) || [];
@@ -301,12 +318,7 @@
     var plan = supportPlan(state.data, card);
     var ranked = plan.ranked || [];
     if (!ranked.length) return '<p class="sub">暂无支持方式排序。</p>';
-    return '<div class="support">' + ranked.map(function (r) {
-      var fit = r.fit_label || '';
-      return '<div class="s"><span>' + SA.esc(r.direction || '') + '</span>' +
-        (fit ? '<span class="fit ' + (FIT_CLASS[fit] || 'k') + '">' + SA.esc(fit) + '</span>' : '') +
-        '</div>';
-    }).join('') + '</div>';
+    return supportList(ranked);
   }
 
   function detail(card) {
@@ -388,16 +400,9 @@
     var data = state.data;
     var plan = supportPlan(data, cards.A6);
     var ranked = plan.ranked || [];
-    var h = '<aside class="rail"><section class="card pad"><h2 style="margin-bottom:10px">支持方式</h2>' +
-      '<div class="support">';
-    if (!ranked.length) h += '<p class="sub">—</p>';
-    ranked.forEach(function (r) {
-      var fit = r.fit_label || '';
-      h += '<div class="s"><span>' + SA.esc(r.direction || '') + '</span>' +
-        (fit ? '<span class="fit ' + (FIT_CLASS[fit] || 'k') + '">' + SA.esc(fit) + '</span>' : '') +
-        '</div>';
-    });
-    h += '</div></section>';
+    var h = '<aside class="rail"><section class="card pad"><h2 style="margin-bottom:10px">支持方式</h2>';
+    h += ranked.length ? supportList(ranked) : '<p class="sub">—</p>';
+    h += '</section>';
     h += '<section class="card pad"><h2 style="margin-bottom:10px">版本记录</h2>';
     var versions = data.versions || [];
     if (!versions.length) {

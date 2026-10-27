@@ -140,7 +140,8 @@ class A5Levels(unittest.TestCase):
 
     def test_task_blocks_when_y4_already_at_risk(self):
         a5 = run([item("人格-责任心", "偏低"),
-                  item("职业兴趣-常规型", "高")],
+                  item("职业兴趣-常规型", "高"),
+                  item("学习方法与策略-学习深层方法与策略", "偏低")],
                  evidence={"ft": {"standard_task": {"can_split": False}}}
                  )["dimensions"]["A5"]
         self.assertEqual(a5["state"], "Blocked")
@@ -171,8 +172,8 @@ class A6Catalogue(unittest.TestCase):
         for entry in plan["ranked"]:
             self.assertEqual(set(entry.keys()),
                              {"direction", "sub_mechanisms", "fit_label",
-                              "basis_rules", "cautions"})
-            self.assertIn(entry["fit_label"], {"优先", "慎用"})
+                              "basis_rules", "cautions", "top"})
+            self.assertIn(entry["fit_label"], {"优先", "慎用", "可选"})
 
     def test_caution_marks_a1_s2_mentor_as_cautious(self):
         plan = self._plan([item("自驱力-自主性", "偏低"),
@@ -266,7 +267,8 @@ class FirstTouchConfirmsOnlyWhenItShowsAProblem(unittest.TestCase):
         self.assertEqual(a2["state"], "Watch")
 
     def test_a5_task_passed_does_not_block(self):
-        a5 = self._dim([item("人格-责任心", "偏低"), item("职业兴趣-常规型", "高")],
+        a5 = self._dim([item("人格-责任心", "偏低"), item("职业兴趣-常规型", "高"),
+                        item("学习方法与策略-学习深层方法与策略", "偏低")],
                        {"standard_task": {"can_split": True, "can_commit": True}}, "A5")
         self.assertEqual(a5["state"], "At-Risk")
 
@@ -286,6 +288,31 @@ class FirstTouchConfirmsOnlyWhenItShowsAProblem(unittest.TestCase):
                   order("独立自主", 2), order("上司关系", 4)])["dimensions"]["A1"]
         self.assertEqual(a1["state"], "At-Risk")
         self.assertNotIn("wellbeing_ok", [t["id"] for t in a1["triggered_rules"]])
+
+    def test_a5_one_supporting_signal_stays_watch(self):
+        a5 = run([item("人格-责任心", "偏低"),
+                  item("职业兴趣-常规型", "高")])["dimensions"]["A5"]
+        self.assertEqual(a5["state"], "Watch")
+
+    def test_a5_min_supporting_is_a_board_param(self):
+        spec = spec_copy(); spec["params"]["a5_min_supporting"] = 1
+        a5 = run([item("人格-责任心", "偏低"), item("职业兴趣-常规型", "高")],
+                 params={"spec": spec})["dimensions"]["A5"]
+        self.assertEqual(a5["state"], "At-Risk")
+
+    def test_a6_top_n_and_worst_dimension_first(self):
+        p = run([item("人格-责任心", "偏低"), item("职业兴趣-常规型", "高"),
+                 item("学习方法与策略-学习深层方法与策略", "偏低"),
+                 item("学习动机-深层动机", "偏低"), item("人格-外倾性", "高"),
+                 item("自驱力-归属感", "较好")])
+        ranked = p["support_plan"]["ranked"]
+        # A5 风险 关联的支持排在最前（导师主动联系 由"任一维度 ≥ 风险"触发，同级）
+        self.assertIn("结构化拆解（LDF / SAFE）", [r["direction"] for r in ranked[:2]])
+        self.assertEqual([r["top"] for r in ranked[:4]], [True] * min(4, len(ranked)))
+        tail = [r for r in ranked if not r["top"]]
+        self.assertTrue(tail)
+        self.assertTrue(all(r["fit_label"] in ("可选", "慎用") for r in tail))
+        self.assertIn("同伴支持", [r["direction"] for r in tail])  # 纯特质，排在后面
 
     def test_a3_full_schedule_alone_is_risk(self):
         a3 = self._dim([], {"schedule": {"load_level": "高"}}, "A3")

@@ -784,6 +784,8 @@ _BOARD_PARAM_META = {
     "mindset_low_max": ("思维模式阈值", 0, 100),
     "cog_pct_min": ("认知能力百分位阈值", 0, 100),
     "schedule_free_hours_max": ("每周自由时间下限（小时）", 0, 100),
+    "a5_min_supporting": ("升到风险所需辅助信号数", 1, 6),
+    "a6_top_n": ("每名学生优先支持数", 1, 15),
 }
 
 

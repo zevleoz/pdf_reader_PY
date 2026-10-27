@@ -25,6 +25,8 @@ _PARAM_RANGES = {
     "mindset_low_max": (0, 100),
     "cog_pct_min": (0, 100),
     "schedule_free_hours_max": (0, 100),
+    "a5_min_supporting": (1, 6),
+    "a6_top_n": (1, 15),
 }
 
 _SUBTYPE_RE = re.compile(r"^A[1-6]-S\d+$")
@@ -40,6 +42,8 @@ DEFAULT_SPEC: Dict[str, Any] = {
         "mindset_low_max": 50,
         "cog_pct_min": 75,
         "schedule_free_hours_max": 5,
+        "a5_min_supporting": 2,
+        "a6_top_n": 4,
     },
     "dimensions": {
         "A1": {"main": ["autonomy"],
@@ -265,7 +269,7 @@ def merge_edit(published_spec: Dict[str, Any], edited_spec: Dict[str, Any]) -> D
     edited_params = edited_spec.get("params")
     if isinstance(edited_params, dict):
         params = out.setdefault("params", {})
-        for name in list(params):
+        for name in _PARAM_RANGES:   # 旧版本缺的新参数也可编辑
             if name in edited_params:
                 params[name] = edited_params[name]
 
