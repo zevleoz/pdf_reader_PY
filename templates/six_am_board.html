@@ -1,0 +1,16 @@
+{% extends "layouts/admin_v2.html" %}
+
+{% block title %}6AM 规则板{% endblock %}
+{% block page_title %}6AM 规则板{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/css/six_am.css?v=20261028">
+{% endblock %}
+
+{% block content %}
+<div class="sa2 sab" id="sab" data-can-edit="{{ 'true' if current_role == 'admin' else 'false' }}"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/js/six_am/board.js?v=20261028"></script>
+{% endblock %}

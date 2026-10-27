@@ -773,3 +773,167 @@ def api_six_am_sandbox():
             "changed_dims": changed, "details": details,
         })
     return jsonify({"ok": True, "rule_version": meta, "results": results})
+
+
+# ─── 6AM 规则板（Q4）────────────────────────────────────────────
+_BOARD_PARAM_META = {
+    "top_n_values": ("职业价值观前 N 位", 1, 15),
+    "top_n_safety": ("安全稳定前 N 位", 1, 15),
+    "control_low_max": ("掌控感低端上限", 0, 100),
+    "control_high_min": ("掌控感高端下限", 0, 100),
+    "mindset_low_max": ("思维模式阈值", 0, 100),
+    "cog_pct_min": ("认知能力百分位阈值", 0, 100),
+    "schedule_free_hours_max": ("每周自由时间下限（小时）", 0, 100),
+}
+
+
+def _board_spec_of(version: Optional[Dict]) -> Optional[Dict]:
+    """版本 params_json 里的 params.spec；缺失/损坏返回 None。"""
+    if not version:
+        return None
+    try:
+        payload = json.loads(version.get("params_json") or "{}")
+    except Exception:
+        payload = {}
+    params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+    spec = params.get("spec")
+    return spec if isinstance(spec, dict) else None
+
+
+def _board_versions():
+    """返回 (全部版本, 当前 published, 全部 draft)。"""
+    versions = _db.list_six_am_rule_versions()
+    published = next((v for v in versions if v.get("status") == "published"), None)
+    drafts = [v for v in versions if v.get("status") == "draft"]
+    return versions, published, drafts
+
+
+def _board_base_spec(base_version_id=None) -> Dict:
+    """合并基准：指定版本 → 当前 published → DEFAULT_SPEC。"""
+    from six_am.spec import DEFAULT_SPEC
+
+    if base_version_id:
+        try:
+            base = _board_spec_of(_db.get_six_am_rule_version(int(base_version_id)))
+        except (TypeError, ValueError):
+            base = None
+        if base:
+            return base
+    _versions, published, _drafts = _board_versions()
+    base = _board_spec_of(published)
+    return base or json.loads(json.dumps(DEFAULT_SPEC))
+
+
+@bp.route("/insights/six-am/board")
+@page_login_required
+def six_am_board_page():
+    return render_template("six_am_board.html", nav_active="insights.six-am")
+
+
+@bp.route("/api/six-am/board")
+@admin_required
+def api_six_am_board():
+    """规则板数据源：当前 spec、信号库、参数元信息、版本列表。读操作对所有角色开放。"""
+    from flask import session
+    from six_am.spec import DEFAULT_SPEC
+    from six_am.signals import SIGNALS
+
+    _versions, published, drafts = _board_versions()
+    chosen = None
+    vid = request.args.get("version_id")
+    if vid:
+        try:
+            chosen = _db.get_six_am_rule_version(int(vid))
+        except (TypeError, ValueError):
+            chosen = None
+    if not chosen:
+        chosen = published
+    spec = _board_spec_of(chosen) or _board_spec_of(published)
+    if not spec:
+        spec = json.loads(json.dumps(DEFAULT_SPEC))
+
+    return jsonify({
+        "ok": True,
+        "can_edit": session.get("role") == "admin",
+        "published": ({"id": published["id"], "label": published["label"]}
+                      if published else None),
+        "drafts": [{"id": v["id"], "label": v["label"], "created_at": v.get("created_at")}
+                   for v in drafts],
+        "version": ({"id": chosen["id"], "label": chosen["label"],
+                     "status": chosen["status"]} if chosen else None),
+        "spec": spec,
+        "signals": [dict(SIGNALS[sid]) for sid in SIGNALS],
+        "param_meta": {name: {"label": label, "min": lo, "max": hi, "step": 1}
+                       for name, (label, lo, hi) in _BOARD_PARAM_META.items()},
+    })
+
+
+@bp.route("/api/six-am/board", methods=["POST"])
+@role_required('admin')
+def api_six_am_board_save():
+    """保存规则板编辑为 draft 版本（只合入可编辑字段）。"""
+    from six_am.spec import merge_edit, validate
+
+    data = request.get_json(force=True) or {}
+    edited = data.get("spec") if isinstance(data.get("spec"), dict) else {}
+    base = _board_base_spec(data.get("base_version_id"))
+    merged = merge_edit(base, edited)
+    errors = validate(merged)
+    if errors:
+        return jsonify({"ok": False, "errors": errors}), 400
+
+    label = str(data.get("label") or "").strip() or time.strftime("board-%Y%m%d-%H%M%S")
+    vid = _db.save_six_am_rule_version(
+        label,
+        json.dumps({"params": {"spec": merged, "engine": "v0.5"}, "rule_overrides": {}},
+                   ensure_ascii=False))
+    return jsonify({"ok": True, "version_id": vid})
+
+
+@bp.route("/api/six-am/board/preview", methods=["POST"])
+@role_required('admin')
+def api_six_am_board_preview():
+    """规则板预览：逐份只读重跑，对比 published 分布；不落库。"""
+    from six_am.spec import merge_edit, validate
+
+    data = request.get_json(force=True) or {}
+    edited = data.get("spec") if isinstance(data.get("spec"), dict) else {}
+    base = _board_base_spec()
+    merged = merge_edit(base, edited)
+    errors = validate(merged)
+    if errors:
+        return jsonify({"ok": False, "errors": errors}), 400
+
+    dims = ("A1", "A2", "A3", "A4", "A5")
+    levels = ("Secure", "Watch", "At-Risk", "Blocked")
+    distribution = {dim: {lv: 0 for lv in levels} for dim in dims}
+    published_distribution = {dim: {lv: 0 for lv in levels} for dim in dims}
+    changed = []
+    for rid in _db.get_six_am_report_ids():
+        try:
+            new_prof = _six_am.build_profile(rid, params={"spec": merged, "engine": "v0.5"})
+            old_prof = _six_am.build_profile(rid, params={"spec": base, "engine": "v0.5"})
+        except Exception:
+            continue
+        if new_prof is None or old_prof is None:
+            continue
+        new_dims = new_prof.get("dimensions") or {}
+        old_dims = old_prof.get("dimensions") or {}
+        diff = {}
+        for dim in dims:
+            new_state = str((new_dims.get(dim) or {}).get("state") or "Secure")
+            old_state = str((old_dims.get(dim) or {}).get("state") or "Secure")
+            distribution[dim][new_state] = distribution[dim].get(new_state, 0) + 1
+            published_distribution[dim][old_state] = \
+                published_distribution[dim].get(old_state, 0) + 1
+            if new_state != old_state:
+                diff[dim] = [old_state, new_state]
+        if diff:
+            changed.append({"report_id": rid,
+                            "name": (new_prof.get("student") or {}).get("name") or "",
+                            "dims": diff})
+
+    return jsonify({"ok": True,
+                    "distribution": distribution,
+                    "published_distribution": published_distribution,
+                    "changed": changed})
