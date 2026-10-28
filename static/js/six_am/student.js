@@ -352,7 +352,7 @@
       if (target.hasAttribute('data-talk-save')) {
         var boxSave = target.closest('[data-talk]');
         var gathered = boxSave ? gatherTalk(boxSave) : null;
-        if (!gathered) return;
+        if (!gathered) { SA.toast('先选择 证实 / 未证实 / 调整为', true); return; }
         var body = { talks: {} };
         body.talks[gathered.dim] = gathered.record;
         submitInputs(el, body);

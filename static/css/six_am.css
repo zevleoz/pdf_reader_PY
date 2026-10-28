@@ -125,13 +125,13 @@
 .sa2 .mm-wrap { overflow-x: auto; min-width: 0; }
 .sa2 .mm { padding: 2px 2px 6px; min-width: min-content; }
 .sa2 .mm ul {
-  list-style: none; margin: 0; padding: 0 0 0 28px;
+  list-style: none; margin: 0; padding: 0 0 0 18px;
   position: relative; display: flex; flex-direction: column; justify-content: center;
 }
 .sa2 .mm > ul { padding-left: 0; }
-.sa2 .mm li { position: relative; display: flex; align-items: center; padding: 5px 0 5px 28px; min-width: 0; }
+.sa2 .mm li { position: relative; display: flex; align-items: center; padding: 5px 0 5px 18px; min-width: 0; }
 .sa2 .mm > ul > li { padding-left: 0; }
-.sa2 .mm ul ul > li::before { content: ""; position: absolute; left: 0; top: 50%; width: 28px; border-top: 2px solid var(--line); }
+.sa2 .mm ul ul > li::before { content: ""; position: absolute; left: 0; top: 50%; width: 18px; border-top: 2px solid var(--line); }
 .sa2 .mm ul ul > li::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; border-left: 2px solid var(--line); }
 .sa2 .mm ul ul > li:first-child::after { top: 50%; }
 .sa2 .mm ul ul > li:last-child::after { bottom: 50%; }
@@ -140,7 +140,7 @@
 .sa2 .mm-node {
   display: inline-block; padding: 6px 12px; border-radius: 8px;
   font-size: 14px; line-height: 1.4; white-space: normal;
-  max-width: 340px; border: 2px solid transparent; vertical-align: top;
+  max-width: 220px; border: 2px solid transparent; vertical-align: top;
   flex: none;
 }
 .sa2 .mm li > ul { flex: none; }

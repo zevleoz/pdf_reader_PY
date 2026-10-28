@@ -47,6 +47,19 @@ def _y4_fact(ctx: Ctx, label: str, value: Any) -> Dict[str, Any]:
     return {k: v for k, v in fact.items() if v is not None}
 
 
+def _dedupe_facts(facts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """同一叶子在条件里出现多次时只保留一条事实。"""
+    seen = set()
+    out = []
+    for fact in facts:
+        key = (fact.get("label"), str(fact.get("value")))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(fact)
+    return out
+
+
 def _worst_level(levels: List[Optional[str]]) -> Optional[str]:
     for level in ("风险", "关注", "稳固"):
         if level in levels:
@@ -252,7 +265,7 @@ def evaluate_dim(dim_spec: Dict[str, Any], env: Dict[str, Any]) -> Dict[str, Any
             dim_env["nodes"] = dict(values)
             value, facts = cond(node.get("when"), dim_env)
             values[level] = value
-            nodes[level] = {"ok": value is True, "facts": facts}
+            nodes[level] = {"ok": value is True, "facts": _dedupe_facts(facts)}
         part_level = _worst_level([lvl for lvl in NODE_LEVELS if values.get(lvl) is True])
         part_levels[part_id] = part_level
         parts_out[part_id] = {"level": part_level, "nodes": nodes, "types": []}

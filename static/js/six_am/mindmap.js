@@ -128,7 +128,7 @@
   }
 
   function talkForm(dim, record) {
-    var current = record ? record.result : 'confirm';
+    var current = record ? record.result : null;
     var causes = ((dim.blocked || {}).causes) || [];
     var picked = (record && record.causes) || [];
     var h = '<div class="talk" data-talk="' + esc(dim.id) + '">' +

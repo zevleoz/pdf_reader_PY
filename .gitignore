@@ -36,3 +36,6 @@ api_demo_client/
 # 测试 / 性能采样缓存
 .pytest_cache/
 *.profraw
+
+# 6AM 规则文件（唯一数据源，需入库）
+!six_am/model_v06.json

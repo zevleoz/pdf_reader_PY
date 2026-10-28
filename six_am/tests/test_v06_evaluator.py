@@ -234,6 +234,13 @@ class A4Confidence(unittest.TestCase):
                         item("自驱力-胜任感", "不低")])
         self.assertEqual(dim["level"], "关注")
 
+    def test_node_facts_listed_once(self):
+        dim = self._dim([item("学习动机-自我效能感", "不低"),
+                        item("自驱力-胜任感", "较好")])
+        for node in dim["parts"]["main"]["nodes"].values():
+            labels = [fact["label"] for fact in node["facts"]]
+            self.assertEqual(len(labels), len(set(labels)))
+
     def test_any_low_is_risk(self):
         dim = self._dim([item("学习动机-自我效能感", "偏低"),
                         item("自驱力-胜任感", "高")])
