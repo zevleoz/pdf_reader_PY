@@ -305,7 +305,41 @@ class Cohort(_ApiCase):
         self.assertIsNotNone(self._cohort_student(viewer, sid_a))
 
 
+    def test_student_without_profile_is_pending_and_no_report_counted(self):
+        sid, _name, rid = _fresh_case()
+        bare_sid, _bare = _fresh_student()
+        body = self._cohort()
+        entry = self._cohort_student(body, sid)
+        self.assertTrue(entry["pending"])
+        self.assertEqual(entry["report_id"], rid)
+        self.assertEqual(set(entry["levels"].values()), {None})
+        self.assertIsNone(self._cohort_student(body, bare_sid))
+        self.assertGreaterEqual(body["no_report"], 1)
+        self.assertGreaterEqual(body["pending"], 1)
+
+    def test_newer_report_without_profile_is_pending(self):
+        sid, _name, rid = _fresh_case()
+        _generate(rid)
+        raw = {"student": {"name": "测试学生", "grade": "高二"}, "schema_124": []}
+        newer = db.add_report(sid, _dt.date(2026, 10, 25), "newer.pdf",
+                              json.dumps(raw, ensure_ascii=False))
+        entry = self._cohort_student(self._cohort(), sid)
+        self.assertTrue(entry["pending"])
+        self.assertEqual(entry["report_id"], newer)
+
+
 class RerunAll(_ApiCase):
+    def test_generates_students_that_never_had_a_profile(self):
+        sid, _name, rid = _fresh_case()
+        self.assertEqual(db.get_six_am_profiles_by_student(sid), [])
+        _login(self.client, "admin")
+        body = self.client.post("/api/six-am/rerun-all").get_json()
+        self.assertTrue(body["ok"])
+        self.assertNotIn(rid, body["failed"])
+        entry = self._cohort_student(self._cohort(), sid)
+        self.assertFalse(entry["pending"])
+        self.assertEqual(entry["levels"]["A1"], "风险")
+
     def test_admin_reruns_and_advisor_forbidden(self):
         sid, _name, rid = _fresh_case()
         _login(self.client, "admin")

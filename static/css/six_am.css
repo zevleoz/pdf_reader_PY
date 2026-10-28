@@ -78,20 +78,34 @@
 .sa2 .fchip { border: 1px solid var(--line); background: var(--surface); padding: 4px 11px; border-radius: 999px; font-size: 12.5px; color: var(--ink-2); }
 .sa2 .fchip[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .sa2 .search { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-sm); padding: 5px 10px; min-width: 0; width: 190px; }
-.sa2 .tablewrap { overflow-x: auto; }
-.sa2 table.roster { width: 100%; border-collapse: collapse; font-size: 13px; }
-.sa2 .roster th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 600; padding: 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-.sa2 .roster td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.sa2 .tablewrap { overflow-x: auto; padding: 0; }
+.sa2 table.roster { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; min-width: 860px; }
+.sa2 .roster col.c-who { width: 22%; }
+.sa2 .roster col.c-dm { width: 68px; }
+.sa2 .roster col.c-tk { width: 104px; }
+.sa2 .roster th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: bottom; }
+.sa2 .roster th.dm { text-align: center; padding-inline: 4px; }
+.sa2 .roster th small { display: block; font-weight: 400; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.sa2 .roster td { padding: 11px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.sa2 .roster tbody tr:last-child td { border-bottom: 0; }
 .sa2 .roster tbody tr { cursor: pointer; }
-.sa2 .roster tbody tr:hover { background: var(--line-soft); }
-.sa2 .roster .who b { display: block; font-weight: 600; }
-.sa2 .roster .who small { color: var(--muted); font-size: 11.5px; }
-.sa2 .roster .cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; min-width: 0; }
-.sa2 .roster .cell small { color: var(--muted); font-size: 11.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.sa2 .roster tbody tr:hover, .sa2 .roster tbody tr:focus-visible { background: var(--line-soft); outline: none; }
+.sa2 .roster .who .nm { font-weight: 600; }
+.sa2 .roster .who small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sa2 .roster .mark { font-size: 11px; color: var(--muted); margin-left: 6px; white-space: nowrap; }
+.sa2 .roster .mark.block { color: var(--block); font-weight: 600; }
+.sa2 .roster td.dm { text-align: center; padding-inline: 4px; }
 .sa2 .roster .dk { display: none; color: var(--muted); font-size: 11px; }
-.sa2 .roster .gr-m { display: none; }
-.sa2 .roster .sup { color: var(--ink-2); overflow-wrap: anywhere; min-width: 180px; }
-.sa2 .roster .tags { text-align: right; }
+.sa2 .roster .none { color: var(--line); }
+.sa2 .roster td.tk { color: var(--watch); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+.sa2 .roster .tk-l { display: none; }
+.sa2 .roster td.sup { color: var(--ink-2); white-space: nowrap; }
+.sa2 .roster td.sup .one { display: inline-block; max-width: calc(100% - 28px); overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.sa2 .roster td.sup .more { color: var(--muted); font-size: 11.5px; }
+.sa2 .roster tr.pending .who .nm { color: var(--muted); }
+.sa2 .roster td.pend { color: var(--muted); font-size: 12.5px; }
+.sa2 .pendbar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--r); background: var(--watch-bg); color: var(--watch); font-size: 13px; font-weight: 600; }
+.sa2 .pendbar .btn { margin-left: auto; }
 .sa2 .tag { display: inline-flex; align-items: center; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--line-soft); color: var(--ink-2); white-space: nowrap; margin-left: 4px; }
 .sa2 .tag.warn { background: var(--watch-bg); color: var(--watch); }
 .sa2 .tag.block { background: var(--block-bg); color: var(--block); }
@@ -242,22 +256,22 @@
   .sa2 .shead .actions { width: 100%; }
   .sa2 .shead .actions .btn { flex: 1; justify-content: center; }
 
-  /* 总览：一行变一张卡 */
-  .sa2 .tablewrap { overflow: visible; }
-  .sa2 table.roster, .sa2 .roster tbody, .sa2 .roster tr, .sa2 .roster td { display: block; width: 100%; }
-  .sa2 .roster thead { display: none; }
-  .sa2 .roster tr { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; background: var(--surface); }
-  .sa2 .roster td { border: 0; padding: 0; }
-  .sa2 .roster td.who { margin-bottom: 6px; }
-  .sa2 .roster .gr-m { display: inline; }
-  .sa2 .roster td.gr { display: none; }
-  .sa2 .roster td.dm { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; width: 20%; vertical-align: top; margin-bottom: 6px; }
-  .sa2 .roster td.dm small:not(.dk) { display: none; }
+  /* 总览：一行变一张卡（姓名 → 五个 chip → 会谈 / 支持） */
+  .sa2 .tablewrap { overflow: visible; background: transparent; border: 0; box-shadow: none; }
+  .sa2 table.roster { min-width: 0; table-layout: auto; }
+  .sa2 .roster colgroup, .sa2 .roster thead { display: none; }
+  .sa2 table.roster, .sa2 .roster tbody, .sa2 .roster tr { display: block; width: 100%; }
+  .sa2 .roster tr { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; margin-bottom: 8px; background: var(--surface); }
+  .sa2 .roster td { display: block; border: 0; padding: 0; }
+  .sa2 .roster td.who { margin-bottom: 8px; }
+  .sa2 .roster td.dm { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; width: 20%; }
   .sa2 .roster .dk { display: block; }
-  .sa2 .roster td.sup { margin-top: 4px; font-size: 12.5px; }
-  .sa2 .roster td.tags { text-align: left; margin-top: 6px; }
-  .sa2 .roster .tag { margin-left: 0; margin-right: 4px; }
+  .sa2 .roster td.tk, .sa2 .roster td.sup { margin-top: 6px; font-size: 12px; }
+  .sa2 .roster td.tk:has(.none), .sa2 .roster td.sup:has(.none) { display: none; }
+  .sa2 .roster .tk-l { display: inline; margin-right: 4px; }
+  .sa2 .roster td.sup .one { max-width: calc(100% - 32px); }
   .sa2 .roster tbody tr:hover { background: var(--surface); }
+  .sa2 .pendbar { flex-wrap: wrap; }
 
   /* 思维导图：缩进竖排列表（同 DOM，同节点） */
   .sa2 .mm-wrap { overflow-x: visible; }

@@ -202,6 +202,7 @@
 
   function renderError(el, err) {
     el.innerHTML = '<div class="card empty"><span>' + SA.esc(err.message) + '</span>' +
+      (SA.canWrite() ? '<button class="btn primary" type="button" data-generate>生成</button>' : '') +
       '<button class="btn" type="button" data-retry>重试</button></div>';
   }
 

@@ -8,10 +8,11 @@
     ['all', '全部'],
     ['talk', '待会谈'],
     ['blocked', '有阻塞'],
-    ['legacy', '旧规则']
+    ['legacy', '旧规则'],
+    ['pending', '未生成']
   ];
 
-  var state = { students: [], filter: 'all', search: '', loaded: false };
+  var state = { students: [], noReport: 0, filter: 'all', search: '', loaded: false };
 
   function worstOf(s) {
     var worst = -1;
@@ -36,6 +37,7 @@
     if (state.filter === 'talk') return needsTalk(s);
     if (state.filter === 'blocked') return hasBlocked(s);
     if (state.filter === 'legacy') return !!s.legacy;
+    if (state.filter === 'pending') return !!s.pending;
     return true;
   }
 
@@ -49,7 +51,8 @@
       return matchFilter(s) && matchSearch(s);
     });
     list.sort(function (a, b) {
-      return (worstOf(b) - worstOf(a)) ||
+      return ((a.pending ? 1 : 0) - (b.pending ? 1 : 0)) ||
+        (worstOf(b) - worstOf(a)) ||
         (riskCount(b) - riskCount(a)) ||
         String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN');
     });
@@ -61,66 +64,107 @@
       if (key === 'talk') return needsTalk(s);
       if (key === 'blocked') return hasBlocked(s);
       if (key === 'legacy') return !!s.legacy;
+      if (key === 'pending') return !!s.pending;
       return true;
     }).length;
   }
 
   function filtersHTML() {
-    return '<div class="filters" role="group" aria-label="筛选">' + FILTERS.map(function (f) {
+    var shown = FILTERS.filter(function (f) {
+      return f[0] === 'all' || f[0] === 'talk' || f[0] === 'blocked' ||
+        countFor(f[0]) > 0 || state.filter === f[0];
+    });
+    return '<div class="filters" role="group" aria-label="筛选">' + shown.map(function (f) {
       var label = f[1] + (f[0] === 'all' ? '' : ' ' + countFor(f[0]));
       return '<button class="fchip" type="button" data-filter="' + f[0] + '" aria-pressed="' +
         (state.filter === f[0]) + '">' + SA.esc(label) + '</button>';
     }).join('') + '</div>';
   }
 
-  function tagsHTML(s) {
-    var h = '';
-    if (needsTalk(s)) h += '<span class="tag warn">待会谈</span>';
-    if (s.safety) h += '<span class="tag block">安全复核</span>';
-    if (s.legacy) h += '<span class="tag legacy">旧规则</span>';
-    return h;
+  function dimName(dim) {
+    var dims = (SA.model && SA.model.dims) || [];
+    for (var i = 0; i < dims.length; i += 1) {
+      if (dims[i].id === dim) return dims[i].name || '';
+    }
+    return '';
   }
 
-  function cellsHTML(s, dim) {
+  /* 一格只放一个级别 chip；类型放进 title，悬停可见 */
+  function cellHTML(s, dim) {
     var level = (s.levels || {})[dim];
     var type = (s.types || {})[dim];
-    return '<td class="dm"><small class="dk">' + dim + '</small>' + SA.chip(level) +
-      (type ? '<small>' + SA.esc(type) + '</small>' : '') + '</td>';
+    var chip = SA.chip(level) || '<span class="none">—</span>';
+    return '<td class="dm"' + (type ? ' title="' + SA.esc(type) + '"' : '') + '>' +
+      '<span class="dk">' + dim + '</span>' + chip + '</td>';
+  }
+
+  function whoHTML(s) {
+    var meta = [s.grade, s.report_date].filter(function (x) { return x; }).join(' · ');
+    var marks = '';
+    if (s.safety) marks += '<span class="mark block">安全复核</span>';
+    if (s.legacy) marks += '<span class="mark">旧规则</span>';
+    return '<td class="who"><span class="nm">' + SA.esc(s.name || '') + '</span>' + marks +
+      '<small>' + SA.esc(meta) + '</small></td>';
+  }
+
+  function talkHTML(s) {
+    var dims = s.needs_talk || [];
+    if (!dims.length) return '<td class="tk"><span class="none">—</span></td>';
+    return '<td class="tk"><span class="tk-l">待会谈</span>' + SA.esc(dims.join(' ')) + '</td>';
+  }
+
+  function supportHTML(s) {
+    var names = s.a6_top || [];
+    if (!names.length) return '<td class="sup"><span class="none">—</span></td>';
+    var shown = names.slice(0, 2).join(' · ');
+    var more = names.length > 2 ? ' <span class="more">+' + (names.length - 2) + '</span>' : '';
+    return '<td class="sup" title="' + SA.esc(names.join(' · ')) + '"><span class="one">' +
+      SA.esc(shown) + '</span>' + more + '</td>';
   }
 
   function rowsHTML(list) {
     return list.map(function (s) {
-      return '<tr data-report="' + SA.esc(s.report_id) + '" tabindex="0">' +
-        '<td class="who"><b>' + SA.esc(s.name || '') + '</b>' +
-        '<small><span class="gr-m">' + SA.esc(s.grade || '') + ' · </span>' +
-        SA.esc(s.report_date || '') + ' · v' + SA.esc(s.version) + '</small></td>' +
-        '<td class="gr">' + SA.esc(s.grade || '') + '</td>' +
-        DIMS.map(function (dim) { return cellsHTML(s, dim); }).join('') +
-        '<td class="sup">' + SA.esc((s.a6_top || []).join(' · ') || '—') + '</td>' +
-        '<td class="tags">' + tagsHTML(s) + '</td></tr>';
+      if (s.pending) {
+        return '<tr class="pending" data-report="' + SA.esc(s.report_id) + '" tabindex="0">' +
+          whoHTML(s) + '<td class="pend" colspan="7">未生成</td></tr>';
+      }
+      return '<tr data-report="' + SA.esc(s.report_id) + '" tabindex="0">' + whoHTML(s) +
+        DIMS.map(function (dim) { return cellHTML(s, dim); }).join('') +
+        talkHTML(s) + supportHTML(s) + '</tr>';
     }).join('');
   }
 
   function listHTML() {
     if (!state.students.length) {
-      return '<div class="card empty">还没有 6AM 档案。</div>';
+      return '<div class="card empty">还没有学生报告。</div>';
     }
     var list = visible();
     if (!list.length) return '<div class="card empty">没有符合条件的学生。</div>';
-    return '<div class="card tablewrap"><table class="roster"><thead><tr>' +
-      '<th>姓名</th><th>年级</th>' +
-      DIMS.map(function (dim) { return '<th>' + dim + '</th>'; }).join('') +
-      '<th>先用的支持</th><th></th></tr></thead><tbody>' +
+    return '<div class="card tablewrap"><table class="roster"><colgroup><col class="c-who">' +
+      DIMS.map(function () { return '<col class="c-dm">'; }).join('') +
+      '<col class="c-tk"><col class="c-sup"></colgroup><thead><tr><th>学生</th>' +
+      DIMS.map(function (dim) {
+        return '<th class="dm">' + dim + '<small>' + SA.esc(dimName(dim)) + '</small></th>';
+      }).join('') +
+      '<th>会谈</th><th>先用的支持</th></tr></thead><tbody>' +
       rowsHTML(list) + '</tbody></table></div>';
   }
 
   function headHTML() {
-    return '<div class="ovhead"><div><h1>学生总览</h1><p class="sub">' +
-      state.students.length + ' 名学生</p></div><span class="spacer"></span>' +
-      (SA.isAdmin() ? '<button class="btn" type="button" data-rerun>全部重算</button>' : '') +
+    var sub = state.students.length + ' 名学生';
+    if (state.noReport) sub += ' · ' + state.noReport + ' 名没有 Y4 报告';
+    var pending = state.students.filter(function (s) { return s.pending; }).length;
+    var admin = SA.isAdmin();
+    return '<div class="ovhead"><div><h1>学生总览</h1><p class="sub">' + SA.esc(sub) +
+      '</p></div><span class="spacer"></span>' +
       '<label class="sr" for="sa2-q">搜索学生</label>' +
-      '<input class="search" id="sa2-q" type="search" placeholder="搜索" value="' +
-      SA.esc(state.search) + '"></div>';
+      '<input class="search" id="sa2-q" type="search" placeholder="搜索姓名" value="' +
+      SA.esc(state.search) + '">' +
+      (admin && !pending ? '<button class="btn" type="button" data-rerun>全部重新生成</button>' : '') +
+      '</div>' +
+      (pending ? '<div class="pendbar"><span>' + pending + ' 名学生还没有生成 6AM</span>' +
+        (admin ? '<button class="btn primary" type="button" data-rerun>全部生成</button>' : '') +
+        '</div>' : '');
   }
 
   function render(el) {
@@ -139,8 +183,11 @@
   }
 
   function load(el) {
-    SA.api('/api/six-am/cohort').then(function (data) {
+    SA.loadModel().catch(function () {}).then(function () {
+      return SA.api('/api/six-am/cohort');
+    }).then(function (data) {
       state.students = data.students || [];
+      state.noReport = data.no_report || 0;
       state.loaded = true;
       render(el);
     }).catch(function (err) {
@@ -160,8 +207,9 @@
       if (target.hasAttribute('data-retry')) { load(el); return; }
 
       if (target.hasAttribute('data-rerun')) {
-        if (!window.confirm('全部重算？')) return;
+        if (!window.confirm(target.textContent + '？')) return;
         target.disabled = true;
+        target.textContent = '生成中…';
         SA.api('/api/six-am/rerun-all', { method: 'POST' }).then(function () {
           load(el);
         }).catch(function (err) {

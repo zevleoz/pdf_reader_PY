@@ -427,64 +427,87 @@ def _legacy_level(prof: Dict, dim: str) -> str:
     return _LEGACY_LEVELS.get(str(state or "Secure"), "稳固")
 
 
+def _cohort_summary(prof: Dict) -> Dict:
+    """一份档案 → 总览行的级别 / 类型 / 待会谈 / 阻塞 / A6 / 安全标记。"""
+    legacy = prof.get("schema") != "6am.v0.6"
+    levels: Dict[str, Optional[str]] = {}
+    types: Dict[str, Optional[str]] = {}
+    needs_talk: List[str] = []
+    blocked: List[str] = []
+    if legacy:
+        for dim in _COHORT_DIMS:
+            levels[dim] = _legacy_level(prof, dim)
+            types[dim] = None
+        return {"legacy": True, "levels": levels, "types": types, "needs_talk": [],
+                "blocked": [], "a6_top": [], "safety": bool(prof.get("safety_review"))}
+    dims = prof.get("dims") or {}
+    talks = (prof.get("inputs") or {}).get("talks") or {}
+    for dim in _COHORT_DIMS:
+        record = dims.get(dim) or {}
+        level = record.get("level")
+        levels[dim] = level
+        names = [str(name) for name in (record.get("types") or []) if name]
+        types[dim] = "、".join(names) if names else None
+        if level == "阻塞":
+            blocked.append(dim)
+        if level in ("风险", "阻塞") and dim not in talks:
+            needs_talk.append(dim)
+    ranked = (prof.get("a6") or {}).get("ranked") or []
+    a6_top = [str(entry.get("name") or "") for entry in ranked if entry.get("top")][:4]
+    return {"legacy": False, "levels": levels, "types": types, "needs_talk": needs_talk,
+            "blocked": blocked, "a6_top": a6_top,
+            "safety": bool((prof.get("flags") or {}).get("safety"))}
+
+
 @bp.route("/api/six-am/cohort")
 @admin_required
 def api_six_am_cohort():
-    """概览：当前可见学生的最新档案摘要（advisor 仅限名下）。"""
+    """概览：当前可见的每名学生（advisor 仅限名下）。
+
+    以学生最新报告为准：最新报告还没有档案的学生 pending=true（等待全部生成）；
+    没有任何报告的学生不列出，只计入 no_report。
+    """
     from app_utils import _advisor_scope
 
+    scope = _advisor_scope()
     model_version = str(_six_am_load_model().get("version") or "")
+    profiles = {rec.get("student_id"): rec for rec in _db.list_latest_six_am_profiles(scope)}
     students: List[Dict] = []
-    for rec in _db.list_latest_six_am_profiles(_advisor_scope()):
-        try:
-            prof = json.loads(rec.get("profile_json") or "{}")
-        except Exception:
-            prof = {}
-        legacy = prof.get("schema") != "6am.v0.6"
-        levels: Dict[str, Optional[str]] = {}
-        types: Dict[str, Optional[str]] = {}
-        needs_talk: List[str] = []
-        blocked: List[str] = []
-        if legacy:
-            for dim in _COHORT_DIMS:
-                levels[dim] = _legacy_level(prof, dim)
-                types[dim] = None
-            a6_top: List[str] = []
-            safety = bool(prof.get("safety_review"))
-        else:
-            dims = prof.get("dims") or {}
-            talks = (prof.get("inputs") or {}).get("talks") or {}
-            for dim in _COHORT_DIMS:
-                record = dims.get(dim) or {}
-                level = record.get("level")
-                levels[dim] = level
-                names = [str(name) for name in (record.get("types") or []) if name]
-                types[dim] = "、".join(names) if names else None
-                if level == "阻塞":
-                    blocked.append(dim)
-                if level in ("风险", "阻塞") and dim not in talks:
-                    needs_talk.append(dim)
-            ranked = (prof.get("a6") or {}).get("ranked") or []
-            a6_top = [str(entry.get("name") or "") for entry in ranked
-                      if entry.get("top")][:4]
-            safety = bool((prof.get("flags") or {}).get("safety"))
-        students.append({
-            "student_id": rec.get("student_id"),
-            "name": rec.get("name") or "",
-            "grade": rec.get("grade") or "",
-            "report_id": rec.get("report_id"),
-            "report_date": rec.get("report_date"),
-            "profile_id": rec.get("id"),
-            "version": rec.get("version"),
-            "legacy": legacy,
-            "levels": levels,
-            "types": types,
-            "needs_talk": needs_talk,
-            "blocked": blocked,
-            "a6_top": a6_top,
-            "safety": safety,
-        })
-    return jsonify({"ok": True, "model_version": model_version, "students": students})
+    no_report = 0
+    for st in _db.list_students_latest_report(scope):
+        if st.get("report_id") is None:
+            no_report += 1
+            continue
+        rec = profiles.get(st["student_id"])
+        row = {
+            "student_id": st["student_id"],
+            "name": st.get("name") or "",
+            "grade": st.get("grade") or "",
+            "report_id": st["report_id"],
+            "report_date": st.get("report_date"),
+            "profile_id": None,
+            "version": None,
+            "pending": True,
+            "legacy": False,
+            "levels": {dim: None for dim in _COHORT_DIMS},
+            "types": {dim: None for dim in _COHORT_DIMS},
+            "needs_talk": [],
+            "blocked": [],
+            "a6_top": [],
+            "safety": False,
+        }
+        if rec and rec.get("report_id") == st["report_id"]:
+            try:
+                prof = json.loads(rec.get("profile_json") or "{}")
+            except Exception:
+                prof = {}
+            row.update(_cohort_summary(prof))
+            row.update({"profile_id": rec.get("id"), "version": rec.get("version"),
+                        "pending": False})
+        students.append(row)
+    return jsonify({"ok": True, "model_version": model_version, "students": students,
+                    "pending": sum(1 for row in students if row["pending"]),
+                    "no_report": no_report})
 
 
 @bp.route("/api/reports/<int:report_id>/six-am/json")
@@ -505,10 +528,13 @@ def api_report_six_am_json(report_id):
 @bp.route("/api/six-am/rerun-all", methods=["POST"])
 @role_required('admin')
 def api_six_am_rerun_all():
-    """管理员：对每个已有 6AM 档案的报告按 v0.6 重算（失败集中返回）。"""
+    """管理员：按 v0.6 生成 / 重算——每名学生的最新报告，加上已有档案的报告。"""
+    report_ids = set(int(r) for r in _db.get_six_am_report_ids())
+    report_ids.update(int(st["report_id"]) for st in _db.list_students_latest_report()
+                      if st.get("report_id") is not None)
     count = 0
     failed: List[int] = []
-    for report_id in _db.get_six_am_report_ids():
+    for report_id in sorted(report_ids):
         try:
             if _six_am.run_v06_for_report(int(report_id)) is None:
                 failed.append(int(report_id))
