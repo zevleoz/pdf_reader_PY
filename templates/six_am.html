@@ -4,29 +4,29 @@
 {% block page_title %}6AM 启动模型{% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="/css/six_am.css?v=20261030">
+<link rel="stylesheet" href="/css/six_am.css?v=20261101">
 {% endblock %}
 
 {% block content %}
-<div class="sa2" id="sa2" data-can-write="{{ 'false' if current_role == 'viewer' else 'true' }}">
-  <div class="row">
-    <span class="spacer"></span>
-    <nav class="views" id="sa2-tabs" role="tablist" aria-label="6AM 视图">
-      <button role="tab" type="button" id="sa2-tab-overview" data-view="overview" aria-selected="true">总览</button>
-      <button role="tab" type="button" id="sa2-tab-profile" data-view="profile" aria-selected="false" tabindex="-1">学生档案</button>
-      <button role="tab" type="button" id="sa2-tab-review" data-view="review" aria-selected="false" tabindex="-1">评审会</button>
-    </nav>
-  </div>
+<div class="sa2" id="sa2"
+     data-can-write="{{ 'false' if current_role == 'viewer' else 'true' }}"
+     data-is-admin="{{ 'true' if current_role == 'admin' else 'false' }}">
+  <nav class="views" id="sa2-tabs" role="tablist" aria-label="6AM 视图">
+    <button role="tab" type="button" id="sa2-tab-overview" data-view="overview" aria-selected="true">学生总览</button>
+    <button role="tab" type="button" id="sa2-tab-student" data-view="student" aria-selected="false" tabindex="-1">学生</button>
+    <button role="tab" type="button" id="sa2-tab-rules" data-view="rules" aria-selected="false" tabindex="-1">规则</button>
+  </nav>
 
-  <section class="sa2-view" id="sa2-overview" aria-label="总览"></section>
-  <section class="sa2-view" id="sa2-profile" aria-label="学生档案" hidden></section>
-  <section class="sa2-view" id="sa2-review" aria-label="评审会" hidden></section>
+  <section class="sa2-view" id="sa2-overview" aria-label="学生总览"></section>
+  <section class="sa2-view" id="sa2-student" aria-label="学生" hidden></section>
+  <section class="sa2-view" id="sa2-rules" aria-label="规则" hidden></section>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="/js/six_am/common.js?v=20261030" defer></script>
-<script src="/js/six_am/overview.js?v=20261030" defer></script>
-<script src="/js/six_am/profile.js?v=20261030" defer></script>
-<script src="/js/six_am/review.js?v=20261030" defer></script>
+<script src="/js/six_am/common.js?v=20261101" defer></script>
+<script src="/js/six_am/mindmap.js?v=20261101" defer></script>
+<script src="/js/six_am/overview.js?v=20261101" defer></script>
+<script src="/js/six_am/student.js?v=20261101" defer></script>
+<script src="/js/six_am/rules.js?v=20261101" defer></script>
 {% endblock %}
