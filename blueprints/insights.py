@@ -1,12 +1,12 @@
 """洞察蓝图：Dashboard、Y4 研判页、6AM 档案与规则。"""
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
-import time
 from typing import Dict, List, Optional
 
-from flask import Blueprint, jsonify, render_template, request, send_file
+from flask import Blueprint, Response, jsonify, redirect, render_template, request
 
 import db as _db
 from app_utils import (admin_required, page_login_required, report_scoped,
@@ -220,14 +220,17 @@ def y4_signals_page():
     return render_template("y4_signals.html", nav_active="insights.y4-signals")
 import six_am as _six_am
 from six_am.export_json import build_six_am_json as _build_six_am_json
-from six_am.render_docx import build_six_am_docx as _build_six_am_docx
-from six_am import presentation as _six_am_presentation
-from six_am import rules as _six_am_rules
+from six_am.model import export_md as _six_am_export_md
+from six_am.model import load_model as _six_am_load_model
+
+_COHORT_DIMS = ("A1", "A2", "A3", "A4", "A5")
+_LEGACY_LEVELS = {"Secure": "稳固", "Watch": "关注", "At-Risk": "风险", "Blocked": "阻塞"}
+_TALK_RESULTS = ("confirm", "deny", "set")
+_TALK_LEVELS = ("稳固", "关注", "风险", "阻塞")
 
 
 def _six_am_profile_payload(rec: Dict) -> Dict:
-    """DB 行 → 前端 payload（解析 profile_json，附版本时间线、上一版与团队评议）。"""
-    from app_utils import current_user
+    """DB 行 → 前端 payload（v0.6：档案 + 版本时间线 + 报告日期 + 旧规则标记）。"""
     from six_am import history as _six_am_history
 
     try:
@@ -242,16 +245,6 @@ def _six_am_profile_payload(rec: Dict) -> Dict:
         versions = _six_am_history.timeline(rows)
     except Exception:
         versions = []
-    previous_states = None
-    try:
-        prev = _db.get_previous_six_am_profile(rec.get("id"))
-        if prev:
-            prev_prof = json.loads(prev.get("profile_json") or "{}")
-            prev_dims = prev_prof.get("dimensions") or {}
-            previous_states = {dim: (prev_dims.get(dim) or {}).get("state")
-                               for dim in ("A1", "A2", "A3", "A4", "A5")}
-    except Exception:
-        previous_states = None
     report_date = None
     try:
         for row in _db.get_student_reports(rec.get("student_id")):
@@ -260,23 +253,14 @@ def _six_am_profile_payload(rec: Dict) -> Dict:
                 break
     except Exception:
         report_date = None
-    try:
-        reviews = _db.latest_six_am_reviews(rec.get("id"))
-    except Exception:
-        reviews = {}
     return {
         "profile_id": rec.get("id"),
         "version": rec.get("version"),
-        "created_at": rec.get("created_at"),
         "report_id": report_id,
         "report_date": report_date,
-        "student_id": rec.get("student_id"),
-        "can_write": current_user().get("role") != "viewer",
+        "legacy": prof.get("schema") != "6am.v0.6",
         "profile": prof,
         "versions": versions,
-        "previous_states": previous_states,
-        "reviews": reviews,
-        "view_model": _six_am_presentation.build_view_model(prof),
     }
 
 
@@ -290,22 +274,6 @@ def _six_am_pick_profile(report_id: int) -> Optional[Dict]:
     return _db.get_latest_six_am_profile(report_id)
 
 
-def _six_am_rule_specs() -> List[Dict]:
-    """规则条件声明（面板展示与覆盖编辑的锚点，含 X 规则）。"""
-    specs = []
-    for rid in _six_am_rules.RULE_IDS:
-        r = _six_am_rules.RULES.get(rid) or {}
-        specs.append({"id": rid, "dim": r.get("dim") or "", "title": r.get("title") or "",
-                      "when": r.get("when") or [], "then": r.get("then") or {},
-                      "questions": r.get("questions") or [], "text": r.get("text") or ""})
-    for rid in _six_am_rules.CROSS_RULE_IDS:
-        r = _six_am_rules.CROSS_RULES.get(rid) or {}
-        specs.append({"id": rid, "dim": "X", "title": r.get("title") or "",
-                      "when": [], "then": {}, "questions": [],
-                      "text": r.get("action") or "", "cross": True})
-    return specs
-
-
 @bp.route("/six-am")
 @bp.route("/insights/six-am")
 @page_login_required
@@ -315,9 +283,29 @@ def six_am_page():
 
 @bp.route("/six-am/rules")
 @bp.route("/insights/six-am/rules")
-@role_required('admin')
-def six_am_rules_page():
-    return render_template("six_am_rules.html", nav_active="insights.six-am")
+@bp.route("/insights/six-am/board")
+@page_login_required
+def six_am_rules_redirect():
+    """规则板 / 规则页退役：统一回到总览的规则视图。"""
+    return redirect("/insights/six-am?view=rules")
+
+
+@bp.route("/api/six-am/model")
+@admin_required
+def api_six_am_model():
+    """v0.6 模型 JSON（页面规则视图的数据源）。"""
+    return jsonify({"ok": True, "model": _six_am_load_model()})
+
+
+@bp.route("/api/six-am/model.md")
+@admin_required
+def api_six_am_model_md():
+    """下载思维导图 Markdown。"""
+    resp = Response(_six_am_export_md(_six_am_load_model()), mimetype="text/markdown")
+    resp.headers["Content-Type"] = "text/markdown; charset=utf-8"
+    resp.headers["Content-Disposition"] = \
+        "attachment; filename*=UTF-8''6am-mindmap-v0.6.md"
+    return resp
 
 
 @bp.route("/api/reports/<int:report_id>/six-am")
@@ -335,19 +323,9 @@ def api_report_six_am(report_id):
 @admin_required
 @report_scoped
 def api_report_six_am_generate(report_id):
-    """手动重跑（body {rule_version_id?, profile_id?}，沿用旧档案录入数据）。"""
-    data = request.get_json(silent=True) or {}
-    source_profile = None
-    if data.get("profile_id"):
-        try:
-            prec = _db.get_six_am_profile(int(data["profile_id"]))
-            if prec:
-                source_profile = json.loads(prec.get("profile_json") or "{}")
-        except (TypeError, ValueError):
-            source_profile = None
+    """按 v0.6 重跑（沿用已存 inputs；旧档案回填 ft / parent）。"""
     try:
-        prof = _six_am.run_for_report(report_id, rule_version_id=data.get("rule_version_id"),
-                                      source_profile=source_profile)
+        prof = _six_am.run_v06_for_report(report_id)
     except Exception as exc:
         return jsonify({"ok": False, "error": f"6AM 生成失败: {exc}"}), 500
     if prof is None:
@@ -356,26 +334,85 @@ def api_report_six_am_generate(report_id):
     return jsonify({"ok": True, **_six_am_profile_payload(rec)})
 
 
-@bp.route("/api/reports/<int:report_id>/six-am/answers", methods=["POST"])
+def _validate_talks(raw, model: Dict) -> Dict:
+    """校验并规范化会谈记录；返回 (talks, error)。"""
+    if raw is None:
+        return {}, None
+    if not isinstance(raw, dict):
+        return None, "talks 必须是对象"
+    cause_ids: Dict[str, set] = {}
+    for dim in model.get("dims") or []:
+        cause_ids[str(dim.get("id"))] = {
+            str((cause or {}).get("id"))
+            for cause in ((dim.get("blocked") or {}).get("causes") or [])}
+    today = _dt.date.today().isoformat()
+    out: Dict[str, Dict] = {}
+    for key, record in raw.items():
+        dim = str(key)
+        if dim not in _COHORT_DIMS:
+            return None, "会谈记录的维度必须是 A1–A5"
+        if record is None:
+            out[dim] = None  # null 删除该维会谈记录
+            continue
+        if not isinstance(record, dict):
+            return None, f"{dim} 的会谈记录必须是对象"
+        result = str(record.get("result") or "").strip()
+        if result not in _TALK_RESULTS:
+            return None, f"{dim} 的会谈结论必须是 confirm、deny 或 set"
+        clean: Dict = {"result": result}
+        if result == "set":
+            set_level = str(record.get("set_level") or "").strip()
+            if set_level not in _TALK_LEVELS:
+                return None, f"{dim} 调整为某级时必须给出有效级别"
+            clean["set_level"] = set_level
+        causes = record.get("causes")
+        if causes is None:
+            causes = []
+        if not isinstance(causes, list):
+            return None, f"{dim} 的归因必须是数组"
+        picked: List[str] = []
+        for cid in causes:
+            cid = str(cid)
+            if cid not in cause_ids.get(dim, set()):
+                return None, f"{dim} 的归因无效：{cid}"
+            picked.append(cid)
+        clean["causes"] = picked
+        note = "" if record.get("note") is None else str(record.get("note"))
+        if len(note) > 500:
+            return None, f"{dim} 的会谈备注最多 500 字"
+        clean["note"] = note
+        clean["at"] = today
+        out[dim] = clean
+    return out, None
+
+
+@bp.route("/api/reports/<int:report_id>/six-am/inputs", methods=["POST"])
 @admin_required
 @report_scoped
-def api_report_six_am_answers(report_id):
-    """保存追问答案 + 四类缺口字段 → 重跑 → 返回新档案（版本 +1）。"""
-    data = request.get_json(force=True) or {}
-    prev = _db.get_latest_six_am_profile(report_id)
-    prev_prof = None
-    if prev:
+def api_report_six_am_inputs(report_id):
+    """合并 First Touch / 家长 / 会谈输入 → 重跑 → 返回新档案（版本 +1）。"""
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求体必须是对象"}), 400
+    talks, err = _validate_talks(data.get("talks"), _six_am_load_model())
+    if err:
+        return jsonify({"ok": False, "error": err}), 400
+    new_inputs: Dict = {"talks": talks}
+    for key in ("ft", "parent"):
+        if data.get(key) is not None:
+            if not isinstance(data[key], dict):
+                return jsonify({"ok": False, "error": f"{key} 必须是对象"}), 400
+            new_inputs[key] = data[key]
+    prev = None
+    latest = _db.get_latest_six_am_profile(report_id)
+    if latest:
         try:
-            prev_prof = json.loads(prev.get("profile_json") or "{}")
+            prev = json.loads(latest.get("profile_json") or "{}")
         except Exception:
-            prev_prof = None
-    base = _six_am.recover_evidence(prev_prof)
-    evidence = _six_am.merge_evidence(base, _six_am.evidence_from_payload(data))
-    answers = data.get("answers")
-    if not isinstance(answers, list):
-        answers = None  # 未提交答案时沿用旧档案
+            prev = None
+    merged = _six_am.merge_inputs(_six_am.inputs_from_profile(prev), new_inputs)
     try:
-        prof = _six_am.run_for_report(report_id, evidence=evidence, answers=answers)
+        prof = _six_am.run_v06_for_report(report_id, inputs=merged)
     except Exception as exc:
         return jsonify({"ok": False, "error": f"6AM 重跑失败: {exc}"}), 500
     if prof is None:
@@ -384,67 +421,53 @@ def api_report_six_am_answers(report_id):
     return jsonify({"ok": True, **_six_am_profile_payload(rec)})
 
 
-# ── 概览 / 预览 / 团队评议（6AM 2.0）────────────────────────────
-_COHORT_DIMS = ("A1", "A2", "A3", "A4", "A5")
-_COHORT_STATES = ("Secure", "Watch", "At-Risk", "Blocked")
-_REVIEW_VERDICTS = ("agree", "adjust", "evidence")
+# ── 概览（6AM v0.6）────────────────────────────────────────────
+def _legacy_level(prof: Dict, dim: str) -> str:
+    state = ((prof.get("dimensions") or {}).get(dim) or {}).get("state")
+    return _LEGACY_LEVELS.get(str(state or "Secure"), "稳固")
 
 
 @bp.route("/api/six-am/cohort")
 @admin_required
 def api_six_am_cohort():
-    """概览：当前可见学生的最新档案摘要 + 五维状态分布（advisor 仅限名下）。"""
+    """概览：当前可见学生的最新档案摘要（advisor 仅限名下）。"""
     from app_utils import _advisor_scope
 
+    model_version = str(_six_am_load_model().get("version") or "")
     students: List[Dict] = []
-    distribution = {dim: {state: 0 for state in _COHORT_STATES} for dim in _COHORT_DIMS}
     for rec in _db.list_latest_six_am_profiles(_advisor_scope()):
         try:
             prof = json.loads(rec.get("profile_json") or "{}")
         except Exception:
             prof = {}
-        vm = _six_am_presentation.build_view_model(prof)
-        cards = {c.get("dim"): c for c in (vm.get("cards") or [])}
-        dims = prof.get("dimensions") or {}
-        states: Dict[str, Optional[str]] = {}
-        evidence: Dict[str, Optional[str]] = {}
-        missing: List[str] = []
-        for dim in _COHORT_DIMS:
-            rec_dim = dims.get(dim) or {}
-            state = str(rec_dim.get("state") or "Secure")
-            states[dim] = state
-            evidence[dim] = rec_dim.get("confidence")
-            if "Y4 数据缺失" in (rec_dim.get("flags") or []):
-                missing.append(dim)
-            if state in distribution[dim]:
-                distribution[dim][state] += 1
-        subtypes = {dim: (cards.get(dim) or {}).get("subtype_display")
-                    for dim in _COHORT_DIMS}
-        plan = prof.get("support_plan") or (dims.get("A6") or {}).get("support_ranking") or {}
-        ranked = [e for e in (plan.get("ranked") or [])
-                  if isinstance(e, dict) and e.get("direction")]
-        a6_top = next((str(e["direction"]) for e in ranked
-                       if str(e.get("fit_label") or "") == "优先"), None)
-        if a6_top is None and ranked:
-            a6_top = str(ranked[0]["direction"])
-        previous_states = None
-        prev = _db.get_previous_six_am_profile(rec.get("id"))
-        if prev:
-            try:
-                prev_dims = json.loads(prev.get("profile_json") or "{}").get("dimensions") or {}
-            except Exception:
-                prev_dims = {}
-            previous_states = {dim: (prev_dims.get(dim) or {}).get("state")
-                               for dim in _COHORT_DIMS}
-        reviews = _db.latest_six_am_reviews(rec.get("id"))
-        at_risk = [dim for dim in _COHORT_DIMS
-                   if states.get(dim) in ("At-Risk", "Blocked")]
-        if not at_risk:
-            review_status = "none"
-        elif all(dim in reviews for dim in at_risk):
-            review_status = "reviewed"
+        legacy = prof.get("schema") != "6am.v0.6"
+        levels: Dict[str, Optional[str]] = {}
+        types: Dict[str, Optional[str]] = {}
+        needs_talk: List[str] = []
+        blocked: List[str] = []
+        if legacy:
+            for dim in _COHORT_DIMS:
+                levels[dim] = _legacy_level(prof, dim)
+                types[dim] = None
+            a6_top: List[str] = []
+            safety = bool(prof.get("safety_review"))
         else:
-            review_status = "pending"
+            dims = prof.get("dims") or {}
+            talks = (prof.get("inputs") or {}).get("talks") or {}
+            for dim in _COHORT_DIMS:
+                record = dims.get(dim) or {}
+                level = record.get("level")
+                levels[dim] = level
+                names = [str(name) for name in (record.get("types") or []) if name]
+                types[dim] = "、".join(names) if names else None
+                if level == "阻塞":
+                    blocked.append(dim)
+                if level in ("风险", "阻塞") and dim not in talks:
+                    needs_talk.append(dim)
+            ranked = (prof.get("a6") or {}).get("ranked") or []
+            a6_top = [str(entry.get("name") or "") for entry in ranked
+                      if entry.get("top")][:4]
+            safety = bool((prof.get("flags") or {}).get("safety"))
         students.append({
             "student_id": rec.get("student_id"),
             "name": rec.get("name") or "",
@@ -453,188 +476,15 @@ def api_six_am_cohort():
             "report_date": rec.get("report_date"),
             "profile_id": rec.get("id"),
             "version": rec.get("version"),
-            "states": states,
-            "evidence": evidence,
-            "subtypes": subtypes,
-            "previous_states": previous_states,
-            "safety": bool(prof.get("safety_review")),
-            "missing": missing,
-            "order": prof.get("priority_order") or (vm.get("summary") or {}).get(
-                "priority_order") or [],
+            "legacy": legacy,
+            "levels": levels,
+            "types": types,
+            "needs_talk": needs_talk,
+            "blocked": blocked,
             "a6_top": a6_top,
-            "reviews": reviews,
-            "review_status": review_status,
+            "safety": safety,
         })
-    return jsonify({"ok": True, "students": students, "distribution": distribution})
-
-
-@bp.route("/api/reports/<int:report_id>/six-am/preview", methods=["POST"])
-@admin_required
-@report_scoped
-def api_report_six_am_preview(report_id):
-    """演练：与 answers 同输入，调用 build_profile 只重算、不落库。"""
-    from six_am import history as _six_am_history
-
-    data = request.get_json(force=True) or {}
-    prev = _db.get_latest_six_am_profile(report_id)
-    prev_prof = None
-    if prev:
-        try:
-            prev_prof = json.loads(prev.get("profile_json") or "{}")
-        except Exception:
-            prev_prof = None
-    evidence = _six_am.merge_evidence(_six_am.recover_evidence(prev_prof),
-                                      _six_am.evidence_from_payload(data))
-    answers = data.get("answers")
-    if not isinstance(answers, list):
-        answers = None
-    try:
-        prof = _six_am.build_profile(report_id, evidence=evidence, answers=answers,
-                                     source_profile=prev_prof)
-    except Exception as exc:
-        return jsonify({"ok": False, "error": f"6AM 预览失败: {exc}"}), 500
-    if prof is None:
-        return jsonify({"ok": False, "error": "报告不存在"}), 404
-    return jsonify({"ok": True,
-                    "view_model": _six_am_presentation.build_view_model(prof),
-                    "changes": _six_am_history.diff_profiles(prev_prof, prof)})
-
-
-@bp.route("/api/reports/<int:report_id>/six-am/reviews", methods=["POST"])
-@admin_required
-@report_scoped
-def api_report_six_am_reviews(report_id):
-    """记录团队评议（只追加：不改模型判定、不新增档案版本）。"""
-    import datetime as _dt
-
-    import app_utils as _app_utils
-
-    data = request.get_json(silent=True) or {}
-    try:
-        profile_id = int(data.get("profile_id"))
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "缺少有效的档案 ID"}), 400
-    rec = _db.get_six_am_profile(profile_id)
-    if not rec or int(rec.get("report_id") or 0) != int(report_id):
-        return jsonify({"ok": False, "error": "档案不属于该报告"}), 400
-    dim = str(data.get("dim") or "").strip()
-    if dim not in _COHORT_DIMS:
-        return jsonify({"ok": False, "error": "维度必须是 A1–A5"}), 400
-    verdict = str(data.get("verdict") or "").strip()
-    if verdict not in _REVIEW_VERDICTS:
-        return jsonify({"ok": False, "error": "结论必须是 agree、adjust 或 evidence"}), 400
-    adjusted_state = data.get("adjusted_state")
-    if verdict == "adjust":
-        if adjusted_state not in _COHORT_STATES:
-            return jsonify({"ok": False, "error": "调整为 X 时必须给出有效状态"}), 400
-    else:
-        adjusted_state = None
-    note = "" if data.get("note") is None else str(data.get("note"))
-    if len(note) > 500:
-        return jsonify({"ok": False, "error": "备注最多 500 字"}), 400
-    owner = "" if data.get("owner") is None else str(data.get("owner"))
-    if len(owner) > 50:
-        return jsonify({"ok": False, "error": "负责人最多 50 字"}), 400
-    due_date = "" if data.get("due_date") is None else str(data.get("due_date")).strip()
-    if due_date:
-        try:
-            _dt.datetime.strptime(due_date, "%Y-%m-%d")
-        except ValueError:
-            return jsonify({"ok": False, "error": "截止日期格式必须是 YYYY-MM-DD"}), 400
-    user = _app_utils.current_user()
-    author = user.get("display_name") or str(user.get("user_id") or "")
-    review = _db.add_six_am_review(
-        profile_id=profile_id, report_id=int(report_id), dim=dim, verdict=verdict,
-        adjusted_state=adjusted_state, note=note, owner=owner,
-        due_date=due_date, author=author)
-    return jsonify({"ok": True, "review": review})
-
-
-# ── 人工行动修订（不新增版本，就地更新当前档案）───────────────────
-_OVERRIDE_DIMS = ("A1", "A2", "A3", "A4", "A5", "A6")
-_OVERRIDE_MAX_ITEMS = 8
-_OVERRIDE_MAX_LEN = 300
-
-
-def _validate_action_list(value, field: str):
-    """校验行动数组：None → []；≤8 条、每条为 ≤300 字的非空字符串。
-
-    返回 (items, error)；error 非 None 时 items 为 None。
-    """
-    if value is None:
-        return [], None
-    if not isinstance(value, list):
-        return None, f"{field} 必须是字符串数组"
-    if len(value) > _OVERRIDE_MAX_ITEMS:
-        return None, f"{field} 最多 {_OVERRIDE_MAX_ITEMS} 条"
-    items = []
-    for item in value:
-        if not isinstance(item, str) or not item.strip():
-            return None, f"{field} 含空或非字符串条目"
-        if len(item) > _OVERRIDE_MAX_LEN:
-            return None, f"{field} 单条最多 {_OVERRIDE_MAX_LEN} 字"
-        items.append(item.strip())
-    return items, None
-
-
-@bp.route("/api/reports/<int:report_id>/six-am/action-overrides", methods=["POST"])
-@admin_required
-@report_scoped
-def api_report_six_am_action_overrides(report_id):
-    """保存某维度的人工行动修订：就地更新当前档案，版本号不变，不写修订日志。"""
-    data = request.get_json(silent=True) or {}
-    try:
-        profile_id = int(data.get("profile_id"))
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "profile_id 必填"}), 400
-    rec = _db.get_six_am_profile(profile_id)
-    if not rec or rec.get("report_id") != report_id:
-        return jsonify({"ok": False, "error": "档案不存在或不属于该报告"}), 404
-    dim = str(data.get("dim") or "").strip()
-    if dim not in _OVERRIDE_DIMS:
-        return jsonify({"ok": False, "error": "dim 必须是 A1–A6 之一"}), 400
-    next_actions, err = _validate_action_list(data.get("next_actions"), "next_actions")
-    if err:
-        return jsonify({"ok": False, "error": err}), 400
-    avoid_actions, err = _validate_action_list(data.get("avoid_actions"), "avoid_actions")
-    if err:
-        return jsonify({"ok": False, "error": err}), 400
-    try:
-        prof = json.loads(rec.get("profile_json") or "{}")
-    except Exception:
-        prof = {}
-    overrides = prof.get("action_overrides")
-    if not isinstance(overrides, dict):
-        overrides = {}
-    # 空数组保留为空 override：展示层回退到生成结果（Task 3 既定语义）
-    overrides[dim] = {"next_actions": next_actions, "avoid_actions": avoid_actions}
-    prof["action_overrides"] = overrides
-    if not _db.update_six_am_profile_json(profile_id,
-                                          json.dumps(prof, ensure_ascii=False)):
-        return jsonify({"ok": False, "error": "档案更新失败"}), 500
-    rec = _db.get_six_am_profile(profile_id)
-    return jsonify({"ok": True, **_six_am_profile_payload(rec)})
-
-
-@bp.route("/api/reports/<int:report_id>/six-am/docx")
-@admin_required
-@report_scoped
-def api_report_six_am_docx(report_id):
-    """下载 Word 档案（紧凑摘要 / 六维行动卡 / 待确认问题 / 规则审计附录）。"""
-    import io as _io
-    rec = _six_am_pick_profile(report_id)
-    if not rec:
-        return jsonify({"ok": False, "error": "尚无 6AM 档案"}), 404
-    try:
-        prof = json.loads(rec.get("profile_json") or "{}")
-        blob = _build_six_am_docx(prof)
-    except Exception as exc:
-        return jsonify({"ok": False, "error": f"DOCX 生成失败: {exc}"}), 500
-    name = str((prof.get("student") or {}).get("name") or "学生")
-    name = name.replace("/", "_").replace("\\", "_").replace(" ", "")
-    return send_file(_io.BytesIO(blob),
-                     mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                     as_attachment=True, download_name=f"6AM启动档案_{name}.docx")
+    return jsonify({"ok": True, "model_version": model_version, "students": students})
 
 
 @bp.route("/api/reports/<int:report_id>/six-am/json")
@@ -652,290 +502,20 @@ def api_report_six_am_json(report_id):
     return jsonify({"ok": True, "json": payload, "filename": f"6AM数据_{name}.json"})
 
 
-@bp.route("/api/six-am/rule-versions")
+@bp.route("/api/six-am/rerun-all", methods=["POST"])
 @role_required('admin')
-def api_six_am_rule_versions():
-    """版本列表 + 参数默认值 + 规则声明（规则面板数据源）。"""
-    targets = []
-    for rid in _db.get_six_am_report_ids():
-        latest = _db.get_latest_six_am_profile(rid)
-        if not latest:
-            continue
+def api_six_am_rerun_all():
+    """管理员：对每个已有 6AM 档案的报告按 v0.6 重算（失败集中返回）。"""
+    count = 0
+    failed: List[int] = []
+    for report_id in _db.get_six_am_report_ids():
         try:
-            prof = json.loads(latest.get("profile_json") or "{}")
+            if _six_am.run_v06_for_report(int(report_id)) is None:
+                failed.append(int(report_id))
+            else:
+                count += 1
         except Exception:
-            prof = {}
-        targets.append({"report_id": rid,
-                        "student_name": (prof.get("student") or {}).get("name") or "",
-                        "version": latest.get("version")})
-    return jsonify({
-        "ok": True,
-        "versions": _db.list_six_am_rule_versions(),
-        "defaults": _six_am.default_params(),
-        "rule_ids": list(_six_am_rules.RULE_IDS),
-        "cross_rule_ids": list(_six_am_rules.CROSS_RULE_IDS),
-        "question_ids": list(_six_am_rules.QUESTION_IDS),
-        "rule_specs": _six_am_rule_specs(),
-        "targets": targets,
-    })
+            failed.append(int(report_id))
+    return jsonify({"ok": True, "count": count, "failed": failed})
 
 
-@bp.route("/api/six-am/rule-versions", methods=["POST"])
-@role_required('admin')
-def api_six_am_rule_versions_save():
-    """保存 draft 版本（body：params + rule_overrides + label）。"""
-    data = request.get_json(force=True) or {}
-    params = data.get("params") if isinstance(data.get("params"), dict) else {}
-    overrides = data.get("rule_overrides") if isinstance(data.get("rule_overrides"), dict) else {}
-    label = str(data.get("label") or "").strip()
-    if not label:
-        label = time.strftime("draft-%Y%m%d-%H%M%S")
-    vid = _db.save_six_am_rule_version(
-        label, json.dumps({"params": params, "rule_overrides": overrides}, ensure_ascii=False))
-    return jsonify({"ok": True, "version_id": vid, "versions": _db.list_six_am_rule_versions()})
-
-
-@bp.route("/api/six-am/rule-versions/<int:vid>/publish", methods=["POST"])
-@role_required('admin')
-def api_six_am_rule_version_publish(vid):
-    """draft → published（旧 published → archived）。"""
-    if not _db.get_six_am_rule_version(vid):
-        return jsonify({"ok": False, "error": "版本不存在"}), 404
-    _db.publish_six_am_rule_version(vid)
-    return jsonify({"ok": True, "versions": _db.list_six_am_rule_versions()})
-
-
-@bp.route("/api/six-am/sandbox", methods=["POST"])
-@role_required('admin')
-def api_six_am_sandbox():
-    """沙盒：用指定版本逐份只读重跑，与最新已存档案对比；不落库。"""
-    data = request.get_json(force=True) or {}
-    vid = data.get("rule_version_id")
-    rv = None
-    if vid:
-        try:
-            rv = _db.get_six_am_rule_version(int(vid))
-        except (TypeError, ValueError):
-            rv = None
-    if not rv:
-        return jsonify({"ok": False, "error": "规则版本不存在"}), 404
-    try:
-        payload = json.loads(rv.get("params_json") or "{}")
-    except Exception:
-        payload = {}
-    params = payload.get("params") or {}
-    overrides = payload.get("rule_overrides") or {}
-    meta = {"id": rv.get("id"), "label": rv.get("label"), "status": rv.get("status")}
-
-    target = data.get("report_ids")
-    if target in (None, "all"):
-        report_ids = _db.get_six_am_report_ids()
-    else:
-        report_ids = [int(x) for x in target if str(x).strip().isdigit()]
-
-    results = []
-    for rid in report_ids:
-        prev = _db.get_latest_six_am_profile(rid)
-        prev_prof = None
-        if prev:
-            try:
-                prev_prof = json.loads(prev.get("profile_json") or "{}")
-            except Exception:
-                prev_prof = None
-        try:
-            prof = _six_am.build_profile(rid, params=params, rule_overrides=overrides,
-                                         rule_version=meta, source_profile=prev_prof)
-        except Exception as exc:
-            results.append({"report_id": rid, "error": str(exc)})
-            continue
-        if prof is None:
-            continue
-        old_dims = (prev_prof or {}).get("dimensions") or {}
-        new_dims = prof.get("dimensions") or {}
-        old_states, new_states, changed, details = {}, {}, [], {}
-        for dim in ("A1", "A2", "A3", "A4", "A5"):
-            os_ = str((old_dims.get(dim) or {}).get("state") or "Secure")
-            ns_ = str((new_dims.get(dim) or {}).get("state") or "Secure")
-            old_states[dim] = os_
-            new_states[dim] = ns_
-            if os_ != ns_:
-                changed.append(dim)
-                details[dim] = {
-                    "old_rules": [t.get("id") for t in
-                                  ((old_dims.get(dim) or {}).get("triggered_rules") or [])],
-                    "new_rules": [t.get("id") for t in
-                                  ((new_dims.get(dim) or {}).get("triggered_rules") or [])],
-                }
-        results.append({
-            "report_id": rid,
-            "student_name": (prof.get("student") or {}).get("name") or "",
-            "old_states": old_states, "new_states": new_states,
-            "changed_dims": changed, "details": details,
-        })
-    return jsonify({"ok": True, "rule_version": meta, "results": results})
-
-
-# ─── 6AM 规则板（Q4）────────────────────────────────────────────
-_BOARD_PARAM_META = {
-    "top_n_values": ("职业价值观前 N 位", 1, 15),
-    "top_n_safety": ("安全稳定前 N 位", 1, 15),
-    "control_low_max": ("掌控感低端上限", 0, 100),
-    "control_high_min": ("掌控感高端下限", 0, 100),
-    "mindset_low_max": ("思维模式阈值", 0, 100),
-    "cog_pct_min": ("认知能力百分位阈值", 0, 100),
-    "schedule_free_hours_max": ("每周自由时间下限（小时）", 0, 100),
-    "a5_min_supporting": ("升到风险所需辅助信号数", 1, 6),
-    "a6_top_n": ("每名学生优先支持数", 1, 15),
-}
-
-
-def _board_spec_of(version: Optional[Dict]) -> Optional[Dict]:
-    """版本 params_json 里的 params.spec；缺失/损坏返回 None。"""
-    if not version:
-        return None
-    try:
-        payload = json.loads(version.get("params_json") or "{}")
-    except Exception:
-        payload = {}
-    params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
-    spec = params.get("spec")
-    return spec if isinstance(spec, dict) else None
-
-
-def _board_versions():
-    """返回 (全部版本, 当前 published, 全部 draft)。"""
-    versions = _db.list_six_am_rule_versions()
-    published = next((v for v in versions if v.get("status") == "published"), None)
-    drafts = [v for v in versions if v.get("status") == "draft"]
-    return versions, published, drafts
-
-
-def _board_base_spec(base_version_id=None) -> Dict:
-    """合并基准：指定版本 → 当前 published → DEFAULT_SPEC。"""
-    from six_am.spec import DEFAULT_SPEC
-
-    if base_version_id:
-        try:
-            base = _board_spec_of(_db.get_six_am_rule_version(int(base_version_id)))
-        except (TypeError, ValueError):
-            base = None
-        if base:
-            return base
-    _versions, published, _drafts = _board_versions()
-    base = _board_spec_of(published)
-    return base or json.loads(json.dumps(DEFAULT_SPEC))
-
-
-@bp.route("/insights/six-am/board")
-@page_login_required
-def six_am_board_page():
-    return render_template("six_am_board.html", nav_active="insights.six-am")
-
-
-@bp.route("/api/six-am/board")
-@admin_required
-def api_six_am_board():
-    """规则板数据源：当前 spec、信号库、参数元信息、版本列表。读操作对所有角色开放。"""
-    from flask import session
-    from six_am.spec import DEFAULT_SPEC
-    from six_am.signals import SIGNALS
-
-    _versions, published, drafts = _board_versions()
-    chosen = None
-    vid = request.args.get("version_id")
-    if vid:
-        try:
-            chosen = _db.get_six_am_rule_version(int(vid))
-        except (TypeError, ValueError):
-            chosen = None
-    if not chosen:
-        chosen = published
-    spec = _board_spec_of(chosen) or _board_spec_of(published)
-    if not spec:
-        spec = json.loads(json.dumps(DEFAULT_SPEC))
-
-    return jsonify({
-        "ok": True,
-        "can_edit": session.get("role") == "admin",
-        "published": ({"id": published["id"], "label": published["label"]}
-                      if published else None),
-        "drafts": [{"id": v["id"], "label": v["label"], "created_at": v.get("created_at")}
-                   for v in drafts],
-        "version": ({"id": chosen["id"], "label": chosen["label"],
-                     "status": chosen["status"]} if chosen else None),
-        "spec": spec,
-        "signals": [dict(SIGNALS[sid]) for sid in SIGNALS],
-        "param_meta": {name: {"label": label, "min": lo, "max": hi, "step": 1}
-                       for name, (label, lo, hi) in _BOARD_PARAM_META.items()},
-    })
-
-
-@bp.route("/api/six-am/board", methods=["POST"])
-@role_required('admin')
-def api_six_am_board_save():
-    """保存规则板编辑为 draft 版本（只合入可编辑字段）。"""
-    from six_am.spec import merge_edit, validate
-
-    data = request.get_json(force=True) or {}
-    edited = data.get("spec") if isinstance(data.get("spec"), dict) else {}
-    base = _board_base_spec(data.get("base_version_id"))
-    merged = merge_edit(base, edited)
-    errors = validate(merged)
-    if errors:
-        return jsonify({"ok": False, "errors": errors}), 400
-
-    label = str(data.get("label") or "").strip() or time.strftime("board-%Y%m%d-%H%M%S")
-    vid = _db.save_six_am_rule_version(
-        label,
-        json.dumps({"params": {"spec": merged, "engine": "v0.5"}, "rule_overrides": {}},
-                   ensure_ascii=False))
-    return jsonify({"ok": True, "version_id": vid})
-
-
-@bp.route("/api/six-am/board/preview", methods=["POST"])
-@role_required('admin')
-def api_six_am_board_preview():
-    """规则板预览：逐份只读重跑，对比 published 分布；不落库。"""
-    from six_am.spec import merge_edit, validate
-
-    data = request.get_json(force=True) or {}
-    edited = data.get("spec") if isinstance(data.get("spec"), dict) else {}
-    base = _board_base_spec()
-    merged = merge_edit(base, edited)
-    errors = validate(merged)
-    if errors:
-        return jsonify({"ok": False, "errors": errors}), 400
-
-    dims = ("A1", "A2", "A3", "A4", "A5")
-    levels = ("Secure", "Watch", "At-Risk", "Blocked")
-    distribution = {dim: {lv: 0 for lv in levels} for dim in dims}
-    published_distribution = {dim: {lv: 0 for lv in levels} for dim in dims}
-    changed = []
-    for rid in _db.get_six_am_report_ids():
-        try:
-            new_prof = _six_am.build_profile(rid, params={"spec": merged, "engine": "v0.5"})
-            old_prof = _six_am.build_profile(rid, params={"spec": base, "engine": "v0.5"})
-        except Exception:
-            continue
-        if new_prof is None or old_prof is None:
-            continue
-        new_dims = new_prof.get("dimensions") or {}
-        old_dims = old_prof.get("dimensions") or {}
-        diff = {}
-        for dim in dims:
-            new_state = str((new_dims.get(dim) or {}).get("state") or "Secure")
-            old_state = str((old_dims.get(dim) or {}).get("state") or "Secure")
-            distribution[dim][new_state] = distribution[dim].get(new_state, 0) + 1
-            published_distribution[dim][old_state] = \
-                published_distribution[dim].get(old_state, 0) + 1
-            if new_state != old_state:
-                diff[dim] = [old_state, new_state]
-        if diff:
-            changed.append({"report_id": rid,
-                            "name": (new_prof.get("student") or {}).get("name") or "",
-                            "dims": diff})
-
-    return jsonify({"ok": True,
-                    "distribution": distribution,
-                    "published_distribution": published_distribution,
-                    "changed": changed})
