@@ -1,0 +1,55 @@
+{% extends "layouts/admin_v2.html" %}
+{% block title %}M1 会前准备{% endblock %}
+{% block page_title %}M1 会前准备{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/m1/assets/m1.css">
+{% endblock %}
+
+{% block content %}
+<div class="m1" id="m1Home" data-student-id="{{ student_id if student_id else '' }}">
+  <div class="m1-main">
+    <div class="page-h">
+      <div style="min-width:0">
+        <h1>M1 会前准备</h1>
+        <div class="sub">每位学生的 First Meeting 会前准备框架。生成、修改、下载 PDF 都在这里。</div>
+      </div>
+      <span class="sp"></span>
+      <button type="button" class="btn pri lg" id="newPrep">＋ 新建会前准备</button>
+    </div>
+
+    <section class="surface">
+      <div class="head"><h2>我的学生</h2><span class="sub">按会议日期排序</span></div>
+      <div class="scroll-x">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>学生</th><th>M1 会议日期</th><th>M1 Mentor</th>
+              <th>状态</th><th>最近更新</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="prepRows">
+            <tr><td colspan="6" class="sub">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="surface">
+      <div class="empty-cta">
+        <div>
+          <b>也可以从学生 360° 档案进入</b>
+          <div class="sub">档案页顶部会多一个「M1 会前准备」按钮，点开直接进入这位学生的准备。</div>
+        </div>
+        <span class="pill info">只有 Y4 已完成的学生可以开始</span>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="m1" id="m1ModalHost"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/m1/assets/m1_home.js" defer></script>
+{% endblock %}

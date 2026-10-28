@@ -1,0 +1,244 @@
+{% extends "layouts/admin_v2.html" %}
+{% block title %}{{ prep.student_name }} · M1 会前准备{% endblock %}
+{% block page_title %}M1 会前准备{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/m1/assets/m1.css">
+{% endblock %}
+
+{% block content %}
+<div class="m1" id="m1Workspace"
+     data-prep-id="{{ prep.id }}"
+     data-status="{{ prep.status }}"
+     data-role="{{ current_role or '' }}">
+  <div class="m1-main" id="wsMain">
+    <div class="page-h">
+      <div style="min-width:0">
+        <div class="crumb"><a href="/m1">M1 会前准备</a> / {{ prep.student_name }}</div>
+        <h1>{{ prep.student_name }} · First Meeting 会前准备</h1>
+      </div>
+      <span class="sp"></span>
+      <span id="statusPill" class="pill warn"><span class="dot"></span>草稿</span>
+    </div>
+
+    <div class="stepper" id="stepper" role="list">
+      <button type="button" class="step" data-step="sources" role="listitem">
+        <span class="n">1</span><span style="min-width:0"><b>资料</b><small>自动读取 Y4 + 补充上传</small></span>
+      </button>
+      <button type="button" class="step" data-step="gen" role="listitem">
+        <span class="n">2</span><span style="min-width:0"><b>生成</b><small>AI 初稿，约 1–3 分钟</small></span>
+      </button>
+      <button type="button" class="step" data-step="review" role="listitem">
+        <span class="n">3</span><span style="min-width:0"><b>审阅定稿</b><small>直接改文档 · 下载 PDF</small></span>
+      </button>
+    </div>
+
+    {# ---------------- ① 资料 ---------------- #}
+    <div class="m1-main" id="stepSources">
+      <section class="surface">
+        <div class="head"><h2>会议信息</h2><span class="sub">已自动带入，改错的地方直接改</span></div>
+        <div class="body">
+          <div class="infobar">
+            <div class="field">
+              <span>学生</span>
+              <div class="static-v">{{ prep.student_name }}
+                <span class="sub" style="font-weight:400">{{ prep.grade }}{% if prep.school %} · {{ prep.school }}{% endif %}</span>
+              </div>
+            </div>
+            <div class="field">
+              <span>M1 First Meeting 日期</span>
+              <input class="inp" type="date" id="mdate" value="{{ prep.meeting_date or '' }}">
+              <span class="hint auto" id="mdateHint" hidden>从上传资料识别，请确认</span>
+            </div>
+            <div class="field">
+              <span>M1 Mentor</span>
+              <div id="mentorBox" class="static-v">{{ prep.mentor_name or '未指定' }}</div>
+            </div>
+            <div class="field">
+              <span>预计时长</span>
+              <div class="seg" role="group" aria-label="会议时长" id="durationSeg">
+                {% for m in [60, 75, 90] %}
+                <button type="button" data-dur="{{ m }}"
+                        aria-pressed="{{ 'true' if prep.duration == m else 'false' }}">{{ m }} 分钟</button>
+                {% endfor %}
+              </div>
+              <span class="hint" id="durHint">{{ '标准版：探索 1–2 个事件' if prep.duration == 60 else '延长版：探索 2–3 个事件' }}</span>
+            </div>
+            <div class="field">
+              <span>参会人员</span>
+              <div class="people" id="peopleBox">
+                {% for person in prep.attendees %}
+                <span class="tag">{{ person }}<button type="button" aria-label="移除 {{ person }}" data-rmp="{{ loop.index0 }}">×</button></span>
+                {% endfor %}
+                <button type="button" class="chip" id="addPerson">＋ 添加</button>
+                <input class="inp" id="personInput" placeholder="输入姓名后回车" hidden
+                       style="width:150px;height:26px;font-size:12px">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="src-grid">
+        <section class="surface src">
+          <div class="head"><h2>Y4 Assessment</h2><span class="how">平台自动读取</span><span class="sp"></span>
+            <span class="pill" id="y4Pill">读取中…</span></div>
+          <div class="body" id="y4Body"></div>
+        </section>
+
+        <section class="surface src">
+          <div class="head"><h2>First Touch Meeting</h2><span class="how">平台自动读取</span><span class="sp"></span>
+            <span class="pill" id="ftPill">读取中…</span></div>
+          <div class="body" id="ftBody"></div>
+        </section>
+
+        <section class="surface src">
+          <div class="head"><h2>家长初始反馈</h2><span class="how">粘贴文字或上传文件</span><span class="sp"></span>
+            <span class="pill" id="parentPill">未提供</span></div>
+          <div class="body">
+            <textarea class="inp" id="parentText" aria-label="家长初始反馈"
+                      placeholder="粘贴家长微信/邮件原文，或上传文件"></textarea>
+            <div class="drop"><span>也可以拖入 PDF / Word / TXT</span>
+              <button type="button" class="btn sm" data-upload="parent">选择文件</button></div>
+            <div id="parentFiles"></div>
+          </div>
+        </section>
+
+        <section class="surface src">
+          <div class="head"><h2>补充问卷</h2><span class="how">读取平台问卷记录</span><span class="sp"></span>
+            <span class="pill" id="qPill">读取中…</span></div>
+          <div class="body" id="qList"></div>
+        </section>
+
+        <section class="surface src">
+          <div class="head"><h2>Case Review Meetings</h2><span class="how">可上传多次会议记录</span><span class="sp"></span>
+            <span class="pill" id="casePill">未提供</span></div>
+          <div class="body">
+            <div id="caseFiles"></div>
+            <div class="drop"><span>拖入或选择会议记录（PDF / Word / TXT）</span>
+              <button type="button" class="btn sm" data-upload="case_review">上传另一份</button></div>
+          </div>
+        </section>
+
+        <section class="surface src">
+          <div class="head"><h2>其他资料</h2><span class="how">教师观察、既往导师记录等</span><span class="sp"></span>
+            <span class="pill" id="otherPill">未提供</span></div>
+          <div class="body">
+            <div id="otherFiles"></div>
+            <div class="drop"><span>没有可以不传，报告会写“尚未取得相关资料”</span>
+              <button type="button" class="btn sm" data-upload="other">上传文件</button></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="surface gen-bar">
+        <div class="sum" id="srcSummary"></div>
+        <span class="sp"></span>
+        <span class="sub">只有 Y4 必需，缺的写“信息不足”</span>
+        <button type="button" class="btn pri lg" id="toConfirm">确认资料并生成 →</button>
+      </section>
+    </div>
+
+    {# ---------------- ② 生成 ---------------- #}
+    <section class="surface" id="stepGen" hidden>
+      <div class="head"><h2>正在生成 AI 初稿</h2>
+        <span class="sub">可以离开这个页面，生成会在后台继续，完成后列表里会显示“草稿”。</span></div>
+      <div class="body" style="display:grid;gap:14px">
+        <div class="meter" aria-hidden="true"><i id="genMeter"></i></div>
+        <div class="gen" id="genList">
+          <div class="gen-row" data-i="0"><span class="ic"></span><span><b>读取 Y4 指标与档位</b><small>规则计算，不经过 AI</small></span><span class="sub" data-t></span></div>
+          <div class="gen-row" data-i="1"><span class="ic"></span><span><b>整理补充问卷回答</b><small>按问卷维度归类</small></span><span class="sub" data-t></span></div>
+          <div class="gen-row" data-i="2"><span class="ic"></span><span><b>从上传资料中提取证据</b><small>AI · 每条证据都要能在原文找到</small></span><span class="sub" data-t></span></div>
+          <div class="gen-row" data-i="3"><span class="ic"></span><span><b>18 项能力逐项证据核验</b><small>AI · 按 R1–R4 分 4 组</small></span><span class="sub" data-t></span></div>
+          <div class="gen-row" data-i="4"><span class="ic"></span><span><b>挑选本次优先核实的能力</b><small>规则打分 + AI 写理由</small></span><span class="sub" data-t></span></div>
+          <div class="gen-row" data-i="5"><span class="ic"></span><span><b>生成会议方案与追问</b><small>AI · 只用真实事件</small></span><span class="sub" data-t></span></div>
+          <div class="gen-row" data-i="6"><span class="ic"></span><span><b>套入固定版式并检查</b><small>不得留下占位符</small></span><span class="sub" data-t></span></div>
+        </div>
+        <div><a class="btn" href="/m1">返回列表</a></div>
+      </div>
+    </section>
+
+    {# ---------------- ③ 审阅定稿 ---------------- #}
+    <div class="m1-main" id="stepReview" hidden>
+      <div id="safetyBanner"></div>
+      <div id="lockBar"></div>
+      <div id="conflictBanner"></div>
+
+      <div class="review">
+        <section class="surface" style="min-width:0">
+          <div class="toolbar">
+            <span class="saved" id="savedBadge"><span class="dot"></span>已保存</span>
+            <span class="sub" id="stamp"></span>
+            <span class="sp"></span>
+            <button type="button" class="btn sm ghost" data-step="sources">← 返回资料</button>
+            <button type="button" class="btn sm" id="previewBtn">预览 / 下载 PDF</button>
+          </div>
+          <div class="desk">
+            <article class="a4 editing draftmark" id="m1doc"></article>
+          </div>
+        </section>
+
+        <aside class="panel" aria-label="审阅面板" id="reviewPanel">
+          <section class="surface" id="finalizeCard">
+            <div class="body" style="gap:10px">
+              <button type="button" class="btn pri lg" id="finalizeBtn">确认定稿</button>
+              <span class="hint" id="finalizeHint">点击文档里任何文字都可以直接修改。定稿后锁定这一版用于会议。</span>
+            </div>
+          </section>
+
+          <section class="surface">
+            <div class="head"><h2>本次重点确认能力</h2><span class="sp"></span>
+              <span class="pill" id="priCount">0 项</span></div>
+            <div class="body" id="priBody">
+              <div id="priList"></div>
+              <select class="inp" id="addAb" aria-label="添加能力">
+                <option value="">＋ 从 18 项中添加…</option>
+              </select>
+              <div id="syncBox"></div>
+              <span class="hint" id="priHint" hidden style="color:var(--warn)">建议 3–5 项，一次会议很难核实更多。</span>
+            </div>
+          </section>
+
+          <section class="surface" id="myQCard">
+            <div class="head"><h2>加入我想问的问题</h2></div>
+            <div class="body">
+              <textarea class="inp" id="myQ" placeholder="例如 Case Review 团队讨论后想确认的问题"
+                        style="min-height:64px"></textarea>
+              <div style="display:flex;gap:8px">
+                <select class="inp" id="myQab" aria-label="关联能力">
+                  <option value="">不关联具体能力</option>
+                </select>
+                <button type="button" class="btn" id="addQ">加入</button>
+              </div>
+              <span class="hint">加在 3.3 备用提问里，标为“导师”，重新生成不会覆盖。</span>
+            </div>
+          </section>
+
+          <section class="surface">
+            <div class="head"><h2>需要留意</h2><span class="sp"></span>
+              <span class="pill" id="warnCount">0</span></div>
+            <div class="body" id="warnList"></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="m1" id="m1ModalHost"></div>
+
+<script>
+  window.M1_CTX = {
+    prepId: {{ prep.id }},
+    status: {{ prep.status|tojson }},
+    rev: {{ prep.rev }},
+    prep: {{ prep|tojson }},
+    role: {{ (current_role or '')|tojson }}
+  };
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="/m1/assets/m1_doc.js" defer></script>
+<script src="/m1/assets/m1_workspace.js" defer></script>
+{% endblock %}

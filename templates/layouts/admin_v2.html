@@ -5,12 +5,16 @@
    current_display_name / nav_active / csrf_token()。
    ========================================================================= #}
 {% from "layouts/_icons.html" import icon %}
+{# 单测里蓝图可能挂在没有注入管理端上下文的裸 Flask 上（P2 的页面契约测试）：
+   缺省变量在此兜底，避免模板渲染 500。 #}
+{% set nav_groups = nav_groups|default([]) %}
+{% set _csrf = csrf_token() if csrf_token is defined else '' %}
 <!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="csrf-token" content="{{ csrf_token() }}">
+<meta name="csrf-token" content="{{ _csrf }}">
 <title>{% block title %}Y4 平台{% endblock %} · 凭远</title>
 <link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="/admin_v2.css">
@@ -137,7 +141,7 @@
 {% include "layouts/_command_palette.html" %}
 <script>
 function v2Logout() {
-  fetch('/api/admin/logout', { method: 'POST', headers: { 'X-CSRF-Token': '{{ csrf_token() }}' } })
+  fetch('/api/admin/logout', { method: 'POST', headers: { 'X-CSRF-Token': '{{ _csrf }}' } })
     .finally(function () { window.location.href = '/login'; });
 }
 var V2_ICON_OK = '{{ icon("check-circle", 15) }}';

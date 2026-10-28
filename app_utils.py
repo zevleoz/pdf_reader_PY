@@ -340,6 +340,10 @@ ADMIN_NAV = [
         {"key": "first_touch.guide", "label": "使用指南", "href": "/first-touch/guide",
          "icon": "book"},
     ]},
+    {"key": "m1", "title": "M1 会前准备", "links": [
+        {"key": "m1", "label": "M1 会前准备", "href": "/m1", "icon": "target",
+         "roles": ("admin", "advisor")},
+    ]},
     {"key": "generate", "title": "报告生成", "links": [
         {"key": "generate", "label": "报告生成", "href": "/generate", "icon": "file",
          "roles": ("admin", "advisor")},

@@ -1,0 +1,749 @@
+<title>M1 会前准备 Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: Y4 platform shell (dark rail + work area) with a right-hand design-notes column. A stepper (资料 → 生成 → 审阅定稿) drives the flow; the review step is "the document is the editor": an A4 page beside one control panel. Tokens mirror static/admin_v2.css and the First Touch 3.0 prototype. */
+:root {
+  --bg: #F7F8FA; --surface: #FFFFFF; --line: #E5E7EB; --line-soft: #F1F2F4;
+  --ink: #18181B; --muted: #71717A; --faint: #A1A1AA;
+  --brand: #D24949; --brand-deep: #B33A3A; --brand-soft: #FAEEEE; --brand-ring: rgba(210,73,73,.32);
+  --ok: #15803D; --ok-soft: #F0FDF4; --warn: #B45309; --warn-soft: #FEF6E7; --danger: #DC2626; --danger-soft: #FEF2F2;
+  --info: #1D4ED8; --info-soft: #EFF4FF;
+  --side: #16130F; --side-text: #A8A29E; --side-strong: #FAFAF9; --side-active: rgba(255,255,255,.09);
+  --note-bg: #FFFBEB; --note-line: #F3E3B5; --note-ink: #57400F;
+  --on-brand: #FFFFFF; --scrim: rgba(17,17,20,.45);
+  /* the A4 document keeps its paper look in both themes, like a printed page */
+  --paper: #FFFFFF; --paper-ink: #37352F; --paper-muted: #787774; --paper-line: #E9E9E7; --paper-head: #F7F6F3; --paper-red: #D44C47; --call-gray: #F1F1EF; --call-brown: #F4EEEE; --desk: #E9E6E1;
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", "Helvetica Neue", sans-serif;
+  --serif: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+  --r: 8px; --r-sm: 6px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121214; --surface: #1B1B1F; --line: #2C2C32; --line-soft: #232328;
+  --ink: #F4F4F5; --muted: #A1A1AA; --faint: #71717A;
+  --brand: #E05A5A; --brand-deep: #F07A7A; --brand-soft: #3A1F1F; --brand-ring: rgba(224,90,90,.4);
+  --ok: #4ADE80; --ok-soft: #13291B; --warn: #FBBF24; --warn-soft: #2E2410; --danger: #F87171; --danger-soft: #331717;
+  --info: #93B4FF; --info-soft: #18223A;
+  --side: #0B0A09; --side-active: rgba(255,255,255,.08);
+  --note-bg: #26210F; --note-line: #4A3F1A; --note-ink: #F1DFA6; --scrim: rgba(0,0,0,.6); --desk: #26262B;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121214; --surface: #1B1B1F; --line: #2C2C32; --line-soft: #232328;
+  --ink: #F4F4F5; --muted: #A1A1AA; --faint: #71717A;
+  --brand: #E05A5A; --brand-deep: #F07A7A; --brand-soft: #3A1F1F; --brand-ring: rgba(224,90,90,.4);
+  --ok: #4ADE80; --ok-soft: #13291B; --warn: #FBBF24; --warn-soft: #2E2410; --danger: #F87171; --danger-soft: #331717;
+  --info: #93B4FF; --info-soft: #18223A;
+  --side: #0B0A09; --side-active: rgba(255,255,255,.08);
+  --note-bg: #26210F; --note-line: #4A3F1A; --note-ink: #F1DFA6; --scrim: rgba(0,0,0,.6); --desk: #26262B;
+  color-scheme: dark; }
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.55 var(--font); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand-ring); border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+h1, h2, h3, h4 { text-wrap: balance; }
+
+/* prototype bar */
+.proto { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.proto-in { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; max-width: 1500px; margin: 0 auto; }
+.proto-name { font-weight: 650; font-size: 14px; letter-spacing: -.01em; }
+.proto-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+.proto-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.proto-tabs button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 11px; font-size: 12px; color: var(--muted); }
+.proto-tabs button[aria-selected="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.proto label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+
+/* shell */
+.wrap { max-width: 1500px; margin: 0 auto; padding-block: 16px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; grid-template-columns: 184px minmax(0, 1fr) 270px; gap: 16px; align-items: start; }
+.wrap.no-notes { grid-template-columns: 184px minmax(0, 1fr); }
+.wrap.no-notes .notes { display: none; }
+.rail { background: var(--side); color: var(--side-text); border-radius: var(--r); padding: 14px 10px; position: sticky; top: 64px; }
+.rail .brand { color: var(--side-strong); font-weight: 650; padding: 0 8px 12px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 10px; }
+.rail .brand small { display: block; color: var(--side-text); font-weight: 400; font-size: 11px; }
+.rail .grp { font-size: 11px; letter-spacing: .06em; padding: 10px 8px 4px; }
+.rail a { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; color: var(--side-text); text-decoration: none; font-size: 12.5px; }
+.rail a.on { background: var(--side-active); color: var(--side-strong); }
+.rail a .new { font-size: 10px; background: var(--brand); color: var(--on-brand); border-radius: 999px; padding: 0 6px; }
+.main { min-width: 0; display: grid; gap: 16px; }
+.notes { position: sticky; top: 64px; background: var(--note-bg); border: 1px solid var(--note-line); color: var(--note-ink); border-radius: var(--r); padding: 14px 16px; font-size: 12.5px; }
+.notes h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .06em; }
+.notes h4 { margin: 12px 0 4px; font-size: 12.5px; }
+.notes ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.notes p { margin: 0; }
+.notes .btn { margin-top: 10px; }
+@media (max-width: 1180px) { .wrap, .wrap.no-notes { grid-template-columns: minmax(0, 1fr) 260px; } .wrap.no-notes { grid-template-columns: minmax(0, 1fr); } .rail { display: none; } }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); } .notes { position: static; } }
+
+/* components */
+.surface { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 1px 2px rgba(24,24,27,.04); min-width: 0; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.head h2 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.sub { color: var(--muted); font-size: 12px; }
+.sp { flex: 1; }
+.body { padding: 14px 16px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 12px; font-size: 12.5px; font-weight: 500; white-space: nowrap; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface); }
+.btn:hover { border-color: var(--faint); }
+.btn.pri { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.btn.pri:hover { background: var(--brand-deep); border-color: var(--brand-deep); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.ghost:hover { color: var(--ink); }
+.btn.lg { height: 36px; padding: 0 16px; font-size: 13.5px; }
+.btn.sm { height: 26px; padding: 0 9px; font-size: 12px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--line-soft); color: var(--muted); white-space: nowrap; font-weight: 500; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.brand { background: var(--brand-soft); color: var(--brand-deep); } .pill.danger { background: var(--danger-soft); color: var(--danger); }
+.pill.info { background: var(--info-soft); color: var(--info); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > span { font-size: 11.5px; color: var(--muted); }
+.inp { height: 32px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); padding: 0 10px; min-width: 0; width: 100%; }
+textarea.inp { height: auto; min-height: 84px; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 0 12px; height: 30px; font-size: 12.5px; color: var(--muted); border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.hint { font-size: 11.5px; color: var(--muted); }
+.hint.auto { color: var(--info); }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 9px 16px; border-radius: 999px; font-size: 12.5px; z-index: 80; max-width: calc(100% - 32px); }
+
+/* page header + stepper */
+.page-h { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.page-h h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
+.crumb { font-size: 12px; color: var(--muted); }
+.crumb button { border: 0; background: none; padding: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.stepper { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.step { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border: 0; background: transparent; text-align: left; border-right: 1px solid var(--line); min-width: 0; }
+.step:last-child { border-right: 0; }
+.step .n { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 650; background: var(--line-soft); color: var(--muted); }
+.step b { display: block; font-size: 13px; font-weight: 600; }
+.step small { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.step.on { background: var(--brand-soft); }
+.step.on .n { background: var(--brand); color: var(--on-brand); }
+.step.done .n { background: var(--ok-soft); color: var(--ok); }
+.step[disabled] { cursor: default; }
+@media (max-width: 640px) { .step small { display: none; } .step { padding: 10px; } }
+
+/* home list */
+.table { width: 100%; border-collapse: collapse; }
+.table th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 500; padding: 8px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.table td { padding: 11px 16px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.table tr:last-child td { border-bottom: 0; }
+.table tr.click { cursor: pointer; } .table tr.click:hover td { background: var(--line-soft); }
+.who b { font-weight: 600; } .who small { display: block; color: var(--muted); font-size: 11.5px; }
+.scroll-x { overflow-x: auto; }
+.scroll-x .table { min-width: 620px; }
+.empty-cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px; }
+
+/* sources */
+.infobar { display: grid; grid-template-columns: 1.2fr 1fr 1fr auto 1.4fr; gap: 12px 16px; align-items: start; }
+@media (max-width: 1280px) { .infobar { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .infobar { grid-template-columns: minmax(0, 1fr); } }
+.static-v { height: 32px; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.people { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-height: 32px; }
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; background: var(--line-soft); border-radius: 999px; padding: 2px 9px; }
+.tag button { border: 0; background: none; padding: 0; color: var(--faint); }
+.chip { border: 1px dashed var(--faint); background: transparent; border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--muted); }
+.chip:hover { border-color: var(--brand); color: var(--brand-deep); }
+.src-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 980px) { .src-grid { grid-template-columns: minmax(0, 1fr); } }
+.src { display: grid; grid-template-rows: auto 1fr; }
+.src .head { border-bottom: 1px solid var(--line-soft); }
+.src .how { font-size: 11.5px; color: var(--muted); }
+.src .body { display: grid; gap: 10px; align-content: start; }
+.facts { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.facts li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; font-size: 12.5px; }
+.facts li::before { content: "·"; color: var(--faint); text-align: center; }
+.file { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; }
+.file .nm { font-weight: 500; overflow-wrap: anywhere; }
+.file .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--muted); }
+.file .meta select, .file .meta input { height: 26px; font-size: 12px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.file .sum { grid-column: 1 / -1; font-size: 12px; color: var(--ink); background: var(--line-soft); border-radius: 5px; padding: 6px 8px; }
+.drop { border: 1.5px dashed var(--line); border-radius: var(--r-sm); padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
+.drop:hover { border-color: var(--faint); }
+.qrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12.5px; padding: 5px 0; border-bottom: 1px dashed var(--line-soft); }
+.qrow:last-child { border-bottom: 0; }
+.derived { border-left: 2px solid var(--line); padding: 4px 0 4px 10px; font-size: 12px; color: var(--muted); }
+.gen-bar { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 5; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 16px; }
+.gen-bar .sum { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+
+/* modal */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 60; display: grid; place-items: center; padding: 16px; }
+.modal { width: min(760px, 100%); max-height: calc(100% - 32px); overflow: auto; background: var(--surface); border-radius: 10px; border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+.modal .head { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.modal .foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: var(--surface); }
+.miss { margin: 0; padding: 10px 12px; border-radius: var(--r-sm); background: var(--warn-soft); color: var(--warn); font-size: 12.5px; }
+
+/* generating */
+.gen { display: grid; gap: 4px; max-width: 620px; }
+.gen-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.gen-row .ic { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); }
+.gen-row.run .ic { border-color: var(--brand); border-right-color: transparent; animation: spin .8s linear infinite; }
+.gen-row.ok .ic { border-color: var(--ok); background: var(--ok); box-shadow: inset 0 0 0 3px var(--surface); }
+.gen-row small { display: block; color: var(--muted); font-size: 11.5px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.meter { height: 6px; background: var(--line-soft); border-radius: 999px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--brand); width: 0; transition: width .4s ease; }
+
+/* review */
+.review { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 1380px) { .wrap:not(.no-notes) .review { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 980px) { .review { grid-template-columns: minmax(0, 1fr); } }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 10px 14px; }
+.saved { font-size: 12px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.saved .dot { color: var(--ok); }
+.panel { position: sticky; top: 64px; display: grid; gap: 12px; max-height: calc(100vh - 80px); overflow: auto; }
+.panel .surface .body { display: grid; gap: 8px; }
+.ab { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.ab input { margin: 2px 0 0; accent-color: var(--brand); }
+.ab b { font-weight: 600; font-size: 12.5px; }
+.ab small { display: block; color: var(--muted); font-size: 11.5px; }
+.ab.off { opacity: .6; }
+.warnline { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 8px; font-size: 12px; align-items: start; }
+.warnline .dot { margin-top: 6px; }
+.warnline.w .dot { color: var(--warn); } .warnline.i .dot { color: var(--info); } .warnline.d .dot { color: var(--danger); }
+.sync { border: 1px solid var(--warn); background: var(--warn-soft); color: var(--warn); border-radius: var(--r-sm); padding: 8px 10px; font-size: 12px; display: grid; gap: 6px; }
+.sync .row { display: flex; gap: 6px; flex-wrap: wrap; }
+.safety { border: 1px solid var(--danger); background: var(--danger-soft); color: var(--danger); border-radius: var(--r); padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 12.5px; }
+.safety b { font-weight: 650; }
+.lockbar { background: var(--ok-soft); color: var(--ok); border-radius: var(--r); padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 12.5px; }
+
+/* the A4 document: mirrors the Notion export of 《M1 FM会前准备框架》 */
+.desk { background: var(--desk); border-radius: var(--r); padding: 20px; overflow-x: auto; }
+.a4 { position: relative; background: var(--paper); color: var(--paper-ink); width: 100%; max-width: 820px; margin: 0 auto; padding: 56px 64px 40px; box-shadow: 0 2px 10px rgba(0,0,0,.12); font: 13px/1.6 -apple-system, BlinkMacSystemFont, "Inter", "PingFang SC", "Microsoft YaHei", sans-serif; }
+@media (max-width: 640px) { .desk { padding: 8px; } .a4 { padding: 28px 16px 24px; } }
+.a4 .icon { font-size: 44px; line-height: 1; margin-bottom: 14px; }
+.a4 .title { font-size: 30px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 6px; line-height: 1.25; }
+.a4 .props { color: var(--paper-muted); font-size: 12.5px; margin-bottom: 8px; }
+.a4 h2 { font-size: 22px; font-weight: 600; margin: 34px 0 8px; line-height: 1.3; }
+.a4 h3 { font-size: 17px; font-weight: 600; margin: 22px 0 6px; line-height: 1.35; }
+.a4 h3.red { color: var(--paper-red); }
+.a4 .lbl { font-weight: 600; margin: 12px 0 4px; }
+.a4 p { margin: 4px 0; }
+.a4 .t { width: 100%; border-collapse: collapse; margin: 6px 0 8px; font-size: 12px; line-height: 1.5; }
+.a4 .t th { background: var(--paper-head); color: var(--paper-muted); text-align: left; font-weight: 400; padding: 7px 8px; border: 1px solid var(--paper-line); vertical-align: top; }
+.a4 .t td { padding: 7px 8px; border: 1px solid var(--paper-line); vertical-align: top; }
+.a4 .call { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; border-radius: 6px; padding: 14px 16px 14px 12px; margin: 10px 0; background: var(--call-brown); }
+.a4 .call.gray { background: var(--call-gray); }
+.a4 .call .e { font-size: 20px; line-height: 1.2; }
+.a4 .call b { font-weight: 600; }
+.a4 .insuf { color: var(--paper-muted); }
+.a4 ol { margin: 0; padding-left: 16px; }
+.a4 b.k { font-weight: 600; }
+.a4 .foot { display: flex; justify-content: space-between; margin-top: 36px; color: var(--paper-muted); font-size: 10.5px; }
+.blk { position: relative; border-radius: 3px; outline: 1px dashed transparent; outline-offset: 2px; }
+.editing .blk:hover { outline-color: #C9C6BF; cursor: text; }
+.editing .blk:focus { outline: 2px solid var(--brand); }
+.mk { display: inline-block; margin-left: 4px; font: 600 9.5px/1.4 var(--font); padding: 0 4px; border-radius: 3px; vertical-align: 1px; background: #EEF4FF; color: #1D4ED8; user-select: none; }
+.mk.ed { background: #ECFDF3; color: #15803D; }
+.mk.me { background: #FDF0E6; color: #B45309; }
+.plain .mk { display: none; }
+.draftmark::after { content: "草稿"; position: absolute; top: 18px; right: 22px; font: 600 11px var(--font); color: var(--paper-muted); border: 1px solid var(--paper-line); padding: 1px 8px; border-radius: 4px; }
+@media print {
+  @page { size: A4; margin: 16mm 14mm 18mm; @bottom-left { content: "M1 FM会前准备框架 · 林晓雨"; font: 9pt -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #787774; } @bottom-right { content: counter(page); font: 9pt -apple-system, "PingFang SC", sans-serif; color: #787774; } }
+  body > *:not(#pv) { display: none !important; }
+  .pv { position: static !important; overflow: visible !important; background: none !important; padding: 0 !important; } .pv-bar { display: none !important; } .pv .desk { padding: 0 !important; }
+  .a4 { box-shadow: none; padding: 0; max-width: none; } .a4 .foot { display: none; }
+  .a4 .t tr, .a4 .call { break-inside: avoid; } .a4 thead { display: table-header-group; } .a4 h2, .a4 h3, .a4 h3 + p, .a4 .lbl { break-after: avoid; }
+}
+
+/* print preview overlay */
+.pv { position: fixed; inset: 0; z-index: 70; background: var(--desk); overflow: auto; padding-block: 0 40px; }
+.pv-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding-block: calc(10px + env(safe-area-inset-top, 0px)) 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.pv .desk { background: transparent; padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+</style>
+
+<div class="proto" role="banner">
+  <div class="proto-in">
+    <span class="proto-name">M1 会前准备 · 设计研究</span>
+    <span class="proto-tag">原型 · 虚构学生</span>
+    <div class="proto-tabs" role="tablist" aria-label="原型画面">
+      <button role="tab" data-go="home">M1 首页</button>
+      <button role="tab" data-go="sources">① 资料</button>
+      <button role="tab" data-go="gen">② 生成</button>
+      <button role="tab" data-go="review">③ 审阅定稿</button>
+    </div>
+    <span class="sp"></span>
+    <label><input type="checkbox" id="notesToggle" checked> 显示设计说明</label>
+  </div>
+</div>
+
+<div class="wrap" id="wrap">
+  <nav class="rail" aria-label="平台导航">
+    <div class="brand">凭远 Y4 平台<small>管理端 · Advisor</small></div>
+    <div class="grp">日常</div>
+    <a href="#home" onclick="return false">工作台</a>
+    <a href="#home" onclick="return false">学生档案</a>
+    <a href="#home" onclick="return false">测评报告</a>
+    <a href="#home" onclick="return false">补充问卷</a>
+    <div class="grp">洞察与会谈</div>
+    <a href="#home" onclick="return false">6 A.M.</a>
+    <a href="#home" onclick="return false">First Touch</a>
+    <a href="#home" class="on" onclick="go('home');return false">M1 会前准备 <span class="new">新</span></a>
+  </nav>
+  <main class="main" id="main"></main>
+  <aside class="notes" id="notes" aria-label="设计说明"></aside>
+</div>
+
+<script>
+/* ---------- example data (fictional student) ---------- */
+const STUDENT = { name: '林晓雨', grade: '初二', school: '示例中学', id: 'Y4-0412' };
+
+const PREPS = [
+  { name: '林晓雨', grade: '初二', school: '示例中学', date: '2026-11-03', mentor: '李老师', status: 'draft', when: '今天 14:05', open: true },
+  { name: '陈一鸣', grade: '初三', school: '示例中学', date: '2026-11-06', mentor: '李老师', status: 'final', when: '10-27 18:40' },
+  { name: '周可欣', grade: '高一', school: '示例外国语学校', date: '', mentor: '李老师', status: 'none', when: '' },
+];
+const PICK = [
+  { name: '林晓雨', meta: '初二 · 示例中学', y4: true, note: '已有草稿' },
+  { name: '周可欣', meta: '高一 · 示例外国语学校', y4: true, note: '' },
+  { name: '吴子涵', meta: '初一 · 示例中学', y4: false, note: 'Y4 尚未完成（缺 B4 报告）' },
+];
+
+const ABIL = [
+ {c:'R1.1',n:'情绪识别与身体觉察',d:'R1',ind:'焦虑/安详 需关注 · 抑郁/愉快 相对健康 · 自我概念—情绪状态 偏低 · 神经质 不低',ask:'通过最近一次情绪明显波动的事件，确认能否描述具体情绪、强度和身体感受，而不只是说“烦”。',chk:'First Touch 中能说出“睡不着、一直想”，但未命名情绪；家长“情绪低落”为家长视角。仅间接线索，证据不足。',why:'可在情境 1 中顺带了解，不单列'},
+ {c:'R1.2',n:'情绪成因与需求理解',d:'R1',ind:'无直接对应指标；相关线索：焦虑/安详 需关注 · 自驱力—自主性 偏低 · 自驱力—归属感 不低',ask:'能否区分客观事实、个人解释、情绪感受与内在需求？',chk:'尚未取得相关事件叙述。信息不足。',why:'信息不足，非本次重点'},
+ {c:'R1.3',n:'情绪与行为模式觉察',d:'R1',ind:'神经质 不低 · 自我概念—行为表现 不低 · 自我概念—情绪状态 偏低',ask:'比较最近 2–3 次类似事件，能否发现重复出现的情绪、想法和行为反应？',chk:'考后反复回想（First Touch）与课堂答错后沉默（Case Review 课堂观察）可能指向“受挫—退缩”模式，待核实。',why:'由情境 1 覆盖'},
+ {c:'R1.4',n:'自我认知与身份发展',d:'R1',ind:'自我概念—能力与学校表现 不低 · 学习自我效能感 偏低 · 能力优势—内省能力 高 · 自卑/自尊 需关注',ask:'能否描述自己的优势、局限并举出证据？被批评时是否整体否定自己？',chk:'家长：“考差会说自己笨”（家长陈述），与 R4.2 为同一线索。',why:'与 R4.2 合并核实'},
+ {c:'R2.1',n:'情绪调节与策略运用',d:'R2',ind:'焦虑/安详 需关注 · 无力感/掌控感 相对健康 · 神经质 不低',ask:'最近一次明显焦虑或难过时如何应对？用了哪些方法？效果如何？',chk:'ERQ 认知重评维度多数回答为“不赞同”（问卷自评）；尚无行为证据。',why:'情境 1 可覆盖调节方式'},
+ {c:'R2.2',n:'反刍思维管理',d:'R2',ind:'神经质 不低 · 焦虑/安详 需关注 · 自我概念—情绪状态 偏低',ask:'是否经常反复回想负面事件？通常持续多久？是否影响睡眠或学习？',chk:'三个独立来源一致：First Touch 原话、CERQ 沉思维度多选“经常”、家长反馈期中后低落。缺持续时间与实际影响。',why:'多来源一致，且影响睡眠',rec:true},
+ {c:'R2.3',n:'情绪干扰后的注意力重新定向',d:'R2',ind:'认知能力—注意力 较好 · 执行功能—抑制控制 较好 · 焦虑/安详 需关注',ask:'情绪波动后能否重新专注？需要多长时间？',chk:'Case Review：答错后“整节课低头不说话”（王老师课堂观察，独立来源，仅一次）。',why:'可在情境 1 追问中观察'},
+ {c:'R2.4',n:'冲动控制与反应延迟',d:'R2',ind:'执行功能—抑制控制 较好 · 责任心 较好 · 神经质 不低',ask:'愤怒或委屈时能否暂停再回应？',chk:'无冲动相关线索。抑制控制只反映认知任务表现，不推断情绪情境中的行为。',why:'无现实影响线索'},
+ {c:'R2.5',n:'情绪中的负责任决策',d:'R2',ind:'抑制控制 较好 · 认知灵活性 不低 · 责任心 较好 · 宜人性 高 · 自主性 偏低',ask:'情绪强烈时能否考虑多种回应方式及其后果？',chk:'信息不足。',why:'信息不足，非本次重点'},
+ {c:'R3.1',n:'同理心与换位思考',d:'R3',ind:'宜人性 高 · 能力优势—人际关系能力 不低 · 自驱力—归属感 不低',ask:'能否理解他人不同的情绪和立场？',chk:'First Touch：“大家都不做，我就自己全做了”。可能是体谅他人，也可能是回避冲突，需区分。',why:'情境 2 顺带了解'},
+ {c:'R3.2',n:'积极倾听与有效沟通',d:'R3',ind:'依恋—母亲沟通 高 · 父亲沟通 不低 · 同伴沟通 不低 · 能力优势—语言能力 不低',ask:'能否清晰表达真实想法与感受？遇到误解时会主动澄清吗？',chk:'Y4 母亲沟通“高”（2026-09 测评）与家长“期中后回家不怎么说话”不一致，见 2.3。',why:'差异在情境 1 中核实'},
+ {c:'R3.3',n:'坚定表达与人际边界',d:'R3',ind:'自驱力—自主性 偏低 · 宜人性 高 · 依恋—同伴信任 不低',ask:'面对不愿意的要求如何拒绝？是否因担心别人不喜欢自己而勉强答应？',chk:'First Touch 原话：小组作业“也没说什么”就全部承担。单一来源，学生自述。',why:'有真实事件，影响学业负担',rec:true},
+ {c:'R3.4',n:'冲突解决与关系修复',d:'R3',ind:'依恋—母亲信任 高 · 依恋—同伴信任 不低 · 宜人性 高',ask:'最近一次人际冲突时如何应对？能否协商或修复？',chk:'未见冲突事件；可能因回避而冲突较少，待核实。',why:'情境 2 可覆盖'},
+ {c:'R3.5',n:'主动求助与支持获取',d:'R3',ind:'依恋—母亲信任 高 · 依恋—母亲沟通 高 · 自驱力—归属感 不低 · 能力优势—人际关系能力 不低',ask:'遇到困难时知道可以向谁求助吗？愿意主动表达需求吗？',chk:'First Touch：“跟老师说了也没用”（学生自述）。Case Review 的“不善求助”推测基于 Y4，只作待验证假设，不计为新证据。',why:'Case Review 重点假设，影响支持方式',rec:true},
+ {c:'R3.6',n:'人际合作与互惠关系维护',d:'R3',ind:'依恋—同伴类型 安全型 · 同伴亲近 不低 · 责任心 较好 · 宜人性 高',ask:'在团队中如何分工、配合与处理意见差异？',chk:'小组作业事件提示承担过多，互惠性待核实。',why:'与 R3.3 同一事件，合并核实'},
+ {c:'R4.1',n:'挫折耐受与不确定性应对',d:'R4',ind:'焦虑/安详 需关注 · 自卑/自尊 需关注 · 学习自我效能感 偏低 · 自驱力—胜任感 不低',ask:'最近一次结果不如预期时有什么反应？会立即逃避或放弃吗？',chk:'期中后情绪低落但仍按时上学、完成作业（家长反馈），暂无回避行为证据。',why:'情境 1 覆盖'},
+ {c:'R4.2',n:'受挫后的消极思维调整',d:'R4',ind:'自卑/自尊 需关注 · 自我概念—能力与学校表现 不低 · 学习自我效能感 偏低',ask:'失败后如何解释原因？是否把一次失败扩大为对自己的整体否定？',chk:'家长：“考差会说自己笨”；First Touch：反复想错题。两个来源，需听学生本人如何解释。',why:'与 R2.2 同一事件，可同时核实',rec:true},
+ {c:'R4.3',n:'持续困难中的应对调整与资源运用',d:'R4',ind:'认知灵活性 不低 · 学习方法—学习自我调节 不低 · 学习自我效能感 偏低 · 依恋—母亲信任 高',ask:'现有方法无效时会调整策略、节奏或求助吗？',chk:'家长：已报数学补习班（家长的尝试，非学生行为）。',why:'下次会议再观察'},
+];
+const GAP = {"R1.1": "这些指标反映情绪基调与焦虑敏感性，不能判断学生能否准确识别、命名情绪及其强度，或察觉相关身体信号。", "R1.2": "相关指标反映情绪敏感性与基本心理需要的满足程度，不能判断学生是否理解事件、个人解释、期待与情绪之间的关系。", "R1.3": "相关指标反映情绪与行为倾向，不能证明学生能主动发现反复出现的反应模式及其触发因素。", "R1.4": "Y4 主要反映当前自我评价与心理需要满足情况，不能判断学生是否真正理解自己、能否根据经历调整自我认识。", "R2.1": "这些指标反映焦虑、低落及情绪反应倾向，不能说明学生是否掌握并灵活调整调节方法；情绪较稳定不代表调节能力成熟。", "R2.2": "只能提供负面情绪体验的间接线索，无法测量反刍是否存在、持续多久、是否干扰睡眠或日常活动。", "R2.3": "注意力与抑制控制反映一般认知任务表现，不能直接测量情绪波动后的注意力恢复。", "R2.4": "抑制控制测验不直接测量愤怒、委屈时的行为控制；人格与自评也不能证明真实冲突中能暂停回应。", "R2.5": "指标反映认知控制基础与人格倾向，不能证明学生在强烈情绪或同伴压力下能权衡选择与后果。", "R3.1": "宜人性、人际关系能力等反映倾向与自评优势，不能直接证明学生能理解他人的情绪、需求与立场。", "R3.2": "依恋沟通反映特定关系中的主观体验，不是沟通技能测验；无法区分个人沟通困难与关系环境的限制。", "R3.3": "自主性反映感受到的自主空间，而非实际拒绝能力；缺少面对同伴压力或不合理要求时的真实行为证据。", "R3.4": "依恋与宜人性反映关系体验与一般倾向，无法证明学生能识别分歧、协商解决或在关系受损后修复。", "R3.5": "可反映对父母关系的信任与沟通体验，但不能判断主动求助能力，也未覆盖老师与导师；需区分不愿求助与缺少可信赖对象。", "R3.6": "反映关系质量与合作倾向，无法判断团队中的真实分工、协调、责任履行与长期互惠。", "R4.1": "反映压力敏感性与主观能力信心，不能直接衡量真实失败、拒绝或不确定情境中的耐受与回避。", "R4.2": "反映自我评价与能力信念，无法判断受挫后是否出现过度自责、灾难化或整体自我否定。", "R4.3": "反映认知灵活性、学习策略与支持体验，不能证明持续困难中能调整策略、安排休息或利用支持。"};
+const DIMS = { R1: 'Recognize 识别', R2: 'Regulate 调节', R3: 'Relate 连接', R4: 'Recover 恢复' };
+const PRIORITY_DETAIL = {
+  'R2.2': { ev: 'First Touch 2026-10-12 原话：「考完数学那几天，晚上躺在床上一直在想哪道题错了」<br>CERQ 沉思维度：多数题选“经常”（补充问卷 2026-10-15）<br>Y4：焦虑/安详（需关注）；VERDICT 无直接对应', hyp: '考试受挫后可能出现反复消极思考，待核实', why: '三个来源指向一致；已提到影响入睡；缺持续时间与应对方式' },
+  'R4.2': { ev: '家长初始反馈 2026-10-09：「考差会说自己笨」<br>Y4：自卑/自尊（需关注）；学习自我效能感（偏低）；VERDICT 无直接对应', hyp: '受挫后可能把一次失败扩大为对能力的整体否定', why: '与 R2.2 同一事件，可在情境 1 一并核实；需学生本人的解释' },
+  'R3.3': { ev: 'First Touch 2026-10-12 原话：「小组作业大家都不做，我就自己全做了，也没说什么」<br>Y4：自驱力—自主性（偏低）；VERDICT 无直接对应', hyp: '面对不公平分工可能倾向于不表达、独自承担', why: '有真实事件；单一来源；影响学业负担与同伴关系' },
+  'R3.5': { ev: 'First Touch 2026-10-12 原话：「我觉得跟老师说了也没用」<br>Case Review 2026-10-20：团队假设“不善求助”（基于 Y4 推测，非独立观察）', hyp: '对向老师求助的效果期待较低', why: 'Case Review 提出的重点方向；需区分“不愿求助”与“缺少可信赖对象”' },
+};
+const EVENTS = [
+  { b: 'ev1', title: '情境 1：期中数学考试之后（10 月中旬）', clue: 'First Touch 2026-10-12 原话「考完数学那几天，晚上躺在床上一直在想哪道题错了」；家长初始反馈 2026-10-09「期中后情绪低落，回家不怎么说话」', ab: ['R2.2', 'R4.2'], gap: '反复思考持续了几天、是否影响睡眠和作业；学生自己如何解释这次考试；回家不说话的原因（对应 2.3 中的证据差异）',
+    qs: ['你提到考完数学那几天晚上一直在想题目，能和我说说那几天是什么样的吗？', '那时候脑子里最常出现的想法是什么？', '后来是怎么慢慢不再想的？有用过什么办法吗？', '那段时间回家后，想和妈妈聊这件事吗？'] },
+  { b: 'ev2', title: '情境 2：小组作业由自己全部完成', clue: 'First Touch 2026-10-12 原话「小组作业大家都不做，我就自己全做了，也没说什么」', ab: ['R3.3', 'R3.5'], gap: '当时是否想过提出分工或找老师；没有说出来的原因；事后的感受与影响',
+    qs: ['当时你心里是怎么想的？', '有没有想过跟组员或老师说？是什么让你决定不说？', '如果下次再遇到，你希望自己怎么做？'] },
+];
+
+/* ---------- state ---------- */
+const S = {
+  screen: 'home', duration: 60, people: ['李老师（M1 Mentor）', '林晓雨'], picked: false,
+  uploads: [
+    { id: 'u1', cat: 'case', name: '2026-10-20 Case Review 会议记录.docx', date: '2026-10-20', status: 'ok', sum: '参与：田老师、王老师。课堂观察 1 条（答错后整节课低头不说话）；团队假设 2 条（不善求助、考试焦虑）；建议优先了解考试后状态。' },
+  ],
+  parentText: '妈妈 10 月 9 日微信反馈：期中考试后孩子情绪低落，回家不怎么说话，以前什么都会跟我说。对成绩很在意，考差会说自己笨。我们已经给她报了数学补习班，但效果还不明显。',
+  priority: ['R2.2', 'R4.2', 'R3.3', 'R3.5'], p3: ['R2.2', 'R4.2', 'R3.3', 'R3.5'],
+  edits: {}, mine: [], final: false, safety: false, safetyAck: false, sync: null, genDone: false,
+};
+
+/* ---------- helpers ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ab = c => ABIL.find(a => a.c === c);
+function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+/* editable block: origin "ai" unless the mentor changed it */
+function B(id, html, tag = 'div', origin = 'ai') {
+  const edited = S.edits[id] !== undefined;
+  const mk = origin === 'code' ? '' : `<span class="mk ${edited ? 'ed' : origin === 'me' ? 'me' : ''}" contenteditable="false">${edited ? '已修改' : origin === 'me' ? '导师' : 'AI'}</span>`;
+  return `<${tag} class="blk" data-b="${id}"${S.final ? '' : ' contenteditable="true"'}>${edited ? S.edits[id] : html}${mk}</${tag}>`;
+}
+
+/* ---------- screens ---------- */
+function stepper(cur) {
+  const st = [['sources', '资料', '自动读取 Y4 + 补充上传'], ['gen', '生成', 'AI 初稿，约 1–3 分钟'], ['review', '审阅定稿', '直接改文档 · 下载 PDF']];
+  const idx = st.findIndex(s => s[0] === cur);
+  return `<div class="stepper" role="list">${st.map((s, i) => `<button class="step ${i === idx ? 'on' : i < idx ? 'done' : ''}" role="listitem" ${s[0] === 'gen' ? 'disabled' : ''} data-go="${s[0]}" aria-current="${i === idx ? 'step' : 'false'}"><span class="n">${i < idx ? '✓' : i + 1}</span><span style="min-width:0"><b>${s[1]}</b><small>${s[2]}</small></span></button>`).join('')}</div>`;
+}
+function prepHeader(cur) {
+  return `<div class="page-h"><div style="min-width:0"><div class="crumb"><button data-go="home">M1 会前准备</button> / 林晓雨</div>
+    <h1>林晓雨 · First Meeting 会前准备</h1></div><span class="sp"></span>
+    ${S.final ? '<span class="pill ok"><span class="dot"></span>已定稿 v2</span>' : '<span class="pill warn"><span class="dot"></span>草稿</span>'}</div>${stepper(cur)}`;
+}
+
+function screenHome() {
+  const st = { draft: '<span class="pill warn">草稿</span>', final: '<span class="pill ok">已定稿</span>', none: '<span class="pill">未开始</span>' };
+  return `<div class="page-h"><div><h1>M1 会前准备</h1><div class="sub">每位学生的 First Meeting 会前准备框架。生成、修改、下载 PDF 都在这里。</div></div><span class="sp"></span>
+    <button class="btn pri lg" id="newPrep">＋ 新建会前准备</button></div>
+  <section class="surface"><div class="head"><h2>我的学生</h2><span class="sub">按会议日期排序</span></div>
+  <div class="scroll-x"><table class="table"><thead><tr><th>学生</th><th>M1 会议日期</th><th>M1 Mentor</th><th>状态</th><th>最近更新</th><th></th></tr></thead><tbody>
+  ${PREPS.map(p => `<tr class="click" data-open="${p.open ? 1 : 0}" data-status="${p.status}"><td class="who"><b>${p.name}</b><small>${p.grade} · ${p.school}</small></td>
+    <td>${p.date || '<span class="sub">未安排</span>'}</td><td>${p.mentor}</td><td>${st[p.status]}</td><td class="sub">${p.when || '—'}</td>
+    <td style="text-align:right">${p.status === 'none' ? '<button class="btn sm">开始准备</button>' : p.status === 'final' ? '<button class="btn sm">预览 / 下载 PDF</button>' : '<button class="btn sm pri">继续</button>'}</td></tr>`).join('')}
+  </tbody></table></div></section>
+  <section class="surface"><div class="empty-cta"><div><b>也可以从学生 360° 档案进入</b><div class="sub">档案页顶部会多一个「M1 会前准备」按钮，点开直接进入这位学生的准备。</div></div>
+  <span class="pill info">只有 Y4 已完成的学生可以开始</span></div></section>`;
+}
+
+function screenSources() {
+  const caseFiles = S.uploads.filter(u => u.cat === 'case');
+  const otherFiles = S.uploads.filter(u => u.cat === 'other');
+  const fileRow = u => `<div class="file"><span class="nm">${esc(u.name)}</span>${u.status === 'reading' ? '<span class="pill info">识别中…</span>' : '<span class="pill ok">已识别</span>'}
+    ${u.status === 'reading' ? '' : `<div class="meta"><label>类别 <select aria-label="资料类别"><option ${u.cat === 'case' ? 'selected' : ''}>Case Review</option><option ${u.cat === 'other' ? 'selected' : ''}>其他资料</option><option>家长初始反馈</option><option>First Touch</option></select></label>
+    <label>日期 <input type="date" value="${u.date}" aria-label="资料日期"></label><span class="sp"></span><button class="btn ghost sm" data-del="${u.id}">移除</button></div>
+    <div class="sum">${esc(u.sum)}</div>`}</div>`;
+  const parentStatus = S.parentText.trim() ? '<span class="pill ok">已提供</span>' : '<span class="pill">未提供</span>';
+  const otherStatus = otherFiles.length ? '<span class="pill ok">已提供</span>' : '<span class="pill">未提供</span>';
+  return prepHeader('sources') + `
+  <section class="surface"><div class="head"><h2>会议信息</h2><span class="sub">已自动带入，改错的地方直接改</span></div>
+  <div class="body"><div class="infobar">
+    <div class="field"><span>学生</span><div class="static-v">林晓雨 <span class="sub" style="font-weight:400">初二 · 示例中学</span></div></div>
+    <div class="field"><span>M1 First Meeting 日期</span><input class="inp" type="date" id="mdate" value="2026-11-03"><span class="hint auto">从 Case Review 记录识别，请确认</span></div>
+    <div class="field"><span>M1 Mentor</span><select class="inp" id="mentor"><option>李老师</option><option>田老师</option><option>王老师</option></select></div>
+    <div class="field"><span>预计时长</span><div class="seg" role="group" aria-label="会议时长">${[60, 75, 90].map(m => `<button data-dur="${m}" aria-pressed="${S.duration === m}">${m} 分钟</button>`).join('')}</div><span class="hint">${S.duration === 60 ? '标准版：探索 1–2 个事件' : '延长版：探索 2–3 个事件'}</span></div>
+    <div class="field"><span>参会人员</span><div class="people">${S.people.map((p, i) => `<span class="tag">${esc(p)}<button aria-label="移除 ${esc(p)}" data-rmp="${i}">×</button></span>`).join('')}<button class="chip" id="addP">＋ 添加</button></div></div>
+  </div></div></section>
+
+  <div class="src-grid">
+    <section class="surface src"><div class="head"><h2>Y4 Assessment</h2><span class="how">平台自动读取</span><span class="sp"></span><span class="pill ok"><span class="dot"></span>已获取</span></div>
+      <div class="body"><ul class="facts"><li>测评日期 2026-09-02 · 四份报告齐全（A2 / B3 / B4 / B6）</li><li>按已确认的有效评价规则得出档位；报告中只显示档位，不显示原始分</li><li>与 R4 相关的 52 项指标已对应到 18 项能力</li></ul>
+      <div class="derived">6 A.M. 档案 v0.6（2026-10-01）· 由 Y4 衍生，只随 Y4 一起参考，不单独计为证据</div></div></section>
+
+    <section class="surface src"><div class="head"><h2>First Touch Meeting</h2><span class="how">平台自动读取</span><span class="sp"></span><span class="pill ok"><span class="dot"></span>已获取</span></div>
+      <div class="body"><ul class="facts"><li>2026-10-12 会谈记录（会前 / 会谈中 / 会后三段齐全）</li><li>已提取学生原话 6 条：兴趣、自我描述、考试经历、小组作业、对老师的看法</li></ul>
+      <button class="btn sm" style="justify-self:start">补充其他会谈资料</button></div></section>
+
+    <section class="surface src"><div class="head"><h2>家长初始反馈</h2><span class="how">粘贴文字或上传文件</span><span class="sp"></span>${parentStatus}</div>
+      <div class="body"><textarea class="inp" id="parentText" aria-label="家长初始反馈">${esc(S.parentText)}</textarea>
+      <div class="drop"><span>也可以拖入 PDF / Word / TXT</span><button class="btn sm">选择文件</button></div></div></section>
+
+    <section class="surface src"><div class="head"><h2>补充问卷</h2><span class="how">读取平台问卷记录</span><span class="sp"></span><span class="pill warn"><span class="dot"></span>部分信息</span></div>
+      <div class="body">
+        <div class="qrow"><span>情绪调节问卷（ERQ + CERQ）<span class="sub"> · 2026-10-15</span></span><span class="pill ok">已完成</span></div>
+        <div class="qrow"><span>焦虑问卷<span class="sub"> · 10-14 已发送，尚未作答</span></span><span class="pill warn">未取得</span></div>
+        <div class="qrow"><span>社交能力问卷</span><span class="pill">未触发</span></div>
+        <div class="qrow"><span>抑郁 / 压力 / 网络使用问卷</span><span class="pill">未触发</span></div>
+        <span class="hint">“未触发”表示 Y4 结果没有触发这份问卷，不等于正常；报告里会照实写明。</span></div></section>
+
+    <section class="surface src"><div class="head"><h2>Case Review Meetings</h2><span class="how">可上传多次会议记录</span><span class="sp"></span>${caseFiles.length ? '<span class="pill ok"><span class="dot"></span>已提供 ' + caseFiles.length + ' 份</span>' : '<span class="pill">未提供</span>'}</div>
+      <div class="body">${caseFiles.map(fileRow).join('')}
+      <div class="drop"><span>拖入或选择会议记录（PDF / Word / TXT），也可以直接粘贴</span><button class="btn sm" data-up="case">上传另一份</button></div></div></section>
+
+    <section class="surface src"><div class="head"><h2>其他资料</h2><span class="how">教师观察、既往导师记录等</span><span class="sp"></span>${otherStatus}</div>
+      <div class="body">${otherFiles.map(fileRow).join('')}
+      <div class="drop"><span>没有可以不传，报告会写“尚未取得相关资料”</span><button class="btn sm" data-up="other">上传文件</button></div></div></section>
+  </div>
+
+  <section class="surface gen-bar"><div class="sum">
+    <span class="pill ok">Y4</span><span class="pill ok">First Touch</span><span class="pill ${S.parentText.trim() ? 'ok' : ''}">家长反馈</span><span class="pill warn">补充问卷 1/2</span><span class="pill ok">Case Review ${caseFiles.length}</span><span class="pill ${otherFiles.length ? 'ok' : ''}">其他 ${otherFiles.length}</span></div>
+    <span class="sp"></span><span class="sub">只有 Y4 必需，缺的写“信息不足”</span>
+    <button class="btn pri lg" id="toConfirm">确认资料并生成 →</button></section>`;
+}
+
+function confirmModal() {
+  const rows = [
+    ['Y4 测评报告（4 份）', 'Y4 Assessment', '2026-09-02', '52 项 R4 相关指标的档位', 'ok'],
+    ['6 A.M. 档案 v0.6', '随 Y4（衍生）', '2026-10-01', '不单独计为证据', 'ok'],
+    ['First Touch 会谈记录', 'First Touch', '2026-10-12', '学生原话 6 条', 'ok'],
+    ['家长反馈（粘贴文字）', '家长初始反馈', '2026-10-09', '关注问题 2 个、既往尝试 1 项', S.parentText.trim() ? 'ok' : 'miss'],
+    ['情绪调节问卷（ERQ + CERQ）', '补充问卷', '2026-10-15', '按维度整理的原始回答', 'ok'],
+    ...S.uploads.filter(u => u.status === 'ok').map(u => [u.name, u.cat === 'case' ? 'Case Review' : '其他资料', u.date, u.cat === 'case' ? '独立观察 1 条 · 待验证假设 2 条' : '已提取摘要', 'ok']),
+  ];
+  return `<div class="scrim" id="scrim"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cfH">
+    <div class="head"><h2 id="cfH">确认资料</h2><span class="sub">AI 会只用下面这些资料。看一眼类别和日期是否正确。</span></div>
+    <div class="scroll-x"><table class="table"><thead><tr><th>资料</th><th>类别</th><th>日期</th><th>识别结果</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${esc(r[0])}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table></div>
+    <div class="body"><p class="miss">将在报告中标注“信息不足”：焦虑问卷（已发送未作答）${S.uploads.some(u => u.cat === 'other') ? '' : '、其他资料（未提供）'}。社交能力等问卷为“未触发”，照实写明。</p></div>
+    <div class="foot"><button class="btn" id="cfBack">返回修改</button><button class="btn pri" id="cfGo">确认并生成</button></div></div></div>`;
+}
+
+const GEN_STEPS = [
+  ['读取 Y4 指标与档位', '规则计算，不经过 AI'],
+  ['整理补充问卷回答', '按问卷维度归类'],
+  ['从上传资料中提取证据', 'AI · 每条证据都要能在原文找到'],
+  ['18 项能力逐项证据核验', 'AI · 按 R1–R4 分 4 组'],
+  ['挑选本次优先核实的能力', '规则打分 + AI 写理由'],
+  ['生成会议方案与追问', 'AI · 只用真实事件'],
+  ['套入固定版式并检查', '不得留下占位符'],
+];
+function screenGen() {
+  return prepHeader('gen') + `<section class="surface"><div class="head"><h2>正在生成 AI 初稿</h2><span class="sub">可以离开这个页面，生成会在后台继续，完成后列表里会显示“草稿”。</span></div>
+  <div class="body" style="display:grid;gap:14px"><div class="meter" aria-hidden="true"><i id="meter"></i></div>
+  <div class="gen" id="genList">${GEN_STEPS.map((s, i) => `<div class="gen-row" data-i="${i}"><span class="ic"></span><span><b>${s[0]}</b><small>${s[1]}</small></span><span class="sub" data-t></span></div>`).join('')}</div>
+  <div><button class="btn" data-go="home">返回列表</button></div></div></section>`;
+}
+
+/* the report itself: same sections, headings, table columns and callouts as 《M1 FM会前准备框架》 */
+function docHTML() {
+  const pri = S.priority;
+  const agenda = S.duration === 60
+    ? [['01 建立连接与近况了解', '5 min'], ['02 R4 Quick Check', '10 min'], ['03 Event-based Exploration', '30 min'], ['04 Key Evidence Gap Backup', '10 min'], ['05 Reflection & Growth Direction', '5 min']]
+    : [['01 建立连接与近况了解', '8 min'], ['02 R4 Quick Check', '10 min'], ['03 Event-based Exploration', (S.duration === 75 ? 42 : 55) + ' min'], ['04 Key Evidence Gap Backup', (S.duration === 75 ? 10 : 12) + ' min'], ['05 Reflection & Growth Direction', '5 min']];
+  const tasks = ['解释目的与保密边界，了解学生当下状态、愿意讨论的话题', '四维开放式了解；不是 18 项逐项提问', S.duration === 60 ? '优先探索 1–2 个真实事件，在情境中交叉核实多项 R4 能力' : '深入探索 2–3 个真实事件，必要时分次完成', '仅追问事件中尚未覆盖、且影响当前判断的重要证据缺口', '核对理解，了解学生的愿望和可行的初步成长方向'];
+  const events = EVENTS.map(e => ({ ...e, ab: e.ab.filter(c => S.p3.includes(c)) })).filter(e => e.ab.length);
+  const covered = new Set(events.flatMap(e => e.ab));
+  const backups = S.p3.filter(c => c === 'R3.5' || !covered.has(c));
+  const dimRows = [
+    ['Recognize｜识别', 'R1.4 内省能力（高，Y4 自评优势）可作为自我反思的间接线索', 'R1.1 自我概念—情绪状态（偏低）、焦虑/安详（需关注）（Y4）；First Touch 中常用“烦”“不想说”', '能否命名具体情绪及其强度'],
+    ['Regulate｜调节', 'R2.3／R2.4 抑制控制（较好，Y4 认知任务表现，仅间接线索）', 'R2.2 考后反复回想错题（First Touch 原话）；CERQ 沉思维度多选“经常”（补充问卷）', '反复思考持续多久、是否影响睡眠、学生如何应对'],
+    ['Relate｜连接', 'R3.1 宜人性（高）；母亲信任、母亲沟通（高）（Y4）', 'R3.3 小组作业独自承担、未表达（First Touch 原话）；R3.5“跟老师说了也没用”（First Touch 原话）', '不表达的原因；可以求助的对象是谁'],
+    ['Recover｜恢复', 'R4.1 期中后仍按时上学并完成作业（家长初始反馈）', 'R4.2“考差会说自己笨”（家长初始反馈）；自卑/自尊（需关注）（Y4）', '学生本人如何解释失败'],
+  ];
+  const bandFmt = s => s.split(' · ').map(x => x.replace(/ (需关注|需特殊关注|相对健康|高|较好|不低|偏低|明显偏低|严重偏低|安全型)$/, '（$1）')).join('；');
+  return `
+  <div class="icon" aria-hidden="true">🧭</div>
+  <div class="title">M1 FM会前准备 · 林晓雨</div>
+
+  <h2>Part 1｜Meeting Overview &amp; Sources</h2>
+  <h3>1.1｜Meeting Overview 基本信息与会议结构</h3>
+  <p><b class="k">基本信息：</b>林晓雨 · 初二 · 示例中学 · 会议日期 2026-11-03 · M1 Mentor 李老师 · 预计会议时长 ${S.duration} 分钟 · 参会人员 ${S.people.map(esc).join('、')}</p>
+  <div class="lbl">固定结构｜从会前准备到最终反馈</div>
+  <table class="t"><thead><tr><th style="width:24%">环节</th><th>核心任务</th><th style="width:30%">预期输出</th></tr></thead>
+  <tr><td>01 会前资料整合</td><td>整合 Y4（含其衍生解读）、补充测评、First Touch、Case Review Meetings 等已有材料，区分原始证据与专业分析</td><td>《首次情绪力会议会前准备》</td></tr>
+  <tr><td>02 M1 First Meeting</td><td>四维快速核实、真实事件探索、关键 Evidence 补充，以及与学生讨论初步成长方向</td><td>真实事件中的行为证据、学生意愿和未解决的问题</td></tr>
+  <tr><td>03 家长信息补充与初步反馈</td><td>与家长沟通家庭观察、环境因素及学生支持条件；仅反馈适合当场交流的初步发现</td><td>家长补充证据及可能的家庭支持方向</td></tr>
+  <tr><td>04 综合分析与报告</td><td>AI 整合全部证据，由 Mentor 审核判断并制定 Intervention</td><td>《首次情绪力分析报告》及《Development Block Plan》</td></tr></table>
+  <div class="lbl">学生 First Meeting 固定流程（${S.duration === 60 ? '建议标准版 60 分钟' : '延长版 ' + S.duration + ' 分钟'}）</div>
+  <table class="t"><thead><tr><th style="width:30%">环节</th><th style="width:14%">时间</th><th>主要任务</th></tr></thead>
+  ${agenda.map((a, i) => `<tr><td>${a[0]}</td><td>${a[1]}</td><td>${tasks[i]}</td></tr>`).join('')}</table>
+  <div class="call"><span class="e" aria-hidden="true">💡</span><div><b>会议原则：</b>M1 属于情绪与关系发展支持，不是心理诊断或临床心理咨询。导师以建立信任、理解生活情境为先；学生会议与家长信息共享应有明确边界。明确的安全风险应启动独立人工核实与转介流程，不等待常规会议。</div></div>
+
+  <h3>1.2｜Sources &amp; Completeness 会前资料来源与完整性</h3>
+  <table class="t"><thead><tr><th style="width:20%">Evidence Source</th><th>会前提取信息</th><th style="width:28%">资料状态</th></tr></thead>
+  <tr><td>家长初始反馈</td><td>${B('src-parent', '期中后情绪低落、回家少说话；在意成绩，考差自称“笨”；既往尝试：数学补习班')}</td><td>完整；2026-10-09，母亲微信</td></tr>
+  <tr><td>Y4 Assessment</td><td>与 R4 相关的 52 项指标及标准化档位；原始 VERDICT 无直接对应；6 A.M. 为 Y4 衍生分析，不重复作为独立证据</td><td>完整；测评 2026-09-02，距会议约 9 周</td></tr>
+  <tr><td>补充问卷</td><td>情绪调节问卷（ERQ + CERQ）按维度整理的原始回答</td><td>ERQ + CERQ 已完成（2026-10-15）；焦虑问卷 未取得；社交能力 未触发</td></tr>
+  <tr><td>First Touch Meeting</td><td>${B('src-ft', '兴趣、自我描述、考试经历、小组作业经历、对老师的看法；学生原话 6 条')}</td><td>完整；2026-10-12</td></tr>
+  <tr><td>Case Review Meetings</td><td>${B('src-cr', '课堂观察 1 条（独立来源）；团队假设 2 条：不善求助、考试焦虑（待验证）')}</td><td>完整；2026-10-20，田老师、王老师，会议记录</td></tr>
+  <tr><td>其他证据</td><td><span class="insuf">尚未取得相关资料</span></td><td>未取得</td></tr></table>
+
+  <h2>Part 2｜R4 初步情绪力画像 Preliminary Emotional Profile</h2>
+  <h3>2.1｜R4 Initial Assessment 四维初步画像</h3>
+  <table class="t"><thead><tr><th style="width:15%">R4 维度</th><th>Potential 初步线索</th><th>Interference 初步线索</th><th style="width:22%">Key Evidence Gap</th></tr></thead>
+  ${dimRows.map((r, i) => `<tr><td>${r[0]}</td><td>${B('p-' + i, r[1])}</td><td>${B('i-' + i, r[2])}</td><td>${B('g-' + i, r[3])}</td></tr>`).join('')}</table>
+
+  <h3>2.2｜Priority R4 Abilities 会议重点确认能力</h3>
+  <p>本次建议优先确认 ${pri.length} 项能力。勾选只代表“建议优先确认”，不代表“能力存在问题”。</p>
+  ${pri.length ? `<table class="t"><thead><tr><th style="width:9%">AI 重点</th><th style="width:15%">R4 能力</th><th style="width:30%">原始 Evidence / VERDICT</th><th>AI 初步假设</th><th style="width:21%">为什么本次需要确认</th></tr></thead>
+  ${pri.map(c => { const a = ab(c), d = PRIORITY_DETAIL[c] || { ev: a.chk, hyp: '待导师补充', why: a.why }; return `<tr><td>☑️</td><td>${c} ${a.n}</td><td>${d.ev}</td><td>${B('h-' + c, d.hyp)}</td><td>${B('w-' + c, d.why)}</td></tr>`; }).join('')}</table>` : '<p class="insuf">本次未选择重点确认能力。</p>'}
+
+  <h3>2.3｜Evidence Conflicts &amp; Special Attention</h3>
+  <table class="t"><thead><tr><th style="width:24%">类型</th><th>已发现的线索</th><th style="width:28%">处理方式</th></tr></thead>
+  <tr><td>Evidence Conflicts｜证据不一致</td><td>${B('c1', 'Y4 依恋—母亲沟通（高，测评于 2026-09，期中之前）与家长初始反馈“期中后回家不怎么说话”（2026-10）存在差异')}</td><td>进入 Part 3 情境 1 的核实安排，避免择一当作事实</td></tr>
+  <tr><td>Contextual Factors｜环境与情境</td><td>${B('c2', '10 月期中考试；本学期调整班级（First Touch）')}</td><td>将情境因素与学生能力分开描述</td></tr>
+  <tr><td>Special Attention｜特别关注</td><td>${B('c3', '焦虑问卷已发送但未作答；Y4 测评距会议约 9 周')}</td><td>普通不确定性，保留</td></tr></table>
+
+  <h2>Part 3｜First Meeting Preparation</h2>
+  <h3>3.1｜R4 Quick Check 四维快速核实</h3>
+  <table class="t"><thead><tr><th style="width:15%">R4 维度</th><th>建议开放式切入问题</th><th style="width:32%">目标</th></tr></thead>
+  <tr><td>Recognize</td><td>最近有什么事情让你特别开心、烦恼或在意？你觉得自己最近有什么变化吗？</td><td>了解近期感受、自我看法及学生主动关注点</td></tr>
+  <tr><td>Regulate</td><td>有压力或情绪波动时，你通常会怎么处理？</td><td>初步了解调节方式并寻找可深入的事件</td></tr>
+  <tr><td>Relate</td><td>最近和家人、朋友、老师相处怎么样？有没有让你在意的互动？</td><td>了解关系体验及学生的关系需求</td></tr>
+  <tr><td>Recover</td><td>最近遇到不顺利的事情时，你后来是怎么调整的？</td><td>了解面对挫折与恢复的基本过程</td></tr></table>
+  <p>四个方向提供覆盖面，不要求严格按照顺序问完；如果学生自然谈到与其他维度相关的内容，可以直接转入事件探索。</p>
+
+  <h3>3.2｜Event-based Exploration 重点事件深入探索</h3>
+  ${events.length ? `<table class="t"><thead><tr><th style="width:15%">重点情境</th><th style="width:22%">已有线索及来源</th><th style="width:15%">关联的 Priority R4 能力</th><th style="width:18%">需要核实的 Evidence Gap</th><th>建议追问</th></tr></thead>
+  ${events.map((e, i) => `<tr><td>${B(e.b + '-t', '情境 ' + (i + 1) + '：' + e.title.replace(/^情境 \d：/, ''))}</td><td>${e.clue}</td><td>${e.ab.map(c => c + ' ' + ab(c).n).join('；')}</td><td>${B(e.b + '-g', e.gap)}</td><td>${B(e.b + '-q', '<ol>' + e.qs.map(q => `<li>${q}</li>`).join('') + '</ol>')}</td></tr>`).join('')}</table>` : '<p class="insuf">尚无真实事件线索，建议使用开放探索主题。</p>'}
+  <div class="call"><span class="e" aria-hidden="true">🗣️</span><div><b>Event-based R4 Assessment｜事件探索建议路径</b><br>Situation：当时具体发生了什么？<br>Recognize：当时的情绪、想法与需求是什么？<br>Regulate：如何反应、尝试了哪些方法，产生什么效果？<br>Relate：如果涉及他人，双方如何表达、理解和协商？<br>Recover：后来有什么影响，如何恢复或重新开始？<br>只追问与该事件及优先能力有关的部分，无须机械走完五步。</div></div>
+
+  <h3 class="red">3.3｜Backup Questions 备用提问</h3>
+  <table class="t"><thead><tr><th style="width:18%">待确认 R4 能力</th><th>事件探索后可能仍缺的证据</th><th>AI 生成的备用问题</th><th style="width:22%">建议提问时机 / 是否可延后</th></tr></thead>
+  ${backups.map(c => `<tr><td>${c} ${ab(c).n}</td><td>${B('bk-g-' + c, c === 'R3.5' ? '情境 2 只涉及同伴；与老师之间的求助经历尚无证据' : '事件探索未覆盖：' + ab(c).ask)}</td><td>${B('bk-q-' + c, c === 'R3.5' ? '最近一次学习上需要老师帮忙是什么时候？后来怎样了？' : ab(c).ask)}</td><td>第 4 环节；如已回答则跳过</td></tr>`).join('')}
+  ${S.mine.map((m, i) => `<tr><td>${m.c ? m.c + ' ' + ab(m.c).n : '导师补充'}</td><td>${B('me-g-' + i, 'Case Review 团队希望确认', 'div', 'me')}</td><td>${B('me-q-' + i, esc(m.q), 'div', 'me')}</td><td>第 4 环节</td></tr>`).join('')}
+  ${!backups.length && !S.mine.length ? '<tr><td colspan="4" class="insuf">重点能力均已在 3.2 中安排核实。</td></tr>' : ''}</table>
+
+  <h3>3.4｜Student Reflection &amp; Growth Direction 总结与初步成长方向</h3>
+  <table class="t"><thead><tr><th style="width:20%">准备事项</th><th>AI 建议生成内容</th></tr></thead>
+  <tr><td>学生成长意愿</td><td>${B('gw', '如果接下来有一个地方能变得更轻松，你最希望是什么？你希望我们可以如何支持你？')}</td></tr>
+  <tr><td>下一步可能方向</td><td>${B('nd', '考试后反复思考的应对练习；在小组中表达分工需求的小练习。正式 Intervention 等会议证据形成后由 Mentor 决定。')}</td></tr></table>
+
+  <h2>Appendix｜R4 Full Evidence Review（18 项能力）</h2>
+  <div class="call gray"><span class="e" aria-hidden="true">📋</span><div><b>附录用途：</b>围绕 18 项 R4 能力整合 Y4 初步线索与真实行为证据，形成需要在 First Meeting 中确认的问题，并判断是否优先验证。Y4 数据档位不是 R4 能力等级；Case Review Meetings 中对既有 Y4 的讨论不作为第二份独立证据。证据不足须明确标注；是否推荐验证由 AI 提出、导师审核，未推荐不代表能力正常。</div></div>
+  ${['R1', 'R2', 'R3', 'R4'].map(d => `<h3>${d}｜${DIMS[d]}</h3>
+  <table class="t"><thead><tr><th style="width:14%">R4 能力</th><th style="width:27%">R4 相关指标分析</th><th style="width:20%">会议中需确认</th><th>证据核验</th><th style="width:14%">是否推荐验证</th></tr></thead>
+  ${ABIL.filter(a => a.d === d).map(a => { const on = pri.includes(a.c); return `<tr><td>${a.c} ${a.n}</td><td><b class="k">相关指标：</b>${bandFmt(a.ind)}。<b class="k">分析与缺口：</b>${GAP[a.c]}</td><td>${a.ask}</td><td>${B('ck-' + a.c, a.chk)}</td><td>${on ? '☑️ 推荐' : '□ 暂不推荐'}<br><span class="insuf">${on ? (PRIORITY_DETAIL[a.c] ? '优先：' + esc(PRIORITY_DETAIL[a.c].why) : '导师添加') : esc(a.why)}</span></td></tr>`; }).join('')}</table>`).join('')}
+  <div class="foot"><span>M1 FM会前准备框架 · 林晓雨</span><span>AI 初稿 2026-10-28 14:05${S.final ? ' · 导师审核 2026-10-28 16:20' : ''}</span></div>
+  `;
+}
+
+function screenReview() {
+  const off = ABIL.filter(a => !S.priority.includes(a.c));
+  const warn = [
+    ['w', '其他资料：未取得，报告中写“尚未取得相关资料”'],
+    ['w', '焦虑问卷已发送未作答，已列入 2.3 特别关注'],
+    ['i', 'Y4 测评距会议约 9 周，结论可能失去时效'],
+    ...S.p3.filter(c => !S.priority.includes(c)).map(c => ['d', `Part 3 仍保留 ${c} 的追问，但 2.2 已取消这项能力，前后不一致`]),
+  ];
+  return prepHeader('review') + `
+  ${S.safety ? `<div class="safety" role="alert"><b>安全提示</b><span>家长反馈中提到“说过不想活了”。请先按安全流程人工核实，必要时转介。M1 报告不会对此做任何判断。</span><span class="sp"></span>${S.safetyAck ? '<span class="pill ok">已确认：已转交人工处理</span>' : '<button class="btn sm" id="ackSafety">我已知晓，已按流程处理</button>'}</div>` : ''}
+  ${S.final ? `<div class="lockbar"><b>已定稿 v2</b><span>导师审核 2026-10-28 16:20 · 李老师。这个版本已锁定，用于会议。</span><span class="sp"></span><button class="btn sm" id="unlock">基于此版本再修改</button></div>` : ''}
+  <div class="review">
+    <section class="surface" style="min-width:0">
+      <div class="toolbar">
+        ${S.final ? '<span class="saved">只读</span>' : '<span class="saved"><span class="dot"></span>已自动保存 · 14:22</span>'}
+        <span class="sub">AI 初稿 10-28 14:05 · 导师最后审核 ${S.final ? '10-28 16:20' : '—'}</span>
+        <span class="sp"></span>
+        <button class="btn sm ghost" data-go="sources">← 返回资料</button>
+        <button class="btn sm" id="preview">预览 / 下载 PDF</button>
+      </div>
+      <div class="desk"><article class="a4 ${S.final ? '' : 'editing draftmark'}" id="doc">${docHTML()}</article></div>
+    </section>
+
+    <aside class="panel" aria-label="审阅面板">
+      ${S.final ? '' : `<section class="surface"><div class="body" style="gap:10px">
+        <button class="btn pri lg" id="finalize" ${S.safety && !S.safetyAck ? 'disabled' : ''}>确认定稿</button>
+        <span class="hint">${S.safety && !S.safetyAck ? '先处理顶部的安全提示，才能定稿。' : '点击文档里任何文字都可以直接修改。定稿后锁定这一版用于会议。'}</span></div></section>`}
+
+      <section class="surface"><div class="head"><h2>本次重点确认能力</h2><span class="sp"></span><span class="pill ${S.priority.length > 5 ? 'warn' : ''}">${S.priority.length} 项</span></div>
+        <div class="body">${S.priority.map(c => `<label class="ab"><input type="checkbox" checked data-pri="${c}" ${S.final ? 'disabled' : ''}><span><b>${c} ${ab(c).n}</b><small>${esc((PRIORITY_DETAIL[c] || {}).why || '导师添加')}</small></span></label>`).join('')}
+        ${S.final ? '' : `<select class="inp" id="addAb" aria-label="添加能力"><option value="">＋ 从 18 项中添加…</option>${off.map(a => `<option value="${a.c}">${a.c} ${a.n}</option>`).join('')}</select>`}
+        ${S.priority.length > 5 ? '<span class="hint" style="color:var(--warn)">建议 3–5 项，一次会议很难核实更多。</span>' : ''}
+        ${S.sync ? `<div class="sync" role="status"><span>${S.sync.msg}</span><div class="row"><button class="btn sm" id="syncYes">一并移除</button><button class="btn sm ghost" id="syncNo">保留不动</button></div></div>` : ''}
+        </div></section>
+
+      ${S.final ? '' : `<section class="surface"><div class="head"><h2>加入我想问的问题</h2></div>
+        <div class="body"><textarea class="inp" id="myQ" placeholder="例如 Case Review 团队讨论后想确认的问题" style="min-height:64px"></textarea>
+        <div style="display:flex;gap:8px"><select class="inp" id="myQab" aria-label="关联能力"><option value="">不关联具体能力</option>${ABIL.map(a => `<option value="${a.c}">${a.c} ${a.n}</option>`).join('')}</select><button class="btn" id="addQ">加入</button></div>
+        <span class="hint">加在 3.3 备用提问里，标为“导师”，重新生成不会覆盖。</span></div></section>`}
+
+      <section class="surface"><div class="head"><h2>需要留意</h2><span class="sp"></span><span class="pill">${warn.length}</span></div>
+        <div class="body">${warn.map(w => `<div class="warnline ${w[0]}"><span class="dot"></span><span>${w[1]}</span></div>`).join('')}</div></section>
+    </aside>
+  </div>`;
+}
+
+/* ---------- notes ---------- */
+const NOTES = {
+  home: `<h3>设计说明 · M1 首页</h3><p>导师每天只需要回答一个问题：“哪个学生的会前准备还没做好？”</p>
+    <h4>为什么这样设计</h4><ul><li>列表就是待办：状态（未开始 / 草稿 / 已定稿）和会议日期一眼可见。</li><li>每行只有一个主操作：开始准备、继续、或下载 PDF。</li><li>新建时只列出 Y4 已完成的学生；不能开始的会写明原因，不让人点进去才发现。</li><li>放在 Y4 平台左侧导航，和 6 A.M.、First Touch 并列；学生 360° 档案也有入口。</li></ul>
+    <h4>权限</h4><ul><li>Admin 看全部；M1 Mentor（Advisor 账号）看自己负责的学生；Viewer 看不到 M1。</li></ul>`,
+  sources: `<h3>设计说明 · ① 资料</h3><p>能自动拿到的绝不让导师再填一遍。</p>
+    <h4>自动带入</h4><ul><li>学生信息、Y4、6 A.M.、First Touch、补充问卷都来自平台已有数据。</li><li>会议日期若在上传资料中识别到，会预填并标“请确认”。</li><li>6 A.M. 放在 Y4 卡片里，提醒它不是独立证据。</li></ul>
+    <h4>只需补充</h4><ul><li>家长反馈、Case Review、其他资料：拖文件或粘贴文字。</li><li>上传后 AI 先识别类别、日期和摘要，错了直接改下拉框。</li><li>只有 Y4 是必需的。底部摘要随时显示哪些齐了。</li></ul>
+    <h4>试一试</h4><ul><li>在“其他资料”点“上传文件”，看识别过程。</li><li>点“确认资料并生成”看确认环节。</li></ul>`,
+  gen: `<h3>设计说明 · ② 生成</h3><p>告诉导师系统在做什么，并且不用守着。</p>
+    <ul><li>七个步骤里，前两步和最后一步是规则计算，不经过 AI。</li><li>AI 每写一条证据都要引用原文，系统会核对原文里真的有这句话，找不到就丢掉。</li><li>后台任务 + 轮询，绕开 Cloudflare 隧道约 100 秒的超时；页面可以关掉。</li></ul>`,
+  review: `<h3>设计说明 · ③ 审阅定稿</h3><p>文档本身就是编辑器，和 E4 一样：看到的就是要下载的。</p>
+    <h4>标记</h4><ul><li><span class="mk">AI</span> AI 生成，未改过。</li><li><span class="mk ed">已修改</span> 导师改过，重新生成不会覆盖。</li><li><span class="mk me">导师</span> 导师自己加的内容。</li><li>打印 / PDF 里这些标记都不会出现。</li></ul>
+    <h4>右侧面板只放三件事</h4><ul><li>重点能力：取消勾选时，如果 Part 3 还在用这项能力，会提示是否一并移除。</li><li>加入我想问的问题：进 3.3。</li><li>需要留意：信息不足、时效等。</li></ul>
+    <h4>试一试</h4><ul><li>点文档里任何文字修改。</li><li>取消勾选 R3.3。</li><li>点下面按钮看安全提示如何拦住定稿。</li></ul>
+    <button class="btn sm" id="demoSafety">演示：出现安全风险</button>`,
+};
+
+/* ---------- render ---------- */
+function go(s) { S.screen = s; render(); window.scrollTo({ top: 0 }); }
+function render() {
+  const m = $('#main');
+  m.innerHTML = { home: screenHome, sources: screenSources, gen: screenGen, review: screenReview }[S.screen]();
+  $('#notes').innerHTML = NOTES[S.screen];
+  document.querySelectorAll('.proto-tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.go === S.screen));
+  if (S.screen === 'gen') runGen();
+}
+
+let genTimer = null;
+function runGen() {
+  clearTimeout(genTimer);
+  const rows = [...document.querySelectorAll('.gen-row')];
+  let i = 0;
+  const tick = () => {
+    if (S.screen !== 'gen') return;
+    rows.forEach((r, k) => { r.className = 'gen-row' + (k < i ? ' ok' : k === i ? ' run' : ''); if (k < i) r.querySelector('[data-t]').textContent = ['0.3 秒', '0.2 秒', '18 秒', '41 秒', '9 秒', '22 秒', '1 秒'][k]; });
+    $('#meter').style.width = Math.round(i / rows.length * 100) + '%';
+    if (i < rows.length) { i++; genTimer = setTimeout(tick, 650); }
+    else { genTimer = setTimeout(() => { if (S.screen === 'gen') { S.genDone = true; go('review'); toast('AI 初稿已生成'); } }, 700); }
+  };
+  tick();
+}
+
+function openPreview() {
+  const pv = document.createElement('div');
+  pv.className = 'pv'; pv.id = 'pv';
+  pv.innerHTML = `<div class="pv-bar"><b>打印预览</b><span class="sub">${S.final ? '定稿 v2' : '草稿（PDF 带“草稿”标记）'} · A4</span><span class="sp"></span>
+    <button class="btn" id="pvClose">关闭</button><button class="btn pri" id="pvPrint">下载 PDF</button></div>
+    <div class="desk"><article class="a4 plain ${S.final ? '' : 'draftmark'}">${docHTML()}</article></div>`;
+  document.body.appendChild(pv);
+  pv.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+  $('#pvClose').onclick = () => pv.remove();
+  $('#pvPrint').onclick = () => toast('平台中这里会打开浏览器打印，选择“存储为 PDF”即可（和 E4 相同）');
+  $('#pvClose').focus();
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, tr.click, [data-go]');
+  if (!t) return;
+  if (t.dataset.go && !t.disabled) return go(t.dataset.go);
+  if (t.matches('tr.click')) { if (t.dataset.status === 'final') return openPreview(); return go(t.dataset.open === '1' ? 'review' : 'sources'); }
+  switch (t.id) {
+    case 'newPrep': return pickModal();
+    case 'addP': S.people.push('王老师（Case Review）'); return render();
+    case 'toConfirm': document.body.insertAdjacentHTML('beforeend', confirmModal()); return $('#cfGo').focus();
+    case 'cfBack': return $('#scrim').remove();
+    case 'cfGo': $('#scrim').remove(); return go('gen');
+    case 'preview': return openPreview();
+    case 'finalize': S.final = true; S.sync = null; render(); return toast('已定稿 v2，可以下载 PDF 用于会议');
+    case 'unlock': S.final = false; render(); return toast('已基于 v2 新建草稿 v3，v2 仍保留在历史版本中');
+    case 'ackSafety': S.safetyAck = true; return render();
+    case 'demoSafety': S.safety = true; S.safetyAck = false; S.final = false; go('review'); return;
+    case 'syncYes': S.p3 = S.p3.filter(x => x !== S.sync.c); S.sync = null; render(); return toast('已从 Part 3 移除相关追问');
+    case 'syncNo': S.sync = null; return render();
+    case 'addQ': {
+      const q = $('#myQ').value.trim(); if (!q) { $('#myQ').focus(); return toast('先写下想问的问题'); }
+      S.mine.push({ q, c: $('#myQab').value }); render(); return toast('已加入 3.3 备用提问');
+    }
+  }
+  if (t.dataset.dur) { S.duration = +t.dataset.dur; return render(); }
+  if (t.dataset.rmp) { S.people.splice(+t.dataset.rmp, 1); return render(); }
+  if (t.dataset.del) { S.uploads = S.uploads.filter(u => u.id !== t.dataset.del); return render(); }
+  if (t.dataset.up) {
+    const id = 'u' + Date.now(), cat = t.dataset.up;
+    S.uploads.push({ id, cat, name: cat === 'case' ? '2026-10-27 Case Review 补充记录.pdf' : '班主任观察记录.docx', date: '', status: 'reading', sum: '' });
+    render();
+    setTimeout(() => { const u = S.uploads.find(x => x.id === id); if (!u) return; Object.assign(u, { status: 'ok', date: cat === 'case' ? '2026-10-27' : '2026-10-16', sum: cat === 'case' ? '补充讨论：建议会议中先从考试经历切入；无新增课堂观察。' : '班主任：课间多与固定两位同学在一起，小组活动中常承担记录工作（教师观察）。' }); if (S.screen === 'sources') render(); }, 1400);
+    return;
+  }
+  if (t.dataset.pickname) { $('#scrim').remove(); return go(t.dataset.pickname === '林晓雨' ? 'review' : 'sources'); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'notesToggle') return $('#wrap').classList.toggle('no-notes', !t.checked);
+  if (t.dataset.pri) {
+    const c = t.dataset.pri; S.priority = S.priority.filter(x => x !== c);
+    S.sync = S.p3.includes(c) ? { c, msg: `Part 3 中仍有关于 ${c} ${ab(c).n} 的追问。要一并移除吗？` } : null;
+    return render();
+  }
+  if (t.id === 'addAb' && t.value) { S.priority.push(t.value); if (!S.p3.includes(t.value)) S.p3.push(t.value); S.sync = null; render(); return toast(`已添加 ${t.value}，3.3 已补上对应的备用问题`); }
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'parentText') { S.parentText = t.value; return; }
+  const blk = t.closest && t.closest('.blk');
+  if (blk) {
+    const clone = blk.cloneNode(true); clone.querySelector('.mk')?.remove();
+    S.edits[blk.dataset.b] = clone.innerHTML;
+    const mk = blk.querySelector('.mk'); if (mk) { mk.className = 'mk ed'; mk.textContent = '已修改'; }
+    const sv = document.querySelector('.saved'); if (sv) sv.innerHTML = '<span class="dot"></span>已自动保存 · 刚刚';
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('#pv')?.remove(); $('#scrim')?.remove(); } });
+
+function pickModal() {
+  document.body.insertAdjacentHTML('beforeend', `<div class="scrim" id="scrim"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="pkH" style="width:min(520px,100%)">
+    <div class="head"><h2 id="pkH">为哪位学生准备？</h2></div>
+    <div class="body" style="display:grid;gap:10px"><input class="inp" placeholder="搜索姓名或 Y4 编号" aria-label="搜索学生" id="pkS">
+    ${PICK.map(p => `<button class="file" style="text-align:left;background:var(--surface)" ${p.y4 ? `data-pickname="${p.name}"` : 'disabled'}><span class="nm">${p.name} <span class="sub">${p.meta}</span></span>${p.y4 ? (p.note ? `<span class="pill warn">${p.note}</span>` : '<span class="pill ok">Y4 已完成</span>') : '<span class="pill">不可开始</span>'}${p.y4 ? '' : `<span class="meta">${p.note}</span>`}</button>`).join('')}
+    </div><div class="foot"><button class="btn" id="cfBack">取消</button></div></div></div>`);
+  $('#pkS').focus();
+}
+
+const start = location.hash.slice(1);
+if (['home', 'sources', 'gen', 'review'].includes(start)) S.screen = start;
+render();
+</script>

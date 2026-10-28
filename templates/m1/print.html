@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="m1-footer" content="M1 FM会前准备框架 · {{ prep.student_name }}">
+<title>M1 FM会前准备框架 · {{ prep.student_name }}</title>
+<link rel="stylesheet" href="/m1/assets/m1.css">
+<style>
+  /* 页脚文案随学生变化，写在页面内；A4 版式在 m1.css 的 @page + .a4 作用域。 */
+  @page {
+    @bottom-left {
+      content: "M1 FM会前准备框架 · {{ prep.student_name|e }}";
+      font: 9pt -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #787774;
+    }
+    @bottom-right {
+      content: counter(page);
+      font: 9pt -apple-system, "PingFang SC", sans-serif;
+      color: #787774;
+    }
+  }
+</style>
+</head>
+<body class="m1 print-page">
+
+<div class="print-bar">
+  <b>打印预览</b>
+  <span class="sub">{{ '已定稿' if prep.status == 'final' else '草稿（PDF 带“草稿”标记）' }} · A4</span>
+  <span class="sp"></span>
+  <button type="button" class="btn" id="printClose">关闭</button>
+  <button type="button" class="btn pri" id="printGo">下载 PDF</button>
+</div>
+
+<div class="print-desk">
+  <article class="a4 plain{% if prep.status != 'final' %} draftmark{% endif %}" id="m1doc"></article>
+</div>
+
+<script>
+  window.M1_PRINT = {
+    prepId: {{ prep.id }},
+    status: {{ prep.status|tojson }},
+    prep: {{ prep|tojson }},
+    detail: {{ detail|tojson }}
+  };
+</script>
+<script src="/m1/assets/m1_doc.js" defer></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var payload = window.M1_PRINT || {};
+    var detail = payload.detail || {};
+    var root = document.getElementById('m1doc');
+    if (root && window.M1Doc && detail.doc) {
+      window.M1Doc.render(root, {
+        doc: detail.doc,
+        kb: detail.kb,
+        fixed: detail.fixed,
+        y4_items: detail.y4_items,
+        version: detail.version,
+        prep: payload.prep,
+        status: payload.status
+      }, { mode: 'print' });
+    }
+    document.getElementById('printGo').addEventListener('click', function () {
+      window.print();
+    });
+    document.getElementById('printClose').addEventListener('click', function () {
+      if (window.history.length > 1) window.close();
+      else window.location.href = '/m1/preps/' + payload.prepId;
+    });
+  });
+</script>
+</body>
+</html>

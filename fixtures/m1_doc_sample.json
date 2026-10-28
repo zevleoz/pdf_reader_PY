@@ -1,0 +1,641 @@
+{
+  "meta": {
+    "student": "林晓雨",
+    "grade": "初二",
+    "school": "示例中学",
+    "meeting_date": "2026-11-03",
+    "mentor": "李老师",
+    "duration": 60,
+    "people": ["李老师（M1 Mentor）", "林晓雨"]
+  },
+  "sources": [
+    {
+      "key": "parent",
+      "label": "家长初始反馈",
+      "extracted": {
+        "id": "src-parent",
+        "text": "期中后情绪低落、回家少说话；在意成绩，考差自称“笨”；既往尝试：数学补习班",
+        "origin": "ai",
+        "ai_text": "期中后情绪低落、回家少说话；在意成绩，考差自称“笨”；既往尝试：数学补习班"
+      },
+      "status_text": "完整；2026-10-09，母亲微信"
+    },
+    {
+      "key": "y4",
+      "label": "Y4 Assessment",
+      "extracted": {
+        "id": "src-y4",
+        "text": "与 R4 相关的 52 项指标及标准化档位；原始 VERDICT 无直接对应；6 A.M. 为 Y4 衍生分析，不重复作为独立证据",
+        "origin": "ai",
+        "ai_text": "与 R4 相关的 52 项指标及标准化档位；原始 VERDICT 无直接对应；6 A.M. 为 Y4 衍生分析，不重复作为独立证据"
+      },
+      "status_text": "完整；测评 2026-09-02，距会议约 9 周"
+    },
+    {
+      "key": "questionnaire",
+      "label": "补充问卷",
+      "extracted": {
+        "id": "src-questionnaire",
+        "text": "情绪调节问卷（ERQ + CERQ）按维度整理的原始回答",
+        "origin": "ai",
+        "ai_text": "情绪调节问卷（ERQ + CERQ）按维度整理的原始回答"
+      },
+      "status_text": "ERQ + CERQ 已完成（2026-10-15）；焦虑问卷 未取得；社交能力 未触发"
+    },
+    {
+      "key": "first_touch",
+      "label": "First Touch Meeting",
+      "extracted": {
+        "id": "src-first-touch",
+        "text": "兴趣、自我描述、考试经历、小组作业经历、对老师的看法；学生原话 6 条",
+        "origin": "ai",
+        "ai_text": "兴趣、自我描述、考试经历、小组作业经历、对老师的看法；学生原话 6 条"
+      },
+      "status_text": "完整；2026-10-12"
+    },
+    {
+      "key": "case_review",
+      "label": "Case Review Meetings",
+      "extracted": {
+        "id": "src-case-review",
+        "text": "课堂观察 1 条（独立来源）；团队假设 2 条：不善求助、考试焦虑（待验证）",
+        "origin": "ai",
+        "ai_text": "课堂观察 1 条（独立来源）；团队假设 2 条：不善求助、考试焦虑（待验证）"
+      },
+      "status_text": "完整；2026-10-20，田老师、王老师，会议记录"
+    },
+    {
+      "key": "other",
+      "label": "其他证据",
+      "extracted": {
+        "id": "src-other",
+        "text": "尚未取得相关资料",
+        "origin": "ai",
+        "ai_text": "尚未取得相关资料"
+      },
+      "status_text": "未取得"
+    }
+  ],
+  "dims": [
+    {
+      "dim": "R1",
+      "potential": {
+        "id": "p-R1",
+        "text": "R1.4 内省能力（高，Y4 自评优势）可作为自我反思的间接线索",
+        "origin": "ai",
+        "ai_text": "R1.4 内省能力（高，Y4 自评优势）可作为自我反思的间接线索"
+      },
+      "interference": {
+        "id": "i-R1",
+        "text": "R1.1 自我概念—情绪状态（偏低）、焦虑/安详（需关注）（Y4）；First Touch 中常用“烦”“不想说”",
+        "origin": "ai",
+        "ai_text": "R1.1 自我概念—情绪状态（偏低）、焦虑/安详（需关注）（Y4）；First Touch 中常用“烦”“不想说”"
+      },
+      "gap": {
+        "id": "g-R1",
+        "text": "能否命名具体情绪及其强度",
+        "origin": "ai",
+        "ai_text": "能否命名具体情绪及其强度"
+      }
+    },
+    {
+      "dim": "R2",
+      "potential": {
+        "id": "p-R2",
+        "text": "R2.3／R2.4 抑制控制（较好，Y4 认知任务表现，仅间接线索）",
+        "origin": "ai",
+        "ai_text": "R2.3／R2.4 抑制控制（较好，Y4 认知任务表现，仅间接线索）"
+      },
+      "interference": {
+        "id": "i-R2",
+        "text": "R2.2 考后反复回想错题（First Touch 原话）；CERQ 沉思维度多选“经常”（补充问卷）",
+        "origin": "ai",
+        "ai_text": "R2.2 考后反复回想错题（First Touch 原话）；CERQ 沉思维度多选“经常”（补充问卷）"
+      },
+      "gap": {
+        "id": "g-R2",
+        "text": "反复思考持续多久、是否影响睡眠、学生如何应对",
+        "origin": "ai",
+        "ai_text": "反复思考持续多久、是否影响睡眠、学生如何应对"
+      }
+    },
+    {
+      "dim": "R3",
+      "potential": {
+        "id": "p-R3",
+        "text": "R3.1 宜人性（高）；母亲信任、母亲沟通（高）（Y4）",
+        "origin": "ai",
+        "ai_text": "R3.1 宜人性（高）；母亲信任、母亲沟通（高）（Y4）"
+      },
+      "interference": {
+        "id": "i-R3",
+        "text": "R3.3 小组作业独自承担、未表达（First Touch 原话）；R3.5“跟老师说了也没用”（First Touch 原话）",
+        "origin": "ai",
+        "ai_text": "R3.3 小组作业独自承担、未表达（First Touch 原话）；R3.5“跟老师说了也没用”（First Touch 原话）"
+      },
+      "gap": {
+        "id": "g-R3",
+        "text": "不表达的原因；可以求助的对象是谁",
+        "origin": "ai",
+        "ai_text": "不表达的原因；可以求助的对象是谁"
+      }
+    },
+    {
+      "dim": "R4",
+      "potential": {
+        "id": "p-R4",
+        "text": "R4.1 期中后仍按时上学并完成作业（家长初始反馈）",
+        "origin": "ai",
+        "ai_text": "R4.1 期中后仍按时上学并完成作业（家长初始反馈）"
+      },
+      "interference": {
+        "id": "i-R4",
+        "text": "R4.2“考差会说自己笨”（家长初始反馈）；自卑/自尊（需关注）（Y4）",
+        "origin": "ai",
+        "ai_text": "R4.2“考差会说自己笨”（家长初始反馈）；自卑/自尊（需关注）（Y4）"
+      },
+      "gap": {
+        "id": "g-R4",
+        "text": "学生本人如何解释失败",
+        "origin": "ai",
+        "ai_text": "学生本人如何解释失败"
+      }
+    }
+  ],
+  "priority": [
+    {
+      "code": "R2.2",
+      "evidence": [
+        "First Touch 2026-10-12 原话：「考完数学那几天，晚上躺在床上一直在想哪道题错了」",
+        "CERQ 沉思维度：多数题选“经常”（补充问卷 2026-10-15）",
+        "Y4：焦虑/安详（需关注）；VERDICT 无直接对应"
+      ],
+      "hypothesis": {
+        "id": "h-R2.2",
+        "text": "考试受挫后可能出现反复消极思考，待核实",
+        "origin": "ai",
+        "ai_text": "考试受挫后可能出现反复消极思考，待核实"
+      },
+      "why": {
+        "id": "w-R2.2",
+        "text": "三个来源指向一致；已提到影响入睡；缺持续时间与应对方式",
+        "origin": "ai",
+        "ai_text": "三个来源指向一致；已提到影响入睡；缺持续时间与应对方式"
+      }
+    },
+    {
+      "code": "R4.2",
+      "evidence": [
+        "家长初始反馈 2026-10-09：「考差会说自己笨」",
+        "Y4：自卑/自尊（需关注）；学习自我效能感（偏低）；VERDICT 无直接对应"
+      ],
+      "hypothesis": {
+        "id": "h-R4.2",
+        "text": "受挫后可能把一次失败扩大为对能力的整体否定",
+        "origin": "ai",
+        "ai_text": "受挫后可能把一次失败扩大为对能力的整体否定"
+      },
+      "why": {
+        "id": "w-R4.2",
+        "text": "与 R2.2 同一事件，可在情境 1 一并核实；需学生本人的解释",
+        "origin": "ai",
+        "ai_text": "与 R2.2 同一事件，可在情境 1 一并核实；需学生本人的解释"
+      }
+    },
+    {
+      "code": "R3.3",
+      "evidence": [
+        "First Touch 2026-10-12 原话：「小组作业大家都不做，我就自己全做了，也没说什么」",
+        "Y4：自驱力—自主性（偏低）；VERDICT 无直接对应"
+      ],
+      "hypothesis": {
+        "id": "h-R3.3",
+        "text": "面对不公平分工可能倾向于不表达、独自承担",
+        "origin": "ai",
+        "ai_text": "面对不公平分工可能倾向于不表达、独自承担"
+      },
+      "why": {
+        "id": "w-R3.3",
+        "text": "有真实事件；单一来源；影响学业负担与同伴关系",
+        "origin": "ai",
+        "ai_text": "有真实事件；单一来源；影响学业负担与同伴关系"
+      }
+    },
+    {
+      "code": "R3.5",
+      "evidence": [
+        "First Touch 2026-10-12 原话：「我觉得跟老师说了也没用」",
+        "Case Review 2026-10-20：团队假设“不善求助”（基于 Y4 推测，非独立观察）"
+      ],
+      "hypothesis": {
+        "id": "h-R3.5",
+        "text": "对向老师求助的效果期待较低",
+        "origin": "ai",
+        "ai_text": "对向老师求助的效果期待较低"
+      },
+      "why": {
+        "id": "w-R3.5",
+        "text": "Case Review 提出的重点方向；需区分“不愿求助”与“缺少可信赖对象”",
+        "origin": "ai",
+        "ai_text": "Case Review 提出的重点方向；需区分“不愿求助”与“缺少可信赖对象”"
+      }
+    }
+  ],
+  "special": {
+    "conflict": {
+      "id": "c1",
+      "text": "Y4 依恋—母亲沟通（高，测评于 2026-09，期中之前）与家长初始反馈“期中后回家不怎么说话”（2026-10）存在差异",
+      "origin": "ai",
+      "ai_text": "Y4 依恋—母亲沟通（高，测评于 2026-09，期中之前）与家长初始反馈“期中后回家不怎么说话”（2026-10）存在差异"
+    },
+    "context": {
+      "id": "c2",
+      "text": "10 月期中考试；本学期调整班级（First Touch）",
+      "origin": "ai",
+      "ai_text": "10 月期中考试；本学期调整班级（First Touch）"
+    },
+    "attention": {
+      "id": "c3",
+      "text": "焦虑问卷已发送但未作答；Y4 测评距会议约 9 周",
+      "origin": "ai",
+      "ai_text": "焦虑问卷已发送但未作答；Y4 测评距会议约 9 周"
+    }
+  },
+  "events": [
+    {
+      "id": "ev1",
+      "title": {
+        "id": "ev1-title",
+        "text": "情境 1：期中数学考试之后（10 月中旬）",
+        "origin": "ai",
+        "ai_text": "情境 1：期中数学考试之后（10 月中旬）"
+      },
+      "clue": "First Touch 2026-10-12 原话「考完数学那几天，晚上躺在床上一直在想哪道题错了」；家长初始反馈 2026-10-09「期中后情绪低落，回家不怎么说话」",
+      "abilities": ["R2.2", "R4.2"],
+      "gap": {
+        "id": "ev1-gap",
+        "text": "反复思考持续了几天、是否影响睡眠和作业；学生自己如何解释这次考试；回家不说话的原因（对应 2.3 中的证据差异）",
+        "origin": "ai",
+        "ai_text": "反复思考持续了几天、是否影响睡眠和作业；学生自己如何解释这次考试；回家不说话的原因（对应 2.3 中的证据差异）"
+      },
+      "questions": {
+        "id": "ev1-questions",
+        "text": "1. 你提到考完数学那几天晚上一直在想题目，能和我说说那几天是什么样的吗？\n2. 那时候脑子里最常出现的想法是什么？\n3. 后来是怎么慢慢不再想的？有用过什么办法吗？\n4. 那段时间回家后，想和妈妈聊这件事吗？",
+        "origin": "ai",
+        "ai_text": "1. 你提到考完数学那几天晚上一直在想题目，能和我说说那几天是什么样的吗？\n2. 那时候脑子里最常出现的想法是什么？\n3. 后来是怎么慢慢不再想的？有用过什么办法吗？\n4. 那段时间回家后，想和妈妈聊这件事吗？"
+      }
+    },
+    {
+      "id": "ev2",
+      "title": {
+        "id": "ev2-title",
+        "text": "情境 2：小组作业由自己全部完成",
+        "origin": "ai",
+        "ai_text": "情境 2：小组作业由自己全部完成"
+      },
+      "clue": "First Touch 2026-10-12 原话「小组作业大家都不做，我就自己全做了，也没说什么」",
+      "abilities": ["R3.3", "R3.5"],
+      "gap": {
+        "id": "ev2-gap",
+        "text": "当时是否想过提出分工或找老师；没有说出来的原因；事后的感受与影响",
+        "origin": "ai",
+        "ai_text": "当时是否想过提出分工或找老师；没有说出来的原因；事后的感受与影响"
+      },
+      "questions": {
+        "id": "ev2-questions",
+        "text": "1. 当时你心里是怎么想的？\n2. 有没有想过跟组员或老师说？是什么让你决定不说？\n3. 如果下次再遇到，你希望自己怎么做？",
+        "origin": "ai",
+        "ai_text": "1. 当时你心里是怎么想的？\n2. 有没有想过跟组员或老师说？是什么让你决定不说？\n3. 如果下次再遇到，你希望自己怎么做？"
+      }
+    }
+  ],
+  "backups": [
+    {
+      "code": "R3.5",
+      "missing": {
+        "id": "bk-g-R3.5",
+        "text": "情境 2 只涉及同伴；与老师之间的求助经历尚无证据",
+        "origin": "ai",
+        "ai_text": "情境 2 只涉及同伴；与老师之间的求助经历尚无证据"
+      },
+      "question": {
+        "id": "bk-q-R3.5",
+        "text": "最近一次学习上需要老师帮忙是什么时候？后来怎样了？",
+        "origin": "ai",
+        "ai_text": "最近一次学习上需要老师帮忙是什么时候？后来怎样了？"
+      },
+      "timing": "第 4 环节；如已回答则跳过"
+    }
+  ],
+  "growth": {
+    "wish": {
+      "id": "gw",
+      "text": "如果接下来有一个地方能变得更轻松，你最希望是什么？你希望我们可以如何支持你？",
+      "origin": "ai",
+      "ai_text": "如果接下来有一个地方能变得更轻松，你最希望是什么？你希望我们可以如何支持你？"
+    },
+    "next": {
+      "id": "nd",
+      "text": "考试后反复思考的应对练习；在小组中表达分工需求的小练习。正式 Intervention 等会议证据形成后由 Mentor 决定。",
+      "origin": "ai",
+      "ai_text": "考试后反复思考的应对练习；在小组中表达分工需求的小练习。正式 Intervention 等会议证据形成后由 Mentor 决定。"
+    }
+  },
+  "appendix": [
+    {
+      "code": "R1.1",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R1.1",
+        "text": "可在情境 1 中顺带了解，不单列",
+        "origin": "ai",
+        "ai_text": "可在情境 1 中顺带了解，不单列"
+      },
+      "check": {
+        "id": "ap-c-R1.1",
+        "text": "First Touch 中能说出“睡不着、一直想”，但未命名情绪；家长“情绪低落”为家长视角。仅间接线索，证据不足。",
+        "origin": "ai",
+        "ai_text": "First Touch 中能说出“睡不着、一直想”，但未命名情绪；家长“情绪低落”为家长视角。仅间接线索，证据不足。"
+      }
+    },
+    {
+      "code": "R1.2",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R1.2",
+        "text": "信息不足，非本次重点",
+        "origin": "ai",
+        "ai_text": "信息不足，非本次重点"
+      },
+      "check": {
+        "id": "ap-c-R1.2",
+        "text": "尚未取得相关事件叙述。信息不足。",
+        "origin": "ai",
+        "ai_text": "尚未取得相关事件叙述。信息不足。"
+      }
+    },
+    {
+      "code": "R1.3",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R1.3",
+        "text": "由情境 1 覆盖",
+        "origin": "ai",
+        "ai_text": "由情境 1 覆盖"
+      },
+      "check": {
+        "id": "ap-c-R1.3",
+        "text": "考后反复回想（First Touch）与课堂答错后沉默（Case Review 课堂观察）可能指向“受挫—退缩”模式，待核实。",
+        "origin": "ai",
+        "ai_text": "考后反复回想（First Touch）与课堂答错后沉默（Case Review 课堂观察）可能指向“受挫—退缩”模式，待核实。"
+      }
+    },
+    {
+      "code": "R1.4",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R1.4",
+        "text": "与 R4.2 合并核实",
+        "origin": "ai",
+        "ai_text": "与 R4.2 合并核实"
+      },
+      "check": {
+        "id": "ap-c-R1.4",
+        "text": "家长：“考差会说自己笨”（家长陈述），与 R4.2 为同一线索。",
+        "origin": "ai",
+        "ai_text": "家长：“考差会说自己笨”（家长陈述），与 R4.2 为同一线索。"
+      }
+    },
+    {
+      "code": "R2.1",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R2.1",
+        "text": "情境 1 可覆盖调节方式",
+        "origin": "ai",
+        "ai_text": "情境 1 可覆盖调节方式"
+      },
+      "check": {
+        "id": "ap-c-R2.1",
+        "text": "ERQ 认知重评维度多数回答为“不赞同”（问卷自评）；尚无行为证据。",
+        "origin": "ai",
+        "ai_text": "ERQ 认知重评维度多数回答为“不赞同”（问卷自评）；尚无行为证据。"
+      }
+    },
+    {
+      "code": "R2.2",
+      "recommend": true,
+      "reason": {
+        "id": "ap-r-R2.2",
+        "text": "三个来源指向一致；已提到影响入睡；缺持续时间与应对方式",
+        "origin": "ai",
+        "ai_text": "三个来源指向一致；已提到影响入睡；缺持续时间与应对方式"
+      },
+      "check": {
+        "id": "ap-c-R2.2",
+        "text": "三个独立来源一致：First Touch 原话、CERQ 沉思维度多选“经常”、家长反馈期中后低落。缺持续时间与实际影响。",
+        "origin": "ai",
+        "ai_text": "三个独立来源一致：First Touch 原话、CERQ 沉思维度多选“经常”、家长反馈期中后低落。缺持续时间与实际影响。"
+      }
+    },
+    {
+      "code": "R2.3",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R2.3",
+        "text": "可在情境 1 追问中观察",
+        "origin": "ai",
+        "ai_text": "可在情境 1 追问中观察"
+      },
+      "check": {
+        "id": "ap-c-R2.3",
+        "text": "Case Review：答错后“整节课低头不说话”（王老师课堂观察，独立来源，仅一次）。",
+        "origin": "ai",
+        "ai_text": "Case Review：答错后“整节课低头不说话”（王老师课堂观察，独立来源，仅一次）。"
+      }
+    },
+    {
+      "code": "R2.4",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R2.4",
+        "text": "无现实影响线索",
+        "origin": "ai",
+        "ai_text": "无现实影响线索"
+      },
+      "check": {
+        "id": "ap-c-R2.4",
+        "text": "无冲动相关线索。抑制控制只反映认知任务表现，不推断情绪情境中的行为。",
+        "origin": "ai",
+        "ai_text": "无冲动相关线索。抑制控制只反映认知任务表现，不推断情绪情境中的行为。"
+      }
+    },
+    {
+      "code": "R2.5",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R2.5",
+        "text": "信息不足，非本次重点",
+        "origin": "ai",
+        "ai_text": "信息不足，非本次重点"
+      },
+      "check": {
+        "id": "ap-c-R2.5",
+        "text": "信息不足。",
+        "origin": "ai",
+        "ai_text": "信息不足。"
+      }
+    },
+    {
+      "code": "R3.1",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R3.1",
+        "text": "情境 2 顺带了解",
+        "origin": "ai",
+        "ai_text": "情境 2 顺带了解"
+      },
+      "check": {
+        "id": "ap-c-R3.1",
+        "text": "First Touch：“大家都不做，我就自己全做了”。可能是体谅他人，也可能是回避冲突，需区分。",
+        "origin": "ai",
+        "ai_text": "First Touch：“大家都不做，我就自己全做了”。可能是体谅他人，也可能是回避冲突，需区分。"
+      }
+    },
+    {
+      "code": "R3.2",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R3.2",
+        "text": "差异在情境 1 中核实",
+        "origin": "ai",
+        "ai_text": "差异在情境 1 中核实"
+      },
+      "check": {
+        "id": "ap-c-R3.2",
+        "text": "Y4 母亲沟通“高”（2026-09 测评）与家长“期中后回家不怎么说话”不一致，见 2.3。",
+        "origin": "ai",
+        "ai_text": "Y4 母亲沟通“高”（2026-09 测评）与家长“期中后回家不怎么说话”不一致，见 2.3。"
+      }
+    },
+    {
+      "code": "R3.3",
+      "recommend": true,
+      "reason": {
+        "id": "ap-r-R3.3",
+        "text": "有真实事件；单一来源；影响学业负担与同伴关系",
+        "origin": "ai",
+        "ai_text": "有真实事件；单一来源；影响学业负担与同伴关系"
+      },
+      "check": {
+        "id": "ap-c-R3.3",
+        "text": "First Touch 原话：小组作业“也没说什么”就全部承担。单一来源，学生自述。",
+        "origin": "ai",
+        "ai_text": "First Touch 原话：小组作业“也没说什么”就全部承担。单一来源，学生自述。"
+      }
+    },
+    {
+      "code": "R3.4",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R3.4",
+        "text": "情境 2 可覆盖",
+        "origin": "ai",
+        "ai_text": "情境 2 可覆盖"
+      },
+      "check": {
+        "id": "ap-c-R3.4",
+        "text": "未见冲突事件；可能因回避而冲突较少，待核实。",
+        "origin": "ai",
+        "ai_text": "未见冲突事件；可能因回避而冲突较少，待核实。"
+      }
+    },
+    {
+      "code": "R3.5",
+      "recommend": true,
+      "reason": {
+        "id": "ap-r-R3.5",
+        "text": "Case Review 提出的重点方向；需区分“不愿求助”与“缺少可信赖对象”",
+        "origin": "ai",
+        "ai_text": "Case Review 提出的重点方向；需区分“不愿求助”与“缺少可信赖对象”"
+      },
+      "check": {
+        "id": "ap-c-R3.5",
+        "text": "First Touch：“跟老师说了也没用”（学生自述）。Case Review 的“不善求助”推测基于 Y4，只作待验证假设，不计为新证据。",
+        "origin": "ai",
+        "ai_text": "First Touch：“跟老师说了也没用”（学生自述）。Case Review 的“不善求助”推测基于 Y4，只作待验证假设，不计为新证据。"
+      }
+    },
+    {
+      "code": "R3.6",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R3.6",
+        "text": "与 R3.3 同一事件，合并核实",
+        "origin": "ai",
+        "ai_text": "与 R3.3 同一事件，合并核实"
+      },
+      "check": {
+        "id": "ap-c-R3.6",
+        "text": "小组作业事件提示承担过多，互惠性待核实。",
+        "origin": "ai",
+        "ai_text": "小组作业事件提示承担过多，互惠性待核实。"
+      }
+    },
+    {
+      "code": "R4.1",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R4.1",
+        "text": "情境 1 覆盖",
+        "origin": "ai",
+        "ai_text": "情境 1 覆盖"
+      },
+      "check": {
+        "id": "ap-c-R4.1",
+        "text": "期中后情绪低落但仍按时上学、完成作业（家长反馈），暂无回避行为证据。",
+        "origin": "ai",
+        "ai_text": "期中后情绪低落但仍按时上学、完成作业（家长反馈），暂无回避行为证据。"
+      }
+    },
+    {
+      "code": "R4.2",
+      "recommend": true,
+      "reason": {
+        "id": "ap-r-R4.2",
+        "text": "与 R2.2 同一事件，可在情境 1 一并核实；需学生本人的解释",
+        "origin": "ai",
+        "ai_text": "与 R2.2 同一事件，可在情境 1 一并核实；需学生本人的解释"
+      },
+      "check": {
+        "id": "ap-c-R4.2",
+        "text": "家长：“考差会说自己笨”；First Touch：反复想错题。两个来源，需听学生本人如何解释。",
+        "origin": "ai",
+        "ai_text": "家长：“考差会说自己笨”；First Touch：反复想错题。两个来源，需听学生本人如何解释。"
+      }
+    },
+    {
+      "code": "R4.3",
+      "recommend": false,
+      "reason": {
+        "id": "ap-r-R4.3",
+        "text": "下次会议再观察",
+        "origin": "ai",
+        "ai_text": "下次会议再观察"
+      },
+      "check": {
+        "id": "ap-c-R4.3",
+        "text": "家长：已报数学补习班（家长的尝试，非学生行为）。",
+        "origin": "ai",
+        "ai_text": "家长：已报数学补习班（家长的尝试，非学生行为）。"
+      }
+    }
+  ],
+  "flags": {
+    "safety": [],
+    "insufficient": [
+      "焦虑问卷：已发送未作答",
+      "其他资料：未取得"
+    ]
+  }
+}

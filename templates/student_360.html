@@ -187,6 +187,9 @@
         </div>
         <div style="flex:1"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">
+          {% if current_role in ('admin', 'advisor') %}
+          <a class="btn btn-sec" href="/m1?student={{ profile.id }}">M1 会前准备</a>
+          {% endif %}
           {% if is_admin %}
           <a class="btn btn-sec" href="/first-touch/archive/{{ profile.id }}">First Touch 归档</a>
           {% endif %}

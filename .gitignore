@@ -5,6 +5,9 @@
 *.json
 # 集成契约 schema/示例（接口校验依据，需随代码发布）
 !docs/integrations/**/*.json
+# M1 知识库与渲染样例（代码依赖，需随代码发布）
+!m1/kb/*.json
+!fixtures/m1_doc_sample.json
 __pycache__/
 *.pyc
 *.pyo
