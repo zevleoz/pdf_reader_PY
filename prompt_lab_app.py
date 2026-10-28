@@ -53,7 +53,7 @@ if not LAB_PROMPT_PATH.exists() and PROD_PROMPT_PATH.exists():
 # ---------------------------------------------------------------------------
 DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", "").strip()
 AI_MODEL = os.environ.get("AI_TEXT_MODEL", "qwen-plus")
-ITERATION_MODEL = os.environ.get("AI_ITERATION_MODEL", "qwen-turbo")
+ITERATION_MODEL = os.environ.get("AI_ITERATION_MODEL", "qwen-flash")
 AI_TEMPERATURE = float(os.environ.get("AI_TEMPERATURE", "0.5"))
 DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 

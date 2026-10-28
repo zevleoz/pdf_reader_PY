@@ -106,7 +106,7 @@ def _generate_e4_protocol_core(items: List[Dict[str, Any]], include_raw: bool,
     list_placement = _determine_list_placement(items)
 
     # Step2：跨维度分析（AI）
-    model2 = os.environ.get("E4_STEP2_MODEL", "qwen-turbo")
+    model2 = os.environ.get("E4_STEP2_MODEL", "qwen-flash")
     timeout = int(os.environ.get("E4_STEP_TIMEOUT", "180"))
     all_lines: List[str] = []
     current_dim = None

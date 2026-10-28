@@ -299,7 +299,12 @@ def v1_report_e4_protocol(report_id):
     except Exception:
         return _v1_error("AI_UNAVAILABLE", "AI 服务暂时不可用，请稍后重试", 503)
     content_md = result.get('content_md', '')
-    _E4_CACHE[cache_key] = (content_md, now, interp_hash)
+    stats = result.get('stats') or {}
+    ai_failed = (any(s.get('error') for s in stats.get('step2') or [])
+                 or bool((stats.get('step3') or {}).get('error')))
+    # AI 步骤失败（如模型 429）时协议缺「判断」：不缓存，让下一次请求重新生成
+    if not ai_failed:
+        _E4_CACHE[cache_key] = (content_md, now, interp_hash)
     buf = _io.BytesIO(content_md.encode('utf-8'))
     safe_name = student_name.replace(' ', '').replace('/', '_')
     resp = send_file(buf, mimetype='text/markdown', as_attachment=True,

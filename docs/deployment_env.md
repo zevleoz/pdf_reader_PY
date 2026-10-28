@@ -41,7 +41,7 @@
 | `SILICONFLOW_API_KEY` | 选 | 视觉 OCR 备选 provider |
 | `AI_TEXT_MODEL` | 选 | 文本 AI 模型，缺省 `qwen-plus` |
 | `AI_TEMPERATURE` | 选 | AI 采样温度，缺省 `0.5` |
-| `ITERATION_MODEL` | 选 | 迭代模型（速度优先，缺省 `qwen-turbo`） |
+| `ITERATION_MODEL` | 选 | 迭代模型（速度优先，缺省 `qwen-flash`） |
 | `DASHBOARD_AI_MODEL` / `DASHBOARD_AI_TIMEOUT` | 选 | Dashboard AI 分析模型与超时 |
 | `Y4_LOGIN_RATE_LIMIT` | 选 | 登录限流阈值（每 IP 每分钟失败次数），缺省 5 |
 | `FT_LLM_API_KEY` | 选 | First Touch（Growth Talk）AI 调用专用 key；未设置时依次回退 `DASHSCOPE_API_KEY`、`extract.py` 内置默认 key。全部缺失时分析作业报「AI 服务未配置（DASHSCOPE_API_KEY），请联系管理员」 |

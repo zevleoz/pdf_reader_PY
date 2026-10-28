@@ -182,7 +182,7 @@ type 取值:
 
     user = f"【聚合数据】\n{data_summary}"
 
-    model = os.environ.get("DASHBOARD_AI_MODEL", "qwen-turbo")
+    model = os.environ.get("DASHBOARD_AI_MODEL", "qwen-flash")
     timeout = int(os.environ.get("DASHBOARD_AI_TIMEOUT", "60"))
 
     try:

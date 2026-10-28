@@ -196,13 +196,13 @@ def api_transcript():
     ]
 
     # ------------------------------------------------------------------
-    # 4) Call DashScope API — prefer ITERATION_MODEL (qwen-turbo by default)
+    # 4) Call DashScope API — prefer ITERATION_MODEL (qwen-flash by default)
     # ------------------------------------------------------------------
     dashscope_key = os.environ.get("DASHSCOPE_API_KEY", extract.DEFAULT_DASHSCOPE_KEY).strip()
     model_name = (
         os.environ.get("ITERATION_MODEL")
         or os.environ.get("AI_TEXT_MODEL")
-        or "qwen-turbo"
+        or "qwen-flash"
     )
     url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
     req_body = {
@@ -1177,7 +1177,7 @@ def prompt_lab_e4_step2():
     data = request.get_json(force=True)
     groups = data.get("groups") or []
     other_lines = data.get("other_lines") or []
-    model = os.environ.get("E4_STEP2_MODEL", "qwen-turbo")
+    model = os.environ.get("E4_STEP2_MODEL", "qwen-flash")
     timeout = int(os.environ.get("E4_STEP_TIMEOUT", "180"))
 
     # 按维度+问题拼装数据（附 Python 规则的问题级判定）
