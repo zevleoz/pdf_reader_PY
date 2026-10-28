@@ -201,6 +201,12 @@ def init_db() -> None:
         import growth_talk_store  # noqa: F401
     except Exception as e:  # Growth Talk 子系统导入失败不应阻断既有功能
         print(f"[DB] Growth Talk 模型注册失败 (非致命): {e}")
+    # M1 会前准备的 3 张表（m1_preps / m1_sources / m1_versions）同样要在
+    # create_all 之前注册；init_db 在蓝图导入之前运行，否则全新库里不会建表。
+    try:
+        import m1.store  # noqa: F401
+    except Exception as e:  # M1 导入失败不应阻断既有功能
+        print(f"[DB] M1 模型注册失败 (非致命): {e}")
     Base.metadata.create_all(engine)
     _migrate_schema()
     try:
