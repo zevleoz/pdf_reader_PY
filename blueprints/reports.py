@@ -157,7 +157,7 @@ def _run_six_am_hook(report_id: Optional[int]) -> None:
         return
     try:
         import six_am
-        six_am.run_for_report(int(report_id))
+        six_am.run_v06_for_report(int(report_id))
     except Exception as e:
         print(f"[6AM] 生成失败 (非致命): {e}")
 

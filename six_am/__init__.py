@@ -260,3 +260,89 @@ def merge_evidence(base: Optional[Dict[str, Any]],
         else:
             out[k] = v
     return out
+
+
+# ── v0.6 输入闭环与档案构建 ───────────────────────────────────
+def inputs_from_profile(prev: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """档案 → v0.6 inputs。
+
+    v0.6 档案：inputs 深拷贝；旧档案：从 evidence_log 还原 ft / parent
+    （丢弃 answers / observation / task），talks 为空。
+    """
+    if not prev:
+        return {"talks": {}}
+    if prev.get("schema") == "6am.v0.6":
+        inputs = copy.deepcopy(prev.get("inputs") or {})
+        if not isinstance(inputs.get("talks"), dict):
+            inputs["talks"] = {}
+        return inputs
+    ev = recover_evidence(prev) or {}
+    out: Dict[str, Any] = {}
+    if ev.get("ft"):
+        out["ft"] = copy.deepcopy(ev["ft"])
+    if ev.get("parent"):
+        out["parent"] = copy.deepcopy(ev["parent"])
+    out["talks"] = {}
+    return out
+
+
+def merge_inputs(base: Optional[Dict[str, Any]],
+                 new: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """旧输入 ← 新输入：ft / parent 深合并；talks[dim] 整体替换（null = 删除）。"""
+    out = copy.deepcopy(base or {})
+    for key, value in (new or {}).items():
+        if key == "talks":
+            if not isinstance(out.get("talks"), dict):
+                out["talks"] = {}
+            for dim, record in (value or {}).items():
+                if record is None:
+                    out["talks"].pop(dim, None)
+                else:
+                    out["talks"][dim] = copy.deepcopy(record)
+        elif isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = merge_evidence(out[key], value) or {}
+        else:
+            out[key] = copy.deepcopy(value)
+    return out
+
+
+def build_v06_profile(report_id: int,
+                      inputs: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    """只读重算 v0.6 档案（不落库）：测试与预览。报告不存在返回 None。"""
+    from . import evaluator_v06
+    from .model import load_model
+
+    ctx = _assemble(int(report_id))
+    if ctx is None:
+        return None
+    _record, items, student = ctx
+    if inputs is None:
+        inputs = inputs_from_profile(_latest_profile_dict(int(report_id)))
+    return evaluator_v06.run(items, student, inputs, int(report_id), model=load_model())
+
+
+def run_v06_for_report(report_id: int,
+                       inputs: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    """按 v0.6 重算并落库（每次插入新行，version = 该学生档案数 + 1）。
+
+    inputs 为空时继承最新档案（旧档案则回填 ft / parent）。返回 profile
+    （附 profile_id / version）；报告不存在返回 None。
+    """
+    import db
+
+    from . import evaluator_v06
+    from .model import load_model
+
+    ctx = _assemble(int(report_id))
+    if ctx is None:
+        return None
+    record, items, student = ctx
+    if inputs is None:
+        inputs = inputs_from_profile(_latest_profile_dict(int(report_id)))
+    profile = evaluator_v06.run(items, student, inputs, int(report_id), model=load_model())
+    version = len(db.get_six_am_profiles_by_student(record["student_id"])) + 1
+    pid = db.add_six_am_profile(record["student_id"], int(report_id),
+                                json.dumps(profile, ensure_ascii=False), version)
+    profile["profile_id"] = pid
+    profile["version"] = version
+    return profile

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""P4 验收：6AM 2.0 页面壳、样式与共享脚本。
+"""R4 验收：6AM v0.6 页面壳、样式与五个模块脚本。
 
 覆盖：
-- ``GET /insights/six-am`` 作为 admin / viewer 各自的 200 与 ``data-can-write``；
-- 四个 ``/js/six_am/*.js`` 标签齐备且旧 ``/js/six_am.js`` 不再引用；
+- ``GET /insights/six-am`` 作为 admin / viewer 各自的 200、``data-can-write`` 与 ``data-is-admin``；
+- 五个 ``/js/six_am/*.js`` 标签齐备（``?v=20261101``），已删除的 profile / review / board 不再引用；
 - 静态路由 ``/js/six_am/common.js``（text/javascript）与 ``/css/six_am.css``；
-- ``node --check`` 通过。
+- ``static/js/six_am/`` 下每个文件 ``node --check`` 通过。
 
 页面与静态路由依赖真实 Flask 入口（``app.create_app``），故在独立子进程里
 ``import app``，用临时 SQLite（DATABASE_URL）运行，绝不触碰 data/y4_students.db。
@@ -25,7 +25,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent
 JS_DIR = REPO_ROOT / "static" / "js" / "six_am"
-NEW_JS = ("common.js", "overview.js", "profile.js", "review.js")
+NEW_JS = ("common.js", "mindmap.js", "overview.js", "student.js", "rules.js")
+OLD_JS = ("profile.js", "review.js", "board.js")
+ASSET_VERSION = "20261101"
 
 _PROBE = r'''
 import json
@@ -63,6 +65,9 @@ r = client.get("/js/six_am/common.js")
 out["js_status"] = r.status_code
 out["js_ct"] = r.headers.get("Content-Type", "")
 
+r = client.get("/js/six_am/mindmap.js")
+out["mm_status"] = r.status_code
+
 r = client.get("/css/six_am.css")
 out["css_status"] = r.status_code
 
@@ -85,21 +90,26 @@ def probe(tmp_path_factory):
 
 
 class TestPageShell:
-    """页面壳：字体/脚本引用与 data-can-write。"""
+    """页面壳：视图、脚本引用与权限标记。"""
 
     def test_admin_page_renders_shell(self, probe):
         assert probe["admin_status"] == 200
         body = probe["admin_body"]
         assert 'id="sa2"' in body
         assert 'data-can-write="true"' in body
+        assert 'data-is-admin="true"' in body
         for name in NEW_JS:
-            assert "/js/six_am/%s?v=20261030" % name in body
+            assert "/js/six_am/%s?v=%s" % (name, ASSET_VERSION) in body
+        for name in OLD_JS:
+            assert "/js/six_am/%s" % name not in body
         assert 'src="/js/six_am.js' not in body
-        assert "/css/six_am.css?v=20261030" in body
+        assert "/css/six_am.css?v=%s" % ASSET_VERSION in body
 
     def test_viewer_page_is_read_only(self, probe):
         assert probe["viewer_status"] == 200
-        assert 'data-can-write="false"' in probe["viewer_body"]
+        body = probe["viewer_body"]
+        assert 'data-can-write="false"' in body
+        assert 'data-is-admin="false"' in body
 
 
 class TestStaticAssets:
@@ -109,8 +119,16 @@ class TestStaticAssets:
         assert probe["js_status"] == 200
         assert "javascript" in probe["js_ct"]
 
+    def test_mindmap_js_route(self, probe):
+        assert probe["mm_status"] == 200
+
     def test_css_route(self, probe):
         assert probe["css_status"] == 200
+
+
+def test_js_directory_is_the_five_modules():
+    names = sorted(path.name for path in JS_DIR.glob("*.js"))
+    assert names == sorted(NEW_JS), names
 
 
 @pytest.mark.parametrize("name", NEW_JS)
@@ -122,3 +140,12 @@ def test_new_js_files_parse(name):
     assert path.is_file(), "%s 缺失" % path
     res = subprocess.run([node, "--check", str(path)], capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
+
+
+def test_every_js_file_parses():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node 不可用，跳过语法检查")
+    for path in sorted(JS_DIR.glob("*.js")):
+        res = subprocess.run([node, "--check", str(path)], capture_output=True, text=True)
+        assert res.returncode == 0, "%s\n%s" % (path.name, res.stderr)

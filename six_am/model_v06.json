@@ -1,0 +1,289 @@
+{
+  "version": "v0.6",
+  "date": "2026-10-28",
+  "source": "docs/audits/6am-mindmap.md (v3, 2026-10-28 会后)",
+  "levels": ["稳固", "关注", "风险", "阻塞"],
+  "bands": {
+    "高": ["高", "较好"],
+    "不低": ["不低"],
+    "不低及以上": ["不低", "较好", "高"],
+    "偏低": ["偏低", "明显偏低", "严重偏低", "需关注", "需特殊关注"],
+    "需关注+": ["需关注", "需特殊关注"],
+    "需特殊关注": ["需特殊关注"],
+    "优": ["优", "优秀"],
+    "差": ["差", "较差", "很差", "低"]
+  },
+  "params": {
+    "top_n_values": 5, "top_n_safety": 3, "control_low_max": 5, "control_high_min": 11,
+    "mindset_low_max": 50, "cog_pct_min": 75, "schedule_free_hours_max": 5
+  },
+  "self_concept_items": ["自我概念-行为表现", "自我概念-能力与学校表现", "自我概念-躯体外貌",
+                         "自我概念-情绪状态", "自我概念-合群", "自我概念-幸福与满足"],
+  "dims": [
+    {
+      "id": "A1", "name": "自主感", "layout": "single",
+      "parts": [
+        {"id": "main", "name": "", "levels": {
+          "稳固": {"text": "自主性 高", "when": {"y4": "自驱力-自主性", "band": "高"}},
+          "关注": {"text": "自主性 不低", "when": {"y4": "自驱力-自主性", "band": "不低"}},
+          "风险": {"text": "自主性偏低，或关注 + 独立自主前 5",
+                   "when": {"any": [{"y4": "自驱力-自主性", "band": "偏低"},
+                                    {"all": [{"self": "关注"}, {"rank": "独立自主", "top": 5}]}]}}
+        }}
+      ],
+      "blocked": {
+        "via": "会谈证实", "name": "",
+        "when": {"all": [{"dim_level": "风险"}, {"talk": "confirm"}]},
+        "causes": [
+          {"id": "pressed", "name": "被强压", "text": "独立自主 + 上司关系 同进前 5，掌控感 1–5",
+           "hint": {"all": [{"rank": "独立自主", "top": 5}, {"rank": "上司关系", "top": 5},
+                            {"signal": "control_low"}]}},
+          {"id": "crowded", "name": "学业挤占", "text": "抑郁愉快低，学习自我效能感低，学业自我概念相对低",
+           "hint": {"all": [{"y4": "情绪稳定性-抑郁愉快", "band": "需关注+"},
+                            {"y4": "学习动机-自我效能感", "band": "偏低"},
+                            {"y4_rel_low": "自我概念-能力与学校表现"}]}}
+        ]
+      },
+      "types": []
+    },
+    {
+      "id": "A2", "name": "认同感", "layout": "sides", "combine_text": "取较重的一边",
+      "parts": [
+        {"id": "learning", "name": "学习", "levels": {
+          "稳固": {"text": "深层动机 高", "when": {"y4": "学习动机-深层动机", "band": "高"}},
+          "关注": {"text": "深层动机 不低", "when": {"y4": "学习动机-深层动机", "band": "不低"}},
+          "风险": {"text": "深层动机偏低，或关注 + 表面动机不低及以上 / 家长补充",
+                   "when": {"any": [{"y4": "学习动机-深层动机", "band": "偏低"},
+                                    {"all": [{"self": "关注"},
+                                             {"any": [{"y4": "学习动机-表面动机", "band": "不低及以上"},
+                                                      {"signal": "parent_complaint"}]}]}]}}
+        }},
+        {"id": "outside", "name": "学习以外", "note": "First Touch", "levels": {
+          "稳固": {"text": "认同（喜欢 + 擅长）", "when": {"ev": "ft.goal.judgement", "eq": "认同"}},
+          "关注": {"text": "部分认同", "when": {"ev": "ft.goal.judgement", "eq": "部分认同"}},
+          "风险": {"text": "不认同", "when": {"ev": "ft.goal.judgement", "eq": "不认同"}}
+        },
+         "extra": ["追问：时间主要花在哪"],
+         "types": [
+           {"name": "兴趣空白型", "text": "霍兰德六型全低", "when": {"signal": "holland_all_low"}},
+           {"name": "兴趣错位型", "text": "时间花在不喜欢的事上",
+            "when": {"ev": "ft.goal.time_on_liked", "eq": false}}
+         ]}
+      ],
+      "blocked": {
+        "via": "会谈证实", "name": "厌学", "part": "learning",
+        "when": {"all": [{"part": "learning", "min": "风险"}, {"talk": "confirm"}]},
+        "causes": [
+          {"id": "criticised", "name": "常被批评", "text": "自我概念-行为表现",
+           "hint": {"y4": "自我概念-行为表现", "band": "偏低"}},
+          {"id": "isolated", "name": "被孤立", "text": "合群 + 归属感",
+           "hint": {"any": [{"y4": "自我概念-合群", "band": "偏低"}, {"y4": "自驱力-归属感", "band": "偏低"}]}},
+          {"id": "grades", "name": "成绩差", "text": "学业自我概念 + 学习自我效能感，成就感排前时更明显",
+           "hint": {"any": [{"y4": "自我概念-能力与学校表现", "band": "偏低"},
+                            {"y4": "学习动机-自我效能感", "band": "偏低"}]}},
+          {"id": "classroom", "name": "不认同课堂 / 老师", "text": "学习自我调节",
+           "hint": {"y4": "学习方法与策略-学习自我调节", "band": "偏低"}}
+        ]
+      },
+      "types": []
+    },
+    {
+      "id": "A3", "name": "可用空间", "layout": "types",
+      "summary": {"稳固": "身体、情绪、时间都没问题", "关注": "最差的维度到关注", "风险": "最差的维度到风险"},
+      "parts": [
+        {"id": "body", "type_name": "恢复不足型", "name": "身体（睡眠 / 运动 / 饮食）", "levels": {
+          "稳固": {"text": "都在优", "when": {"all": [{"y4": "体质健康-睡眠评级", "band": "优"},
+                                                     {"y4": "体质健康-运动评级", "band": "优"},
+                                                     {"y4": "体质健康-饮食评级", "band": "优"}]}},
+          "关注": {"text": "任一不在优", "when": {"not": {"all": [{"y4": "体质健康-睡眠评级", "band": "优"},
+                                                               {"y4": "体质健康-运动评级", "band": "优"},
+                                                               {"y4": "体质健康-饮食评级", "band": "优"}]}}},
+          "风险": {"text": "任一差，或都不在优",
+                   "when": {"any": [{"y4": "体质健康-睡眠评级", "band": "差"},
+                                    {"y4": "体质健康-运动评级", "band": "差"},
+                                    {"y4": "体质健康-饮食评级", "band": "差"},
+                                    {"not": {"any": [{"y4": "体质健康-睡眠评级", "band": "优"},
+                                                     {"y4": "体质健康-运动评级", "band": "优"},
+                                                     {"y4": "体质健康-饮食评级", "band": "优"}]}}]}}
+        }},
+        {"id": "emotion", "type_name": "情绪消耗型", "name": "情绪", "levels": {
+          "稳固": {"text": "总分 49–60", "when": {"y4_raw": "情绪稳定性总分", "gte": 49}},
+          "关注": {"text": "总分 25–48", "when": {"y4_raw": "情绪稳定性总分", "gte": 25, "lte": 48}},
+          "风险": {"text": "总分 24 及以下，或任一子项低于 5 分",
+                   "when": {"any": [{"y4_raw": "情绪稳定性总分", "lte": 24},
+                                    {"y4": "情绪稳定性-自卑自尊", "band": "需特殊关注"},
+                                    {"y4": "情绪稳定性-抑郁愉快", "band": "需特殊关注"},
+                                    {"y4": "情绪稳定性-焦虑安详", "band": "需特殊关注"},
+                                    {"y4": "情绪稳定性-无力感掌控感", "band": "需特殊关注"}]}}
+        }},
+        {"id": "time", "type_name": "时间过满型", "name": "时间", "levels": {
+          "风险": {"text": "会谈证实排满", "when": {"ev": "ft.schedule.confirmed_full", "eq": true}}
+        }}
+      ],
+      "refs": [
+        {"name": "认知（参考）", "text": "工作记忆 / 认知灵活性 偏低",
+         "hint": {"any": [{"y4": "执行功能-工作记忆", "band": "偏低"},
+                          {"y4": "执行功能-认知灵活性", "band": "偏低"}]}}
+      ],
+      "blocked": {
+        "via": "身体或情绪在风险 + 时间排满 / 会谈证实", "name": "",
+        "when": {"all": [{"any": [{"part": "body", "min": "风险"}, {"part": "emotion", "min": "风险"}]},
+                         {"any": [{"part": "time", "min": "风险"}, {"talk": "confirm"}]}]},
+        "causes": []
+      },
+      "types": []
+    },
+    {
+      "id": "A4", "name": "胜任信心", "layout": "single", "intro": "两项：学习自我效能感 · 胜任感",
+      "parts": [
+        {"id": "main", "name": "", "levels": {
+          "稳固": {"text": "两项都高", "when": {"all": [{"y4": "学习动机-自我效能感", "band": "高"},
+                                                       {"y4": "自驱力-胜任感", "band": "高"}]}},
+          "关注": {"text": "都不偏低，且不都高",
+                   "when": {"all": [{"y4": "学习动机-自我效能感", "band": "不低及以上"},
+                                    {"y4": "自驱力-胜任感", "band": "不低及以上"},
+                                    {"not": {"all": [{"y4": "学习动机-自我效能感", "band": "高"},
+                                                     {"y4": "自驱力-胜任感", "band": "高"}]}}]}},
+          "风险": {"text": "任一偏低",
+                   "when": {"any": [{"y4": "学习动机-自我效能感", "band": "偏低"},
+                                    {"y4": "自驱力-胜任感", "band": "偏低"}]}}
+        }}
+      ],
+      "blocked": {
+        "via": "会谈证实", "name": "",
+        "when": {"all": [{"dim_level": "风险"}, {"talk": "confirm"}]},
+        "causes": [
+          {"id": "esteem_anx", "name": "自卑 + 焦虑", "text": "", "hint": {"signal": "esteem_anx"}},
+          {"id": "safety", "name": "安全稳定 前 5", "text": "", "hint": {"rank": "安全稳定", "top": 5}},
+          {"id": "cog_self", "name": "能力高、自评低（同一能力比）", "text": "", "hint": {"signal": "cog_vs_self"}},
+          {"id": "self_concept", "name": "自我概念 偏低", "text": "", "hint": {"signal": "self_concept_low"}},
+          {"id": "control", "name": "掌控感 1–5", "text": "", "hint": {"signal": "control_low"}},
+          {"id": "mindset", "name": "思维模式 50 及以下", "text": "", "hint": {"y4_raw": "思维模式结果", "lte": 50}},
+          {"id": "neuroticism", "name": "神经质 高", "text": "", "hint": {"signal": "neuroticism_high"}},
+          {"id": "achieve_safety", "name": "成就感 + 安全稳定 前 5", "text": "",
+           "hint": {"all": [{"rank": "成就感", "top": 5}, {"rank": "安全稳定", "top": 5}]}}
+        ]
+      },
+      "types": [
+        {"name": "认知偏差型", "text": "能力前 25%，自评低", "when": {"signal": "cog_vs_self"}},
+        {"name": "评价焦虑型", "text": "自卑、焦虑 都需关注", "when": {"signal": "esteem_anx"}},
+        {"name": "怕出错型", "text": "思维模式 50 及以下 + 自卑需关注",
+         "when": {"all": [{"y4_raw": "思维模式结果", "lte": 50}, {"y4": "情绪稳定性-自卑自尊", "band": "需关注+"}]}},
+        {"name": "低自我效能型", "text": "其余", "when": {"else": true}}
+      ]
+    },
+    {
+      "id": "A5", "name": "可起步性", "layout": "types",
+      "summary": {"稳固": "三型都稳固", "关注": "最差的一型到关注", "风险": "最差的一型到风险"},
+      "parts": [
+        {"id": "try", "type_name": "不愿尝试型", "name": "排斥新事物", "levels": {
+          "稳固": {"text": "开放性 3.5 及以上", "when": {"y4_raw": "人格-开放性", "gte": 3.5}},
+          "关注": {"text": "开放性 低于 3.5", "when": {"y4_raw": "人格-开放性", "lt": 3.5}},
+          "风险": {"text": "开放性低于 3.5 + 安全稳定前 3 / 认知灵活性偏低",
+                   "when": {"all": [{"y4_raw": "人格-开放性", "lt": 3.5},
+                                    {"any": [{"signal": "safety_top3"},
+                                             {"y4": "执行功能-认知灵活性", "band": "偏低"}]}]}}
+        },
+         "refs": [
+           {"text": "思维模式 50 及以下", "hint": {"y4_raw": "思维模式结果", "lte": 50}},
+           {"text": "宜人性高会掩盖", "hint": {"signal": "agreeable_high"}}
+         ]},
+        {"id": "plan", "type_name": "拆解困难型", "name": "不会拆、不会计划", "levels": {
+          "稳固": {"text": "自我调节、深层策略 都高",
+                   "when": {"all": [{"y4": "学习方法与策略-学习自我调节", "band": "高"},
+                                    {"y4": "学习方法与策略-学习深层方法与策略", "band": "高"}]}},
+          "关注": {"text": "都不偏低，且不都高",
+                   "when": {"all": [{"y4": "学习方法与策略-学习自我调节", "band": "不低及以上"},
+                                    {"y4": "学习方法与策略-学习深层方法与策略", "band": "不低及以上"},
+                                    {"not": {"all": [{"y4": "学习方法与策略-学习自我调节", "band": "高"},
+                                                     {"y4": "学习方法与策略-学习深层方法与策略", "band": "高"}]}}]}},
+          "风险": {"text": "任一偏低，或关注 + 责任心偏低",
+                   "when": {"any": [{"y4": "学习方法与策略-学习自我调节", "band": "偏低"},
+                                    {"y4": "学习方法与策略-学习深层方法与策略", "band": "偏低"},
+                                    {"all": [{"self": "关注"}, {"y4": "人格-责任心", "band": "偏低"}]}]}}
+        }},
+        {"id": "distract", "type_name": "易分心型", "name": "容易被拽走", "levels": {
+          "稳固": {"text": "抑制控制 高", "when": {"y4": "执行功能-抑制控制", "band": "高"}},
+          "关注": {"text": "抑制控制 不低", "when": {"y4": "执行功能-抑制控制", "band": "不低"}},
+          "风险": {"text": "抑制控制 偏低", "when": {"y4": "执行功能-抑制控制", "band": "偏低"}}
+        }}
+      ],
+      "refs": [],
+      "blocked": {
+        "via": "会谈证实 / First Touch 追问未通过", "name": "",
+        "when": {"all": [{"dim_level": "风险"},
+                         {"any": [{"talk": "confirm"},
+                                  {"ev": "ft.standard_task.can_split", "eq": false},
+                                  {"all": [{"ev": "ft.standard_task.can_split", "eq": true},
+                                           {"ev": "ft.standard_task.can_commit", "eq": false}]}]}]},
+        "causes": []
+      },
+      "types": []
+    }
+  ],
+  "a6": {
+    "name": "启动支持",
+    "top_n": 4,
+    "y4_title": "看 Y4：起点",
+    "dims_title": "看 A1–A5：工具箱（待定）",
+    "groups": ["支持来源", "支持方式"],
+    "dims_order": ["A1 ≥ 关注", "A1 被强压", "A2 学习 ≥ 关注", "A2 学习 风险", "A3 ≥ 关注",
+                   "A3 身体或情绪 ≥ 关注", "A4 ≥ 关注", "A5 不愿尝试型", "A5 拆解困难型", "A5 易分心型"],
+    "items": [
+      {"id": "mentor_reach_out", "name": "导师主动联系", "group": "支持来源",
+       "fit": {"signal": "extraversion_low"}, "fit_text": "外倾性 偏低",
+       "avoid": null, "avoid_text": "", "caution": [], "links": [], "note": ""},
+      {"id": "peer_support", "name": "同伴支持", "group": "支持来源",
+       "fit": {"any": [{"signal": "peer_attach_high"}, {"signal": "belonging_good"}, {"signal": "extraversion_high"}]},
+       "fit_text": "同伴信任高 / 归属感好 / 外倾性高",
+       "avoid": {"signal": "peer_attach_low"}, "avoid_text": "同伴信任低不用", "caution": [], "links": [], "note": ""},
+      {"id": "parent_accompany", "name": "家长陪同", "group": "支持来源",
+       "fit": {"any": [{"signal": "parent_high"}, {"signal": "parent_mid"}]}, "fit_text": "亲子沟通 不低",
+       "avoid": {"signal": "parent_low"}, "avoid_text": "亲子沟通低不用",
+       "caution": [{"label": "A1 被强压", "when": {"cause": "A1.pressed"}}], "links": [], "note": ""},
+      {"id": "structured_breakdown", "name": "结构化拆解", "group": "支持方式",
+       "fit": {"signal": "holland_c_high"}, "fit_text": "常规型 高", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A5 拆解困难型", "when": {"at": "A5.plan", "min": "关注"}}], "note": ""},
+      {"id": "checkpoints", "name": "固定检查点", "group": "支持方式",
+       "fit": {"signal": "agreeable_high"}, "fit_text": "宜人性 高", "avoid": null, "avoid_text": "",
+       "caution": [{"label": "焦虑需关注", "when": {"signal": "anxiety_flag"}}], "caution_text": "焦虑需关注慎用",
+       "links": [{"label": "A5 易分心型", "when": {"at": "A5.distract", "min": "关注"}}], "note": ""},
+      {"id": "small_wins", "name": "小目标 + 及时反馈", "group": "支持方式",
+       "fit": {"signal": "control_low"}, "fit_text": "掌控感 1–5", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A4 ≥ 关注", "when": {"at": "A4", "min": "关注"}}], "note": ""},
+      {"id": "private_trials", "name": "私下低压尝试", "group": "支持方式",
+       "fit": {"any": [{"signal": "esteem_anx"}, {"signal": "neuroticism_high"}, {"signal": "safety_top3"}]},
+       "fit_text": "自卑 + 焦虑 / 神经质高 / 安全稳定前 3", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A5 不愿尝试型", "when": {"at": "A5.try", "min": "关注"}}], "note": ""},
+      {"id": "public_commitment", "name": "公开承诺 / 适度竞争", "group": "支持方式",
+       "fit": {"signal": "achieve_or_prestige_top5"}, "fit_text": "成就感或声望前 5",
+       "avoid": {"any": [{"signal": "anxiety_flag"}, {"signal": "esteem_flag"}]}, "avoid_text": "焦虑或自卑需关注不用",
+       "caution": [], "links": [], "note": ""},
+      {"id": "adult_affirmation", "name": "成人肯定与鼓励", "group": "支持方式",
+       "fit": {"signal": "self_concept_low"}, "fit_text": "自我概念 偏低", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A4 ≥ 关注", "when": {"at": "A4", "min": "关注"}}], "note": ""},
+      {"id": "limited_choice", "name": "有限选择 / 共定目标", "group": "支持方式",
+       "fit": null, "fit_text": "", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A1 ≥ 关注", "when": {"at": "A1", "min": "关注"}}], "note": ""},
+      {"id": "passion_project", "name": "Passion project", "group": "支持方式",
+       "fit": null, "fit_text": "", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A1 被强压", "when": {"cause": "A1.pressed"}},
+                 {"label": "A2 学习 ≥ 关注", "when": {"all": [{"at": "A2.learning", "min": "关注"}, {"signal": "holland_peak"}]},
+                  "note": "要有霍兰德高峰"}], "note": ""},
+      {"id": "meaning_link", "name": "意义连接", "group": "支持方式",
+       "fit": null, "fit_text": "", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A2 学习 ≥ 关注", "when": {"at": "A2.learning", "min": "关注"}}], "note": ""},
+      {"id": "external_reward", "name": "外部奖励", "group": "支持方式",
+       "fit": null, "fit_text": "", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A2 学习 风险", "when": {"at": "A2.learning", "min": "风险"}, "note": "少用"}], "note": "少用"},
+      {"id": "lighten_load", "name": "减负 / 优先级", "group": "支持方式",
+       "fit": null, "fit_text": "", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A3 ≥ 关注", "when": {"at": "A3", "min": "关注"}}], "note": ""},
+      {"id": "energy_emotion", "name": "精力与情绪支持", "group": "支持方式",
+       "fit": null, "fit_text": "", "avoid": null, "avoid_text": "", "caution": [],
+       "links": [{"label": "A3 身体或情绪 ≥ 关注",
+                  "when": {"any": [{"at": "A3.body", "min": "关注"}, {"at": "A3.emotion", "min": "关注"}]},
+                  "note": "需特殊关注要转介"}], "note": "需特殊关注要转介"}
+    ]
+  }
+}

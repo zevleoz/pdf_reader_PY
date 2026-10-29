@@ -1497,6 +1497,33 @@ def list_latest_six_am_profiles(advisor_scope: Optional[str] = None) -> List[Dic
     return sorted(out, key=lambda r: (r.get("name") or "", r.get("student_id") or 0))
 
 
+def list_students_latest_report(advisor_scope: Optional[str] = None) -> List[Dict[str, Any]]:
+    """每个学生 + 其最新报告（按 report_date、id）；无报告的学生 report_id 为 None。
+
+    advisor_scope 非 None 时只返回 advisor_name 匹配的学生。6AM 总览与全部生成用。
+    """
+    with Session(engine) as sess:
+        stmt = (select(Student.id, Student.name, Student.grade, Report.id, Report.report_date)
+                .select_from(Student)
+                .join(Report, Report.student_id == Student.id, isouter=True))
+        if advisor_scope is not None:
+            stmt = stmt.where(Student.advisor_name == advisor_scope)
+        rows = sess.execute(stmt).all()
+    best: Dict[int, Dict[str, Any]] = {}
+    for sid, name, grade, rid, rdate in rows:
+        cur = best.get(sid)
+        key = (rdate or date.min, rid or 0)
+        if cur is None or (rid is not None and key > cur["_key"]):
+            best[sid] = {"_key": key, "student_id": sid, "name": name or "",
+                         "grade": grade or "", "report_id": rid,
+                         "report_date": rdate.isoformat() if rdate else None}
+    out = []
+    for row in best.values():
+        row.pop("_key", None)
+        out.append(row)
+    return sorted(out, key=lambda r: (r["name"], r["student_id"]))
+
+
 def get_previous_six_am_profile(profile_id: int) -> Optional[Dict[str, Any]]:
     """同一报告的上一版档案（version 次小）；无上一版返回 None。"""
     with Session(engine) as sess:
