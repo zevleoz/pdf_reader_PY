@@ -215,6 +215,11 @@ def init_db() -> None:
     except Exception as e:
         print(f"[DB] 问卷部分唯一索引创建失败 (非致命): {e}")
     try:
+        import questionnaire_store as _qstore
+        _qstore.backfill_scores()
+    except Exception as e:
+        print(f"[DB] 问卷分数补算失败 (非致命): {e}")
+    try:
         import growth_talk_store as _gtstore
         _gtstore.ensure_indexes()
     except Exception as e:
@@ -902,12 +907,14 @@ def delete_student(student_id: int) -> None:
     开启 SQLite ForeignKey 后，直接删 students 会因子表外键引用而失败；
     这里按「子表先删 / 可空外键解绑，父表后删」的顺序清理，覆盖
     reports / bookings / meeting_minutes / six_am_profiles 以及问卷子系统的
-    assignments / assignment_tokens / responses / response_drafts / student_accounts。
+    assignments / assignment_tokens / responses / questionnaire_scores /
+    response_drafts / student_accounts。
     """
     # 问卷子系统模型定义在 questionnaire_store（模块级互相 import，延迟导入避免循环）
     try:
         from questionnaire_store import (
-            Assignment, AssignmentToken, Response, ResponseDraft, StudentAccount,
+            Assignment, AssignmentToken, QuestionnaireScore, Response, ResponseDraft,
+            StudentAccount,
         )
         has_qstore = True
     except Exception:
@@ -917,6 +924,8 @@ def delete_student(student_id: int) -> None:
     with Session(engine) as sess:
         # 1. 问卷子系统：tokens / responses / drafts 依赖 assignments，先清理
         if has_qstore:
+            sess.execute(delete(QuestionnaireScore).where(
+                QuestionnaireScore.student_id == student_id))
             assignment_ids = [
                 r[0] for r in sess.execute(
                     select(Assignment.id).where(Assignment.student_id == student_id)).all()

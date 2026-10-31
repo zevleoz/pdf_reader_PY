@@ -32,6 +32,9 @@
 
   {# 同步状态指示器（右上角常驻小字） #}
   <div class="q-bar">
+    {% if not token %}
+    <a class="q-muted" href="/student/home" style="margin-right:auto; font-size:13px">← 我的问卷</a>
+    {% endif %}
     <span class="q-sync" :class="'is-' + sync">
       <span class="q-dot"></span><span x-text="syncText"></span>
     </span>
@@ -48,9 +51,14 @@
       <h1 class="q-qtitle q-serif" style="margin-top:14px"
           x-text="state === 'done' ? '提交成功' : '无法提交'"></h1>
       <p class="q-muted" style="margin-top:10px"
-         x-text="state === 'done' ? '问卷已收到，感谢作答。你可以关闭本页了。' : blockedMsg"></p>
+         x-text="state === 'done' ? doneText() : blockedMsg"></p>
+      {% if token %}
       <a class="q-btn q-btn-ghost" style="margin-top:18px"
          x-show="state === 'blocked' && blockedLogin" href="/student/login">前往登录</a>
+      {% else %}
+      <a class="q-btn q-btn-primary" style="margin-top:18px" href="/student/home"
+         x-text="state === 'done' && remaining > 0 ? '继续下一份' : '返回我的问卷'"></a>
+      {% endif %}
     </div>
   </template>
 
@@ -296,6 +304,7 @@ function wizard() {
     netOffline: false,
     restoreNote: '',
     state: 'form',          /* form | done | blocked */
+    remaining: null,        /* 账号模式：提交后还有几份待完成；链接模式为 null */
     blockedMsg: '',
     blockedLogin: false,
     lsOk: true,
@@ -680,7 +689,11 @@ function wizard() {
           return { status: r.status, ok: r.ok, d: d };
         });
       }).then(function (res) {
-        if (res.ok && res.d && res.d.ok) { self.onSuccess(); return; }
+        if (res.ok && res.d && res.d.ok) {
+          self.remaining = (typeof res.d.remaining === 'number') ? res.d.remaining : null;
+          self.onSuccess();
+          return;
+        }
         self.busy = false;
         var errs = (res.d && res.d.errors) || [];
         if (errs.length) { self.applyServerErrors(errs); return; }
@@ -701,6 +714,12 @@ function wizard() {
       this.sync = 'offline';
       this.banner = '提交未成功，可能是网络问题。你的答案已保存在本机，不会丢失。';
       this.persist();
+    },
+    doneText() {
+      if (this.remaining === null) { return '问卷已收到，感谢作答。你可以关闭本页了。'; }
+      return this.remaining > 0
+        ? '问卷已收到，感谢作答。你还有 ' + this.remaining + ' 份问卷待完成。'
+        : '问卷已收到，感谢作答。所有问卷都已完成。';
     },
     onSuccess() {
       this.busy = false;

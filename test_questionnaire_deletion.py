@@ -106,6 +106,7 @@ def qdb(tmp_path, monkeypatch):
         qs.AssignmentToken.__table__,
         qs.Response.__table__,
         qs.ResponseDraft.__table__,
+        qs.QuestionnaireScore.__table__,
         qs.StudentAccount.__table__,
     ]
     _db.Base.metadata.create_all(engine, tables=tables)

@@ -24,11 +24,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import (Column, ForeignKey, Integer, String, Text, DateTime,
-                        insert, select, update, delete, func)
+                        insert, or_, select, update, delete, func)
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as _db
+from questionnaire_engine.schema import questions_of
+from questionnaire_engine.scoring import SCORING_VERSION, RULES, score_response
 
 Base = _db.Base
 Session = _db.Session
@@ -114,7 +116,7 @@ class StudentAccount(Base):
 
 
 class Response(Base):
-    """原始答案（不计分、不并入 124 指标）。"""
+    """原始答案（计分结果另存 questionnaire_scores，不并入 124 指标）。"""
     __tablename__ = "responses"
     id = Column(Integer, primary_key=True, autoincrement=True)
     assignment_id = Column(Integer, ForeignKey("assignments.id"), nullable=False, index=True)
@@ -123,6 +125,26 @@ class Response(Base):
     answers_json = Column(Text, nullable=False)
     submitted_via = Column(String(20), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class QuestionnaireScore(Base):
+    """一份答卷的计分结果（学生档案读这里）。
+
+    ``flagged`` 表示命中需优先关注的题（如抑郁第 9 题）；``reviewed_*`` 记录顾问
+    已跟进，重算分数时保留。分数只给管理端看，学生端不展示。
+    """
+    __tablename__ = "questionnaire_scores"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    response_id = Column(Integer, ForeignKey("responses.id"), nullable=False, unique=True)
+    assignment_id = Column(Integer, ForeignKey("assignments.id"), nullable=False, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False, index=True)
+    questionnaire_id = Column(Integer, ForeignKey("questionnaires.id"), nullable=False)
+    scoring_version = Column(Integer, nullable=False)
+    result_json = Column(Text, nullable=False)
+    flagged = Column(Integer, nullable=False, default=0)
+    reviewed_by = Column(Integer, ForeignKey("users.id"))
+    reviewed_at = Column(DateTime)
+    computed_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ResponseDraft(Base):
@@ -141,7 +163,7 @@ def create_tables(bind=None) -> None:
     tables = [Questionnaire.__table__, QuestionnaireRule.__table__,
               Assignment.__table__, AssignmentToken.__table__,
               StudentAccount.__table__, Response.__table__,
-              ResponseDraft.__table__]
+              ResponseDraft.__table__, QuestionnaireScore.__table__]
     Base.metadata.create_all(bind or engine, tables=tables)
 
 
@@ -462,7 +484,7 @@ def get_assignment(aid: int) -> Optional[Dict[str, Any]]:
 
 
 def refresh_expired() -> int:
-    """把「链接全部过期且无可用未用 token」的 sent 任务标记为 expired。"""
+    """把「链接全部过期且无可用未用 token」的纯链接 sent 任务标记为 expired。"""
     with Session(engine) as sess:
         changed = _refresh_expired(sess)
         if changed:
@@ -488,9 +510,11 @@ def _refresh_expired(sess) -> int:
                          AssignmentToken.used_at.is_(None),
                          AssignmentToken.expires_at > now)
                   .exists())
+    # 只有纯链接任务靠 token 活着；delivery=both 的学生还能从账号进入，链接过期不算过期
     res = sess.execute(
         update(Assignment)
         .where(Assignment.status == "sent")
+        .where(Assignment.delivery == "link")
         .where(has_token)
         .where(~live_token)
         .values(status="expired"))
@@ -599,6 +623,14 @@ def _default_username(student_code: str, student_id: int) -> str:
     return (student_code or "").strip() or f"y4{int(student_id):04d}"
 
 
+# 学生多在手机上手输：去掉易混字符（0/o、1/l/i）和符号
+_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+
+
+def _new_password() -> str:
+    return "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(10))
+
+
 def ensure_student_account(student_id: int) -> Dict[str, Any]:
     """确保该生有临时账号。新建时返回一次性明文密码。
 
@@ -617,7 +649,7 @@ def ensure_student_account(student_id: int) -> Dict[str, Any]:
                              .where(StudentAccount.username == username)).scalars().first()
         if clash:
             username = f"{username}-{int(student_id)}"
-        password = secrets.token_urlsafe(8)
+        password = _new_password()
         obj = StudentAccount(student_id=int(student_id), username=username,
                              password_hash=generate_password_hash(password), is_active=1)
         sess.add(obj)
@@ -634,7 +666,7 @@ def reset_student_password(student_id: int) -> Dict[str, Any]:
                          .where(StudentAccount.student_id == int(student_id))).scalars().first()
         if not m:
             return {"ok": False, "error": "该学生尚无账号"}
-        password = secrets.token_urlsafe(8)
+        password = _new_password()
         m.password_hash = generate_password_hash(password)
         sess.commit()
         return {"ok": True, "username": m.username, "password": password}
@@ -659,10 +691,14 @@ def get_student_account(student_id: int) -> Optional[Dict[str, Any]]:
 
 
 def verify_student_login(username: str, password: str) -> Optional[Dict[str, Any]]:
-    """学生端登录校验。成功返回 {account_id, student_id, username, student_name, student_code}。"""
+    """学生端登录校验。成功返回 {account_id, student_id, username, student_name, student_code}。
+
+    账号不区分大小写（默认账号是学号 Y4-0001，手机键盘容易打成小写）。
+    """
     with Session(engine) as sess:
+        wanted = (username or "").strip().lower()
         m = sess.execute(select(StudentAccount)
-                         .where(StudentAccount.username == (username or "").strip())).scalars().first()
+                         .where(func.lower(StudentAccount.username) == wanted)).scalars().first()
         if not m or not int(m.is_active or 0):
             return None
         if not check_password_hash(m.password_hash, password or ""):
@@ -694,6 +730,41 @@ def confirm_assignment(aid: int, delivery: str, *, user_id: Optional[int] = None
     pkg = build_package(aid, delivery, base_url=base_url, ttl_days=ttl_days)
     pkg["ok"] = True
     return pkg
+
+
+def confirm_all_for_student(student_id: int, *, user_id: Optional[int] = None,
+                            base_url: str = "") -> Dict[str, Any]:
+    """把该生所有待确认 / 已过期任务一次发到问卷中心，返回一份合并的登录信息。"""
+    student_id = int(student_id)
+    now = datetime.utcnow()
+    with Session(engine) as sess:
+        res = sess.execute(update(Assignment).where(
+            Assignment.student_id == student_id,
+            Assignment.status.in_(("pending", "expired"))).values(
+                status="sent", delivery="account",
+                confirmed_by=user_id, confirmed_at=now))
+        sess.commit()
+    if not res.rowcount:
+        return {"ok": False, "error": "该学生没有待确认的问卷"}
+
+    student = _db.get_student(student_id) or {}
+    account = ensure_student_account(student_id)
+    todos = list_student_todos(student_id)
+    base = (base_url or "").rstrip("/")
+    login_url = f"{base}/student/login" if base else "/student/login"
+    lines = [f"{student.get('name', '')}同学你好，你有 {len(todos)} 份问卷待完成：", ""]
+    lines += [f"{i}. {t['questionnaire_title']}（{t['question_count']} 题）"
+              for i, t in enumerate(todos, start=1)]
+    lines += ["", f"登录地址：{login_url}", f"账号：{account['username']}"]
+    if account["created"]:
+        lines.append(f"初始密码：{account['password']}（仅本次显示）")
+    else:
+        lines.append("密码：沿用之前发给你的密码（如需重置请联系顾问）")
+    lines += ["", "答案会自动保存，可以分几次完成。"]
+    return {"ok": True, "sent": int(res.rowcount), "todo_count": len(todos),
+            "account": {"username": account["username"], "password": account["password"],
+                        "created": account["created"], "login_url": login_url},
+            "text": "\n".join(lines)}
 
 
 def build_package(aid: int, delivery: str, *, base_url: str = "",
@@ -808,7 +879,7 @@ def reissue_assignment(aid: int, *, base_url: str = "",
 
 
 def delete_assignment(aid: int) -> bool:
-    """永久删除一条问卷任务及其 token / 原始答案 / 草稿。
+    """永久删除一条问卷任务及其 token / 原始答案 / 计分 / 草稿。
 
     不限状态（pending / sent / submitted / expired / rejected 都可删）；同一事务
     内先清子表再删主表，只 commit 一次。不删学生、题库模板、报告或共享学生账号，
@@ -818,6 +889,8 @@ def delete_assignment(aid: int) -> bool:
     with Session(engine) as sess:
         sess.execute(delete(AssignmentToken)
                      .where(AssignmentToken.assignment_id == aid))
+        sess.execute(delete(QuestionnaireScore)
+                     .where(QuestionnaireScore.assignment_id == aid))
         sess.execute(delete(Response).where(Response.assignment_id == aid))
         sess.execute(delete(ResponseDraft).where(ResponseDraft.assignment_id == aid))
         res = sess.execute(delete(Assignment).where(Assignment.id == aid))
@@ -829,11 +902,14 @@ def delete_assignment(aid: int) -> bool:
 # ─── 提交 / 答案 / 草稿 ────────────────────────────────────────
 
 def submit_response(aid: int, answers: Dict[str, Any], via: str) -> Dict[str, Any]:
-    """写原始答案 + 置 submitted。重复提交拒绝。
+    """写原始答案 + 置 submitted，再计分。重复提交拒绝。
 
     原子性：用条件 UPDATE（WHERE status IN ('sent','pending')）在同一事务内抢占
     状态位，rowcount==1 才算抢到；未抢到（并发下已被他人提交）则优雅返回，不写
     答案、不抛异常。responses.assignment_id 唯一索引作为双写的最后兜底。
+
+    计分在答案落库之后单独做：计分出错不能让学生的提交失败，漏算的由
+    ``backfill_scores`` 在下次启动时补上。
     """
     aid = int(aid)
     now = datetime.utcnow()
@@ -853,7 +929,7 @@ def submit_response(aid: int, answers: Dict[str, Any], via: str) -> Dict[str, An
                 return {"ok": False, "error": "该问卷已提交，请勿重复提交"}
             return {"ok": False, "error": "该任务当前不可提交"}
         try:
-            sess.execute(insert(Response).values(
+            inserted = sess.execute(insert(Response).values(
                 assignment_id=aid, student_id=student_id,
                 questionnaire_id=questionnaire_id,
                 answers_json=json.dumps(answers or {}, ensure_ascii=False),
@@ -862,8 +938,13 @@ def submit_response(aid: int, answers: Dict[str, Any], via: str) -> Dict[str, An
             # 极端并发双写：唯一索引兜底
             sess.rollback()
             return {"ok": False, "error": "该问卷已提交，请勿重复提交"}
+        response_id = inserted.inserted_primary_key[0]
         sess.execute(delete(ResponseDraft).where(ResponseDraft.assignment_id == aid))
         sess.commit()
+    try:
+        score_and_store(response_id)
+    except Exception as e:
+        print(f"[问卷] 计分失败 (非致命，下次启动补算) response={response_id}: {e}")
     return {"ok": True}
 
 
@@ -880,6 +961,139 @@ def get_response(aid: int) -> Optional[Dict[str, Any]]:
         return {"id": m.id, "assignment_id": m.assignment_id, "student_id": m.student_id,
                 "questionnaire_id": m.questionnaire_id, "answers": answers,
                 "submitted_via": m.submitted_via, "created_at": _iso(m.created_at)}
+
+
+# ─── 计分（学生档案读这里；学生端不展示）────────────────────────
+
+def score_and_store(response_id: int) -> Optional[Dict[str, Any]]:
+    """计算并写入一份答卷的分数（幂等，保留已跟进记录）。无计分规则时返回 None。"""
+    with Session(engine) as sess:
+        row = sess.execute(
+            select(Response, Questionnaire)
+            .join(Questionnaire, Response.questionnaire_id == Questionnaire.id)
+            .where(Response.id == int(response_id))).first()
+        if row is None:
+            return None
+        resp, q = row
+        result = score_response(q.code, json.loads(q.schema_json or "{}"),
+                                json.loads(resp.answers_json or "{}"))
+        if result is None:
+            return None
+        values = dict(scoring_version=SCORING_VERSION,
+                      result_json=json.dumps(result, ensure_ascii=False),
+                      flagged=1 if result["flags"] else 0,
+                      computed_at=datetime.utcnow())
+        existing = sess.execute(select(QuestionnaireScore.id).where(
+            QuestionnaireScore.response_id == resp.id)).scalar()
+        if existing:
+            sess.execute(update(QuestionnaireScore)
+                         .where(QuestionnaireScore.id == existing).values(**values))
+        else:
+            sess.execute(insert(QuestionnaireScore).values(
+                response_id=resp.id, assignment_id=resp.assignment_id,
+                student_id=resp.student_id, questionnaire_id=resp.questionnaire_id, **values))
+        sess.commit()
+        return result
+
+
+def backfill_scores() -> int:
+    """给还没有分数（或分数来自旧版规则）的答卷补算；幂等，启动时调用。"""
+    with Session(engine) as sess:
+        ids = sess.execute(
+            select(Response.id)
+            .join(Questionnaire, Response.questionnaire_id == Questionnaire.id)
+            .outerjoin(QuestionnaireScore, QuestionnaireScore.response_id == Response.id)
+            .where(Questionnaire.code.in_(list(RULES)))
+            .where(or_(QuestionnaireScore.id.is_(None),
+                       QuestionnaireScore.scoring_version != SCORING_VERSION))
+        ).scalars().all()
+    done = 0
+    for response_id in ids:
+        try:
+            if score_and_store(response_id) is not None:
+                done += 1
+        except IntegrityError:
+            pass                           # 多 worker 同时启动：另一进程已写入
+        except Exception as e:
+            print(f"[问卷] 补算分数失败 (非致命) response={response_id}: {e}")
+    return done
+
+
+def _score_row(s: "QuestionnaireScore", a: "Assignment", q: "Questionnaire",
+               reviewer: Optional[str] = None) -> Dict[str, Any]:
+    try:
+        result = json.loads(s.result_json or "{}")
+    except Exception:
+        result = {}
+    return dict(result, assignment_id=s.assignment_id, student_id=s.student_id,
+                questionnaire_title=q.title, questionnaire_code=q.code,
+                submitted_at=_iso(a.submitted_at), computed_at=_iso(s.computed_at),
+                flagged=bool(s.flagged), reviewed_at=_iso(s.reviewed_at),
+                reviewed_by=reviewer or "")
+
+
+def _scores_where(*conditions) -> List[Dict[str, Any]]:
+    """按条件取分数，新的在前（带问卷信息与跟进人姓名）。"""
+    with Session(engine) as sess:
+        rows = sess.execute(
+            select(QuestionnaireScore, Assignment, Questionnaire, _db.User.display_name,
+                   _db.User.username)
+            .join(Assignment, QuestionnaireScore.assignment_id == Assignment.id)
+            .join(Questionnaire, QuestionnaireScore.questionnaire_id == Questionnaire.id)
+            .outerjoin(_db.User, QuestionnaireScore.reviewed_by == _db.User.id)
+            .where(*conditions)
+            .order_by(QuestionnaireScore.id.desc())).all()
+        return [_score_row(s, a, q, display_name or username)
+                for s, a, q, display_name, username in rows]
+
+
+def list_student_scores(student_id: int) -> List[Dict[str, Any]]:
+    """该生每份问卷最近一次提交的分数（档案页），按问卷编号排序。"""
+    latest: Dict[str, Dict[str, Any]] = {}
+    for row in _scores_where(QuestionnaireScore.student_id == int(student_id)):
+        latest.setdefault(row["questionnaire_code"], row)
+    return [latest[code] for code in sorted(latest)]
+
+
+def scores_for_assignments(assignment_ids) -> Dict[int, Dict[str, Any]]:
+    """批量取任务对应的分数：``{assignment_id: 分数}``（台账 / 档案问卷 tab 用）。"""
+    ids = [int(i) for i in (assignment_ids or [])]
+    if not ids:
+        return {}
+    return {row["assignment_id"]: row
+            for row in _scores_where(QuestionnaireScore.assignment_id.in_(ids))}
+
+
+def list_open_flags(*, advisor_name: Optional[str] = None,
+                    student_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """未跟进的需优先关注作答（新的在前）。advisor_name 给定时只看名下学生。"""
+    with Session(engine) as sess:
+        stmt = (select(QuestionnaireScore, Assignment, Questionnaire, _db.Student)
+                .join(Assignment, QuestionnaireScore.assignment_id == Assignment.id)
+                .join(Questionnaire, QuestionnaireScore.questionnaire_id == Questionnaire.id)
+                .join(_db.Student, QuestionnaireScore.student_id == _db.Student.id)
+                .where(QuestionnaireScore.flagged == 1,
+                       QuestionnaireScore.reviewed_at.is_(None))
+                .order_by(QuestionnaireScore.id.desc()))
+        if advisor_name is not None:
+            stmt = stmt.where(_db.Student.advisor_name == advisor_name)
+        if student_id is not None:
+            stmt = stmt.where(QuestionnaireScore.student_id == int(student_id))
+        return [dict(_score_row(s, a, q), student_code=st.student_code or "",
+                     student_name=st.name)
+                for s, a, q, st in sess.execute(stmt).all()]
+
+
+def mark_flag_reviewed(assignment_id: int, user_id: Optional[int]) -> bool:
+    """记录顾问已跟进该份作答（提示从待办消失，档案里保留记录）。"""
+    with Session(engine) as sess:
+        res = sess.execute(update(QuestionnaireScore).where(
+            QuestionnaireScore.assignment_id == int(assignment_id),
+            QuestionnaireScore.flagged == 1,
+            QuestionnaireScore.reviewed_at.is_(None)).values(
+                reviewed_by=user_id, reviewed_at=datetime.utcnow()))
+        sess.commit()
+        return bool(res.rowcount)
 
 
 def save_draft(aid: int, answers: Dict[str, Any]) -> None:
@@ -910,19 +1124,34 @@ def get_draft(aid: int) -> Dict[str, Any]:
 
 # ─── 学生端：待办 / 已完成 ─────────────────────────────────────
 
+def _answered_count(questions: List[Dict[str, Any]], draft_json: Optional[str]) -> int:
+    try:
+        answers = json.loads(draft_json or "{}")
+    except Exception:
+        return 0
+    if not isinstance(answers, dict):
+        return 0
+    return sum(1 for q in questions
+               if answers.get(str(q.get("id") or "")) not in (None, "", []))
+
+
 def list_student_todos(student_id: int) -> List[Dict[str, Any]]:
-    """账号模式下的待办问卷（delivery ∈ account/both 且 status='sent'）。"""
+    """学生问卷中心的待办：该生所有已发送的问卷，不分发放方式，做到一半的排前面。"""
     refresh_expired()
     with Session(engine) as sess:
-        stmt = (select(Assignment, Questionnaire)
+        stmt = (select(Assignment, Questionnaire, ResponseDraft.answers_json)
                 .join(Questionnaire, Assignment.questionnaire_id == Questionnaire.id)
+                .outerjoin(ResponseDraft, ResponseDraft.assignment_id == Assignment.id)
                 .where(Assignment.student_id == int(student_id),
-                       Assignment.status == "sent",
-                       Assignment.delivery.in_(("account", "both")))
+                       Assignment.status == "sent")
                 .order_by(Assignment.id))
-        return [dict(_a_row(a), questionnaire_code=q.code, questionnaire_title=q.title,
-                     question_count=len((json.loads(q.schema_json or "{}").get("questions") or [])))
-                for a, q in sess.execute(stmt).all()]
+        todos = []
+        for a, q, draft_json in sess.execute(stmt).all():
+            questions = questions_of(json.loads(q.schema_json or "{}"))
+            todos.append(dict(_a_row(a), questionnaire_code=q.code, questionnaire_title=q.title,
+                              question_count=len(questions),
+                              answered_count=_answered_count(questions, draft_json)))
+    return sorted(todos, key=lambda t: 0 if t["answered_count"] else 1)
 
 
 def list_student_done(student_id: int) -> List[Dict[str, Any]]:

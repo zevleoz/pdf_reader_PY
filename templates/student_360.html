@@ -1,7 +1,51 @@
 {% extends "layouts/admin_v2.html" %}
 {% from "layouts/_icons.html" import icon %}
 
-{% set ctx = {"id": profile.id, "code": profile.student_code, "canWrite": can_write, "stage": stage, "stageMeta": stage_meta, "meta": {"advisor_name": profile.advisor_name, "school": profile.school}, "firstTouch": first_touch|default({})} %}
+{% set ctx = {"id": profile.id, "code": profile.student_code, "canWrite": can_write, "stage": stage, "stageMeta": stage_meta, "meta": {"advisor_name": profile.advisor_name, "school": profile.school}, "firstTouch": first_touch|default({}), "openFlags": questionnaire_flags|default([])} %}
+
+{# 一份问卷的得分表：expr 是 Alpine 作用域里的分数对象（档案 tab 与问卷 tab 共用） #}
+{% macro score_table(expr) %}
+<div style="overflow-x:auto">
+  <table class="table score-table">
+    <thead><tr><th>维度</th><th class="num">得分</th><th class="num">取值范围</th><th>分档</th></tr></thead>
+    <template x-if="{{ expr }}.total">
+      <tbody>
+        <tr class="is-total">
+          <td x-text="{{ expr }}.total.label"></td>
+          <td class="num" x-text="scoreText({{ expr }}.total)"></td>
+          <td class="num mono" x-text="{{ expr }}.total.min + ' ~ ' + {{ expr }}.total.max"></td>
+          <td>
+            <span class="badge" x-show="{{ expr }}.total.band" :class="toneBadge({{ expr }}.total.band)"
+                  x-text="{{ expr }}.total.band ? {{ expr }}.total.band.label : ''"></span>
+          </td>
+        </tr>
+      </tbody>
+    </template>
+    <template x-for="g in scoreGroups({{ expr }})" :key="g.title">
+      <tbody>
+        <tr x-show="g.title"><td colspan="4" class="group-row" x-text="g.title"></td></tr>
+        <template x-for="d in g.dimensions" :key="d.name">
+          <tr>
+            <td x-text="d.name"></td>
+            <td class="num" x-text="scoreText(d)"></td>
+            <td class="num mono" x-text="d.min + ' ~ ' + d.max"></td>
+            <td>
+              <span class="badge" x-show="d.band" :class="toneBadge(d.band)"
+                    x-text="d.band ? d.band.label : ''"></span>
+              <span class="band-advice" x-show="d.band && d.band.advice"
+                    x-text="d.band ? d.band.advice : ''"></span>
+              <span class="band-none" x-show="!d.band">—</span>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </template>
+  </table>
+</div>
+<template x-for="x in {{ expr }}.flags" :key="x.id">
+  <div class="score-flag" x-text="x.label + '：选择「' + x.answer + '」' + ({{ expr }}.reviewed_at ? '（' + ({{ expr }}.reviewed_by || '顾问') + ' 已于 ' + fmtDate({{ expr }}.reviewed_at) + ' 标记跟进）' : '')"></div>
+</template>
+{% endmacro %}
 
 {% block title %}{{ profile.name }} · 学生档案{% endblock %}
 {% block page_title %}学生 360° 档案{% endblock %}
@@ -151,6 +195,23 @@
 
   .card-title-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
+  /* 问卷得分 */
+  .score-table { table-layout: fixed; min-width: 560px; }
+  .score-table th:nth-child(2) { width: 100px; }
+  .score-table th:nth-child(3) { width: 110px; }
+  .score-table th:nth-child(4) { width: 42%; }
+  .score-table .group-row { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--bg); }
+  .score-table tr.is-total td { font-weight: 650; }
+  .score-table td.num { font-variant-numeric: tabular-nums; }
+  .band-advice { font-size: 12.5px; color: var(--ink-2); margin-left: 6px; }
+  .band-none { color: var(--muted); }
+  .score-flag { margin: 8px 16px 12px; padding: 9px 12px; border-radius: var(--r-sm); font-size: 13px;
+    color: var(--danger); background: var(--danger-soft); }
+  .flag-alert { border-color: var(--danger); }
+  .flag-alert-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; font-size: 13.5px; }
+  .flag-alert-row .t { font-weight: 600; color: var(--danger); }
+  .flag-alert-row .d { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+
   /* Markdown 渲染 */
   .md-render { line-height: 1.75; font-size: 14px; }
   .md-render h1 { font-size: 18px; font-weight: 600; margin: 16px 0 8px; }
@@ -171,6 +232,24 @@
 
 {% block content %}
 <div x-data='pageStudent360({{ ctx | tojson }})' x-init="init()">
+
+  <!-- 需优先关注的作答：所有 tab 都能看到，顾问标记已跟进后消失 -->
+  <template x-for="f in openFlags" :key="f.assignment_id">
+    <section class="surface flag-alert" style="margin-bottom:12px">
+      <div class="flag-alert-row">
+        <div style="min-width:0; flex:1">
+          <div class="t">需优先关注：<span x-text="f.questionnaire_title"></span></div>
+          <template x-for="x in f.flags" :key="x.id">
+            <div class="d">
+              <span x-text="x.label"></span>：选择「<span x-text="x.answer"></span>」
+            </div>
+          </template>
+        </div>
+        <button type="button" class="btn btn-sm btn-sec" x-show="canWrite"
+                @click="reviewFlag(f)">标记已跟进</button>
+      </div>
+    </section>
+  </template>
 
   <!-- 页头：学生基本信息 + 操作区 -->
   <section class="surface">
@@ -321,11 +400,28 @@
   <div x-show="tab === 'profile'" x-cloak class="tab-pane">
     <div x-show="loading.profile" class="loading-note">加载中…</div>
     <div x-show="!loading.profile">
-      <div class="empty" x-show="!profile || !profile.report">
+      <div class="empty" x-show="!profile || (!profile.report && !(profile.questionnaire_scores || []).length)">
         <div class="ic">{{ icon('chart', 16) }}</div>
         <div class="t">暂无画像数据</div>
         <div class="d">该学生尚无 Y4 报告，生成报告后画像指标会在此按组展示。</div>
       </div>
+      <template x-if="profile && (profile.questionnaire_scores || []).length">
+        <div>
+          <div class="page-sub" style="margin-bottom:12px">
+            补充问卷得分 · 每份问卷取最近一次提交；计分口径见 Profiling 问卷 Excel
+          </div>
+          <template x-for="s in profile.questionnaire_scores" :key="s.assignment_id">
+            <section class="surface">
+              <div class="surface-head">
+                <span class="surface-title" x-text="s.questionnaire_title"></span>
+                <span class="spacer"></span>
+                <span class="card-title-sub mono" x-text="fmtDate(s.submitted_at)"></span>
+              </div>
+              {{ score_table('s') }}
+            </section>
+          </template>
+        </div>
+      </template>
       <template x-if="profile && profile.report">
         <div>
           <div class="page-sub" style="margin-bottom:12px">
@@ -434,6 +530,11 @@
             <div class="page-sub" x-show="a.submitted_at" style="margin-top:4px">
               提交时间：<span class="mono" x-text="fmtDate(a.submitted_at)"></span>
             </div>
+            <template x-if="a.scores">
+              <div style="margin:10px -16px 0; border-top:1px solid var(--line-soft)">
+                {{ score_table('a.scores') }}
+              </div>
+            </template>
             <template x-if="a.answers">
               <div style="margin-top:10px">
                 <button type="button" class="btn btn-sm btn-sec" @click="toggle('ans', a.id)"
@@ -701,6 +802,7 @@ function pageStudent360(ctx) {
       { key: 'first_touch', label: 'First Touch' }
     ],
     firstTouch: ctx.firstTouch || {},
+    openFlags: ctx.openFlags || [],
     loaded: {}, loading: {}, profile: null,
     reports: [], questionnaires: null, bookings: [], minutes: [], sixam: [],
     showAnswers: {}, openMinutes: {}, openSixam: {}, v1Href: {},
@@ -816,6 +918,38 @@ function pageStudent360(ctx) {
       var n = Number(it.value);
       if (!isFinite(n)) { return 0; }
       return Math.max(0, Math.min(100, n));
+    },
+    /* 问卷得分：按 ERQ / CERQ 这类分组摊开（没有分组的问卷只有一组，标题为空） */
+    scoreGroups(s) {
+      var groups = [];
+      ((s && s.dimensions) || []).forEach(function (d) {
+        var last = groups[groups.length - 1];
+        if (last && last.title === d.group) { last.dimensions.push(d); }
+        else { groups.push({ title: d.group, dimensions: [d] }); }
+      });
+      return groups;
+    },
+    scoreText(b) {
+      return (b.score === null || b.score === undefined)
+        ? '未完成（' + b.answered + '/' + b.item_count + '）' : String(b.score);
+    },
+    toneBadge(band) {
+      return ({ ok: 'badge-ok', warn: 'badge-warn', danger: 'badge-danger' })[band && band.tone]
+        || 'badge-neutral';
+    },
+    async reviewFlag(f) {
+      try {
+        var r = await fetch('/api/questionnaires/assignments/' + f.assignment_id + '/flag-review', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'X-CSRF-Token': window.y4CsrfToken || '' }
+        });
+        var d = await r.json();
+        if (!d.ok) { throw new Error(d.error || '操作失败'); }
+        this.openFlags = this.openFlags.filter(function (x) { return x.assignment_id !== f.assignment_id; });
+        y4Toast('已标记跟进', 'success');
+        if (this.loaded.profile) { this.reload('profile'); }
+        if (this.loaded.questionnaires) { this.reload('questionnaires'); }
+      } catch (e) { y4Toast(e.message, 'error'); }
     },
     fmtAns(v) {
       if (Array.isArray(v)) { return v.join('、'); }

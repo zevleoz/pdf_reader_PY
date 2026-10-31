@@ -9,7 +9,8 @@ from .engine import (OPS, eval_condition, eval_when, evaluate, norm_code,
                      validate_rules)
 from .schema import (TYPES, group_by_section, questions_of, sections_of,
                      validate_answers)
+from .scoring import SCORING_VERSION, score_response
 
 __all__ = ["OPS", "eval_condition", "eval_when", "evaluate", "norm_code",
            "validate_rules", "TYPES", "group_by_section", "questions_of",
-           "sections_of", "validate_answers"]
+           "sections_of", "validate_answers", "SCORING_VERSION", "score_response"]

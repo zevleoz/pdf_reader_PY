@@ -117,9 +117,13 @@ def api_assignments():
     # 在途行的链接有效期（工作台账台「分发」列次信息用；零行时不开查询）
     expiries = qs.token_expiry_map([r["id"] for r in rows
                                     if r.get("status") in ("sent", "expired")])
+    open_flags = qs.list_open_flags(advisor_name=advisor)
+    flagged_ids = {f["assignment_id"] for f in open_flags}
     for r in rows:
         r["expires_at"] = expiries.get(r["id"]) or ""
-    return jsonify({"ok": True, "assignments": rows, "counts": counts})
+        r["flagged"] = r["id"] in flagged_ids
+    return jsonify({"ok": True, "assignments": rows, "counts": counts,
+                    "open_flags": open_flags})
 
 
 @bp.route("/api/questionnaires/assignments", methods=["POST"])
@@ -171,6 +175,35 @@ def api_confirm_assignment(aid):
     if not res.get("ok"):
         return _err(res.get("error") or "确认失败")
     return jsonify(res)
+
+
+@bp.route("/api/questionnaires/students/<int:student_id>/send-all", methods=["POST"])
+@role_required(*_ADMIN_ROLES)
+def api_send_all_to_student(student_id):
+    """把该生所有待确认问卷一次发到问卷中心，返回一份合并的登录信息。"""
+    st = _db.get_student(student_id)
+    if not st:
+        return _err("学生不存在", 404)
+    scope = _advisor_scope()
+    if scope is not None and (st.get("advisor_name") or "") != scope:
+        return _err("无权操作该学生", 403)
+    res = qs.confirm_all_for_student(student_id, user_id=session.get("user_id"),
+                                     base_url=_base_url())
+    if not res.get("ok"):
+        return _err(res.get("error") or "发送失败")
+    return jsonify(res)
+
+
+@bp.route("/api/questionnaires/assignments/<int:aid>/flag-review", methods=["POST"])
+@role_required(*_ADMIN_ROLES)
+def api_flag_review(aid):
+    """记录顾问已跟进这份需优先关注的作答。"""
+    _, denied = _assignment_guard(aid)
+    if denied:
+        return denied
+    if not qs.mark_flag_reviewed(aid, session.get("user_id")):
+        return _err("该任务没有待跟进的提示")
+    return jsonify({"ok": True})
 
 
 @bp.route("/api/questionnaires/assignments/<int:aid>/reject", methods=["POST"])
@@ -240,7 +273,8 @@ def api_assignment_response(aid):
     if not resp:
         return _err("尚未提交答案", 404)
     q = qs.get_questionnaire(resp["questionnaire_id"], with_schema=True)
-    return jsonify({"ok": True, "response": resp, "schema": (q or {}).get("schema") or {}})
+    return jsonify({"ok": True, "response": resp, "schema": (q or {}).get("schema") or {},
+                    "scores": qs.scores_for_assignments([aid]).get(aid)})
 
 
 # ===========================================================================
@@ -613,7 +647,8 @@ def student_login():
     session["student_username"] = acc["username"]
     session["student_name"] = acc["student_name"] or acc["username"]
     next_url = (data.get("next") or "/student/home")
-    if not next_url.startswith("/"):
+    # 只接受站内路径；"//host" 和 "/\host" 会被浏览器当成外站
+    if not next_url.startswith("/") or next_url.startswith(("//", "/\\")):
         next_url = "/student/home"
     return redirect(next_url) if not request.is_json else jsonify({"ok": True})
 
@@ -636,11 +671,9 @@ def student_home():
 
 
 def _student_assignment(aid: int):
-    """账号模式取任务：必须属于当前学生、delivery ∈ account/both、status=sent。"""
+    """问卷中心取任务：必须属于当前学生且已发送（不分发放方式）。"""
     a = qs.get_assignment(aid)
     if not a or a["student_id"] != session.get("student_id"):
-        return None
-    if a["delivery"] not in ("account", "both"):
         return None
     if a["status"] not in ("sent", "submitted"):
         return None
@@ -698,5 +731,6 @@ def student_submit(aid):
         return _render_student_form(a, q, draft=answers,
                                     error=res.get("error") or "提交失败"), 400
     if request.is_json:
-        return jsonify({"ok": True})
+        return jsonify({"ok": True,
+                        "remaining": len(qs.list_student_todos(session.get("student_id")))})
     return redirect("/student/home")

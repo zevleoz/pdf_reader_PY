@@ -70,6 +70,20 @@
   }
   .answer-item { border-bottom: 1px solid var(--line-soft); padding: 9px 0; }
   .answer-item:last-child { border-bottom: 0; }
+
+  /* 需优先关注的作答 / 得分摘要 */
+  .flag-box { border-color: var(--danger); margin-bottom: 12px; }
+  .flag-box .surface-title { display: inline-flex; align-items: center; gap: 6px; color: var(--danger); }
+  .flag-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-soft); }
+  .flag-row .n { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .flag-row .m { font-size: 12.5px; color: var(--muted); margin-left: 8px; }
+  .flag-row .d { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+  .score-line { display: grid; grid-template-columns: minmax(0, 1fr) 56px 76px minmax(0, 1.2fr); gap: 8px;
+    align-items: baseline; font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--line-soft); }
+  .score-line b { font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+  .score-line .range { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .score-line .band { font-size: 12.5px; color: var(--ink-2); }
+  .score-line.is-total { font-weight: 600; }
   .answer-item .q { font-size: 13px; font-weight: 550; color: var(--ink); }
   .answer-item .a { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
 
@@ -109,6 +123,29 @@
       <a class="btn btn-sec" href="/generate" x-show="canWrite">{{ icon('file', 14) }} 新建报告</a>
     </div>
   </div>
+
+  <!-- 需优先关注的作答：顾问标记已跟进后才消失 -->
+  <section class="surface flag-box" x-show="openFlags.length" x-cloak aria-label="需优先关注的作答">
+    <div class="surface-head">
+      <span class="surface-title">{{ icon('alert', 14) }} 需优先关注的作答</span>
+      <span class="surface-sub">Excel：重视第九题得分情况。跟进后标记</span>
+    </div>
+    <template x-for="f in openFlags" :key="f.assignment_id">
+      <div class="flag-row">
+        <div style="min-width:0; flex:1">
+          <a class="n" :href="'/students/' + f.student_code" x-text="f.student_name"></a>
+          <span class="m" x-text="f.questionnaire_title"></span>
+          <template x-for="x in f.flags" :key="x.id">
+            <div class="d">
+              <span x-text="x.label"></span>：选择「<span x-text="x.answer"></span>」
+            </div>
+          </template>
+        </div>
+        <button type="button" class="btn btn-sm btn-sec" x-show="canWrite"
+                @click="reviewFlag(f)">标记已跟进</button>
+      </div>
+    </template>
+  </section>
 
   <!-- ============ 问卷任务台账（合并核心） ============ -->
   <section class="surface asg-rows" aria-label="问卷任务">
@@ -169,6 +206,7 @@
             <span class="badge" :class="statusBadge(a.status)">
               <span class="dot"></span><span x-text="statusLabel(a.status)"></span>
             </span>
+            <span class="badge badge-danger" x-show="a.flagged" x-cloak style="margin-top:4px">需关注</span>
           </div>
           <div class="c-delivery">
             <div class="lab" x-text="deliveryLabel(a.delivery)"></div>
@@ -185,7 +223,7 @@
                     x-show="a.status === 'sent'" :class="{ 'is-loading': busy && busyId === a.id }"
                     @click="showPackage(a)">分发信息</button>
             <button type="button" class="btn btn-sm btn-sec"
-                    x-show="a.status === 'submitted'" @click="showResponse(a)">查看答案</button>
+                    x-show="a.status === 'submitted'" @click="showResponse(a)">查看得分</button>
             <!-- 溢出菜单 -->
             <span class="menu-wrap" x-show="canWrite && menuItems(a).length" x-cloak
                   x-data="{ m: false }" @click.stop>
@@ -240,6 +278,10 @@
                         <button type="button" class="btn btn-brand"
                                 :class="{ 'is-loading': busy && busyId === a.id }"
                                 @click.stop="doConfirmInline(a)">确认并分发</button>
+                        <button type="button" class="btn btn-sec" x-show="pendingForStudent(a) > 1"
+                                :class="{ 'is-loading': busy && busyId === a.id }"
+                                @click.stop="sendAllToStudent(a)"
+                                x-text="'全部发到问卷中心（' + pendingForStudent(a) + ' 份）'"></button>
                       </div>
                       <div class="alert" x-show="rowError && rowErrorId === a.id" x-cloak>
                         {{ icon('alert', 14) }}<span x-text="rowError"></span>
@@ -390,6 +432,32 @@
     <div class="dialog" role="dialog" aria-modal="true" style="max-width:560px">
       <div class="dialog-title" x-text="respTitle"></div>
       <div class="dialog-body" style="max-height:60vh; overflow:auto">
+        <template x-if="respScores">
+          <div class="score-sum">
+            <template x-if="respScores.total">
+              <div class="score-line is-total">
+                <span x-text="respScores.total.label"></span>
+                <b x-text="respScores.total.score === null ? '未完成' : respScores.total.score"></b>
+                <span class="range" x-text="respScores.total.min + ' ~ ' + respScores.total.max"></span>
+                <span class="band" x-text="respScores.total.band ? respScores.total.band.label : ''"></span>
+              </div>
+            </template>
+            <template x-for="d in respScores.dimensions" :key="d.name">
+              <div class="score-line">
+                <span x-text="d.name"></span>
+                <b x-text="d.score === null ? '未完成' : d.score"></b>
+                <span class="range" x-text="d.min + ' ~ ' + d.max"></span>
+                <span class="band" x-text="d.band ? d.band.label + (d.band.advice ? '，' + d.band.advice : '') : ''"></span>
+              </div>
+            </template>
+            <template x-for="x in respScores.flags" :key="x.id">
+              <div class="alert" style="margin-top:8px">
+                {{ icon('alert', 14) }}<span x-text="x.label + '：选择「' + x.answer + '」'"></span>
+              </div>
+            </template>
+          </div>
+        </template>
+        <h5 style="margin:14px 0 6px" x-show="respScores">原始答案</h5>
         <template x-for="qa in respRows" :key="qa.id">
           <div class="answer-item">
             <div class="q" x-text="qa.title"></div>
@@ -442,17 +510,18 @@ function wsPage() {
       { key: '', label: '全部' }
     ],
     deliveries: [
+      { key: 'account', label: '问卷中心账号（推荐）', desc: '学生登录后看到自己所有待完成的问卷' },
       { key: 'link', label: '在线链接', desc: '生成一次性作答链接（7 天有效）' },
-      { key: 'account', label: '学生账号', desc: '用临时账号登录后作答' },
       { key: 'both', label: '两者都发', desc: '链接与账号同时生成' }
     ],
-    rowOpen: null, rowDelivery: 'link',
+    openFlags: [],
+    rowOpen: null, rowDelivery: 'account',
     rowError: '', rowErrorId: null,
     contextMenu: { open: false, assignment: null, x: 0, y: 0 },
     createOpen: false, createForm: { student_id: '', questionnaire_id: '', reason: '' },
     students: [], bank: [],
     pkgOpen: false, pkgTitle: '', pkgText: '', pkgNote: '',
-    respOpen: false, respTitle: '', respRows: [],
+    respOpen: false, respTitle: '', respRows: [], respScores: null,
     confirmDlg: { open: false, title: '', body: '', okText: '确定' },
     _confirmResolve: null,
 
@@ -482,6 +551,7 @@ function wsPage() {
         if (!d.ok) { throw new Error(d.error || '加载失败'); }
         this.rows = d.assignments || [];
         this.counts = d.counts || {};
+        this.openFlags = d.open_flags || [];
         this.loaded = true;
       } catch (e) { y4Toast(e.message, 'error'); }
       finally { this.loading = false; }
@@ -568,7 +638,7 @@ function wsPage() {
     },
     toggleRow(id) {
       this.rowOpen = this.rowOpen === id ? null : id;
-      this.rowDelivery = 'link';
+      this.rowDelivery = 'account';
       this.rowError = ''; this.rowErrorId = null;
     },
     async doConfirmInline(a) {
@@ -591,6 +661,43 @@ function wsPage() {
         y4Toast(e.message, 'error');
       }
       finally { this.busy = false; this.busyId = null; }
+    },
+    pendingForStudent(a) {
+      return this.rows.filter(function (r) {
+        return r.student_id === a.student_id && (r.status === 'pending' || r.status === 'expired');
+      }).length;
+    },
+    async sendAllToStudent(a) {
+      if (this.busy) return;
+      this.busy = true; this.busyId = a.id;
+      this.rowError = ''; this.rowErrorId = null;
+      try {
+        var r = await fetch('/api/questionnaires/students/' + a.student_id + '/send-all',
+          { method: 'POST', credentials: 'same-origin',
+            headers: { 'X-CSRF-Token': CSRF } });
+        var d = await r.json();
+        if (!d.ok) { throw new Error(d.error || '发送失败'); }
+        this.rowOpen = null;
+        this.showPackageText('发给学生的登录信息（请立即复制）', d.text || '',
+          d.account && d.account.created ? '初始密码仅本次显示，关闭后无法再次查看' : '');
+        y4Toast('已发到问卷中心', 'success');
+        this.load();
+      } catch (e) {
+        this.rowError = e.message; this.rowErrorId = a.id;
+        y4Toast(e.message, 'error');
+      }
+      finally { this.busy = false; this.busyId = null; }
+    },
+    async reviewFlag(f) {
+      try {
+        var r = await fetch('/api/questionnaires/assignments/' + f.assignment_id + '/flag-review',
+          { method: 'POST', credentials: 'same-origin',
+            headers: { 'X-CSRF-Token': CSRF } });
+        var d = await r.json();
+        if (!d.ok) { throw new Error(d.error || '操作失败'); }
+        y4Toast('已标记跟进', 'success');
+        this.load();
+      } catch (e) { y4Toast(e.message, 'error'); }
     },
     async rejectAsk(a) {
       var ok = await this.askConfirm('驳回任务',
@@ -698,6 +805,7 @@ function wsPage() {
           }
           return { id: q.id, title: q.title, answer: (label === undefined || label === null || label === '') ? '（未作答）' : label };
         });
+        this.respScores = d.scores || null;
         this.respTitle = a.student_name + ' · ' + a.questionnaire_title;
         this.respOpen = true;
       } catch (e) { y4Toast(e.message, 'error'); }

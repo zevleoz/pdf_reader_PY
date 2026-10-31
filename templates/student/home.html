@@ -7,46 +7,60 @@
 </form>
 {% endblock %}
 {% block content %}
+{% set total = todos|length + done|length %}
 <div style="margin-top:20px">
-  <div class="s-h1">{{ student.name or student.username }}</div>
-  <div class="s-muted" style="font-size:13px">登录账号：{{ student.username }}</div>
-</div>
-
-<div class="s-card" style="margin-top:16px">
-  <div style="font-size:14px; font-weight:600">待完成问卷</div>
+  <div class="s-h1">{{ student.name or student.username }}，你好</div>
   {% if todos %}
-  <ul style="margin-top:10px">
-    {% for t in todos %}
-    <li style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #E4DED3">
-      <span style="min-width:0; flex:1">
-        <span style="display:block; font-size:14px; font-weight:600">{{ t.questionnaire_title }}</span>
-        <span class="s-muted" style="font-size:12.5px">共 {{ t.question_count }} 题 · 编号 {{ t.questionnaire_code }}</span>
-      </span>
-      <a class="s-btn s-btn-primary" style="padding:8px 14px; font-size:13px"
-         href="/student/q/{{ t.id }}">开始作答</a>
-    </li>
-    {% endfor %}
-  </ul>
+  <p style="margin-top:4px; font-size:15px">你有 <b>{{ todos|length }}</b> 份问卷待完成</p>
+  {% elif done %}
+  <p style="margin-top:4px; font-size:15px">所有问卷都已完成，谢谢你。</p>
   {% else %}
-  <p class="s-muted" style="margin-top:10px; font-size:13.5px">当前没有待完成的问卷。</p>
+  <p class="s-muted" style="margin-top:4px; font-size:14px">目前没有需要完成的问卷，顾问安排后会显示在这里。</p>
+  {% endif %}
+  {% if total %}
+  <div class="s-meter" role="progressbar" aria-valuemin="0" aria-valuemax="{{ total }}"
+       aria-valuenow="{{ done|length }}" aria-label="已完成 {{ done|length }} / {{ total }}"
+       style="margin-top:12px"><i style="width:{{ (done|length * 100 / total)|round|int }}%"></i></div>
+  <div class="s-muted" style="font-size:12.5px; margin-top:6px">已完成 {{ done|length }} / {{ total }}</div>
   {% endif %}
 </div>
 
-<div class="s-card" style="margin-top:16px">
-  <div style="font-size:14px; font-weight:600">已完成</div>
-  {% if done %}
-  <ul style="margin-top:8px">
-    {% for d in done %}
-    <li style="padding:10px 0; border-bottom:1px solid #E4DED3; font-size:13.5px">
-      <span style="font-weight:500">{{ d.questionnaire_title }}</span>
-      <span class="s-muted" style="margin-left:8px">
-        {{ d.submitted_at|dt_short if d.submitted_at else '' }}
-      </span>
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p class="s-muted" style="margin-top:10px; font-size:13.5px">暂无已提交记录。</p>
-  {% endif %}
-</div>
+{% if todos %}
+<p class="s-muted" style="font-size:13px; margin-top:18px">答案会自动保存，可以随时退出，下次回来接着做。</p>
+<ul style="margin-top:8px">
+  {% for t in todos %}
+  <li class="s-card" style="margin-top:10px">
+    <div style="font-size:15px; font-weight:600">{{ t.questionnaire_title }}</div>
+    <div class="s-muted" style="font-size:12.5px; margin-top:2px">
+      共 {{ t.question_count }} 题
+    </div>
+    {% if t.answered_count %}
+    <div class="s-meter" style="margin-top:10px"
+         aria-label="已答 {{ t.answered_count }} / {{ t.question_count }}">
+      <i style="width:{{ (t.answered_count * 100 / t.question_count)|round|int }}%"></i>
+    </div>
+    <div class="s-muted" style="font-size:12.5px; margin-top:6px">已答 {{ t.answered_count }} / {{ t.question_count }}</div>
+    {% endif %}
+    <a class="s-btn {{ 's-btn-primary' if loop.first else 's-btn-secondary' }}"
+       style="width:100%; margin-top:12px"
+       href="/student/q/{{ t.id }}">{{ '继续作答' if t.answered_count else '开始作答' }}</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if done %}
+<div style="margin-top:24px; font-size:14px; font-weight:600">已完成</div>
+<ul class="s-card" style="margin-top:8px; padding-top:6px; padding-bottom:6px">
+  {% for d in done %}
+  <li style="display:flex; gap:12px; align-items:baseline; padding:10px 0; font-size:13.5px;
+             {{ 'border-bottom:1px solid #E4DED3' if not loop.last }}">
+    <span style="min-width:0; flex:1; font-weight:500">{{ d.questionnaire_title }}</span>
+    <span class="s-muted" style="font-size:12.5px; white-space:nowrap">
+      {{ d.submitted_at|dt_short if d.submitted_at else '已提交' }}
+    </span>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
 {% endblock %}

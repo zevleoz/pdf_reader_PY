@@ -358,6 +358,23 @@ def _first_touch_context(student_id):
     }
 
 
+def _questionnaire_scores(student_id):
+    """档案页的问卷分数（每份问卷最近一次）；问卷模块不可用时返回空。"""
+    try:
+        import questionnaire_store as _qs
+        return _qs.list_student_scores(student_id)
+    except Exception:
+        return []
+
+
+def _questionnaire_flags(student_id):
+    try:
+        import questionnaire_store as _qs
+        return _qs.list_open_flags(student_id=student_id)
+    except Exception:
+        return []
+
+
 @bp.route("/students/<code>")
 @page_login_required
 def student_360(code):
@@ -373,6 +390,7 @@ def student_360(code):
         stage=_student_progress_context(st["id"]),
         stage_meta=PROGRESS_STAGES,
         first_touch=_first_touch_context(st["id"]),
+        questionnaire_flags=_questionnaire_flags(st["id"]),
     )
 
 
@@ -382,15 +400,18 @@ def api_student_profile(code):
     st, err = _scoped_student(code)
     if err:
         return jsonify({"ok": False, "error": err[0]}), err[1]
+    scores = _questionnaire_scores(st["id"])
     latest = _db.get_latest_report_raw(st["id"])
     if not latest:
-        return jsonify({"ok": True, "report": None, "groups": [], "total": 0})
+        return jsonify({"ok": True, "report": None, "groups": [], "total": 0,
+                        "questionnaire_scores": scores})
     schema = (latest.get("data") or {}).get("schema_124") or []
     return jsonify({
         "ok": True,
         "report": {"id": latest["report_id"], "report_date": latest["report_date"]},
         "groups": _group_indicators(schema),
         "total": len(schema),
+        "questionnaire_scores": scores,
     })
 
 
@@ -415,6 +436,8 @@ def api_student_questionnaires(code):
     except Exception:
         # C 包未落地：返回空态而非报错（打桩契约）
         return jsonify({"ok": True, "enabled": False, "assignments": []})
+    scores = _qs.scores_for_assignments(
+        [a["id"] for a in rows if a.get("status") == "submitted"])
     out = []
     for a in rows:
         answers = None
@@ -434,6 +457,7 @@ def api_student_questionnaires(code):
             "created_at": a.get("created_at"),
             "submitted_at": a.get("submitted_at"),
             "answers": answers,
+            "scores": scores.get(a.get("id")),
         })
     return jsonify({"ok": True, "enabled": True, "assignments": out})
 
