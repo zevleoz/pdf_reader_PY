@@ -8,6 +8,8 @@
 # M1 知识库与渲染样例（代码依赖，需随代码发布）
 !m1/kb/*.json
 !fixtures/m1_doc_sample.json
+!fixtures/m1_report_doc_sample.json
+!static/m1/report_crest.png
 __pycache__/
 *.pyc
 *.pyo

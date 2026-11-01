@@ -106,15 +106,16 @@ def test_advisor_with_all_scope_creates_prep_for_other_advisor_student(client, m
 # ---------------------------------------------------------------------------
 # 6. 工作台的部分条
 # ---------------------------------------------------------------------------
-def test_workspace_shows_parts_with_report_disabled(client, m1db):
+def test_workspace_shows_report_part_link(client, m1db):
     _login(client, m1db.alice_id, "advisor", "Alice")
     prep = _seed_doc(m1db)
     html = client.get(f"/m1/preps/{prep['id']}").get_data(as_text=True)
     assert '<div class="m1-parts"' in html
     assert "会前准备" in html
     assert "会后报告" in html
-    assert 'title="即将上线"' in html
-    assert 'aria-disabled="true"' in html
+    assert f'href="/m1/preps/{prep["id"]}/report"' in html
+    assert ('<span class="part off" role="tab" aria-selected="false" '
+            'aria-disabled="true" title="即将上线">会后报告</span>') not in html
 
 
 # ---------------------------------------------------------------------------

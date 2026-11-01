@@ -8,7 +8,7 @@
   var prepRows = document.getElementById('prepRows');
   var newBtn = document.getElementById('newPrep');
   var preselected = root.getAttribute('data-student-id') || '';
-  var state = { preps: [], students: [] };
+  var state = { preps: [], students: [], statuses: {} };
 
   var STATUS = {
     draft: { label: '草稿', cls: 'warn' },
@@ -103,7 +103,17 @@
       statusTd.appendChild(pill);
       tr.appendChild(statusTd);
 
-      tr.appendChild(el('td', 'sub', '—'));
+      var reportTd = el('td', 'sub');
+      var reportStatus = state.statuses[String(prep.id)];
+      if (reportStatus) {
+        var reportLink = el('a', '', reportStatus.label);
+        reportLink.href = '/m1/preps/' + prep.id + '/report';
+        reportLink.addEventListener('click', function (event) { event.stopPropagation(); });
+        reportTd.appendChild(reportLink);
+      } else {
+        reportTd.textContent = '—';
+      }
+      tr.appendChild(reportTd);
 
       tr.appendChild(el('td', 'sub', window.y4FmtDT ? window.y4FmtDT(prep.updated_at) : (prep.updated_at || '—')));
 
@@ -248,9 +258,14 @@
   }
 
   function load() {
-    Promise.all([api('/api/m1/preps'), api('/api/m1/students')]).then(function (results) {
+    Promise.all([
+      api('/api/m1/preps'),
+      api('/api/m1/students'),
+      api('/api/m1/report-statuses').catch(function () { return { statuses: {} }; })
+    ]).then(function (results) {
       state.preps = results[0].preps || [];
       state.students = results[1].students || [];
+      state.statuses = (results[2] && results[2].statuses) || {};
       renderRows();
       if (preselected) {
         var existing = state.preps.filter(function (prep) {

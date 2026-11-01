@@ -1,0 +1,618 @@
+/* 首次情绪力分析报告 · 家庭版 PDF 版式
+   版心：A4，左右 43pt，内容宽 510pt。所有内容由服务端 Jinja 输出，本文件只负责版式。 */
+
+:root {
+  --paper: #FEFDFB;
+  --ink: #1C2024;
+  --body: #354058;
+  --muted: #7E8A9A;
+  --line: #E2E5E7;
+  --heading-rule: #B1B1C7;
+  --serif: "Noto Serif CJK SC", "Source Han Serif SC", "Noto Serif SC", "Songti SC", serif;
+  --sans: "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body.m1-report {
+  background: #ECEFF2;
+  color: var(--body);
+  font-family: var(--sans);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ---------- 打印前工具条（仅屏幕） ---------- */
+.print-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 16px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #DDE3EA;
+  font: 13px/1.55 var(--sans);
+  color: #26354B;
+}
+.print-bar b { font-weight: 600; }
+.print-bar .sub { color: #6C7A8C; font-size: 12px; }
+.print-bar .sp { flex: 1 1 auto; }
+.print-bar button {
+  font: 12px/1.4 var(--sans);
+  color: #26354B;
+  background: #FFFFFF;
+  border: 1px solid #CBD4DF;
+  border-radius: 4px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.print-bar button.pri { color: #FFFFFF; background: #2F6B57; border-color: #2F6B57; }
+
+/* ---------- 纸张 ---------- */
+.sheet {
+  width: 595.28pt;
+  margin: 18pt auto 36pt;
+  padding: 43pt 43pt 46pt;
+  background: var(--paper);
+  box-shadow: 0 1pt 10pt rgba(20, 32, 48, 0.14);
+  position: relative;
+}
+
+/* ---------- 字号与标题层级 ---------- */
+.cover { page: cover; break-after: page; }
+.howto { page: howto; break-after: page; }
+.dim-block, .profile-section, .plan-section, .appendix { page: body; }
+.dim-block, .profile-section, .plan-section { padding-top: 28pt; }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12pt;
+  padding-bottom: 8pt;
+  border-bottom: 0.6pt solid var(--heading-rule);
+  margin-bottom: 18pt;
+  break-inside: avoid;
+  break-after: avoid;
+}
+.section-num {
+  font: 30pt/1 var(--sans);
+  color: #D5DDE8;
+  letter-spacing: 0.5pt;
+  min-width: 40pt;
+}
+.section-title { font-family: var(--serif); font-weight: 700; }
+.section-title .en { color: #557C67; font-size: 18pt; }
+.section-title .sep { color: #6E7C8E; font-size: 12pt; margin: 0 6pt; }
+.section-title .zh { color: #945D8E; font-size: 18pt; }
+.section-head.large .section-num { font-size: 32pt; min-width: 44pt; }
+.section-head.large .section-title .en { font-size: 24pt; }
+.section-head.large .section-title .zh { font-size: 23pt; }
+
+.sub-head {
+  display: flex;
+  align-items: center;
+  gap: 10pt;
+  margin: 13pt 0 8pt;
+  break-inside: avoid;
+  break-after: avoid;
+}
+.sub-num {
+  font: 700 16pt/1 var(--serif);
+  color: #547D68;
+  white-space: nowrap;
+}
+.sub-title {
+  font: 700 12.5pt/1.3 var(--sans);
+  color: #26354B;
+  white-space: nowrap;
+}
+.sub-rule { flex: 1 1 auto; border-top: 0.6pt solid #D9DEE3; transform: translateY(3pt); }
+
+/* ---------- 封面 ---------- */
+.cover { padding-top: 3pt; }
+.cover .crest { display: block; width: 148pt; margin: 0 auto; }
+.cover .eyebrow {
+  margin-top: 16pt;
+  text-align: center;
+  font: 7.4pt/1.4 var(--sans);
+  color: #7A8595;
+  letter-spacing: 2pt;
+}
+.cover .eyebrow-rule {
+  width: 112pt;
+  margin: 15pt auto 0;
+  border-top: 0.6pt solid #C9AEBE;
+}
+.cover h1 {
+  margin: 30pt 0 0;
+  text-align: center;
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 32pt;
+  letter-spacing: 1pt;
+  line-height: 1.2;
+}
+.cover h1 span.p0 { color: #1C2024; }
+.cover h1 span.p1 { color: #648E7A; }
+.cover h1 span.p2 { color: #9D6C96; }
+.cover .subtitle-line {
+  margin-top: 10pt;
+  text-align: center;
+  font: 7.2pt/1.4 var(--sans);
+  color: #8B93A0;
+  letter-spacing: 2pt;
+}
+.cover .intro {
+  margin: 46pt 0 0;
+  max-width: 372pt;
+  font: 8.8pt/2 var(--sans);
+  color: var(--body);
+  white-space: pre-wrap;
+}
+.cover .info-grid {
+  width: 100%;
+  margin-top: 38pt;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.cover .info-grid col.ic1 { width: 112pt; }
+.cover .info-grid col.ic2 { width: 81pt; }
+.cover .info-grid col.ic3 { width: 68pt; }
+.cover .info-grid col.ic4 { width: 249pt; }
+.cover .info-grid tr { border-top: 0.6pt solid var(--line); }
+.cover .info-grid td {
+  padding: 11pt 0 10pt;
+  font: 8.3pt/1.5 var(--sans);
+  vertical-align: top;
+}
+.cover .info-grid td.label { font-weight: 600; }
+.cover .info-grid td.value { color: #26354B; }
+.cover .info-grid td.label.green { color: #4C7E68; }
+.cover .info-grid td.label.plum { color: #96678E; }
+
+/* ---------- 保密说明 / 阅读原则 ---------- */
+.note-box {
+  display: flex;
+  gap: 12pt;
+  align-items: flex-start;
+  margin-top: 24pt;
+  padding: 15pt 16pt;
+  background: #F8F0F5;
+  border-radius: 5pt;
+  break-inside: avoid;
+}
+.note-box .lock {
+  flex: 0 0 auto;
+  width: 30pt;
+  height: 30pt;
+  border-radius: 50%;
+  background: #EFE1EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.note-box .lock svg { width: 13pt; height: 13pt; }
+.note-box h3 {
+  margin: 0 0 5pt;
+  font: 700 9pt/1.4 var(--sans);
+  color: #96678E;
+}
+.note-box p {
+  margin: 0;
+  font: 8.2pt/1.72 var(--sans);
+  color: #4B566E;
+  white-space: pre-wrap;
+}
+
+/* ---------- 02 如何阅读 ---------- */
+.howto .crest { display: block; width: 62pt; margin: 0 auto 2pt; }
+.howto .eyebrow {
+  margin-top: 5pt;
+  text-align: center;
+  font: 7.2pt/1.4 var(--sans);
+  color: #7A8595;
+  letter-spacing: 1.8pt;
+}
+.howto .eyebrow-rule {
+  width: 96pt;
+  margin: 30pt auto 30pt;
+  border-top: 0.6pt solid #C9AEBE;
+}
+.howto .intro {
+  margin: 6pt 0 0;
+  padding-bottom: 10pt;
+  font: 8.8pt/1.8 var(--sans);
+  color: var(--body);
+  border-bottom: 0.6pt solid var(--heading-rule);
+  white-space: pre-wrap;
+}
+
+.model-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12pt;
+  margin-top: 12pt;
+}
+.model-card {
+  display: flex;
+  gap: 10pt;
+  align-items: flex-start;
+  padding: 11pt 12pt;
+  border-radius: 5pt;
+  border: 0.6pt solid rgba(60, 72, 88, 0.10);
+  break-inside: avoid;
+}
+.model-card .icon {
+  flex: 0 0 26pt;
+  width: 26pt;
+  height: 26pt;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.model-card .icon svg { width: 14pt; height: 14pt; }
+.model-card h4 {
+  margin: 0 0 4pt;
+  font: 700 10pt/1.4 var(--sans);
+  letter-spacing: 0.2pt;
+}
+.model-card p {
+  margin: 0;
+  font: 8.2pt/1.62 var(--sans);
+  color: var(--body);
+}
+.model-card p .zh { color: #26354B; }
+
+.step-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10pt;
+  margin-top: 12pt;
+}
+.step-card {
+  border: 0.6pt solid #DCE2E8;
+  border-radius: 4pt;
+  padding: 10pt 10pt 11pt;
+  min-height: 58pt;
+  break-inside: avoid;
+}
+.step-card .n {
+  font: 20pt/1 var(--sans);
+  color: #A9B4C2;
+  letter-spacing: 0.5pt;
+}
+.step-card h4 { margin: 8pt 0 4pt; font: 700 9.6pt/1.4 var(--sans); color: #26354B; }
+.step-card p { margin: 0; font: 7.6pt/1.5 var(--sans); color: #8B95A3; }
+
+.tag-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8pt;
+  margin-top: 12pt;
+}
+.tag-card {
+  border-radius: 4pt;
+  padding: 8pt 8pt 10pt;
+  border: 0.6pt solid;
+  break-inside: avoid;
+}
+.tag-card .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14pt;
+  height: 14pt;
+  border-radius: 3pt;
+  font: 700 9pt/1 var(--sans);
+  margin-bottom: 6pt;
+}
+.tag-card h4 { margin: 0 0 5pt; font: 700 8.4pt/1.35 var(--sans); }
+.tag-card p { margin: 0; font: 7.4pt/1.55 var(--sans); color: #4A5568; }
+
+.howto .section-head { margin-bottom: 8pt; }
+.howto .note-box { margin-top: 14pt; }
+.howto .note-box h3 { font-size: 8.6pt; }
+.howto .note-box p { font-size: 7.8pt; line-height: 1.65; }
+.howto .footnote {
+  margin: 10pt 2pt 0;
+  font: 7.2pt/1.6 var(--sans);
+  color: #7E8A9A;
+  white-space: pre-wrap;
+}
+
+/* ---------- 03 四维发展分析 ---------- */
+.dim-block { break-inside: auto; }
+.dim-block + .dim-block { break-before: page; }
+
+.dim-head {
+  display: flex;
+  align-items: center;
+  gap: 12pt;
+  margin: 14pt 0 10pt;
+  break-inside: avoid;
+  break-after: avoid;
+}
+.dim-chip {
+  flex: 0 0 auto;
+  min-width: 34pt;
+  text-align: center;
+  padding: 4pt 7pt;
+  border-radius: 4pt;
+  color: #FFFFFF;
+  font: 700 9pt/1.2 var(--sans);
+  letter-spacing: 0.3pt;
+}
+.dim-name {
+  font: 700 16pt/1.2 var(--sans);
+  color: #263149;
+  white-space: nowrap;
+}
+.dim-name .zh { margin-left: 8pt; }
+.dim-rule { flex: 1 1 auto; border-top: 0.6pt solid #D6DCE2; transform: translateY(4pt); }
+
+.question-bar {
+  padding: 8pt 11pt;
+  border-left: 3pt solid;
+  border-radius: 2pt;
+  font: 8.5pt/1.6 var(--sans);
+  color: var(--body);
+  margin-bottom: 9pt;
+  break-inside: avoid;
+  white-space: pre-wrap;
+}
+
+.ability-table {
+  width: 510pt;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin-bottom: 10pt;
+}
+.ability-table col.c1 { width: 66pt; }
+.ability-table col.c2 { width: 100pt; }
+.ability-table col.c3 { width: 100pt; }
+.ability-table col.c4 { width: 172pt; }
+.ability-table col.c5 { width: 72pt; }
+.ability-table thead { display: table-header-group; }
+.ability-table thead th {
+  padding: 5pt 7pt;
+  text-align: left;
+  font: 700 8.3pt/1.4 var(--sans);
+  background: #F1F5F3;
+  border: 0.6pt solid var(--line);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.ability-table thead th.green { color: #4A7967; background: #F1F5F3; }
+.ability-table thead th.plum { color: #916489; background: #F7F3F7; }
+.ability-table tbody tr { break-inside: avoid; background: #FEFDFC; }
+.ability-table tbody td {
+  padding: 5pt 6pt 6pt;
+  border: 0.6pt solid var(--line);
+  vertical-align: top;
+  font: 8.4pt/1.42 var(--sans);
+  color: var(--body);
+}
+.ability-table td.code-cell { font-weight: 400; }
+.ability-table .code {
+  display: block;
+  font: 700 9.1pt/1.3 var(--sans);
+  color: #4A7C68;
+}
+.ability-table .name {
+  display: block;
+  margin-top: 4pt;
+  font: 700 8.5pt/1.4 var(--sans);
+  color: #283A50;
+}
+.ability-table .multiline { white-space: pre-wrap; }
+.ability-table .y4-line { display: block; }
+.ability-table .empty-note { color: #7E8A9A; }
+
+.tag-chip {
+  display: inline-block;
+  margin: 0 0 3pt;
+  padding: 1.5pt 4pt;
+  border-radius: 10pt;
+  border: 0.6pt solid;
+  font: 700 7.4pt/1.45 var(--sans);
+  text-align: center;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.tag-chip .ic { margin-right: 2pt; font-weight: 700; }
+
+.dim-boxes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10pt;
+  break-inside: avoid;
+}
+.dim-boxes.single { grid-template-columns: 1fr; }
+.dim-box {
+  min-height: 54pt;
+  padding: 10pt 12pt 11pt;
+  border-left: 3pt solid;
+  border-radius: 2pt;
+  break-inside: avoid;
+}
+.dim-box h4 { margin: 0 0 6pt; font: 700 8.6pt/1.4 var(--sans); }
+.dim-box p { margin: 0; font: 8.4pt/1.62 var(--sans); color: var(--body); white-space: pre-wrap; }
+.dim-box.core { background: #F1F9F5; border-left-color: #6FAB92; }
+.dim-box.core h4 { color: #456D5B; }
+.dim-box.context { background: #F9F3F8; border-left-color: #BA8CAC; }
+.dim-box.context h4 { color: #91648A; }
+
+/* ---------- 04 综合发展画像 ---------- */
+.profile-table, .findings-table, .plan-table, .appendix-table {
+  width: 510pt;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.profile-table col.pc1 { width: 300pt; }
+.profile-table col.pc2 { width: 210pt; }
+.findings-table col.fc1 { width: 140pt; }
+.findings-table col.fc2 { width: 170pt; }
+.findings-table col.fc3 { width: 200pt; }
+.plan-table col.tc1 { width: 92pt; }
+.plan-table col.tc2 { width: 104pt; }
+.plan-table col.tc3 { width: 112pt; }
+.plan-table col.tc4 { width: 112pt; }
+.plan-table col.tc5 { width: 90pt; }
+.appendix-table col.ac1 { width: 150pt; }
+.appendix-table col.ac2 { width: 118pt; }
+.appendix-table col.ac3 { width: 242pt; }
+
+.profile-table thead, .findings-table thead,
+.plan-table thead, .appendix-table thead { display: table-header-group; }
+.profile-table thead th, .findings-table thead th,
+.plan-table thead th, .appendix-table thead th {
+  padding: 7pt 9pt;
+  text-align: left;
+  font: 700 8.3pt/1.4 var(--sans);
+  border: 0.6pt solid var(--line);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.profile-table thead th.green, .findings-table thead th.green,
+.plan-table thead th.green, .appendix-table thead th.green {
+  color: #4A7967; background: #F1F5F3;
+}
+.profile-table thead th.plum, .findings-table thead th.plum,
+.plan-table thead th.plum, .appendix-table thead th.plum {
+  color: #916489; background: #F7F3F7;
+}
+.profile-table tbody tr, .findings-table tbody tr,
+.plan-table tbody tr, .appendix-table tbody tr {
+  break-inside: avoid;
+  background: #FEFDFC;
+}
+.profile-table tbody td, .findings-table tbody td,
+.plan-table tbody td, .appendix-table tbody td {
+  padding: 10pt 9pt;
+  border: 0.6pt solid var(--line);
+  vertical-align: top;
+  font: 8.4pt/1.62 var(--sans);
+  color: var(--body);
+}
+
+.appendix-table tbody td {
+  white-space: normal;
+  padding: 5pt 9pt;
+  font-size: 8.3pt;
+  line-height: 1.45;
+}
+.appendix-table td.scene-cell {
+  white-space: pre-wrap;
+}
+.appendix-table .code {
+  display: block;
+  font: 700 9.1pt/1.3 var(--sans);
+  color: #4A7C68;
+}
+.appendix-table .name {
+  display: block;
+  margin-top: 4pt;
+  font: 700 8.5pt/1.4 var(--sans);
+  color: #283A50;
+}
+.appendix-note {
+  display: block;
+  margin-top: 12pt;
+  padding: 8pt 12pt;
+  border-radius: 0;
+  background: #F9F3F8;
+  border-left: 3pt solid #BA8CAC;
+}
+.appendix-note p { font-size: 8.2pt; line-height: 1.65; }
+
+.profile-table td.dim-cell { white-space: normal; }
+.profile-table .dim-code { font: 700 10pt/1.3 var(--sans); letter-spacing: 0.4pt; }
+.profile-table .dim-title { font: 700 8.7pt/1.45 var(--sans); color: #26354B; margin-top: 4pt; }
+.profile-table .dim-sub { font: 7.6pt/1.5 var(--sans); color: #8B95A3; margin-top: 4pt; }
+
+.findings-table tbody td.type-cell { font-weight: 700; white-space: nowrap; }
+.findings-table td.resources { color: #3F7C61; }
+.findings-table td.needs { color: #A3658E; }
+.findings-table td.open { color: #5D85C6; }
+
+/* ---------- 05 阶段成长与支持方案 ---------- */
+.plan-intro { margin: 0 0 4pt; font: 8.9pt/1.8 var(--sans); color: var(--body); }
+.plan-table td.ability-cell { white-space: normal; }
+.plan-table .ability-code { display: block; font: 700 9pt/1.35 var(--sans); color: #26354B; }
+.plan-table .ability-name { display: block; margin-top: 3pt; font: 8.4pt/1.5 var(--sans); color: #283A50; }
+.review-box {
+  margin-top: 4pt;
+  padding: 11pt 13pt 12pt;
+  background: #F9F3F8;
+  border-left: 3pt solid #BA8CAC;
+  border-radius: 2pt;
+  break-inside: avoid;
+}
+.review-box h4 { margin: 0 0 6pt; font: 700 8.8pt/1.4 var(--sans); color: #91648A; }
+.review-box p { margin: 0; font: 8.4pt/1.65 var(--sans); color: var(--body); white-space: pre-wrap; }
+
+/* ---------- 附录 ---------- */
+.appendix { margin-top: 22pt; }
+.appendix .appendix-rule {
+  border-top: 0.6pt solid #D7C1D1;
+  margin-bottom: 16pt;
+}
+.appendix h2 {
+  margin: 0 0 6pt;
+  font: 700 18pt/1.4 var(--serif);
+  color: #557C67;
+}
+.appendix h2 .appendix-title {
+  color: #945D8E;
+  margin-left: 12pt;
+}
+.appendix .appendix-intro {
+  margin: 0 0 8pt;
+  font: 8.5pt/1.7 var(--sans);
+  color: var(--body);
+}
+
+/* ---------- 草稿标记 ---------- */
+.draftmark::after {
+  content: "草稿";
+  position: absolute;
+  top: 16pt;
+  right: 20pt;
+  z-index: 5;
+  font: 600 9.5pt/1 var(--sans);
+  color: #8A6A7E;
+  border: 0.8pt solid #C9AEBE;
+  border-radius: 4pt;
+  padding: 3pt 8pt;
+  background: rgba(254, 253, 251, 0.9);
+  letter-spacing: 1pt;
+}
+
+/* ---------- 分页与打印 ---------- */
+@page {
+  size: A4;
+  margin: 65pt 43pt 46pt;
+  background: #FEFDFB;
+}
+@page cover { margin-top: 43pt; }
+@page howto { margin-top: 22pt; }
+
+@media print {
+  /* 纸色与页面一致：整张纸只用 --paper，不能让白色块压在奶白页上 */
+  body.m1-report { background: var(--paper); }
+  .print-bar { display: none; }
+  .sheet {
+    width: auto;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+}

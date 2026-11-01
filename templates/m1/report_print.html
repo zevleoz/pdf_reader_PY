@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ fixed.cover.title_parts|join('') }} · {{ doc.meta.student_name }}</title>
+<link rel="stylesheet" href="/m1/assets/report_print.css">
+<style>
+  /* 页眉页脚内容随学生与固定文案变化，故写在页面内；版式在 report_print.css。 */
+  @page {
+    @top-left-corner {
+      content: "●";
+      font: 7.5pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif;
+      color: #B7668F;
+      text-align: right;
+      vertical-align: bottom;
+      padding-bottom: 6pt;
+    }
+    @top-left {
+      content: "{{ fixed.page.header_left }}";
+      font: 7.5pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif;
+      color: #8493A4;
+      letter-spacing: 0.4pt;
+      vertical-align: bottom;
+      padding-bottom: 6pt;
+      padding-left: 12pt;
+    }
+    @top-right {
+      content: "{{ doc.meta.student_name }} · {{ doc.meta.report_date }}";
+      font: 7.5pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif;
+      color: #8493A4;
+      letter-spacing: 0.2pt;
+      vertical-align: bottom;
+      padding-bottom: 6pt;
+    }
+    @bottom-left {
+      content: "{{ fixed.page.footer_left }}";
+      width: 170pt;
+      font: 7.6pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif;
+      color: #8997AB;
+      letter-spacing: 0.3pt;
+      vertical-align: top;
+      padding-top: 5pt;
+      border-top: 0.5pt solid #E2E5E7;
+    }
+    @bottom-center {
+      content: "第 " counter(page) " 页 / 共 " counter(pages) " 页";
+      width: 170pt;
+      font: 7.6pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif;
+      color: #8997AB;
+      vertical-align: top;
+      padding-top: 5pt;
+      border-top: 0.5pt solid #E2E5E7;
+    }
+    @bottom-right {
+      content: "{{ fixed.page.footer_right }}";
+      width: 170pt;
+      font: 7.6pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif;
+      color: #A5A9AE;
+      letter-spacing: 0.3pt;
+      vertical-align: top;
+      padding-top: 5pt;
+      border-top: 0.5pt solid #E2E5E7;
+    }
+  }
+  @page cover {
+    @top-left-corner { content: none; }
+    @top-left { content: none; }
+    @top-right { content: none; }
+  }
+  @page howto {
+    @top-left-corner { content: none; }
+    @top-left { content: none; }
+    @top-right { content: none; }
+  }
+  {% if draft %}
+  /* 草稿标记逐页输出（页眉中央）；.draftmark 只在首页纸面上 */
+  @page { @top-center { content: "草稿"; font: 600 8pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif; color: #8A6A7E; letter-spacing: 1pt; vertical-align: bottom; padding-bottom: 6pt; } }
+  @page cover { @top-center { content: "草稿"; font: 600 8pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif; color: #8A6A7E; letter-spacing: 1pt; vertical-align: bottom; padding-bottom: 6pt; } }
+  @page howto { @top-center { content: "草稿"; font: 600 8pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif; color: #8A6A7E; letter-spacing: 1pt; vertical-align: bottom; padding-bottom: 6pt; } }
+  @page body { @top-center { content: "草稿"; font: 600 8pt "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif; color: #8A6A7E; letter-spacing: 1pt; vertical-align: bottom; padding-bottom: 6pt; } }
+  {% endif %}
+</style>
+</head>
+<body class="m1-report">
+
+<div class="print-bar">
+  <b>打印预览</b>
+  <span class="sub">{{ status_label }}</span>
+  <span class="sp"></span>
+  <button type="button" id="printClose">关闭</button>
+  <button type="button" class="pri" id="printGo">下载 PDF</button>
+</div>
+
+{% set ability_names = {} %}
+{% for dim in fixed.dims %}
+  {% for ability in dim.abilities %}
+    {% set _ = ability_names.update({ability.code: ability.name}) %}
+  {% endfor %}
+{% endfor %}
+
+<article class="sheet{% if draft %} draftmark{% endif %}">
+
+  {# ===== 封面 ===== #}
+  <section class="cover">
+    <img class="crest" src="/m1/assets/report_crest.png" alt="凭远 APP·ARK">
+    <div class="eyebrow">R4 · EMOTIONAL &amp; RELATIONAL DEVELOPMENT</div>
+    <div class="eyebrow-rule"></div>
+    <h1>
+      {% for part in fixed.cover.title_parts %}<span class="p{{ loop.index0 }}">{{ part }}</span>{% endfor %}
+    </h1>
+    <div class="subtitle-line">R4 EMOTIONAL DEVELOPMENT PROFILE · INITIAL REPORT</div>
+    <p class="intro">{{ fixed.cover.intro }}</p>
+
+    {% set info_values = [doc.meta.student_name, doc.meta.grade, doc.meta.school, doc.meta.y4_date, doc.meta.meeting_date, doc.meta.report_date, fixed.cover.report_nature, doc.meta.evidence_sources] %}
+    <table class="info-grid">
+      <colgroup><col class="ic1"><col class="ic2"><col class="ic3"><col class="ic4"></colgroup>
+      {% for pair in fixed.cover.labels|batch(2) %}
+      {% set row_index = loop.index0 %}
+      <tr>
+        {% for label in pair %}
+        {% set cell = row_index * 2 + loop.index0 %}
+        <td class="label {{ 'green' if cell % 4 == 0 or cell % 4 == 3 else 'plum' }}">{{ label }}</td>
+        <td class="value">{{ info_values[cell] }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </table>
+
+    <div class="note-box">
+      <span class="lock" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none" stroke="#96678E" stroke-width="1.2">
+          <rect x="3" y="7" width="10" height="7" rx="1.4"></rect>
+          <path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"></path>
+        </svg>
+      </span>
+      <div>
+        <h3>{{ fixed.cover.confidential_title }}</h3>
+        <p>{{ fixed.cover.confidential_body }}</p>
+      </div>
+    </div>
+  </section>
+
+  {# ===== 02 如何阅读本报告 ===== #}
+  <section class="howto">
+    <img class="crest" src="/m1/assets/report_crest.png" alt="凭远 APP·ARK">
+    <div class="eyebrow">R4 · EMOTIONAL &amp; RELATIONAL DEVELOPMENT</div>
+    <div class="eyebrow-rule"></div>
+
+    <div class="section-head large">
+      <span class="section-num">{{ fixed.how_to_read.number }}</span>
+      <span class="section-title">
+        <span class="en">{{ fixed.how_to_read.title_en }}</span>
+        <span class="sep">·</span>
+        <span class="zh">{{ fixed.how_to_read.title_zh }}</span>
+      </span>
+    </div>
+
+    <p class="intro">{{ fixed.how_to_read.intro }}</p>
+
+    <div class="sub-head">
+      <span class="sub-num">2.1</span>
+      <span class="sub-title">{{ fixed.how_to_read.model_title }}</span>
+      <span class="sub-rule"></span>
+    </div>
+    <div class="model-grid">
+      {% for dim in fixed.dims %}
+      <div class="model-card" style="background:{{ dim.question_bg }};">
+        <span class="icon">
+          {% if dim.id == 'R1' %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="{{ dim.ink }}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20s-7-4.6-7-10a4 4 0 0 1 7-2.4A4 4 0 0 1 19 10c0 5.4-7 10-7 10z"></path>
+          </svg>
+          {% elif dim.id == 'R2' %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="{{ dim.ink }}" stroke-width="1.5" stroke-linecap="round">
+            <path d="M3 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0"></path>
+            <path d="M3 14c2-2 4-2 6 0s4 2 6 0 4-2 6 0"></path>
+            <path d="M3 19c2-2 4-2 6 0s4 2 6 0 4-2 6 0"></path>
+          </svg>
+          {% elif dim.id == 'R3' %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="{{ dim.ink }}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="8" r="3"></circle>
+            <path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"></path>
+            <path d="M16 6.5a2.5 2.5 0 0 1 0 5"></path>
+            <path d="M17 14c2.3.4 4 2.2 4 5"></path>
+          </svg>
+          {% else %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="{{ dim.ink }}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 21V10"></path>
+            <path d="M12 12c-4 0-6-2-6-5 4 0 6 2 6 5z"></path>
+            <path d="M12 10c3.5 0 5.5-2 5.5-5-3.5 0-5.5 2-5.5 5z"></path>
+          </svg>
+          {% endif %}
+        </span>
+        <div>
+          <h4 style="color:{{ dim.ink }};">{{ dim.id }} {{ dim.en }}<span class="zh"> ｜ {{ dim.zh }}</span></h4>
+          <p>{{ fixed.how_to_read.model[dim.id] }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="sub-head">
+      <span class="sub-num">2.2</span>
+      <span class="sub-title">{{ fixed.how_to_read.steps_title }}</span>
+      <span class="sub-rule"></span>
+    </div>
+    <div class="step-grid">
+      {% for step in fixed.how_to_read.steps %}
+      <div class="step-card">
+        <div class="n">{{ step[0] }}</div>
+        <h4>{{ step[1] }}</h4>
+        <p>{{ step[2] }}</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="sub-head">
+      <span class="sub-num">2.3</span>
+      <span class="sub-title">{{ fixed.how_to_read.tags_title }}</span>
+      <span class="sub-rule"></span>
+    </div>
+    <div class="tag-grid">
+      {% for tag in fixed.tags %}
+      <div class="tag-card" style="background:{{ tag.bg }};border-color:{{ tag.border }};">
+        <span class="icon" style="background:{{ tag.bg }};border:0.6pt solid {{ tag.border }};color:{{ tag.ink }};">{{ tag.icon }}</span>
+        <h4 style="color:{{ tag.ink }};">{{ tag.key }}</h4>
+        <p>{{ tag.definition }}</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="note-box">
+      <span class="lock" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none" stroke="#96678E" stroke-width="1.2">
+          <rect x="3" y="7" width="10" height="7" rx="1.4"></rect>
+          <path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"></path>
+        </svg>
+      </span>
+      <div>
+        <h3>{{ fixed.how_to_read.principle_title }}</h3>
+        <p>{{ fixed.how_to_read.principle_body }}</p>
+      </div>
+    </div>
+
+    <p class="footnote">{{ fixed.how_to_read.note }}</p>
+  </section>
+
+  {# ===== 03 四维发展分析 ===== #}
+  {% for dim in fixed.dims %}
+  {% set dim_doc = doc.dims[dim.id] %}
+  <section class="dim-block">
+    <div class="section-head">
+      <span class="section-num">{{ fixed.analysis.number }}</span>
+      <span class="section-title">
+        <span class="en">{{ fixed.analysis.title_en }}</span>
+        <span class="sep">·</span>
+        <span class="zh">{{ fixed.analysis.title_zh }}</span>
+      </span>
+    </div>
+
+    <div class="dim-head">
+      <span class="dim-chip" style="background:{{ dim.chip }};">{{ dim.section }}</span>
+      <span class="dim-name">{{ dim.en }}<span class="zh">｜ {{ dim.zh }}</span></span>
+      <span class="dim-rule"></span>
+    </div>
+
+    <div class="question-bar" style="background:{{ dim.question_bg }};border-left-color:{{ dim.question_bar }};">{{ dim.question }}</div>
+
+    <table class="ability-table">
+      <colgroup>
+        <col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5">
+      </colgroup>
+      <thead>
+        <tr>
+          {% for column in fixed.analysis.columns %}
+          <th class="{{ 'green' if loop.index0 % 2 == 0 else 'plum' }}">{{ column }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for ability in dim.abilities %}
+        {% set ability_doc = dim_doc.abilities[ability.code] %}
+        <tr>
+          <td class="code-cell">
+            <span class="code">{{ ability.code }}</span>
+            <span class="name">{{ ability.name }}</span>
+          </td>
+          <td>{{ ability.description }}</td>
+          <td>
+            {% set lines = y4_lines.get(ability.code, []) %}
+            {% for line in lines %}<span class="y4-line">{{ line }}</span>{% endfor %}
+            {% if ability_doc.other_clues.text %}
+            <div class="multiline">{{ ability_doc.other_clues.text }}</div>
+            {% elif not lines %}
+            <span class="empty-note">暂无直接相关资料。</span>
+            {% endif %}
+          </td>
+          <td class="multiline">{{ ability_doc.meeting.text if ability_doc.meeting.text else '本次会议未获得相关信息。' }}</td>
+          <td>
+            {% for tag_key in ability_doc.tags %}
+            {% set tag = (fixed.tags|selectattr('key', 'equalto', tag_key)|list|first) %}
+            {% if tag %}
+            <span class="tag-chip" style="background:{{ tag.bg }};border-color:{{ tag.border }};color:{{ tag.ink }};"><span class="ic">{{ tag.icon }}</span>{{ tag.key }}</span>
+            {% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="dim-boxes{% if not dim_doc.context_notes.text %} single{% endif %}">
+      <div class="dim-box core">
+        <h4>{{ fixed.analysis.finding_title }}</h4>
+        <p>{{ dim_doc.core_finding.text }}</p>
+      </div>
+      {% if dim_doc.context_notes.text %}
+      <div class="dim-box context">
+        <h4>{{ fixed.analysis.context_title }}</h4>
+        <p>{{ dim_doc.context_notes.text }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+  {% endfor %}
+
+  {# ===== 04 R4 综合发展画像 ===== #}
+  <section class="profile-section" style="break-before: page;">
+    <div class="section-head">
+      <span class="section-num">{{ fixed.profile.number }}</span>
+      <span class="section-title">
+        <span class="en">{{ fixed.profile.title_en }}</span>
+        <span class="sep">·</span>
+        <span class="zh">{{ fixed.profile.title_zh }}</span>
+      </span>
+    </div>
+
+    <div class="sub-head">
+      <span class="sub-num">4.1</span>
+      <span class="sub-title">{{ fixed.profile.portrait_title }}</span>
+      <span class="sub-rule"></span>
+    </div>
+    <table class="profile-table">
+      <colgroup><col class="pc1"><col class="pc2"></colgroup>
+      <thead>
+        <tr>
+          {% for column in fixed.profile.portrait_columns %}
+          <th class="{{ 'green' if loop.index0 % 2 == 0 else 'plum' }}">{{ column }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for dim in fixed.dims %}
+        <tr>
+          <td class="dim-cell">
+            <span class="dim-code" style="color:{{ dim.ink }};">{{ dim.id }}</span>
+            <div class="dim-title">{{ dim.en }} ｜ {{ dim.zh }}</div>
+            <div class="dim-sub">{{ dim.portrait_sub }}</div>
+          </td>
+          <td>{{ doc.portrait[dim.id].text }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="sub-head">
+      <span class="sub-num">4.2</span>
+      <span class="sub-title">{{ fixed.profile.findings_title }}</span>
+      <span class="sub-rule"></span>
+    </div>
+    <table class="findings-table">
+      <colgroup><col class="fc1"><col class="fc2"><col class="fc3"></colgroup>
+      <thead>
+        <tr>
+          {% for column in fixed.profile.findings_columns %}
+          <th class="{{ 'green' if loop.index0 % 2 == 0 else 'plum' }}">{{ column }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for key in ['resources', 'needs', 'open'] %}
+        <tr>
+          <td class="type-cell {{ key }}">{{ fixed.profile.findings_rows[key] }}</td>
+          <td>{{ doc.findings[key].finding.text }}</td>
+          <td>{{ doc.findings[key].meaning.text }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  {# ===== 05 阶段成长与支持方案 ===== #}
+  <section class="plan-section" style="break-before: page;">
+    <div class="section-head">
+      <span class="section-num">{{ fixed.plan.number }}</span>
+      <span class="section-title">
+        <span class="en">{{ fixed.plan.title_en }}</span>
+        <span class="sep">·</span>
+        <span class="zh">{{ fixed.plan.title_zh }}</span>
+      </span>
+    </div>
+
+    <p class="plan-intro">{{ fixed.plan.intro }}</p>
+
+    <div class="sub-head">
+      <span class="sub-num">5.1</span>
+      <span class="sub-title">{{ fixed.plan.table_title }}</span>
+      <span class="sub-rule"></span>
+    </div>
+    <table class="plan-table">
+      <colgroup>
+        <col class="tc1"><col class="tc2"><col class="tc3"><col class="tc4"><col class="tc5">
+      </colgroup>
+      <thead>
+        <tr>
+          {% for column in fixed.plan.columns %}
+          <th class="{{ 'green' if loop.index0 % 2 == 0 else 'plum' }}">{{ column }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in doc.plan %}
+        <tr>
+          <td class="ability-cell">
+            <span class="ability-code">{{ row.ability }}</span>
+            <span class="ability-name">{{ ability_names.get(row.ability, '') }}</span>
+          </td>
+          <td>{{ row.goal.text }}</td>
+          <td>{{ row.mentor.text }}</td>
+          <td>{{ row.family.text }}</td>
+          <td>{{ row.evidence.text }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="sub-head">
+      <span class="sub-num">5.2</span>
+      <span class="sub-title">{{ fixed.plan.review_title }}</span>
+      <span class="sub-rule"></span>
+    </div>
+    <div class="review-box">
+      <h4>{{ fixed.plan.review_box_title }}</h4>
+      <p>{{ doc.review_advice.text }}</p>
+    </div>
+  </section>
+
+  {# ===== 附录 ===== #}
+  {% if appendix %}
+  <section class="appendix">
+    <div class="appendix-rule"></div>
+    <h2>{{ fixed.appendix.title_a }}<span class="appendix-title">{{ fixed.appendix.title_b }}</span></h2>
+    <p class="appendix-intro">{{ fixed.appendix.intro }}</p>
+    <table class="appendix-table">
+      <colgroup><col class="ac1"><col class="ac2"><col class="ac3"></colgroup>
+      <thead>
+        <tr>
+          {% for column in fixed.appendix.columns %}
+          <th class="{{ 'green' if loop.index0 % 2 == 0 else 'plum' }}">{{ column }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in appendix %}
+        <tr>
+          <td>
+            <span class="code">{{ entry.code }}</span>
+            <span class="name">{{ entry.name }}</span>
+          </td>
+          <td>
+            {% for tag_key in entry.tags %}
+            {% set tag = (fixed.tags|selectattr('key', 'equalto', tag_key)|list|first) %}
+            {% if tag %}
+            <span class="tag-chip" style="background:{{ tag.bg }};border-color:{{ tag.border }};color:{{ tag.ink }};"><span class="ic">{{ tag.icon }}</span>{{ tag.key }}</span>
+            {% endif %}
+            {% endfor %}
+          </td>
+          <td class="scene-cell">{{ entry.scene if entry.scene else '场景原文待导入' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="note-box appendix-note">
+      <p>{{ fixed.appendix.note }}</p>
+    </div>
+  </section>
+  {% endif %}
+
+</article>
+
+<script>
+  document.getElementById('printGo').addEventListener('click', function () {
+    window.print();
+  });
+  document.getElementById('printClose').addEventListener('click', function () {
+    if (window.history.length > 1) window.close();
+    else window.history.back();
+  });
+</script>
+</body>
+</html>

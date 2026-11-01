@@ -22,4 +22,5 @@ def test_fresh_boot_creates_m1_tables(tmp_path):
     out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env,
                          capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stderr[-2000:]
-    assert "['m1_preps', 'm1_sources', 'm1_versions']" in out.stdout
+    assert ("['m1_preps', 'm1_report_versions', 'm1_reports', "
+            "'m1_sources', 'm1_versions']") in out.stdout

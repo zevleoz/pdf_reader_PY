@@ -28,8 +28,8 @@ _WRITE_ROLES = ("admin", "advisor")
 
 # 会前准备是 M1 的第一部分；会后报告由 Stage 2 打开。
 M1_PARTS = [
-    {"key": "prep", "label": "会前准备", "enabled": True},
-    {"key": "report", "label": "会后报告", "enabled": False},
+    {"key": "prep", "label": "会前准备", "enabled": True, "href_suffix": ""},
+    {"key": "report", "label": "会后报告", "enabled": True, "href_suffix": "/report"},
 ]
 
 
