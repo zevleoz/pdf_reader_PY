@@ -428,6 +428,8 @@ def _other_platform_links() -> List[dict]:
     e4_url = os.environ.get("E4_URL", "").strip()
     if e4_url:
         links.append({"key": "e4", "label": "E4", "href": e4_url, "icon": "file", "blank": True})
+    if links:
+        links.insert(0, {"key": "platforms", "label": "所有平台", "href": "/platforms", "icon": "file"})
     return links
 
 

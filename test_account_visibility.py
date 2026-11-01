@@ -477,7 +477,9 @@ def test_nav_m1_follows_account_setting(world, app):
         assert "/m1" in _hrefs("advisor")
         groups = app_utils.nav_for_role("advisor")
         assert groups[-1]["key"] == "other" and groups[-1]["title"] == "其他平台"
-        assert groups[-1]["links"][0]["label"] == "M1"
+        # T1：其他平台组的第一项改为回选择平台的「所有平台」，其后是 M1
+        assert [link["label"] for link in groups[-1]["links"]] == ["所有平台", "M1"]
+        assert [link["href"] for link in groups[-1]["links"]] == ["/platforms", "/m1"]
         session["m1_access"] = 0
         assert "/m1" not in _hrefs("advisor")
         assert "other" not in [g["key"] for g in app_utils.nav_for_role("advisor")]

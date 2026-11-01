@@ -67,7 +67,8 @@ def _user() -> dict:
 
 def _m1_nav() -> list:
     """M1 自己的导航：只有 M1 与其他平台，不出现 Profiling 的分组。"""
-    other = [{"key": "profiling", "label": "学生 Profiling", "href": "/workspace",
+    other = [{"key": "platforms", "label": "所有平台", "href": "/platforms", "icon": "file"},
+             {"key": "profiling", "label": "学生 Profiling", "href": "/workspace",
               "icon": "users"}]
     e4_url = os.environ.get("E4_URL", "").strip()
     if e4_url:

@@ -6,9 +6,11 @@
 
 {% block head_extra %}
 <style>
-  .um-grid { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 16px; align-items: start; }
+  .um-grid { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .um-grid > section { min-width: 0; max-width: 100%; }
+  .um-grid .field[hidden] { display: none; }
   .um-role-hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; line-height: 1.5; }
-  .um-table-wrap { overflow-x: auto; }
+  .um-table-wrap { overflow-x: auto; max-width: 100%; }
   .um-table-wrap table { min-width: 980px; }
   .um-role-select { min-width: 96px; height: 28px; padding: 0 8px; background: var(--surface);
     border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 12.5px; }
@@ -51,7 +53,7 @@
           <option value="admin">管理员</option>
         </select>
       </div>
-      <div class="field">
+      <div class="field" id="naField" hidden>
         <label for="na">绑定顾问（可见学生为名下学生时必填）</label>
         <input class="input" type="text" id="na" placeholder="顾问姓名" autocomplete="off" />
       </div>
@@ -61,7 +63,7 @@
       </div>
       <div class="field">
         <label for="nsc">可见学生</label>
-        <select class="select" id="nsc">
+        <select class="select" id="nsc" onchange="syncAdvisorField()">
           <option value="all">全部学生</option>
           <option value="own">名下学生</option>
         </select>
@@ -126,6 +128,17 @@
       ndl.disabled = isAdmin;
       nm1.disabled = isAdmin || role === 'viewer';
       document.getElementById('na').disabled = (role !== 'advisor');
+      syncAdvisorField();
+    }
+
+    // 绑定顾问只在「可见学生＝名下学生」时出现；隐藏时清空，避免带上无意义的值
+    function syncAdvisorField() {
+      var show = document.getElementById('nsc').value === 'own';
+      var field = document.getElementById('naField');
+      var na = document.getElementById('na');
+      field.hidden = !show;
+      if (!show) na.value = '';
+      na.disabled = !show;
     }
 
     async function loadMe() {

@@ -3,102 +3,73 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>登录 · 凭远 Y4</title>
-  <!-- 独立页（不套管理壳），使用语汇 v2（/admin_v2.css：冷中性 + 盾徽红） -->
-  <link rel="stylesheet" href="/admin_v2.css" />
+  <title>登录 · 凭远 APP·ARK</title>
   <style>
-    body { min-height: 100dvh; display: flex; }
-    .lg-shell {
-      flex: 1 1 auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 20px;
+    :root { --red:#E2001A; --ink:#111; --ink2:#333; --mute:#6B6B6B; --line:#E4E4E4; }
+    * { box-sizing:border-box; }
+    html,body { margin:0; height:100%; background:#fff; color:var(--ink);
+      font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif; }
+    .lg-w { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(360px,1fr); min-height:100dvh; }
+    .lg-l { position:relative; background:var(--red); color:#fff; padding:40px 48px;
+      display:flex; flex-direction:column; overflow:hidden; }
+    .lg-b { display:flex; gap:12px; align-items:center; font-weight:700; font-size:16px; position:relative; z-index:1; }
+    .lg-b img { width:48px; height:48px; object-fit:contain; }
+    .lg-b small { display:block; font-weight:500; font-size:12.5px; letter-spacing:.12em; }
+    .lg-mark { position:absolute; right:-20%; top:42%; transform:translateY(-50%); width:min(56vw,700px); pointer-events:none; }
+    .lg-h { margin:auto 0 0; font-size:clamp(44px,6.4vw,84px); font-weight:800; letter-spacing:-.02em; line-height:1.02; position:relative; z-index:1; }
+    .lg-r { padding:48px 64px; display:flex; flex-direction:column; justify-content:center; gap:12px; background:#fff; }
+    .lg-r form,.lg-n,.lg-stu { width:100%; max-width:400px; }
+    .lg-r form { display:flex; flex-direction:column; gap:12px; }
+    .lg-r h2 { margin:0 0 6px; font-size:24px; font-weight:700; }
+    .lg-r label { display:flex; flex-direction:column; gap:5px; font-size:13px; font-weight:600; color:var(--ink2); }
+    .lg-r input { height:44px; border:1px solid var(--ink); border-radius:0; padding:0 12px; font-size:16px; outline:0; background:#fff; }
+    .lg-r input:focus { box-shadow:0 0 0 2px var(--ink); }
+    .lg-btn { height:46px; margin-top:6px; border:0; border-radius:0; background:var(--red); color:#fff; font-size:16px; font-weight:600; cursor:pointer; }
+    .lg-btn:hover:not(:disabled) { background:#C70017; }
+    .lg-btn:disabled { opacity:.55; cursor:default; }
+    .lg-alert { padding:9px 12px; border:1px solid #F5C8C8; background:#FDECEC; color:#B3001B; font-size:13px; }
+    .lg-alert[hidden] { display:none; }
+    .lg-n { margin:6px 0 0; font-size:13px; color:var(--mute); }
+    .lg-stu { margin:18px 0 0; padding-top:14px; border-top:1px solid var(--line); font-size:13.5px; color:var(--mute); }
+    .lg-stu a { color:#C70017; font-weight:600; text-decoration:none; }
+    .lg-stu a:hover { text-decoration:underline; }
+    @media (max-width:760px) {
+      .lg-w { grid-template-columns:minmax(0,1fr); grid-template-rows:auto 1fr; }
+      .lg-l { padding:20px 16px; min-height:220px; }
+      .lg-h { font-size:38px; margin-top:64px; }
+      .lg-mark { width:62vw; top:auto; right:-30%; bottom:-28%; transform:none; }
+      .lg-r { padding:22px 16px; }
     }
-    .lg-card {
-      width: 100%;
-      max-width: 392px;
-      padding: 36px 32px 26px;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--r);
-      box-shadow: 0 1px 2px rgba(24, 24, 27, .04);
-    }
-    .lg-brand { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 20px; }
-    .lg-brand img { height: 56px; width: auto; }
-    .lg-title { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; text-align: center; margin: 0; }
-    .lg-hint { margin: 6px 0 24px; text-align: center; font-size: 12.5px; color: var(--muted); }
-    .lg-alert {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 4px 0 12px;
-      padding: 9px 12px;
-      border: 1px solid #F5C8C8;
-      border-radius: var(--r-sm);
-      background: var(--danger-soft);
-      color: var(--danger);
-      font-size: 12.5px;
-    }
-    .lg-alert[hidden] { display: none; }
-    .lg-btn {
-      width: 100%;
-      height: 40px;
-      margin-top: 6px;
-      border: 0;
-      border-radius: var(--r-sm);
-      background: var(--brand);
-      color: #fff;
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
-    }
-    .lg-btn:hover:not(:disabled) { background: var(--brand-deep); }
-    .lg-btn:disabled { opacity: .55; cursor: default; }
-    .lg-foot {
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      margin-top: 22px;
-      font-size: 12.5px;
-      color: var(--muted);
-    }
-    .lg-foot a:hover { color: var(--brand-deep); }
-    @media (max-width: 480px) { .lg-card { padding: 28px 20px 22px; } }
   </style>
 </head>
 <body>
-  <div class="lg-shell">
-    <div class="lg-card">
-      <div class="lg-brand">
-        <img src="/branding/logo_red.png" alt="凭远教育盾徽" onerror="this.style.display='none'" />
-        <h1 class="lg-title">登录</h1>
+  <div class="lg-w">
+    <section class="lg-l">
+      <div class="lg-b">
+        <img src="/m1/assets/login_crest_white.png" alt="凭远 APP·ARK" onerror="this.style.display='none'">
+        <span>凭远 APP·ARK<small>WORK HARD · DREAM BIG</small></span>
       </div>
-      <p class="lg-hint">凭远教育 · Y4 综合测评系统</p>
-
+      <svg class="lg-mark" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="50" fill="#fff" opacity=".12"/>
+        <path fill="#fff" d="M50 50L50 8A42 42 0 0 0 8 50Z"/>
+        <path fill="#111" d="M50 50L74.67 50A24.67 24.67 0 0 0 50 25.33Z"/>
+        <path fill="#111" d="M50 50L20 50A30 30 0 0 0 50 80Z"/>
+        <path fill="#fff" d="M50 50L50 97.33A47.33 47.33 0 0 0 97.33 50Z"/>
+      </svg>
+      <h1 class="lg-h">凭远<br>APP·ARK</h1>
+    </section>
+    <section class="lg-r">
       <form id="loginForm" onsubmit="return false">
-        <label class="field">
-          <span class="field-label">账号</span>
-          <input id="user" class="input" type="text" placeholder="请输入账号"
-                 autocomplete="username" autofocus />
-        </label>
-        <label class="field">
-          <span class="field-label">密码</span>
-          <input id="pwd" class="input" type="password" placeholder="请输入密码"
-                 autocomplete="current-password"
-                 onkeydown="if (event.key === 'Enter') { doLogin(); }" />
-        </label>
+        <h2>登录</h2>
+        <label>账号<input id="user" type="text" autocomplete="username" autofocus></label>
+        <label>密码<input id="pwd" type="password" autocomplete="current-password"
+          onkeydown="if (event.key === 'Enter') { doLogin(); }"></label>
         <div id="err" class="lg-alert" hidden></div>
         <button id="submitBtn" type="button" class="lg-btn" onclick="doLogin()">登录</button>
       </form>
-
-      <div class="lg-foot">
-        <a href="/">返回主页</a>
-        <span>·</span>
-        <a href="/booking">预约测评</a>
-      </div>
-    </div>
+      <p class="lg-n">账号由管理员开通。</p>
+      <p class="lg-stu">学生？<a href="/student/login">进入我的问卷</a></p>
+    </section>
   </div>
 
   <script>
@@ -130,11 +101,10 @@
         try { data = await resp.json(); } catch (e) { data = {}; }
 
         if (resp.ok && data.ok) {
-          // 保留 ?next= 跳转逻辑；无 next 时按角色落到默认首页
-          // （viewer 看不到工作台，落到 /students 避免落到 403 页）
+          // 只跟随站内相对路径的 ?next=，其余一律回选择平台（防开放重定向）
           var next = new URLSearchParams(window.location.search).get('next');
-          if (!next) { next = (data.role === 'viewer') ? '/students' : '/workspace'; }
-          window.location.href = next;
+          var safe = next && next.indexOf('/') === 0 && next.indexOf('//') !== 0;
+          window.location.href = safe ? next : '/platforms';
           return;
         }
         if (resp.status === 429) {

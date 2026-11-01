@@ -897,7 +897,7 @@ def api_chat():
     payload = json.dumps({
         "model": os.environ.get("AI_TEXT_MODEL", "qwen-plus"),
         "messages": messages,
-        "temperature": 0.5,
+        "temperature": 0.2,
         "max_tokens": 8192,
     }).encode("utf-8")
     req = _ureq.Request(

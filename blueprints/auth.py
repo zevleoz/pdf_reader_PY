@@ -15,6 +15,49 @@ bp = Blueprint("auth", __name__)
 @bp.route("/login")
 def login_page():
     return render_template("login.html")
+
+
+def _platform_cards() -> list:
+    """选择平台的卡片：Profiling 恒有，M1 按账号权限，E4 按环境变量。"""
+    from blueprints.m1 import M1_PARTS
+
+    cards = [{
+        "key": "profiling",
+        "title": "学生 Profiling",
+        "desc": "预约、Y4 报告、解读会、补充问卷、First Touch、6AM",
+        "href": "/students" if session.get("role") == "viewer" else "/workspace",
+        "blank": False,
+    }]
+    if app_utils.can_use_m1():
+        labels = "、".join(part["label"] for part in M1_PARTS if part["enabled"])
+        cards.append({
+            "key": "m1",
+            "title": "M1",
+            "desc": f"First Meeting：{labels}",
+            "href": "/m1",
+            "blank": False,
+        })
+    e4_url = os.environ.get("E4_URL", "").strip()
+    if e4_url:
+        cards.append({
+            "key": "e4",
+            "title": "E4",
+            "desc": "独立平台，有自己的账号和数据库",
+            "href": e4_url,
+            "blank": True,
+        })
+    return cards
+
+
+@bp.route("/platforms")
+@app_utils.page_login_required
+def platforms_page():
+    cards = _platform_cards()
+    if len(cards) == 1:
+        return redirect(cards[0]["href"])
+    return render_template("platforms.html", cards=cards)
+
+
 LOGIN_RATE_LIMIT = int(os.environ.get('Y4_LOGIN_RATE_LIMIT', '5'))
 
 

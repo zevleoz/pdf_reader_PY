@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>选择平台 · 凭远 APP·ARK</title>
+  <style>
+    :root { --red:#E2001A; --ink:#111; --ink2:#333; --mute:#6B6B6B; --line:#E4E4E4; }
+    * { box-sizing:border-box; }
+    html,body { margin:0; height:100%; background:#fff; color:var(--ink);
+      font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif; }
+    .pf-page { height:100dvh; min-height:560px; display:flex; flex-direction:column; padding:26px 40px 34px; background:#fff; }
+    .pf-head { display:flex; align-items:center; gap:12px; }
+    .pf-head img { height:44px; width:auto; object-fit:contain; }
+    .pf-brand { font-weight:700; font-size:16px; line-height:1.25; }
+    .pf-brand small { display:block; font-weight:500; font-size:12.5px; letter-spacing:.12em; color:var(--ink2); }
+    .pf-out { margin-left:auto; font-size:14px; font-weight:600; color:var(--ink2); text-decoration:none; }
+    .pf-out:hover { color:#C70017; }
+    .pf-h { margin:22px 0 0; font-size:54px; font-weight:900; letter-spacing:-.03em; line-height:1.05; }
+    .pf-grid { flex:1 1 auto; min-height:0; display:grid; grid-template-columns:1.45fr 1fr 1fr; grid-template-rows:minmax(0, 1fr); gap:20px; margin-top:18px; }
+    .pf-grid-2 { grid-template-columns:1.45fr 1fr; }
+    .pf-card { display:flex; flex-direction:column; min-height:0; text-decoration:none; color:var(--ink); }
+    .pf-art { flex:1 1 auto; min-height:0; overflow:hidden; }
+    .pf-art svg { display:block; width:100%; height:100%; transition:transform .35s var(--ease, ease); }
+    .pf-card:hover .pf-art svg { transform:scale(1.035); }
+    .pf-meta { display:flex; align-items:center; gap:10px; padding-top:14px; }
+    .pf-title { font-size:22px; font-weight:700; }
+    .pf-arrow { margin-left:auto; font-size:20px; line-height:1; transition:transform .35s var(--ease, ease); }
+    .pf-card:hover .pf-arrow { transform:translateX(4px); }
+    .pf-desc { margin:4px 0 0; font-size:13.5px; color:var(--mute); }
+    @media (max-width:760px) {
+      .pf-page { height:auto; min-height:100dvh; padding:18px 16px 26px; }
+      .pf-h { font-size:36px; margin-top:16px; }
+      .pf-grid, .pf-grid-2 { grid-template-columns:minmax(0,1fr); grid-template-rows:auto; gap:22px; }
+      .pf-art { flex:0 0 auto; height:180px; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      .pf-art svg, .pf-arrow { transition:none; }
+      .pf-card:hover .pf-art svg { transform:none; }
+      .pf-card:hover .pf-arrow { transform:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="pf-page">
+    <header class="pf-head">
+      <img src="/branding/logo_color.png" alt="凭远 APP·ARK" onerror="this.style.display='none'">
+      <span class="pf-brand">凭远 APP·ARK<small>WORK HARD · DREAM BIG</small></span>
+      <a class="pf-out" href="/logout">退出</a>
+    </header>
+
+    <h1 class="pf-h">选择平台</h1>
+
+    <div class="pf-grid{% if cards|length == 2 %} pf-grid-2{% endif %}">
+      {% for card in cards %}
+      <a class="pf-card" href="{{ card.href }}"{% if card.blank %} target="_blank" rel="noopener"{% endif %}>
+        <div class="pf-art">
+          {% if card.key == 'profiling' %}
+          <svg viewBox="0 0 160 110" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="160" height="110" fill="#E2001A"/><g transform="translate(46 2) scale(1.06)"><circle cx="50" cy="50" r="50" fill="#fff" opacity=".12"/><path fill="#fff" d="M50 50L50 8A42 42 0 0 0 8 50Z"/><path fill="#111" d="M50 50L74.67 50A24.67 24.67 0 0 0 50 25.33Z"/><path fill="#111" d="M50 50L20 50A30 30 0 0 0 50 80Z"/><path fill="#fff" d="M50 50L50 97.33A47.33 47.33 0 0 0 97.33 50Z"/></g></svg>
+          {% elif card.key == 'm1' %}
+          <svg viewBox="0 0 80 110" preserveAspectRatio="xMinYMax slice" aria-hidden="true"><rect x="-200" width="600" height="110" fill="#0B3FD6"/><circle cx="60" cy="24" r="15" fill="#FFC400"/><text x="3" y="104" font-family="Helvetica Neue,Arial,sans-serif" font-weight="800" font-size="50" letter-spacing="-3" fill="#fff">M1</text></svg>
+          {% elif card.key == 'e4' %}
+          <svg viewBox="0 0 80 110" preserveAspectRatio="xMinYMax slice" aria-hidden="true"><rect x="-200" width="600" height="110" fill="#0E0E0E"/><rect x="48" y="9" width="24" height="24" fill="#009A6E"/><text x="3" y="104" font-family="Helvetica Neue,Arial,sans-serif" font-weight="800" font-size="50" letter-spacing="-3" fill="#fff">E4</text></svg>
+          {% endif %}
+        </div>
+        <div class="pf-meta">
+          <span class="pf-title">{{ card.title }}</span>
+          <span class="pf-arrow" aria-hidden="true">→</span>
+        </div>
+        <p class="pf-desc">{{ card.desc }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</body>
+</html>

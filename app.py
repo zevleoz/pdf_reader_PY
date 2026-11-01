@@ -189,7 +189,12 @@ def create_app() -> Flask:
 
     @app.route("/")
     def landing():
-        return render_template("landing.html")
+        """首页只做分流：已登录去选择平台，未登录去登录页（landing.html 保留不用）。"""
+        import app_utils as _app_utils
+        from flask import redirect
+        if _app_utils.is_authenticated():
+            return redirect("/platforms")
+        return redirect("/login")
 
     # --- 管理端模板上下文（Layout 契约，所有蓝图模板共享；须在注册蓝图前） ---
     from app_utils import register_admin_context, get_csrf_token, dt_short
