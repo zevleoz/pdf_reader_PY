@@ -35,8 +35,12 @@
 
     <div class="m1-parts" role="tablist" aria-label="M1 部分">
       {% for part in m1_parts %}
+      {% set is_on = part.key == 'prep' %}
       {% if part.enabled %}
-      <span class="part on" role="tab" aria-selected="true">{{ part.label }}</span>
+      <a class="part{{ ' on' if is_on else '' }}"
+         role="tab" aria-selected="{{ 'true' if is_on else 'false' }}"
+         {% if is_on %}aria-current="page"{% endif %}
+         href="/m1/preps/{{ prep.id }}{{ part.href_suffix }}">{{ part.label }}</a>
       {% else %}
       <span class="part off" role="tab" aria-selected="false" aria-disabled="true" title="即将上线">{{ part.label }}</span>
       {% endif %}

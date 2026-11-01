@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="m1-evidence" content="内部证据审核记录（不对家庭发布）">
+<title>内部证据审核记录 · {{ prep.student_name }}</title>
+<style>
+  @page { size: A4; margin: 22mm 14mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 20px 24px;
+    background: #fff; color: #222;
+    font: 12px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  h1, h2, h3 { margin: 0; text-wrap: balance; }
+  h1 { font-size: 18px; font-weight: 650; }
+  h2 { margin-top: 22px; font-size: 14px; font-weight: 650; }
+  h3 { margin-top: 14px; font-size: 12.5px; font-weight: 650; }
+  .sub { color: #787774; font-size: 11.5px; }
+  .sp { flex: 1; }
+
+  .ev-runhead {
+    padding: 6px 10px; border: 1px solid #F5DCDB; border-radius: 4px;
+    background: #FFF3F1; color: #C9454D; font-size: 12px; font-weight: 600;
+    text-align: center;
+  }
+  .ev-toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin: 10px 0 0; padding-bottom: 10px; border-bottom: 1px solid #E6E4E0;
+  }
+  .ev-toolbar button {
+    height: 28px; padding: 0 12px; border: 1px solid #D6D3CD; border-radius: 6px;
+    background: #fff; color: #222; font: inherit; cursor: pointer;
+  }
+
+  .ev-meta { display: grid; gap: 2px; margin-top: 10px; }
+  .ev-meta-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ev-meta-row b { font-weight: 600; }
+
+  .ev-list { display: grid; gap: 2px; }
+  .ev-y4row { padding: 2px 0; border-bottom: 1px dotted #E6E4E0; }
+  .ev-flag {
+    display: inline-block; margin-left: 6px; padding: 0 6px;
+    border-radius: 999px; background: #FFF8EF; color: #D77A11;
+    font-size: 11px; font-weight: 600;
+  }
+
+  .ev-card {
+    margin-top: 10px; padding: 8px 10px;
+    border: 1px solid #E6E4E0; border-radius: 4px;
+  }
+  .ev-card h3 { margin-top: 0; }
+  .ev-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+  .ev-tag {
+    display: inline-block; padding: 0 8px; border: 1px solid #E6E4E0;
+    border-radius: 999px; font-size: 11px; font-weight: 600;
+  }
+  .ev-kv { display: grid; gap: 4px; margin: 4px 0 0; }
+  .ev-kv b { font-weight: 600; }
+  .ev-lines { margin: 2px 0 0; padding-left: 16px; }
+  .ev-note { margin: 4px 0 0; padding: 4px 8px; background: #F4F3F0; border-radius: 4px; }
+
+  table.ev-table {
+    width: 100%; margin-top: 6px; border-collapse: collapse;
+    font-size: 11px;
+  }
+  .ev-table th, .ev-table td {
+    padding: 5px 6px; border: 1px solid #E6E4E0; vertical-align: top;
+    text-align: left; word-break: break-word;
+  }
+  .ev-table th { background: #F4F3F0; font-weight: 600; white-space: nowrap; }
+  .ev-quote { white-space: pre-wrap; }
+  .ev-unver { display: block; margin-top: 2px; color: #C9454D; font-size: 10.5px; }
+  .ev-empty { color: #787774; text-align: center; }
+
+  @media print {
+    body { padding: 0; }
+    .ev-toolbar { display: none; }
+    .ev-runhead { position: fixed; top: -16mm; left: 0; right: 0; background: #FFF3F1; }
+    .ev-card { break-inside: avoid; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+    h2, h3 { break-after: avoid; }
+  }
+</style>
+</head>
+<body class="ev">
+
+<div class="ev-runhead">内部证据审核记录（不对家庭发布）</div>
+
+<div class="ev-toolbar">
+  <div>
+    <h1>{{ prep.student_name }} · 内部证据审核记录</h1>
+    <div class="sub">{{ prep.grade or '' }}{% if prep.grade and prep.school %} · {% endif %}{{ prep.school or '' }}</div>
+  </div>
+  <span class="sp"></span>
+  <span class="sub">A4 · 内部使用</span>
+  <button type="button" onclick="window.print()">打印</button>
+</div>
+
+{% set tag_map = {} %}
+{% for tag in fixed.tags %}{% set _ = tag_map.update({tag.key: tag}) %}{% endfor %}
+
+{# ---------------------------------------------------------------- 1 来源与版本 #}
+<h2>资料来源与版本</h2>
+<div class="ev-meta">
+  <div class="ev-meta-row"><b>状态：</b><span>{{ report.label or report.status or '—' }}</span></div>
+  <div class="ev-meta-row"><b>资料来源：</b>
+    <span>{{ manifest.sources | join('、') if manifest.sources else '—' }}</span></div>
+  {% if manifest.template_file %}
+  <div class="ev-meta-row"><b>模板：</b><span>{{ manifest.template_file }}</span></div>
+  {% endif %}
+  {% if manifest.kb_version %}
+  <div class="ev-meta-row"><b>知识库版本：</b><span>{{ manifest.kb_version }}</span></div>
+  {% endif %}
+  {% if manifest.model %}
+  <div class="ev-meta-row"><b>模型：</b><span>{{ manifest.model }}</span></div>
+  {% endif %}
+  {% if manifest.fixture %}
+  <div class="ev-meta-row"><b>载入来源：</b><span>{{ manifest.fixture }}</span></div>
+  {% endif %}
+  {% if manifest.dates is mapping %}
+  {% for key, value in manifest.dates.items() %}
+  <div class="ev-meta-row"><b>{{ key }}：</b><span>{{ value }}</span></div>
+  {% endfor %}
+  {% endif %}
+  {% if manifest.adjustments %}
+  <div class="ev-meta-row"><b>Y4 调整记录：</b>
+    <span>{% for item in manifest.adjustments %}{{ item.message or item }}{% if not loop.last %}；{% endif %}{% endfor %}</span></div>
+  {% endif %}
+  <div class="ev-meta-row"><b>审核人：</b>
+    <span>{{ report.approved_by if report.approved_by else '未审核' }}</span></div>
+  <div class="ev-meta-row"><b>审核时间：</b><span>{{ report.approved_at or '—' }}</span></div>
+</div>
+
+{# ---------------------------------------------------------------- 2 全部 Y4 评级 #}
+<h2>全部 Y4 评级</h2>
+<div class="ev-list">
+  {% for entry in ratings.values() | sort(attribute='code') %}
+  <div class="ev-y4row">{{ entry.line }}{% if entry.state == 'check' %}<span class="ev-flag">待核实</span>{% endif %}</div>
+  {% else %}
+  <div class="sub">暂无 Y4 评级。</div>
+  {% endfor %}
+</div>
+
+{# ---------------------------------------------------------------- 3 逐项能力 #}
+<h2>逐项能力证据</h2>
+{% for dim in fixed.dims %}
+{% set dim_doc = (doc.get('dims') or {}).get(dim.id) or {} %}
+{% set dim_abilities = dim_doc.get('abilities') or {} %}
+{% for item in dim.abilities %}
+{% set row = dim_abilities.get(item.code) or {} %}
+{% set row_tags = row.get('tags') or [] %}
+<section class="ev-card">
+  <h3>{{ item.code }} {{ item.name }} · {{ dim.id }} {{ dim.zh }}</h3>
+
+  <div class="ev-tags">
+    {% for name in row_tags %}
+    {% set tag = tag_map.get(name) %}
+    <span class="ev-tag"{% if tag %} style="background:{{ tag.bg }};border-color:{{ tag.border }};color:{{ tag.ink }}"{% endif %}>{{ name }}</span>
+    {% else %}
+    <span class="sub">没有综合判断标签。</span>
+    {% endfor %}
+  </div>
+
+  <div class="ev-kv"><b>使用的 Y4 指标</b>
+    {% set selected = row.get('y4_selected') or [] %}
+    {% if selected %}
+    <ul class="ev-lines">
+      {% for code in selected %}
+      {% set entry = ratings.get(code) %}
+      <li>{{ entry.line if entry else code }}{% if not entry or entry.state == 'check' %}<span class="ev-flag">待核实</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <span class="sub">没有使用 Y4 指标。</span>
+    {% endif %}
+  </div>
+
+  {% if row.get('internal_note') %}
+  <div class="ev-note"><b>内部备注：</b>{{ row.internal_note }}</div>
+  {% endif %}
+
+  <table class="ev-table">
+    <thead>
+      <tr>
+        <th>R4 能力编号</th>
+        <th>来源文件</th>
+        <th>证据位置</th>
+        <th>发言人</th>
+        <th>原始证据</th>
+        <th>AI 解释</th>
+        <th>证据局限</th>
+        <th>审核状态</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set ns = namespace(count=0) %}
+      {% for e in evidence %}
+      {% if item.code in (e.get('ability_codes') or []) %}
+      {% set ns.count = ns.count + 1 %}
+      <tr>
+        <td>{{ (e.get('ability_codes') or []) | join('、') }}</td>
+        <td>{{ e.get('source') or '—' }}</td>
+        <td>{{ e.get('location') or '—' }}</td>
+        <td>{{ e.get('speaker') or '—' }}</td>
+        <td class="ev-quote">{{ e.get('quote') or '—' }}{% if not e.get('quote_verified') %}<span class="ev-unver">引用在逐字稿中找不到</span>{% endif %}</td>
+        <td>{{ e.get('interpretation') or '—' }}</td>
+        <td>{{ e.get('limits') or '—' }}</td>
+        <td>{{ e.get('status') or '—' }}</td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+      {% if ns.count == 0 %}
+      <tr><td colspan="8" class="ev-empty">暂无证据条目。</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</section>
+{% endfor %}
+{% endfor %}
+
+{# ---------------------------------------------------------------- 4 发言人待确认 #}
+<h2>发言人待确认</h2>
+{% set pending = evidence | selectattr('speaker', 'equalto', '待确认') | list %}
+{% if pending %}
+<table class="ev-table">
+  <thead>
+    <tr>
+      <th>R4 能力编号</th>
+      <th>来源文件</th>
+      <th>证据位置</th>
+      <th>发言人</th>
+      <th>原始证据</th>
+      <th>AI 解释</th>
+      <th>证据局限</th>
+      <th>审核状态</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in pending %}
+    <tr>
+      <td>{{ (e.get('ability_codes') or []) | join('、') }}</td>
+      <td>{{ e.get('source') or '—' }}</td>
+      <td>{{ e.get('location') or '—' }}</td>
+      <td>{{ e.get('speaker') or '待确认' }}</td>
+      <td class="ev-quote">{{ e.get('quote') or '—' }}{% if not e.get('quote_verified') %}<span class="ev-unver">引用在逐字稿中找不到</span>{% endif %}</td>
+      <td>{{ e.get('interpretation') or '—' }}</td>
+      <td>{{ e.get('limits') or '—' }}</td>
+      <td>{{ e.get('status') or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="sub">没有发言人待确认的条目。</div>
+{% endif %}
+
+</body>
+</html>
