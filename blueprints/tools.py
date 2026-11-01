@@ -15,7 +15,8 @@ from minutes_schema import validate_minutes, minutes_to_markdown
 from minutes_docx import build_minutes_docx
 from app_utils import (BASE_DIR, DATA_DIR, admin_required, role_required,
                        student_scoped, minutes_scoped, _student_forbidden,
-                       _report_forbidden, _minutes_forbidden)
+                       _report_forbidden, _minutes_forbidden, can_see_full,
+                       _advisor_scope)
 from ai_client import (_assemble_e4_protocol, _build_phase1_md_text,
                        _build_qualification_view, _build_y4_interpret_context,
                        _build_y4_payload, _dashscope_chat,
@@ -542,6 +543,8 @@ def api_transcript_docx():
     minutes_json = None
 
     if minutes_id:
+        if not can_see_full():
+            return jsonify({"ok": False, "error": "当前账号不显示纪要内容。"}), 403
         # Advisor 数据隔离：advisor 只能下载名下学生的纪要
         denied = _minutes_forbidden(int(minutes_id))
         if denied:
@@ -613,6 +616,8 @@ def api_transcript_docx():
 @student_scoped
 def api_student_minutes(student_id):
     """List all historical meeting minutes for a student (desc by created_at)."""
+    if not can_see_full():
+        return jsonify({"ok": True, "minutes": [], "restricted": True})
     items = _db.get_minutes_by_student(student_id)
     return jsonify({"ok": True, "minutes": items})
 
@@ -622,6 +627,8 @@ def api_student_minutes(student_id):
 @minutes_scoped
 def api_minutes_detail(minutes_id):
     """Get single meeting minutes: transcript + minutes_text + student info."""
+    if not can_see_full():
+        return jsonify({"ok": False, "error": "当前账号不显示纪要内容。"}), 403
     item = _db.get_minutes(minutes_id)
     if not item:
         return jsonify({"ok": False, "error": "纪要不存在"}), 404
@@ -716,6 +723,13 @@ def admin_bookings_page():
 def api_bookings():
     status = request.args.get("status")
     bookings = _db.get_bookings(status=status)
+    scope = _advisor_scope()
+    if scope is not None:
+        bookings = [b for b in bookings if scope and (b.get("advisor_name") or "") == scope]
+    if not can_see_full():
+        for b in bookings:
+            b["student_email"] = ""
+            b["student_phone"] = ""
     return jsonify({"ok": True, "bookings": bookings})
 
 

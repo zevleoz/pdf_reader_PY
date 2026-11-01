@@ -48,6 +48,9 @@ def _m1_access_guard():
         return None
     if not session.get("user_id"):
         return None
+    # refreshes the session from the account; a disabled account falls through to the decorators
+    if not app_utils.is_authenticated():
+        return None
     if app_utils.can_use_m1():
         return None
     if request.path.startswith("/api/m1/"):

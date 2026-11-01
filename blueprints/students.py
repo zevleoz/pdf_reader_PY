@@ -480,6 +480,10 @@ def api_student_bookings(code):
     if err:
         return jsonify({"ok": False, "error": err[0]}), err[1]
     rows = [b for b in _db.get_bookings() if b.get("student_id") == st["id"]]
+    if not can_see_full():
+        for b in rows:
+            b["student_email"] = ""
+            b["student_phone"] = ""
     return jsonify({"ok": True, "bookings": rows})
 
 

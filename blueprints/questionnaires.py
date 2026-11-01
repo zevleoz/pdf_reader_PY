@@ -122,6 +122,9 @@ def api_assignments():
     for r in rows:
         r["expires_at"] = expiries.get(r["id"]) or ""
         r["flagged"] = r["id"] in flagged_ids
+    if not can_see_full():
+        for r in rows:
+            r["reason"] = "当前账号只显示完成状态。"
     return jsonify({"ok": True, "assignments": rows, "counts": counts,
                     "open_flags": open_flags})
 
@@ -269,6 +272,8 @@ def api_assignment_response(aid):
     _, denied = _assignment_guard(aid)
     if denied:
         return denied
+    if not can_see_full():
+        return _err("当前账号只显示完成状态。", 403)
     resp = qs.get_response(aid)
     if not resp:
         return _err("尚未提交答案", 404)
