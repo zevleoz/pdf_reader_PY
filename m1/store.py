@@ -163,7 +163,17 @@ def _user_dict(user) -> dict:
         "role": getattr(user, "role", "") or "",
         "advisor_name": getattr(user, "advisor_name", "") or "",
         "display_name": getattr(user, "display_name", "") or "",
+        "student_scope": getattr(user, "student_scope", "") or "",
+        "detail_level": getattr(user, "detail_level", "") or "",
+        "m1_access": getattr(user, "m1_access", None),
     }
+
+
+def _sees_all_students(u: dict) -> bool:
+    """该账号 student_scope 是否为全部学生（缺字段按角色默认值）。"""
+    return _db.effective_account_settings(
+        u.get("role") or "", u.get("student_scope"), u.get("detail_level"),
+        u.get("m1_access"))["student_scope"] == "all"
 
 
 def _prep_row(row: M1Prep, student=None, mentor_name: str = "") -> Dict[str, Any]:
@@ -315,10 +325,11 @@ def list_preps(*, user=None, student_id: Optional[int] = None,
         if status:
             stmt = stmt.where(M1Prep.status == status)
         if user.get("role") == "advisor":
-            scope = user.get("advisor_name") or ""
-            stmt = stmt.where(
-                (_db.Student.advisor_name == scope)
-                | (M1Prep.mentor_user_id == user.get("user_id")))
+            if not _sees_all_students(user):
+                mine = M1Prep.mentor_user_id == user.get("user_id")
+                # an advisor account without a name owns nobody (empty must not match empty)
+                scope = (user.get("advisor_name") or "").strip()
+                stmt = stmt.where((_db.Student.advisor_name == scope) | mine if scope else mine)
         elif user.get("role") != "admin":
             return []
         return [_prep_row(prep, student, _mentor_name(sess, prep.mentor_user_id))
@@ -643,13 +654,15 @@ def reopen_prep(prep_id: int, user_id=None) -> Dict[str, Any]:
 # 权限
 # ---------------------------------------------------------------------------
 def can_access_student(user, student_id: int) -> bool:
-    """README §3：admin 全部；advisor 仅名下学生；viewer 无。"""
+    """admin 全部；advisor 按 student_scope（全部 / 仅名下）；其他角色无。"""
     u = _user_dict(user)
     role = u.get("role") or ""
     if role == "admin":
         return True
     if role != "advisor":
         return False
+    if _sees_all_students(u):
+        return True
     with Session(_engine()) as sess:
         student = _student(sess, student_id)
         if not student:
@@ -660,13 +673,15 @@ def can_access_student(user, student_id: int) -> bool:
 
 
 def can_access_prep(user, prep_id: int) -> bool:
-    """admin 全部；advisor 名下学生或本人是该准备推进的 Mentor。"""
+    """admin 全部；advisor 全部范围可见全部，否则名下学生或本人是该准备推进的 Mentor。"""
     u = _user_dict(user)
     role = u.get("role") or ""
     if role == "admin":
         return True
     if role != "advisor":
         return False
+    if _sees_all_students(u):
+        return True
     with Session(_engine()) as sess:
         prep = sess.get(M1Prep, int(prep_id))
         if not prep:
@@ -710,10 +725,11 @@ def list_students(user=None) -> List[Dict[str, Any]]:
     with Session(_engine()) as sess:
         stmt = select(_db.Student).order_by(_db.Student.name)
         if u.get("role") == "advisor":
-            name = (u.get("advisor_name") or "").strip()
-            if not name:
-                return []
-            stmt = stmt.where(_db.Student.advisor_name == name)
+            if not _sees_all_students(u):
+                name = (u.get("advisor_name") or "").strip()
+                if not name:
+                    return []
+                stmt = stmt.where(_db.Student.advisor_name == name)
         elif u.get("role") != "admin":
             return []
         students = sess.execute(stmt).scalars().all()

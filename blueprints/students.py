@@ -8,7 +8,8 @@ from sqlalchemy import or_, select
 
 import db as _db
 from app_utils import (admin_required, login_required, page_login_required,
-                       student_scoped, visible_student_filter, _advisor_scope)
+                       student_scoped, visible_student_filter, _advisor_scope,
+                       can_see_full)
 from pipeline import PROGRESS_STAGES, compute_progress, progress_stage_meta
 
 bp = Blueprint("students", __name__)
@@ -40,10 +41,14 @@ def api_students():
     advisor = _advisor_scope()
     stages = compute_stages(advisor)
     students = _db.get_students(advisor)
+    full = can_see_full()
     for s in students:
         info = stages.get(s.get("id")) or {}
         s["stage"] = info.get("stage") or "ready"
         s["stage_days"] = info.get("days") or 0
+        if not full:
+            s["email"] = ""
+            s["phone"] = ""
     stage = (request.args.get("stage") or "").strip()
     if stage:
         students = [s for s in students if s["stage"] == stage]
@@ -151,8 +156,9 @@ def _scoped_student(code):
     st = _db.get_student_by_code(code)
     if not st:
         return None, ("学生不存在", 404)
-    if session.get("role") == "advisor":
-        if (st.get("advisor_name") or "") != (session.get("advisor_name") or ""):
+    scope = _advisor_scope()
+    if scope is not None:
+        if (st.get("advisor_name") or "") != scope:
             return None, ("无权访问该学生", 403)
     return st, None
 
@@ -381,16 +387,17 @@ def student_360(code):
     st, err = _scoped_student(code)
     if err:
         abort(err[1])
+    full = can_see_full()
     return render_template(
         "student_360.html",
         nav_active="students",
-        profile=st,
+        profile=st if full else {**st, "email": "", "phone": ""},
         can_write=session.get("role") != "viewer",
         is_admin=session.get("role") == "admin",
         stage=_student_progress_context(st["id"]),
         stage_meta=PROGRESS_STAGES,
         first_touch=_first_touch_context(st["id"]),
-        questionnaire_flags=_questionnaire_flags(st["id"]),
+        questionnaire_flags=_questionnaire_flags(st["id"]) if full else [],
     )
 
 
@@ -400,7 +407,7 @@ def api_student_profile(code):
     st, err = _scoped_student(code)
     if err:
         return jsonify({"ok": False, "error": err[0]}), err[1]
-    scores = _questionnaire_scores(st["id"])
+    scores = _questionnaire_scores(st["id"]) if can_see_full() else []
     latest = _db.get_latest_report_raw(st["id"])
     if not latest:
         return jsonify({"ok": True, "report": None, "groups": [], "total": 0,
@@ -436,12 +443,13 @@ def api_student_questionnaires(code):
     except Exception:
         # C 包未落地：返回空态而非报错（打桩契约）
         return jsonify({"ok": True, "enabled": False, "assignments": []})
+    full = can_see_full()
     scores = _qs.scores_for_assignments(
-        [a["id"] for a in rows if a.get("status") == "submitted"])
+        [a["id"] for a in rows if a.get("status") == "submitted"]) if full else {}
     out = []
     for a in rows:
         answers = None
-        if a.get("status") == "submitted":
+        if full and a.get("status") == "submitted":
             try:
                 answers = (_qs.get_response(a["id"]) or {}).get("answers")
             except Exception:
@@ -452,14 +460,17 @@ def api_student_questionnaires(code):
             "questionnaire_code": a.get("questionnaire_code") or "",
             "status": a.get("status") or "",
             "source": a.get("source") or "",
-            "reason": a.get("reason") or "",
+            "reason": (a.get("reason") or "") if full else "",
             "delivery": a.get("delivery") or "",
             "created_at": a.get("created_at"),
             "submitted_at": a.get("submitted_at"),
             "answers": answers,
             "scores": scores.get(a.get("id")),
         })
-    return jsonify({"ok": True, "enabled": True, "assignments": out})
+    payload = {"ok": True, "enabled": True, "assignments": out}
+    if not full:
+        payload["restricted"] = True
+    return jsonify(payload)
 
 
 @bp.route("/students/<code>/api/bookings")
@@ -478,6 +489,8 @@ def api_student_minutes_by_code(code):
     st, err = _scoped_student(code)
     if err:
         return jsonify({"ok": False, "error": err[0]}), err[1]
+    if not can_see_full():
+        return jsonify({"ok": True, "minutes": [], "restricted": True})
     out = []
     for r in _db.get_minutes_by_student(st["id"]):
         full = _db.get_minutes(r["id"]) or {}

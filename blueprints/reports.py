@@ -992,6 +992,8 @@ def api_report_regenerate(report_id):
 @report_scoped
 def api_report_raw(report_id):
     """Get the raw data of a report. Add ?download=1 to download as JSON file."""
+    if not app_utils.can_see_full():
+        return jsonify({"ok": False, "error": "当前账号不能查看原始数据"}), 403
     record = _db.get_report_raw(report_id)
     if not record:
         return jsonify({"ok": False, "error": "报告不存在"}), 404
@@ -1356,6 +1358,8 @@ def api_delete_report(report_id):
 @bp.route("/api/export")
 @admin_required
 def api_export():
+    if not app_utils.can_see_full():
+        return jsonify({"ok": False, "error": "当前账号不能导出"}), 403
     import csv
     import io
     reports = _db.get_all_reports()

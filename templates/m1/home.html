@@ -1,6 +1,18 @@
 {% extends "layouts/admin_v2.html" %}
-{% block title %}M1 会前准备{% endblock %}
-{% block page_title %}M1 会前准备{% endblock %}
+{% block title %}M1{% endblock %}
+{% block page_title %}M1{% endblock %}
+{% block body_attrs %}class="m1-platform"{% endblock %}
+{% block crumb_up %}凭远 APP·ARK{% endblock %}
+
+{% block brand %}
+<a class="side-brand" href="/m1">
+  <img src="/branding/logo_red.png" alt="凭远教育盾徽">
+  <span class="txt">
+    <div class="name">M1</div>
+    <div class="sub">凭远 APP·ARK</div>
+  </span>
+</a>
+{% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="/m1/assets/m1.css">
@@ -11,11 +23,11 @@
   <div class="m1-main">
     <div class="page-h">
       <div style="min-width:0">
-        <h1>M1 会前准备</h1>
-        <div class="sub">每位学生的 First Meeting 会前准备框架。生成、修改、下载 PDF 都在这里。</div>
+        <h1>M1</h1>
+        <div class="sub">每位学生的 First Meeting。会前准备在这里生成、修改和下载。</div>
       </div>
       <span class="sp"></span>
-      <button type="button" class="btn pri lg" id="newPrep">＋ 新建会前准备</button>
+      <button type="button" class="btn pri lg" id="newPrep">＋ 新建 M1</button>
     </div>
 
     <section class="surface">
@@ -25,11 +37,11 @@
           <thead>
             <tr>
               <th>学生</th><th>M1 会议日期</th><th>M1 Mentor</th>
-              <th>状态</th><th>最近更新</th><th></th>
+              <th>会前准备</th><th>会后报告</th><th>最近更新</th><th></th>
             </tr>
           </thead>
           <tbody id="prepRows">
-            <tr><td colspan="6" class="sub">加载中…</td></tr>
+            <tr><td colspan="7" class="sub">加载中…</td></tr>
           </tbody>
         </table>
       </div>
@@ -39,7 +51,7 @@
       <div class="empty-cta">
         <div>
           <b>也可以从学生 360° 档案进入</b>
-          <div class="sub">档案页顶部会多一个「M1 会前准备」按钮，点开直接进入这位学生的准备。</div>
+          <div class="sub">档案页顶部有「M1」按钮，点开直接进入这位学生的准备。</div>
         </div>
         <span class="pill info">只有 Y4 已完成的学生可以开始</span>
       </div>

@@ -100,6 +100,14 @@
 .m1 .step[disabled] { cursor: default; }
 @media (max-width: 640px) { .m1 .step small { display: none; } .m1 .step { padding: 10px; } }
 
+/* ---------- M1 部分：会前准备（当前）/ 会后报告（Stage 2 打开） ---------- */
+.m1 .m1-parts { display: flex; flex-wrap: wrap; gap: 2px; align-items: center;
+  border-bottom: 1px solid var(--line); }
+.m1 .m1-parts .part { display: inline-flex; align-items: center; height: 32px; padding: 0 12px;
+  font-size: 13px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; }
+.m1 .m1-parts .part.on { color: var(--ink); border-bottom-color: var(--brand); }
+.m1 .m1-parts .part.off { opacity: .5; }
+
 /* ---------- 首页列表 ---------- */
 .m1 .table { width: 100%; border-collapse: collapse; }
 .m1 .table th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 500;
@@ -280,3 +288,86 @@
   .a4 thead { display: table-header-group; }
   .a4 h2, .a4 h3, .a4 h3 + p, .a4 .lbl { break-after: avoid; }
 }
+
+/* =========================================================================
+   国际主义（International Typographic Style）· 仅 M1 平台
+   只作用于 body.m1-platform（/m1 与工作台）。打印页（body.m1.print-page）
+   与 A4 预览、编辑标记（.a4 / .blk / .mk）不在作用域内，保持原样。
+   ========================================================================= */
+body.m1-platform {
+  --m1-rail: #0B3FD6;
+  background: #FFFFFF;
+}
+
+/* ---------- 侧栏：纯蓝底 + 白字；当前项为白块 ---------- */
+body.m1-platform .side {
+  background: var(--m1-rail);
+  color: #FFFFFF;
+}
+body.m1-platform .side-brand,
+body.m1-platform .side-foot { border-color: rgba(255,255,255,.24); }
+body.m1-platform .side-brand .name,
+body.m1-platform .side-user .who .n,
+body.m1-platform .side-group-label { color: #FFFFFF; }
+body.m1-platform .side-brand .sub,
+body.m1-platform .side-user .who .r { color: rgba(255,255,255,.78); opacity: 1; }
+body.m1-platform .side-item { border-radius: 0; color: #FFFFFF; }
+body.m1-platform .side-item svg { color: #FFFFFF; opacity: .8; }
+body.m1-platform .side-item:hover { background: rgba(255,255,255,.16); color: #FFFFFF; }
+body.m1-platform .side-item.is-active {
+  background: #FFFFFF; color: var(--m1-rail); font-weight: 700;
+}
+body.m1-platform .side-item.is-active svg { color: var(--m1-rail); opacity: 1; }
+body.m1-platform .side-item.is-active::before { display: none; }
+body.m1-platform .side-motto { color: #FFFFFF; opacity: .6; }
+body.m1-platform .side-user button { color: #FFFFFF; }
+body.m1-platform .side-user button:hover { background: rgba(255,255,255,.16); color: #FFFFFF; }
+body.m1-platform .side-avatar { background: #FFFFFF; color: var(--m1-rail); }
+
+/* ---------- 画布与顶栏 ---------- */
+body.m1-platform .topbar { background: #FFFFFF; }
+body.m1-platform .role-pill { border-radius: 0; background: #FFFFFF; }
+body.m1-platform .search-trigger { border-radius: 0; }
+
+/* ---------- 页标题：大、重、紧 ---------- */
+body.m1-platform .m1 .page-h h1 {
+  font-size: 34px; font-weight: 900; letter-spacing: -.03em; line-height: 1.08;
+}
+body.m1-platform .m1 .page-h .sub { font-size: 13px; }
+@media (max-width: 640px) {
+  body.m1-platform .m1 .page-h h1 { font-size: 26px; }
+}
+
+/* ---------- 主按钮：黑底、直角 ---------- */
+body.m1-platform .m1 .btn { border-radius: 0; }
+body.m1-platform .m1 .btn.pri {
+  background: #0E0E0E; border-color: #0E0E0E; color: #FFFFFF;
+}
+body.m1-platform .m1 .btn.pri:hover { background: #2A2A2A; border-color: #2A2A2A; }
+
+/* ---------- 卡片 / 表格 / 药丸：去圆角、去阴影 ---------- */
+body.m1-platform .m1 .surface,
+body.m1-platform .m1 .stepper,
+body.m1-platform .m1 .m1-parts,
+body.m1-platform .m1 .modal { border-radius: 0; box-shadow: none; }
+body.m1-platform .m1 .table th {
+  border-bottom: 2px solid #0E0E0E;
+  color: #18181B;
+}
+body.m1-platform .m1 .table td { border-bottom: 1px solid var(--line-soft); }
+body.m1-platform .m1 .table tr.click:hover td { background: #F5F6F9; }
+body.m1-platform .m1 .pill { border-radius: 0; }
+body.m1-platform .m1 .tag,
+body.m1-platform .m1 .chip,
+body.m1-platform .m1 .inp,
+body.m1-platform .m1 .seg,
+body.m1-platform .m1 .seg button,
+body.m1-platform .m1 .file,
+body.m1-platform .m1 .drop,
+body.m1-platform .m1 .meter,
+body.m1-platform .m1 .ab,
+body.m1-platform .m1 .sync,
+body.m1-platform .m1 .safety,
+body.m1-platform .m1 .lockbar,
+body.m1-platform .m1 .conflict,
+body.m1-platform .m1 .miss { border-radius: 0; }

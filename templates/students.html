@@ -5,7 +5,9 @@
 {% block page_title %}学生档案{% endblock %}
 
 {% block page_actions %}
+{% if policy.detail_level == 'full' %}
 <a class="btn btn-sec" href="/api/export">{{ icon('download', 13) }} 导出 CSV</a>
+{% endif %}
 <button type="button" class="btn btn-sec" onclick="loadStudents()">{{ icon('refresh', 13) }} 刷新</button>
 {% endblock %}
 

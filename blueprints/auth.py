@@ -39,6 +39,9 @@ def api_admin_login():
     session['role'] = user['role']
     session['advisor_name'] = user.get('advisor_name') or ''
     session['display_name'] = user.get('display_name') or user['username']
+    session['student_scope'] = user['student_scope']
+    session['detail_level'] = user['detail_level']
+    session['m1_access'] = user['m1_access']
     session.permanent = True
     return jsonify({"ok": True, "role": user['role'],
                     "display_name": session['display_name']})

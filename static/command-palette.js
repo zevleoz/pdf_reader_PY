@@ -13,6 +13,7 @@
     { group: '前往', label: '新建报告生成', hint: '上传 PDF 生成 Y4 报告', href: '/generate', icon: 'file', roles: ['admin', 'advisor'] },
     { group: '前往', label: '去工作台', hint: '', href: '/workspace', icon: 'grid' },
     { group: '前往', label: '学生档案', hint: '', href: '/students', icon: 'users' },
+    { group: '前往', label: 'M1', hint: '', href: '/m1', icon: 'target', roles: ['admin', 'advisor'] },
     { group: '前往', label: '问卷题库', hint: '', href: '/questionnaires/bank', icon: 'book', roles: ['admin', 'advisor'] },
     { group: '前往', label: '数据总览', hint: '', href: '/insights/dashboard', icon: 'chart' },
     { group: '前往', label: 'Y4 研判', hint: '', href: '/insights/y4-signals', icon: 'radar' },

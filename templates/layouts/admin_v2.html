@@ -46,12 +46,13 @@
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 {% block head_extra %}{% endblock %}
 </head>
-<body x-data="{ drawer: false }">
+<body {% block body_attrs %}{% endblock %} x-data="{ drawer: false }">
 {% set active_key = nav_active|default('') %}
 {% set _initial = (current_display_name or 'Y')[:1] %}
 <div class="shell">
 
   <aside class="side" :class="{ 'open': drawer }" aria-label="主导航">
+    {% block brand %}
     <a class="side-brand" href="{{ '/students' if current_role == 'viewer' else '/workspace' }}">
       <img src="/branding/logo_red.png" alt="凭远教育盾徽">
       <span class="txt">
@@ -59,6 +60,7 @@
         <div class="sub">Y4 · 综合测评</div>
       </span>
     </a>
+    {% endblock %}
 
     <nav class="side-nav">
       {% for group in nav_groups %}
@@ -115,7 +117,7 @@
         {{ icon('menu', 17) }}
       </button>
       <div class="crumb">
-        <span class="up">凭远 Y4</span>
+        <span class="up">{% block crumb_up %}凭远 Y4{% endblock %}</span>
         <span class="sep">/</span>
         <span class="here">{% block page_title %}{% endblock %}</span>
       </div>

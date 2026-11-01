@@ -186,6 +186,10 @@ class User(Base):
     email = Column(String(255), nullable=True)
     is_active = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # 账号可见范围（管理员设置）；空值/NULL 表示使用角色默认值，见 effective_account_settings
+    student_scope = Column(String(10), default="")
+    detail_level = Column(String(10), default="")
+    m1_access = Column(Integer, nullable=True)
 
 
 def init_db() -> None:
@@ -430,6 +434,17 @@ def _migrate_schema() -> None:
             conn.commit()
         except Exception:
             pass
+
+    # users 可见范围三列（管理员设置账号可见性）：存量库幂等补齐
+    for col, ddl in (("student_scope", "VARCHAR(10) DEFAULT ''"),
+                     ("detail_level", "VARCHAR(10) DEFAULT ''"),
+                     ("m1_access", "INTEGER")):
+        if col not in user_cols:
+            try:
+                cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
+                conn.commit()
+            except Exception:
+                pass
 
     conn.close()
 
@@ -2452,6 +2467,72 @@ def get_dimension_balance() -> Dict[str, Any]:
 # ─── User CRUD（2.0 角色体系）──────────────────────────────────
 
 VALID_ROLES = ("admin", "advisor", "viewer")
+VALID_STUDENT_SCOPES = ("all", "own")
+VALID_DETAIL_LEVELS = ("full", "summary")
+# 角色默认值：(student_scope, detail_level, m1_access)
+ROLE_ACCOUNT_DEFAULTS = {
+    "admin": ("all", "full", 1),
+    "advisor": ("own", "full", 1),
+    "viewer": ("all", "summary", 0),
+}
+# 未知角色（未登录等）一律按最窄范围处理
+_UNKNOWN_ROLE_ACCOUNT = ("own", "summary", 0)
+
+
+def effective_account_settings(role, student_scope=None, detail_level=None,
+                               m1_access=None) -> Dict[str, Any]:
+    """角色 + 存储值 → 生效值。空值/非法值回落角色默认；admin 固定；viewer 的 M1 恒为 0。"""
+    defaults = ROLE_ACCOUNT_DEFAULTS.get(role)
+    if defaults is None or role == "admin":
+        scope, detail, m1 = defaults or _UNKNOWN_ROLE_ACCOUNT
+        return {"student_scope": scope, "detail_level": detail, "m1_access": m1}
+    if m1_access in (None, ""):
+        m1 = defaults[2]
+    else:
+        try:
+            m1 = 1 if int(m1_access) else 0
+        except (TypeError, ValueError):
+            m1 = defaults[2]
+    return {
+        "student_scope": student_scope if student_scope in VALID_STUDENT_SCOPES else defaults[0],
+        "detail_level": detail_level if detail_level in VALID_DETAIL_LEVELS else defaults[1],
+        "m1_access": 0 if role == "viewer" else m1,
+    }
+
+
+def _clean_account_settings(student_scope, detail_level, m1_access):
+    """校验入参取值。None 表示未提供；"" 表示恢复角色默认值。"""
+    error = "可见学生或可见内容的取值无效"
+    if student_scope is not None:
+        student_scope = str(student_scope).strip()
+        if student_scope and student_scope not in VALID_STUDENT_SCOPES:
+            raise ValueError(error)
+    if detail_level is not None:
+        detail_level = str(detail_level).strip()
+        if detail_level and detail_level not in VALID_DETAIL_LEVELS:
+            raise ValueError(error)
+    if m1_access is not None and m1_access != "":
+        cleaned = {True: 1, False: 0, 1: 1, 0: 0, "1": 1, "0": 0}.get(
+            m1_access if isinstance(m1_access, (bool, int, str)) else None)
+        if cleaned is None:
+            raise ValueError(error)
+        m1_access = cleaned
+    return student_scope, detail_level, m1_access
+
+
+def _account_values_to_store(role, advisor_name, student_scope, detail_level,
+                             m1_access) -> Dict[str, Any]:
+    """按角色限制得出落库值：admin 固定；own 必须有顾问姓名；viewer 的 M1 存 0。"""
+    if role == "admin":
+        scope, detail, m1 = ROLE_ACCOUNT_DEFAULTS["admin"]
+        return {"student_scope": scope, "detail_level": detail, "m1_access": m1}
+    if student_scope == "own" and not (advisor_name or "").strip():
+        raise ValueError("名下学生范围需要绑定顾问姓名")
+    m1 = None if m1_access in (None, "") else m1_access
+    if role == "viewer" and m1 == 1:
+        m1 = 0
+    return {"student_scope": student_scope or "", "detail_level": detail_level or "",
+            "m1_access": m1}
 
 
 def _row_to_user_dict(u: "User") -> Dict[str, Any]:
@@ -2464,6 +2545,7 @@ def _row_to_user_dict(u: "User") -> Dict[str, Any]:
         "display_name": u.display_name or "",
         "is_active": int(u.is_active or 0),
         "created_at": u.created_at.isoformat() if u.created_at else None,
+        **effective_account_settings(u.role, u.student_scope, u.detail_level, u.m1_access),
     }
 
 
@@ -2496,7 +2578,9 @@ def list_users() -> List[Dict[str, Any]]:
 
 
 def create_user(username: str, password: str, role: str,
-                advisor_name: str = "", display_name: str = "") -> int:
+                advisor_name: str = "", display_name: str = "",
+                student_scope: Optional[str] = None, detail_level: Optional[str] = None,
+                m1_access: Any = None) -> int:
     """创建用户，返回 id。role 必须是 VALID_ROLES 之一，username 唯一。"""
     from werkzeug.security import generate_password_hash
     username = (username or "").strip()
@@ -2507,6 +2591,9 @@ def create_user(username: str, password: str, role: str,
         raise ValueError(f"role 必须是 {VALID_ROLES} 之一")
     if not password:
         raise ValueError("password 不能为空")
+    student_scope, detail_level, m1_access = _clean_account_settings(
+        student_scope, detail_level, m1_access)
+    account = _account_values_to_store(role, advisor_name, student_scope, detail_level, m1_access)
     with Session(engine) as sess:
         if sess.execute(select(User).where(User.username == username)).first():
             raise ValueError(f"用户名已存在: {username}")
@@ -2517,6 +2604,7 @@ def create_user(username: str, password: str, role: str,
             advisor_name=advisor_name or None,
             display_name=display_name or None,
             is_active=1,
+            **account,
         )
         result = sess.execute(stmt)
         sess.commit()
@@ -2526,8 +2614,16 @@ def create_user(username: str, password: str, role: str,
 def update_user(user_id: int, password: Optional[str] = None,
                 role: Optional[str] = None, advisor_name: Optional[str] = None,
                 display_name: Optional[str] = None,
-                is_active: Optional[int] = None) -> bool:
-    """更新用户可控字段（改密/改角色/停用/改名）。返回是否更新成功。"""
+                is_active: Optional[int] = None,
+                student_scope: Optional[str] = None, detail_level: Optional[str] = None,
+                m1_access: Any = None) -> bool:
+    """更新用户可控字段（改密/改角色/停用/改名/可见范围）。返回是否更新成功。
+
+    可见范围三项：None 不改，"" 恢复角色默认值。改角色且未同时提供时恢复新角色的默认值，
+    避免原角色的范围（如 admin 的全部 + 完整）被带到新角色。
+    """
+    student_scope, detail_level, m1_access = _clean_account_settings(
+        student_scope, detail_level, m1_access)
     values: Dict[str, Any] = {}
     if password:
         from werkzeug.security import generate_password_hash
@@ -2542,9 +2638,24 @@ def update_user(user_id: int, password: Optional[str] = None,
         values["display_name"] = display_name or None
     if is_active is not None:
         values["is_active"] = int(bool(is_active))
-    if not values:
+    account_touched = (role is not None or advisor_name is not None or student_scope is not None
+                       or detail_level is not None or m1_access is not None)
+    if not values and not account_touched:
         return False
     with Session(engine) as sess:
+        if account_touched:
+            row = sess.get(User, int(user_id))
+            if not row:
+                return False
+            new_role = role if role is not None else row.role
+            reset = new_role != row.role
+            values.update(_account_values_to_store(
+                new_role,
+                advisor_name if advisor_name is not None else row.advisor_name,
+                student_scope if student_scope is not None else ("" if reset else row.student_scope),
+                detail_level if detail_level is not None else ("" if reset else row.detail_level),
+                m1_access if m1_access is not None else (None if reset else row.m1_access),
+            ))
         result = sess.execute(update(User).where(User.id == int(user_id)).values(**values))
         sess.commit()
         return result.rowcount > 0

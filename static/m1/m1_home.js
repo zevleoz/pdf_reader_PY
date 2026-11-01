@@ -71,8 +71,8 @@
     prepRows.textContent = '';
     if (!state.preps.length) {
       var empty = el('tr');
-      var td = el('td', 'sub', '还没有会前准备。点右上角「＋ 新建会前准备」开始。');
-      td.setAttribute('colspan', '6');
+      var td = el('td', 'sub', '还没有 M1。点右上角「＋ 新建 M1」开始。');
+      td.setAttribute('colspan', '7');
       td.style.padding = '16px';
       empty.appendChild(td);
       prepRows.appendChild(empty);
@@ -102,6 +102,8 @@
       pill.appendChild(document.createTextNode(status.label));
       statusTd.appendChild(pill);
       tr.appendChild(statusTd);
+
+      tr.appendChild(el('td', 'sub', '—'));
 
       tr.appendChild(el('td', 'sub', window.y4FmtDT ? window.y4FmtDT(prep.updated_at) : (prep.updated_at || '—')));
 
@@ -262,7 +264,7 @@
       prepRows.textContent = '';
       var tr = el('tr');
       var td = el('td', 'sub', error.message);
-      td.setAttribute('colspan', '6');
+      td.setAttribute('colspan', '7');
       tr.appendChild(td);
       prepRows.appendChild(tr);
     });

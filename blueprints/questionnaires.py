@@ -20,7 +20,7 @@ from flask import (Blueprint, jsonify, redirect, render_template, request,
 
 import db as _db
 import questionnaire_store as qs
-from app_utils import (_advisor_scope, rate_fail_check, rate_fail_clear,
+from app_utils import (_advisor_scope, can_see_full, rate_fail_check, rate_fail_clear,
                        rate_fail_record, role_required)
 from questionnaire_engine import evaluate, validate_answers, validate_rules
 from questionnaire_engine.schema import group_by_section, questions_of
@@ -117,7 +117,7 @@ def api_assignments():
     # 在途行的链接有效期（工作台账台「分发」列次信息用；零行时不开查询）
     expiries = qs.token_expiry_map([r["id"] for r in rows
                                     if r.get("status") in ("sent", "expired")])
-    open_flags = qs.list_open_flags(advisor_name=advisor)
+    open_flags = qs.list_open_flags(advisor_name=advisor) if can_see_full() else []
     flagged_ids = {f["assignment_id"] for f in open_flags}
     for r in rows:
         r["expires_at"] = expiries.get(r["id"]) or ""

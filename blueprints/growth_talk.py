@@ -9,11 +9,11 @@ import io
 import json
 from urllib.parse import quote
 
-from flask import (Blueprint, abort, jsonify, redirect, send_file, session)
+from flask import (Blueprint, abort, jsonify, redirect, send_file)
 
 import db as _db
 import growth_talk_store as store
-from app_utils import role_required
+from app_utils import _advisor_scope, role_required
 from growth_talk import report_contract
 from growth_talk.report_pdf import render_report_pdf, report_filename
 
@@ -29,8 +29,9 @@ def _student_or_404(student_id: int) -> dict | None:
     student = _db.get_student(student_id)
     if not student:
         return None
-    if session.get("role") == "advisor":
-        if (student.get("advisor_name") or "") != (session.get("advisor_name") or ""):
+    scope = _advisor_scope()
+    if scope is not None:
+        if (student.get("advisor_name") or "") != scope:
             return None
     return student
 

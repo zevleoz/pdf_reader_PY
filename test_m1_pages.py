@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 
 import pytest
-from flask import Flask
+from flask import Flask, session
 
 import app_utils
 import m1.store as store
@@ -71,8 +71,13 @@ def test_home_ok_for_admin_and_advisor_403_for_viewer(client, m1db):
 
 def test_nav_item_visible_to_admin_and_advisor_only():
     def hrefs(role):
-        return [link["href"] for group in app_utils.nav_for_role(role)
-                for link in group["links"]]
+        # the M1 link now reads the account policy, so it needs a logged-in request
+        nav_app = Flask(__name__)
+        nav_app.secret_key = "test"
+        with nav_app.test_request_context():
+            session.update(user_id=1, role=role)
+            return [link["href"] for group in app_utils.nav_for_role(role)
+                    for link in group["links"]]
 
     assert "/m1" in hrefs("admin")
     assert "/m1" in hrefs("advisor")
@@ -82,8 +87,8 @@ def test_nav_item_visible_to_admin_and_advisor_only():
 def test_home_shell_renders(client, m1db):
     login_as(client, m1db.alice_id, "advisor", "Alice")
     html = client.get("/m1").get_data(as_text=True)
-    assert "M1 会前准备" in html
-    assert "新建会前准备" in html
+    assert "<h1>M1</h1>" in html
+    assert "新建 M1" in html
     assert 'id="prepRows"' in html
     assert "/m1/assets/m1_home.js" in html
 
@@ -102,7 +107,7 @@ def test_workspace_renders_shell_for_fixture_doc(alice, m1db):
     prep = _seed_doc(m1db)
     html = alice.get(f"/m1/preps/{prep['id']}").get_data(as_text=True)
 
-    assert "林晓雨 · First Meeting 会前准备" in html
+    assert "林晓雨 · First Meeting" in html
     assert 'id="m1doc"' in html
     assert 'class="stepper"' in html
     assert 'data-status="review"' in html
@@ -192,7 +197,7 @@ def test_student_360_has_m1_button(s360_client, qdb):
 
     login(s360_client, qdb)
     html = s360_client.get("/students/Y4-9201").get_data(as_text=True)
-    assert "M1 会前准备" in html
+    assert ">M1</a>" in html
     assert '/m1?student=' in html
 
 

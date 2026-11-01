@@ -1,6 +1,18 @@
 {% extends "layouts/admin_v2.html" %}
-{% block title %}{{ prep.student_name }} · M1 会前准备{% endblock %}
-{% block page_title %}M1 会前准备{% endblock %}
+{% block title %}{{ prep.student_name }} · M1{% endblock %}
+{% block page_title %}M1{% endblock %}
+{% block body_attrs %}class="m1-platform"{% endblock %}
+{% block crumb_up %}凭远 APP·ARK{% endblock %}
+
+{% block brand %}
+<a class="side-brand" href="/m1">
+  <img src="/branding/logo_red.png" alt="凭远教育盾徽">
+  <span class="txt">
+    <div class="name">M1</div>
+    <div class="sub">凭远 APP·ARK</div>
+  </span>
+</a>
+{% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="/m1/assets/m1.css">
@@ -14,11 +26,21 @@
   <div class="m1-main" id="wsMain">
     <div class="page-h">
       <div style="min-width:0">
-        <div class="crumb"><a href="/m1">M1 会前准备</a> / {{ prep.student_name }}</div>
-        <h1>{{ prep.student_name }} · First Meeting 会前准备</h1>
+        <div class="crumb"><a href="/m1">M1</a> / {{ prep.student_name }}</div>
+        <h1>{{ prep.student_name }} · First Meeting</h1>
       </div>
       <span class="sp"></span>
       <span id="statusPill" class="pill warn"><span class="dot"></span>草稿</span>
+    </div>
+
+    <div class="m1-parts" role="tablist" aria-label="M1 部分">
+      {% for part in m1_parts %}
+      {% if part.enabled %}
+      <span class="part on" role="tab" aria-selected="true">{{ part.label }}</span>
+      {% else %}
+      <span class="part off" role="tab" aria-selected="false" aria-disabled="true" title="即将上线">{{ part.label }}</span>
+      {% endif %}
+      {% endfor %}
     </div>
 
     <div class="stepper" id="stepper" role="list">

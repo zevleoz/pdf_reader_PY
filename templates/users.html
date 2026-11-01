@@ -9,9 +9,13 @@
   .um-grid { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 16px; align-items: start; }
   .um-role-hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; line-height: 1.5; }
   .um-table-wrap { overflow-x: auto; }
-  .um-table-wrap table { min-width: 640px; }
+  .um-table-wrap table { min-width: 980px; }
   .um-role-select { min-width: 96px; height: 28px; padding: 0 8px; background: var(--surface);
     border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 12.5px; }
+  .um-perm-select { min-width: 104px; height: 28px; padding: 0 8px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 12.5px; }
+  .um-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); }
+  .um-check input { width: 15px; height: 15px; accent-color: var(--brand); }
   .um-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .um-msg { font-size: 13px; min-height: 18px; margin-top: 8px; color: var(--ink-2); }
   .um-msg.err { color: var(--danger); }
@@ -42,22 +46,40 @@
       <div class="field">
         <label for="nr">角色</label>
         <select class="select" id="nr" onchange="onRoleChange()">
-          <option value="viewer">查阅者（只读）</option>
+          <option value="viewer">只读</option>
           <option value="advisor">顾问</option>
           <option value="admin">管理员</option>
         </select>
       </div>
       <div class="field">
-        <label for="na">绑定顾问（顾问角色必填，用于数据隔离）</label>
+        <label for="na">绑定顾问（可见学生为名下学生时必填）</label>
         <input class="input" type="text" id="na" placeholder="顾问姓名" autocomplete="off" />
       </div>
       <div class="field">
         <label for="nd">显示名（可选）</label>
         <input class="input" type="text" id="nd" placeholder="显示名" autocomplete="off" />
       </div>
+      <div class="field">
+        <label for="nsc">可见学生</label>
+        <select class="select" id="nsc">
+          <option value="all">全部学生</option>
+          <option value="own">名下学生</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="ndl">可见内容</label>
+        <select class="select" id="ndl">
+          <option value="full">完整</option>
+          <option value="summary">概要</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>可用平台</label>
+        <label class="um-check" for="nm1"><input type="checkbox" id="nm1" /> <span>M1</span></label>
+      </div>
       <button class="btn btn-primary" style="width:100%" onclick="createUser()">添加</button>
       <div class="um-msg" id="createMsg"></div>
-      <p class="um-role-hint">角色说明：管理员拥有全部权限；顾问仅可见名下学生的档案与报告；查阅者全站只读，无任何写操作。</p>
+      <p class="um-role-hint">完整：可看家长联系方式、问卷答案和分数、解读会纪要，可导出。概要：只看学生档案、Y4、问卷完成状态和 6AM。</p>
     </div>
   </section>
 
@@ -75,7 +97,12 @@
 
 {% block scripts %}
   <script>
-    var ROLE_LABEL = { admin: '管理员', advisor: '顾问', viewer: '查阅者' };
+    var ROLE_LABEL = { admin: '管理员', advisor: '顾问', viewer: '只读' };
+    var ROLE_DEFAULTS = {
+      admin: { scope: 'all', detail: 'full', m1: true },
+      advisor: { scope: 'own', detail: 'full', m1: true },
+      viewer: { scope: 'all', detail: 'summary', m1: false }
+    };
     var me = null;
 
     function esc(s) {
@@ -86,6 +113,18 @@
 
     function onRoleChange() {
       var role = document.getElementById('nr').value;
+      var d = ROLE_DEFAULTS[role] || ROLE_DEFAULTS.viewer;
+      var nsc = document.getElementById('nsc');
+      var ndl = document.getElementById('ndl');
+      var nm1 = document.getElementById('nm1');
+      nsc.value = d.scope;
+      ndl.value = d.detail;
+      nm1.checked = d.m1;
+      // 管理员固定为 全部学生 / 完整 / M1；只读的 M1 始终关闭
+      var isAdmin = (role === 'admin');
+      nsc.disabled = isAdmin;
+      ndl.disabled = isAdmin;
+      nm1.disabled = isAdmin || role === 'viewer';
       document.getElementById('na').disabled = (role !== 'advisor');
     }
 
@@ -116,13 +155,28 @@
         el.innerHTML = '<div class="empty"><div class="ic">' + iconSvg('users') + '</div><div class="t">暂无用户</div></div>';
         return;
       }
-      var html = '<div class="um-table-wrap"><table class="table"><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>绑定顾问</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+      var html = '<div class="um-table-wrap"><table class="table"><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>绑定顾问</th><th>可见学生</th><th>可见内容</th><th>M1</th><th>状态</th><th>操作</th></tr></thead><tbody>';
       users.forEach(function (u) {
         var isSelf = me && u.id === me.user_id;
+        var locked = u.role === 'admin';
         var roleSel = '<select class="um-role-select" onchange="changeRole(' + u.id + ', this.value)">' +
           ['admin', 'advisor', 'viewer'].map(function (r) {
             return '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>';
           }).join('') + '</select>';
+        var scopeSel = '<select class="um-perm-select"' +
+          (locked ? ' disabled' : ' onchange="changeScope(' + u.id + ', this.value)"') + '>' +
+          [['all', '全部学生'], ['own', '名下学生']].map(function (o) {
+            return '<option value="' + o[0] + '"' + (u.student_scope === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+          }).join('') + '</select>';
+        var detailSel = '<select class="um-perm-select"' +
+          (locked ? ' disabled' : ' onchange="changeDetail(' + u.id + ', this.value)"') + '>' +
+          [['full', '完整'], ['summary', '概要']].map(function (o) {
+            return '<option value="' + o[0] + '"' + (u.detail_level === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+          }).join('') + '</select>';
+        var m1Box = '<label class="um-check"><input type="checkbox"' +
+          (u.m1_access === 1 ? ' checked' : '') +
+          (locked || u.role === 'viewer' ? ' disabled' :
+            ' onchange="changeM1(' + u.id + ', this.checked)"') + ' /> <span>M1</span></label>';
         var stateBadge = u.is_active
           ? '<span class="badge badge-ok"><span class="dot"></span>启用</span>'
           : '<span class="badge badge-neutral"><span class="dot"></span>停用</span>';
@@ -140,6 +194,9 @@
           '<td>' + esc(u.display_name || '-') + '</td>' +
           '<td>' + roleSel + '</td>' +
           '<td>' + esc(u.advisor_name || '-') + '</td>' +
+          '<td>' + scopeSel + '</td>' +
+          '<td>' + detailSel + '</td>' +
+          '<td>' + m1Box + '</td>' +
           '<td>' + stateBadge + '</td>' +
           '<td>' + actions + '</td>' +
           '</tr>';
@@ -184,15 +241,24 @@
       var role = document.getElementById('nr').value;
       var advisor_name = document.getElementById('na').value.trim();
       var display_name = document.getElementById('nd').value.trim();
+      var student_scope = document.getElementById('nsc').value;
+      var detail_level = document.getElementById('ndl').value;
+      var m1_access = document.getElementById('nm1').checked ? 1 : 0;
       setMsg('createMsg', '');
       if (!username) { setMsg('createMsg', '请输入账号', true); return; }
       if (!password) { setMsg('createMsg', '请输入初始密码', true); return; }
-      if (role === 'advisor' && !advisor_name) { setMsg('createMsg', '顾问角色需填写绑定顾问', true); return; }
+      if (student_scope === 'own' && !advisor_name) {
+        setMsg('createMsg', '名下学生范围需要绑定顾问姓名', true); return;
+      }
       try {
         var r = await fetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: username, password: password, role: role, advisor_name: advisor_name, display_name: display_name }),
+          body: JSON.stringify({
+            username: username, password: password, role: role, advisor_name: advisor_name,
+            display_name: display_name, student_scope: student_scope,
+            detail_level: detail_level, m1_access: m1_access,
+          }),
         });
         var d = await r.json();
         if (!d.ok) { setMsg('createMsg', d.error || '创建失败', true); return; }
@@ -201,6 +267,7 @@
         document.getElementById('np').value = '';
         document.getElementById('na').value = '';
         document.getElementById('nd').value = '';
+        onRoleChange();
         await loadUsers();
       } catch (e) {
         setMsg('createMsg', '网络错误', true);
@@ -211,6 +278,24 @@
       var payload = { role: role };
       if (role !== 'advisor') payload.advisor_name = '';
       putUser(id, payload, '角色已更新');
+    }
+
+    // 可见范围：改权限后提示生效时间；失败时提示服务端消息并回到原值
+    var PERM_OK = '权限已更新，最多 1 分钟内生效';
+
+    async function changeScope(id, value) {
+      var ok = await putUser(id, { student_scope: value }, PERM_OK);
+      if (!ok) await loadUsers();
+    }
+
+    async function changeDetail(id, value) {
+      var ok = await putUser(id, { detail_level: value }, PERM_OK);
+      if (!ok) await loadUsers();
+    }
+
+    async function changeM1(id, checked) {
+      var ok = await putUser(id, { m1_access: checked ? 1 : 0 }, PERM_OK);
+      if (!ok) await loadUsers();
     }
 
     function toggleActive(id, active) {

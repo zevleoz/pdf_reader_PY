@@ -266,8 +266,8 @@
         </div>
         <div style="flex:1"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">
-          {% if current_role in ('admin', 'advisor') %}
-          <a class="btn btn-sec" href="/m1?student={{ profile.id }}">M1 会前准备</a>
+          {% if policy.m1_access %}
+          <a class="btn btn-sec" href="/m1?student={{ profile.id }}">M1</a>
           {% endif %}
           {% if is_admin %}
           <a class="btn btn-sec" href="/first-touch/archive/{{ profile.id }}">First Touch 归档</a>
@@ -336,6 +336,7 @@
                    @blur="saveMeta()" />
           </template>
         </div>
+        {% if policy.detail_level == 'full' %}
         <div class="meta-chip">
           <span class="k">邮箱：</span>
           <span class="v{{ ' is-empty' if not profile.email else '' }}">{{ profile.email or '未填写' }}</span>
@@ -344,6 +345,7 @@
           <span class="k">电话：</span>
           <span class="v mono{{ ' is-empty' if not profile.phone else '' }}">{{ profile.phone or '未填写' }}</span>
         </div>
+        {% endif %}
       </div>
 
       <!-- 阶段 stepper + 下一步建议 -->
@@ -513,6 +515,9 @@
         <div class="t">暂无问卷任务</div>
         <div class="d">报告命中识别规则或人工创建后，任务会出现在这里。</div>
       </div>
+      <div class="page-sub" x-show="questionnaires && questionnaires.restricted" style="margin-top:0">
+        当前账号只显示完成状态。
+      </div>
       <template x-for="a in (questionnaires && questionnaires.assignments) || []" :key="a.id">
         <section class="surface">
           <div class="surface-head">
@@ -530,12 +535,12 @@
             <div class="page-sub" x-show="a.submitted_at" style="margin-top:4px">
               提交时间：<span class="mono" x-text="fmtDate(a.submitted_at)"></span>
             </div>
-            <template x-if="a.scores">
+            <template x-if="!questionnaires.restricted && a.scores">
               <div style="margin:10px -16px 0; border-top:1px solid var(--line-soft)">
                 {{ score_table('a.scores') }}
               </div>
             </template>
-            <template x-if="a.answers">
+            <template x-if="!questionnaires.restricted && a.answers">
               <div style="margin-top:10px">
                 <button type="button" class="btn btn-sm btn-sec" @click="toggle('ans', a.id)"
                         x-text="showAnswers[a.id] ? '收起原始答案' : '展开原始答案'"></button>
@@ -585,7 +590,11 @@
   <div x-show="tab === 'minutes'" x-cloak class="tab-pane">
     <div x-show="loading.minutes" class="loading-note">加载中…</div>
     <div x-show="!loading.minutes">
-      <div class="empty" x-show="!minutes.length">
+      <div class="empty" x-show="minutesRestricted">
+        <div class="ic">{{ icon('mic', 16) }}</div>
+        <div class="t">当前账号不显示纪要内容。</div>
+      </div>
+      <div class="empty" x-show="!minutesRestricted && !minutes.length">
         <div class="ic">{{ icon('mic', 16) }}</div>
         <div class="t">暂无解读会纪要</div>
       </div>
@@ -805,6 +814,7 @@ function pageStudent360(ctx) {
     openFlags: ctx.openFlags || [],
     loaded: {}, loading: {}, profile: null,
     reports: [], questionnaires: null, bookings: [], minutes: [], sixam: [],
+    minutesRestricted: false,
     showAnswers: {}, openMinutes: {}, openSixam: {}, v1Href: {},
     regenBusy: false, busy: false,
     meta: ctx.meta || {}, metaEdit: '', metaDraft: '', metaSaving: false,
@@ -844,8 +854,12 @@ function pageStudent360(ctx) {
         else if (t === 'reports') { this.reports = (await this.get('reports')).reports || []; }
         else if (t === 'questionnaires') { this.questionnaires = await this.get('questionnaires'); }
         else if (t === 'bookings') { this.bookings = (await this.get('bookings')).bookings || []; }
-        else if (t === 'minutes') { this.minutes = (await this.get('minutes')).minutes || []; }
-        else if (t === 'sixam') { this.sixam = (await this.get('sixam')).profiles || []; }
+        else if (t === 'minutes') {
+          var md = await this.get('minutes');
+          this.minutes = md.minutes || [];
+          this.minutesRestricted = !!md.restricted;
+        }
+        else if (t === 'sixam') { this.sixam = (await this.get('six-am')).profiles || []; }
         this.loaded[t] = true;
       } catch (e) {
         y4Toast(e.message, 'error');

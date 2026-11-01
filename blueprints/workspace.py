@@ -18,7 +18,7 @@ from datetime import datetime
 
 from flask import Blueprint, render_template, session
 
-from app_utils import DATA_DIR, JOB_FILE, role_required
+from app_utils import DATA_DIR, JOB_FILE, _advisor_scope, role_required
 from pipeline import STAGES, compute_stages
 
 bp = Blueprint("workspace", __name__)
@@ -46,9 +46,7 @@ def workspace_page():
 
 def _advisor():
     """advisor 角色返回其 advisor_name 用于归属过滤；其他角色返回 None。"""
-    if session.get("role") == "advisor":
-        return session.get("advisor_name") or ""
-    return None
+    return _advisor_scope()
 
 
 def _parse_iso(value):

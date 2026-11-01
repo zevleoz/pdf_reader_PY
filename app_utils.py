@@ -13,7 +13,7 @@ from functools import wraps
 from pathlib import Path
 from typing import List, Optional
 
-from flask import request, session, redirect, jsonify, abort
+from flask import has_request_context, request, session, redirect, jsonify, abort
 
 from sqlalchemy import select
 
@@ -123,18 +123,53 @@ def dt_short(value) -> str:
 # ---------------------------------------------------------------------------
 def current_user() -> dict:
     """当前登录用户信息（来自 session）。未登录时各字段为 None/空串。"""
+    policy = account_policy()
     return {
         "user_id": session.get("user_id"),
         "role": session.get("role") or "",
         "advisor_name": session.get("advisor_name") or "",
         "display_name": session.get("display_name") or "",
+        **{k: policy[k] for k in ("student_scope", "detail_level", "m1_access")},
     }
 
 
-# session 用户有效性缓存：user_id -> (过期时间戳, 是否有效)。短 TTL 避免每请求都查库，
-# 同时在用户被停用/物理删除后于 TTL 内使既有 session 失效。
+def account_policy() -> dict:
+    """当前账号的可见范围（生效值）。旧 session / 缺字段时回落角色默认值。"""
+    role = session.get("role") or ""
+    return {
+        "role": role,
+        "advisor_name": session.get("advisor_name") or "",
+        **_db.effective_account_settings(role, session.get("student_scope"),
+                                         session.get("detail_level"),
+                                         session.get("m1_access")),
+    }
+
+
+def can_see_full() -> bool:
+    """可见内容是否为「完整」；概要账号看不到联系方式、问卷答案与分数、纪要等。"""
+    return account_policy()["detail_level"] == "full"
+
+
+def can_use_m1() -> bool:
+    """已登录、角色为 admin/advisor 且 M1 权限打开。"""
+    policy = account_policy()
+    return (bool(session.get("user_id")) and policy["role"] in ("admin", "advisor")
+            and policy["m1_access"] == 1)
+
+
+# session 用户快照缓存：user_id -> (过期时间戳, 快照或 None)。短 TTL 避免每请求都查库，
+# 同时在用户被停用/物理删除/改权限后于 TTL 内作用到既有 session。
 _SESSION_USER_TTL = 60
 _SESSION_USER_CACHE: dict = {}
+_SESSION_SYNC_FIELDS = ("role", "advisor_name", "student_scope", "detail_level", "m1_access")
+
+
+def invalidate_session_user(user_id) -> None:
+    """丢弃该用户的快照缓存（改账号/删账号后调用）。其他 worker 在 TTL 内跟上。"""
+    try:
+        _SESSION_USER_CACHE.pop(int(user_id), None)
+    except (TypeError, ValueError):
+        pass
 
 
 def _session_user_valid() -> bool:
@@ -142,6 +177,7 @@ def _session_user_valid() -> bool:
 
     未登录返回 False。用户被物理删除或停用后，其既有 session 最迟在缓存 TTL 内失效；
     另行配合 ``PERMANENT_SESSION_LIFETIME`` 限制会话总寿命（见 app.create_app）。
+    有效时把快照中的角色与可见范围写回 session，改权限无需重新登录。
     """
     uid = session.get("user_id")
     if not uid:
@@ -153,11 +189,19 @@ def _session_user_valid() -> bool:
     now = time.time()
     cached = _SESSION_USER_CACHE.get(uid)
     if cached and cached[0] > now:
-        return cached[1]
-    user = _db.get_user_by_id(uid)
-    ok = bool(user and user.get("is_active"))
-    _SESSION_USER_CACHE[uid] = (now + _SESSION_USER_TTL, ok)
-    return ok
+        snapshot = cached[1]
+    else:
+        user = _db.get_user_by_id(uid)
+        snapshot = None
+        if user and user.get("is_active"):
+            snapshot = {k: user.get(k) for k in _SESSION_SYNC_FIELDS}
+        _SESSION_USER_CACHE[uid] = (now + _SESSION_USER_TTL, snapshot)
+    if snapshot is None:
+        return False
+    for key, value in snapshot.items():
+        if session.get(key) != value:
+            session[key] = value
+    return True
 
 
 def is_authenticated() -> bool:
@@ -230,22 +274,24 @@ def page_login_required(f):
 
 
 def visible_student_filter(stmt):
-    """Advisor 数据隔离：role=advisor 时自动附加 students.advisor_name 过滤。
+    """数据隔离：student_scope=own 时自动附加 students.advisor_name 过滤。
 
-    传入的 ``stmt`` 必须是针对 ``db.Student`` 的 select；非 advisor 角色原样返回。
+    传入的 ``stmt`` 必须是针对 ``db.Student`` 的 select；可见全部学生时原样返回。
     """
-    if session.get("role") != "advisor":
+    scope = _advisor_scope()
+    if scope is None:
         return stmt
-    return stmt.where(_db.Student.advisor_name == (session.get("advisor_name") or ""))
+    return stmt.where(_db.Student.advisor_name == scope)
 
 
 # ---------------------------------------------------------------------------
 # Advisor 数据隔离（2.0）：凡可定位到个体学生/报告的查询与操作，advisor 仅限名下
 # ---------------------------------------------------------------------------
 def _advisor_scope() -> Optional[str]:
-    """advisor 角色返回其 advisor_name；其他角色返回 None（表示不隔离）。"""
-    if session.get('role') == 'advisor':
-        return session.get('advisor_name') or ''
+    """student_scope=own 的账号返回其 advisor_name；其他返回 None（表示不隔离）。"""
+    policy = account_policy()
+    if policy['student_scope'] == 'own':
+        return policy['advisor_name']
     return None
 
 
@@ -340,10 +386,6 @@ ADMIN_NAV = [
         {"key": "first_touch.guide", "label": "使用指南", "href": "/first-touch/guide",
          "icon": "book"},
     ]},
-    {"key": "m1", "title": "M1 会前准备", "links": [
-        {"key": "m1", "label": "M1 会前准备", "href": "/m1", "icon": "target",
-         "roles": ("admin", "advisor")},
-    ]},
     {"key": "generate", "title": "报告生成", "links": [
         {"key": "generate", "label": "报告生成", "href": "/generate", "icon": "file",
          "roles": ("admin", "advisor")},
@@ -373,7 +415,20 @@ ADMIN_NAV = [
         {"key": "system.docs", "label": "API 文档", "href": "/api/docs", "icon": "book",
          "roles": ("admin",), "blank": True},
     ]},
+    # 链接按账号与环境变量动态生成，见 _other_platform_links
+    {"key": "other", "title": "其他平台", "links": []},
 ]
+
+
+def _other_platform_links() -> List[dict]:
+    """其他平台：M1 需账号有权限（无请求上下文时不显示），E4 需配置 E4_URL。"""
+    links = []
+    if has_request_context() and can_use_m1():
+        links.append({"key": "m1", "label": "M1", "href": "/m1", "icon": "target"})
+    e4_url = os.environ.get("E4_URL", "").strip()
+    if e4_url:
+        links.append({"key": "e4", "label": "E4", "href": e4_url, "icon": "file", "blank": True})
+    return links
 
 
 def nav_for_role(role: str) -> List[dict]:
@@ -383,7 +438,8 @@ def nav_for_role(role: str) -> List[dict]:
     """
     groups = []
     for group in ADMIN_NAV:
-        links = [dict(it) for it in group["links"]
+        source = _other_platform_links() if group["key"] == "other" else group["links"]
+        links = [dict(it) for it in source
                  if not it.get("roles") or role in it["roles"]]
         if not links:
             continue
@@ -397,7 +453,7 @@ def register_admin_context(app) -> None:
     """注册管理端模板上下文（在 create_app 内调用一次，所有蓝图共享）。
 
     注入 ``current_role`` / ``current_role_label`` / ``current_display_name`` /
-    ``nav_groups``；页面模板另需传入 ``nav_active``（缺省空串）。
+    ``nav_groups`` / ``policy``；页面模板另需传入 ``nav_active``（缺省空串）。
     """
     @app.context_processor
     def _inject_admin_context():
@@ -407,4 +463,5 @@ def register_admin_context(app) -> None:
             "current_role_label": ROLE_LABELS.get(role, role),
             "current_display_name": session.get("display_name") or "",
             "nav_groups": nav_for_role(role),
+            "policy": account_policy(),
         }

@@ -9,12 +9,14 @@ P3 的 ``generate`` / ``jobs`` 两个路由由 P3 追加在本文件末尾的标
 """
 from __future__ import annotations
 
+import os
 from functools import wraps
 
 from flask import (Blueprint, abort, jsonify, render_template, request,
                    send_from_directory, session)
 from jinja2 import TemplateNotFound
 
+import app_utils
 import db as _db
 import m1.sources as sources
 import m1.store as store
@@ -24,6 +26,12 @@ bp = Blueprint("m1", __name__)
 
 _WRITE_ROLES = ("admin", "advisor")
 
+# 会前准备是 M1 的第一部分；会后报告由 Stage 2 打开。
+M1_PARTS = [
+    {"key": "prep", "label": "会前准备", "enabled": True},
+    {"key": "report", "label": "会后报告", "enabled": False},
+]
+
 
 @bp.route("/m1/assets/<path:filename>")
 def m1_asset(filename: str):
@@ -32,15 +40,41 @@ def m1_asset(filename: str):
 
 
 # ---------------------------------------------------------------------------
+# 平台权限：未登录交由既有装饰器响应，已登录按账号的 M1 权限拦截
+# ---------------------------------------------------------------------------
+@bp.before_request
+def _m1_access_guard():
+    if request.endpoint == "m1.m1_asset":
+        return None
+    if not session.get("user_id"):
+        return None
+    if app_utils.can_use_m1():
+        return None
+    if request.path.startswith("/api/m1/"):
+        return jsonify({"ok": False, "error": "当前账号没有 M1 权限"}), 403
+    abort(403)
+
+
+# ---------------------------------------------------------------------------
 # 通用助手
 # ---------------------------------------------------------------------------
 def _user() -> dict:
-    return {
-        "user_id": session.get("user_id"),
-        "role": session.get("role") or "",
-        "advisor_name": session.get("advisor_name") or "",
-        "display_name": session.get("display_name") or "",
-    }
+    return app_utils.current_user()
+
+
+def _m1_nav() -> list:
+    """M1 自己的导航：只有 M1 与其他平台，不出现 Profiling 的分组。"""
+    other = [{"key": "profiling", "label": "学生 Profiling", "href": "/workspace",
+              "icon": "users"}]
+    e4_url = os.environ.get("E4_URL", "").strip()
+    if e4_url:
+        other.append({"key": "e4", "label": "E4", "href": e4_url, "icon": "file",
+                      "blank": True})
+    return [
+        {"key": "m1", "title": "M1",
+         "links": [{"key": "m1", "label": "M1", "href": "/m1", "icon": "target"}]},
+        {"key": "other", "title": "其他平台", "links": other},
+    ]
 
 
 def _err(message: str, status: int = 400, **extra):
@@ -83,11 +117,11 @@ def _render_page(template: str, **ctx):
     """P4 模板尚未落地时返回最小占位页。"""
     _page_guard()
     try:
-        return render_template(template, nav_active="m1", **ctx)
+        return render_template(template, nav_active="m1", nav_groups=_m1_nav(), **ctx)
     except TemplateNotFound:
         return ("<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
-                "<title>M1 会前准备</title></head><body>"
-                "<h1>M1 会前准备</h1><p>页面模板尚未就绪。</p></body></html>"), 200
+                "<title>M1</title></head><body>"
+                "<h1>M1</h1><p>页面模板尚未就绪。</p></body></html>"), 200
 
 
 def _kb_payload():
@@ -206,7 +240,7 @@ def page_home():
 def page_workspace(prep_id: int):
     prep = _prep_or_404(prep_id)
     return _render_page("m1/workspace.html", prep=prep, prep_id=prep["id"],
-                        ctx={"prep": prep})
+                        m1_parts=M1_PARTS, ctx={"prep": prep})
 
 
 @bp.route("/m1/preps/<int:prep_id>/print")

@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 import db as _db
 import growth_talk_store as store
-from app_utils import role_required
+from app_utils import _advisor_scope, role_required
 from growth_talk import (analysis, copilot, copilot_report, jobs, report_contract,
                          y4_snapshot)
 from growth_talk.errors import ActionError
@@ -110,8 +110,9 @@ def _student_or_404(student_id: int) -> dict | None:
     student = _db.get_student(student_id)
     if not student:
         return None
-    if session.get("role") == "advisor":
-        if (student.get("advisor_name") or "") != (session.get("advisor_name") or ""):
+    scope = _advisor_scope()
+    if scope is not None:
+        if (student.get("advisor_name") or "") != scope:
             return None
     return student
 
@@ -778,9 +779,9 @@ def api_report_pdf(session_id: int):
 def _visible_students() -> list[dict]:
     """当前角色可见的学生（admin 全量 / advisor 限名下）。"""
     stmt = select(_db.Student).order_by(_db.Student.created_at.desc())
-    if session.get("role") == "advisor":
-        stmt = stmt.where(
-            _db.Student.advisor_name == (session.get("advisor_name") or ""))
+    scope = _advisor_scope()
+    if scope is not None:
+        stmt = stmt.where(_db.Student.advisor_name == scope)
     with Session(_db.engine) as sess:
         rows = sess.execute(stmt).scalars().all()
     return [{

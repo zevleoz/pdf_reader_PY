@@ -245,7 +245,8 @@ class Inputs(_ApiCase):
     def test_viewer_and_foreign_advisor_forbidden(self):
         _login(self.client, "viewer")
         self.assertEqual(self._post({"talks": {"A1": {"result": "confirm"}}}).status_code, 403)
-        _login(self.client, "advisor", "顾问乙")
+        # session 现在跟随数据库，所以要用真正的顾问乙账号
+        _login(self.client, "advisor2", "顾问乙")
         self.assertEqual(self._post({"talks": {"A1": {"result": "confirm"}}}).status_code, 403)
 
 
