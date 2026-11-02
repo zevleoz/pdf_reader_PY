@@ -408,11 +408,11 @@ def test_meeting_items_verified_deduped_and_cleaned(rdb, fake):
     body = items[Q_BODY]
     assert body["quote_verified"] is True and body["location"] == "逐字稿第 2 段（00:00:30）"
     assert body["status"] == "已确认" and body["ability_codes"] == ["R1.1", "R1.3"]
-    # 带段号标记的重复项并入同一条；同一段话两个发言人 → 待确认
+    # 带段号标记的重复项并入同一条；发言人由引文所在的段落决定（P1）
     hide = items[Q_HIDE]
     assert hide["ability_codes"] == ["R2.1", "R2.4"] and hide["location"].startswith("逐字稿第 4 段")
     assert "孙悟空" not in json.dumps(version["evidence"], ensure_ascii=False)
-    assert hide["speaker"] == "待确认" and hide["status"] == "待核实"
+    assert hide["speaker"] == "学生" and hide["status"] == "已确认"
     assert len(version["evidence"]) == 6   # 无效编号的两条被丢掉
     # §11 规则 1：引文所在段落是导师的话，整条丢弃
     assert Q_MENTOR not in items
@@ -437,12 +437,12 @@ def test_only_m1_items_start_confirmed(monkeypatch):
     assert ft[0]["quote_verified"] is True and ft[0]["status"] == "待核实"
 
 
-def test_unknown_speaker_becomes_pending(rdb, fake):
+def test_ai_speaker_replaced_by_turn_role(rdb, fake):
     fake.meeting_items = [_item(Q_HELP, "孙悟空", "不存在的类型", ["R3.5"])]
     _r, version = generate(rdb)
     item = version["evidence"][0]
-    assert item["speaker"] == "待确认" and item["type"] == "其他观察"
-    assert item["status"] == "待核实"
+    assert item["speaker"] == "学生" and item["type"] == "其他观察"
+    assert item["status"] == "已确认"
 
 
 # ---------------------------------------------------------------------------
@@ -1177,4 +1177,4 @@ def test_report_tables_exist_on_fresh_boot(tmp_path):
     out = subprocess.run([sys.executable, "-c", code], cwd=BASE_DIR, env=env,
                          capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stderr[-2000:]
-    assert "['m1_report_versions', 'm1_reports']" in out.stdout
+    assert "['m1_report_speakers', 'm1_report_versions', 'm1_reports']" in out.stdout

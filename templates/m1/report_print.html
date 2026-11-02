@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ fixed.cover.title_parts|join('') }} · {{ doc.meta.student_name }}</title>
+<title>{{ doc.meta.student_name }}_首次情绪力分析报告_{{ doc.meta.report_date }}</title>
 <link rel="stylesheet" href="/m1/assets/report_print.css">
 <style>
   /* 页眉页脚内容随学生与固定文案变化，故写在页面内；版式在 report_print.css。 */
@@ -497,6 +497,11 @@
     if (window.history.length > 1) window.close();
     else window.history.back();
   });
+  if (new URLSearchParams(window.location.search).get('print') === '1') {
+    var go = function () { setTimeout(function () { window.print(); }, 300); };
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(go);
+    else window.addEventListener('load', go);
+  }
 </script>
 </body>
 </html>

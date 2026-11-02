@@ -278,7 +278,7 @@ def test_profile_prompt_plan_rules():
                  "不能只凭 Y4 或资料不足得出。没有这类能力时，如实写明目前没有确认的发展需求。",
                  "阶段目标必须针对学生尚未做到的行为；逐字稿已显示学生能做到的，不要作为目标。",
                  "综合画像不能与各能力的分析矛盾。",
-                 "每格尽量不超过 80 字。"):
+                 "goal、mentor、family、evidence 每格一句，不超过 40 字；review_advice 不超过 60 字。"):
         assert line in report_prompts.PROFILE_PROMPT
 
 
@@ -506,7 +506,7 @@ def test_dim_prompt_writing_lines():
     for line in ("按事情本身的样子写，先写发生了什么。",
                  "有会议证据的能力，meeting 必须据此写，不能留空。",
                  "不要照抄逐字稿，不要用第一人称，不要用分号把几件事串起来，"
-                 "不要把不同事件混在一起。每项能力写一小段完整的话。",
+                 "不要把不同事件混在一起。每项能力写一两句完整的话。",
                  "Y4 的信任、沟通、亲近分数反映学生对关系的感受，不是次数或频率，"
                  "也不是学生自己说的。"):
         assert line in report_prompts.DIM_PROMPT

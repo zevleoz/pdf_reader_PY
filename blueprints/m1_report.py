@@ -18,6 +18,7 @@ import m1.report_store as rstore
 import m1.report_y4 as report_y4
 import m1.sources as sources
 import m1.store as store
+from m1 import speakers
 from app_utils import page_login_required, role_required
 from blueprints.m1 import (_WRITE_ROLES, _api_prep, _err, _json_body, _m1_access_guard,
                            _prep_or_404, _render_page, _user)
@@ -51,10 +52,17 @@ def _state(prep: dict):
     return report, version
 
 
+def _for_checks(report):
+    """质量检查用带发言人角色的逐字稿（有当前识别结果时）。"""
+    if not report or "transcript_text" not in report:
+        return report
+    return dict(report, transcript_text=speakers.analysis_text(report))
+
+
 def _live_checks(report, version):
     if not report or not version:
         return []
-    return checks_mod.run_checks(report, version)
+    return checks_mod.run_checks(_for_checks(report), version)
 
 
 def _public_report(report: dict) -> dict:
@@ -185,6 +193,60 @@ def api_report(prep_id: int):
     if error:
         return error
     return jsonify(_payload(prep))
+
+
+@bp.route("/api/m1/preps/<int:prep_id>/report/speakers")
+@role_required(*_WRITE_ROLES)
+def api_report_speakers(prep_id: int):
+    prep, error = _api_prep(prep_id)
+    if error:
+        return error
+    report = rstore.get_report(prep_id)
+    if not report:
+        return jsonify({"ok": True, "speakers": speakers.summary(None, {})})
+    row = rstore.get_speakers(report["id"])
+    return jsonify({"ok": True, "speakers": speakers.summary(row, report)})
+
+
+@bp.route("/api/m1/preps/<int:prep_id>/report/speakers", methods=["PUT"])
+@role_required(*_WRITE_ROLES)
+def api_report_speakers_save(prep_id: int):
+    prep, error = _api_prep(prep_id)
+    if error:
+        return error
+    report = rstore.get_report(prep_id)
+    row = rstore.get_speakers(report["id"]) if report else None
+    if not report or not speakers.is_current(row, report):
+        return _err("还没有可修改的发言人识别结果，请先生成报告", 409)
+    if report["status"] == "generating":
+        return _err("报告正在生成，请稍后再改发言人", 409)
+    if report["status"] == "published":
+        return _err("报告已正式发布，请先重新打开", 409)
+    body = _json_body()
+    labels = body.get("labels") or {}
+    by_turn_raw = body.get("turns") or {}
+    if not isinstance(labels, dict) or not isinstance(by_turn_raw, dict):
+        return _err("格式不正确")
+    known = {t["label"] for t in row["turns"]}
+    by_turn = {}
+    for key, role in by_turn_raw.items():
+        if not str(key).isdigit() or role not in speakers.ROLES:
+            return _err("发言人只能是：%s" % " / ".join(speakers.ROLES))
+        by_turn[int(key)] = role
+    for label, role in labels.items():
+        if label not in known or role not in speakers.ROLES:
+            return _err("发言人只能是：%s" % " / ".join(speakers.ROLES))
+    turns = row["turns"]
+    speakers.apply_edits(turns, labels, by_turn)
+    new_labels = dict(row["labels"], **labels)
+    rstore.save_speakers(report["id"], turns=turns, labels=new_labels,
+                         updated_by=_user().get("user_id"))
+    store.audit(_user().get("user_id"), prep["student_id"], "m1.report_speakers",
+                {"prep_id": prep_id, "labels": len(labels), "turns": len(by_turn)})
+    out = {"ok": True, "speakers": speakers.summary(rstore.get_speakers(report["id"]), report)}
+    if report.get("current_version_id"):
+        out["notice"] = "发言人已修改，重新生成报告后生效"
+    return jsonify(out)
 
 
 @bp.route("/api/m1/report-statuses")
@@ -413,7 +475,7 @@ def api_report_doc(prep_id: int):
     except ChangeError as exc:
         return _err(str(exc), 400)
     candidate = dict(version, doc=new_doc)
-    checks = checks_mod.run_checks(report, candidate)
+    checks = checks_mod.run_checks(_for_checks(report), candidate)
     try:
         saved = rstore.save_version(report["id"], rev, doc=new_doc, checks=checks)
     except rstore.RevConflict as exc:
@@ -456,7 +518,7 @@ def api_report_evidence(prep_id: int, eid: str):
         target["status"] = status
     if speaker is not None:
         target["speaker"] = speaker
-    checks = checks_mod.run_checks(report, dict(version, evidence=evidence))
+    checks = checks_mod.run_checks(_for_checks(report), dict(version, evidence=evidence))
     try:
         saved = rstore.save_version(report["id"], rev, evidence=evidence, checks=checks)
     except rstore.RevConflict as exc:
@@ -501,7 +563,7 @@ def api_report_confirm_flag(prep_id: int):
     if path not in acked:
         acked.append(list(path))
     doc["guard_ack"] = acked
-    checks = checks_mod.run_checks(report, dict(version, doc=doc))
+    checks = checks_mod.run_checks(_for_checks(report), dict(version, doc=doc))
     try:
         saved = rstore.save_version(report["id"], rev, doc=doc, checks=checks)
     except rstore.RevConflict as exc:
@@ -538,7 +600,7 @@ def api_report_approve(prep_id: int):
     report, version, error = _need_report(prep)
     if error:
         return error
-    checks = checks_mod.run_checks(report, version)
+    checks = checks_mod.run_checks(_for_checks(report), version)
     blocks = checks_mod.blocking(checks)
     if blocks:
         return _err("还有 %d 项阻断问题，不能审核通过" % len(blocks), 400,

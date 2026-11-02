@@ -59,7 +59,11 @@
     polling: null,
     saveQueue: Promise.resolve(),
     panelEls: {},
-    tab: 'R1'
+    tab: 'R1',
+    step: null,
+    stepped: false,
+    savedTranscript: '',
+    transcriptSaving: null
   };
 
   var refs = {
@@ -67,7 +71,6 @@
     statusPill: document.getElementById('r4StatusPill'),
     statusLabel: document.getElementById('r4StatusLabel'),
     print: document.getElementById('r4Print'),
-    download: document.getElementById('r4Download'),
     evidence: document.getElementById('r4Evidence'),
     approve: document.getElementById('r4Approve'),
     publish: document.getElementById('r4Publish'),
@@ -79,9 +82,7 @@
     ftNote: document.getElementById('r4FtNote'),
     transcriptMeta: document.getElementById('r4TranscriptMeta'),
     transcriptFile: document.getElementById('r4TranscriptFile'),
-    transcriptUpload: document.getElementById('r4TranscriptUpload'),
     transcriptText: document.getElementById('r4TranscriptText'),
-    transcriptSave: document.getElementById('r4TranscriptSave'),
     others: document.getElementById('r4Others'),
     cover: document.getElementById('r4Cover'),
     metaStudent: document.getElementById('r4MetaStudent'),
@@ -92,6 +93,9 @@
     safetyItems: document.getElementById('r4SafetyItems'),
     safetyAck: document.getElementById('r4SafetyAck'),
     checks: document.getElementById('r4Checks'),
+    checksMoreWrap: document.getElementById('r4ChecksMoreWrap'),
+    checksMoreLabel: document.getElementById('r4ChecksMoreLabel'),
+    checksMore: document.getElementById('r4ChecksMore'),
     tabs: document.getElementById('r4Tabs'),
     panels: document.getElementById('r4Panels')
   };
@@ -340,16 +344,33 @@
     Object.keys(state.panelEls).forEach(function (name) {
       state.panelEls[name].hidden = name !== key;
     });
+    var current = hashParts().step || state.step;
     try {
-      history.replaceState(null, '', '#' + key);
+      history.replaceState(null, '', current ? stepHash(current, key) : '#tab=' + key);
     } catch (error) {
       /* 本地文件或受限环境忽略。 */
     }
   }
 
-  function hashTab() {
+  function hashParts() {
     var hash = (window.location.hash || '').replace('#', '');
-    return hash || 'R1';
+    if (hash.indexOf('=') < 0) return { tab: hash };
+    var parts = {};
+    hash.split('&').forEach(function (pair) {
+      var at = pair.indexOf('=');
+      if (at > 0) parts[pair.slice(0, at)] = pair.slice(at + 1);
+    });
+    return parts;
+  }
+
+  function stepHash(step, tab) {
+    var hash = '#step=' + step;
+    if (tab) hash += '&tab=' + tab;
+    return hash;
+  }
+
+  function hashTab() {
+    return hashParts().tab || 'R1';
   }
 
   function emptyNote(text) {
@@ -376,6 +397,8 @@
     }
     var target = exact || under || over;
     if (!target) return;
+    var hiddenSection = target.closest ? target.closest('[data-step]') : null;
+    if (hiddenSection && hiddenSection.hidden) showStep(hiddenSection.getAttribute('data-step'));
     var panel = target.closest ? target.closest('.r4-panel') : null;
     if (panel && panel.id.indexOf('r4Panel-') === 0) activateTab(panel.id.slice(8));
     target.scrollIntoView({ block: 'center' });
@@ -479,7 +502,7 @@
         if (job.status === 'done') {
           stopPolling();
           try { localStorage.removeItem(jobKey); } catch (error) { /* 忽略 */ }
-          load();
+          load().then(function () { showStep('review'); });
         } else if (job.status === 'error') {
           stopPolling();
           try { localStorage.removeItem(jobKey); } catch (error) { /* 忽略 */ }
@@ -516,6 +539,20 @@
   }
 
   function generate(confirmOverwrite) {
+    clearTimeout(transcriptTimer);
+    if (refs.transcriptText.value.trim() && !transcriptExists()) {
+      saveTranscript().then(function () { generate(confirmOverwrite); });
+      return;
+    }
+    if (refs.transcriptText.value.trim() && transcriptExists()) {
+      toast('逐字稿框里有没保存的文字：要替换现有逐字稿，请先点“用这段文字替换现有逐字稿”；不需要就清空它。', 'error');
+      replaceButton().hidden = false;
+      return;
+    }
+    if (state.transcriptSaving) {
+      state.transcriptSaving.then(function () { generate(confirmOverwrite); });
+      return;
+    }
     if (!confirmOverwrite && state.has_edits) {
       if (!window.confirm(GENERATE_CONFIRM)) return;
       confirmOverwrite = true;
@@ -542,29 +579,34 @@
   /* ------------------------------------------------------------------ */
   /* 待处理                                                              */
   /* ------------------------------------------------------------------ */
+  function checkItem(check) {
+    var item = el('div', 'r4-checkitem');
+    var row = el('button', 'r4-check ' + (check.level === 'block' ? 'block' : 'review'));
+    row.type = 'button';
+    row.appendChild(el('span', 'r4-checklevel', check.level === 'block' ? '阻断' : '复核'));
+    row.appendChild(el('span', '', check.message || ''));
+    row.addEventListener('click', function () { scrollToPath(check.path); });
+    item.appendChild(row);
+    if (check.code === 'fact_unsupported' && check.path && check.path.length) {
+      var ack = el('button', 'r4-check review', '我已核对这条，确认保留');
+      ack.type = 'button';
+      ack.addEventListener('click', function () { confirmFlag(check.path); });
+      item.appendChild(ack);
+    }
+    return item;
+  }
+
   function renderChecks() {
     var list = state.checks || [];
+    var blocks = list.filter(function (check) { return check.level === 'block'; });
+    var reviews = list.filter(function (check) { return check.level !== 'block'; });
     refs.checks.textContent = '';
-    if (!list.length) {
-      refs.checks.appendChild(el('div', 'sub', '没有待处理问题。'));
-      return;
-    }
-    list.forEach(function (check) {
-      var item = el('div', 'r4-checkitem');
-      var row = el('button', 'r4-check ' + (check.level === 'block' ? 'block' : 'review'));
-      row.type = 'button';
-      row.appendChild(el('span', 'r4-checklevel', check.level === 'block' ? '阻断' : '复核'));
-      row.appendChild(el('span', '', check.message || ''));
-      row.addEventListener('click', function () { scrollToPath(check.path); });
-      item.appendChild(row);
-      if (check.code === 'fact_unsupported' && check.path && check.path.length) {
-        var ack = el('button', 'r4-check review', '我已核对这条，确认保留');
-        ack.type = 'button';
-        ack.addEventListener('click', function () { confirmFlag(check.path); });
-        item.appendChild(ack);
-      }
-      refs.checks.appendChild(item);
-    });
+    refs.checksMore.textContent = '';
+    if (!blocks.length) refs.checks.appendChild(emptyNote('没有必须处理的问题。'));
+    blocks.forEach(function (check) { refs.checks.appendChild(checkItem(check)); });
+    reviews.forEach(function (check) { refs.checksMore.appendChild(checkItem(check)); });
+    show(refs.checksMoreWrap, reviews.length > 0);
+    refs.checksMoreLabel.textContent = '其他提示（' + reviews.length + '）';
   }
 
   function confirmFlag(path) {
@@ -599,6 +641,159 @@
     refs.safetyAck.disabled = acked;
     refs.safetyAck.textContent = acked ? '已确认' : '已知悉并人工核实';
     renderChecks();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 步骤 / 发言人 / 导出                                                 */
+  /* ------------------------------------------------------------------ */
+  var STEPS = ['sources', 'review', 'export'];
+
+  function showStep(name) {
+    if (STEPS.indexOf(name) < 0) name = 'sources';
+    state.step = name;
+    document.querySelectorAll('[data-step]').forEach(function (node) {
+      if (node.tagName === 'BUTTON') {
+        if (node.getAttribute('data-step') === name) node.setAttribute('aria-current', 'step');
+        else node.removeAttribute('aria-current');
+        return;
+      }
+      node.hidden = node.getAttribute('data-step') !== name;
+    });
+    try { history.replaceState(null, '', stepHash(name, state.tab)); } catch (e) { /* ignore */ }
+    if (name === 'review') loadSpeakers();
+    if (name === 'export') renderExportState();
+    window.scrollTo(0, 0);
+  }
+
+  function defaultStep() {
+    var match = /step=(\w+)/.exec(window.location.hash || '');
+    if (match && STEPS.indexOf(match[1]) >= 0) return match[1];
+    var status = state.report && state.report.status;
+    if (status === 'approved' || status === 'published') return 'export';
+    return state.doc ? 'review' : 'sources';
+  }
+
+  function loadSpeakers() {
+    return api('/api/m1/preps/' + prepId + '/report/speakers').then(function (body) {
+      renderSpeakers(body.speakers || {});
+    }).catch(function () { /* card keeps its default text */ });
+  }
+
+  function roleSelect(current) {
+    var select = el('select');
+    if (current === '') {
+      var mixed = el('option', '', '（混合）');
+      mixed.value = '';
+      select.appendChild(mixed);
+    }
+    SPEAKERS.forEach(function (name) {
+      var option = el('option', '', name);
+      option.value = name;
+      select.appendChild(option);
+    });
+    select.value = current;
+    return select;
+  }
+
+  function renderSpeakers(sp) {
+    var line = document.getElementById('r4SpkLine');
+    var more = document.getElementById('r4SpkMore');
+    var labelsWrap = document.getElementById('r4SpkLabels');
+    var turnsWrap = document.getElementById('r4SpkTurns');
+    var only = document.getElementById('r4SpkOnlyUnsure');
+    if (!line || !more || !labelsWrap || !turnsWrap || !only) return;
+    var status = sp.status || 'none';
+    if (status === 'none' || status === 'stale' || status === 'error') {
+      var text = '生成报告时会自动识别发言人。';
+      if (status === 'error' && sp.message) text += ' ' + sp.message;
+      line.textContent = text;
+      more.hidden = true;
+      return;
+    }
+    var counts = sp.counts || {};
+    line.textContent = '学生 ' + (counts['学生'] || 0) + ' 段 · 导师 ' + (counts['导师'] || 0) + ' 段'
+      + (counts['家长'] ? ' · 家长 ' + counts['家长'] + ' 段' : '')
+      + (counts['其他'] ? ' · 其他 ' + counts['其他'] + ' 段' : '')
+      + (counts['待确认'] ? ' · 待确认 ' + counts['待确认'] + ' 段' : '');
+    more.hidden = false;
+
+    labelsWrap.textContent = '';
+    (sp.labels || []).forEach(function (item) {
+      var row = el('div', 'r4-spk-row');
+      row.appendChild(el('b', '', item.label));
+      row.appendChild(el('span', 'sub', item.turns + ' 段 · ' + (item.samples || []).join(' / ')));
+      var select = roleSelect(item.role || '');
+      select.setAttribute('data-label', item.label);
+      select.__r4Role = item.role || '';
+      row.appendChild(select);
+      labelsWrap.appendChild(row);
+    });
+
+    turnsWrap.textContent = '';
+    (sp.turns || []).forEach(function (turn) {
+      var row = el('div', 'r4-spk-row');
+      row.setAttribute('data-role', turn.role || '待确认');
+      row.appendChild(el('span', 'r4-spk-n', String(turn.n)));
+      var select = roleSelect(turn.role || '待确认');
+      select.setAttribute('data-turn', String(turn.n));
+      select.__r4Role = turn.role || '待确认';
+      row.appendChild(select);
+      row.appendChild(el('span', 'r4-spk-text', turn.text || ''));
+      turnsWrap.appendChild(row);
+    });
+
+    function applyFilter() {
+      var rows = turnsWrap.querySelectorAll('.r4-spk-row');
+      for (var i = 0; i < rows.length; i += 1) {
+        rows[i].hidden = only.checked && rows[i].getAttribute('data-role') !== '待确认';
+      }
+    }
+    only.onchange = applyFilter;
+    if ((counts['待确认'] || 0) > 0) {
+      more.open = true;
+      only.checked = true;
+    } else {
+      only.checked = false;
+    }
+    applyFilter();
+  }
+
+  function saveSpeakers() {
+    var labels = {};
+    var turns = {};
+    var labelSelects = document.querySelectorAll('#r4SpkLabels select');
+    for (var i = 0; i < labelSelects.length; i += 1) {
+      var item = labelSelects[i];
+      if (item.value && item.value !== item.__r4Role) labels[item.getAttribute('data-label')] = item.value;
+    }
+    var turnSelects = document.querySelectorAll('#r4SpkTurns select');
+    for (var j = 0; j < turnSelects.length; j += 1) {
+      var turn = turnSelects[j];
+      if (turn.value && turn.value !== turn.__r4Role) turns[turn.getAttribute('data-turn')] = turn.value;
+    }
+    if (!Object.keys(labels).length && !Object.keys(turns).length) {
+      toast('没有修改');
+      return;
+    }
+    api('/api/m1/preps/' + prepId + '/report/speakers', jsonOptions('PUT', { labels: labels, turns: turns }))
+      .then(function (body) {
+        renderSpeakers(body.speakers || {});
+        toast(body.notice || '已保存');
+      }).catch(function (error) {
+        toast(error.message, 'error');
+      });
+  }
+
+  function renderExportState() {
+    var node = document.getElementById('r4ExportState');
+    if (!node) return;
+    var blocks = (state.checks || []).filter(function (c) { return c.level === 'block'; }).length;
+    var status = state.report && state.report.status;
+    if (!state.doc) node.textContent = '还没有生成报告。';
+    else if (status === 'published') node.textContent = '已正式发布。';
+    else if (status === 'approved') node.textContent = '已审核通过，可以导出正式版，或正式发布。';
+    else if (blocks) node.textContent = '还有 ' + blocks + ' 项必须处理，处理后才能审核通过。现在导出的是草稿。';
+    else node.textContent = '可以导出，也可以审核通过。';
   }
 
   /* ------------------------------------------------------------------ */
@@ -1128,8 +1323,7 @@
 
     var hasVersion = state.doc !== null;
     var locked = status === 'published';
-    show(refs.print, hasVersion && ['ai_draft', 'needs_check', 'reviewing', 'approved'].indexOf(status) !== -1);
-    show(refs.download, status === 'published');
+    show(refs.print, hasVersion && ['ai_draft', 'needs_check', 'reviewing', 'approved', 'published'].indexOf(status) !== -1);
     show(refs.evidence, hasVersion && status !== 'draft' && status !== 'generating');
     show(refs.approve, ['ai_draft', 'needs_check', 'reviewing'].indexOf(status) !== -1);
     show(refs.publish, status === 'approved');
@@ -1167,7 +1361,14 @@
   }
 
   function load() {
-    return api(docUrl('')).then(applyPayload).catch(function (error) {
+    return api(docUrl('')).then(function (body) {
+      applyPayload(body);
+      if (!state.stepped) {
+        state.stepped = true;
+        showStep(defaultStep());
+      }
+      renderExportState();
+    }).catch(function (error) {
       setSaved(SAVE_FAIL + '：' + error.message, true);
       toast(error.message, 'error');
     });
@@ -1252,23 +1453,94 @@
     });
   }
 
-  refs.transcriptUpload.addEventListener('click', uploadTranscript);
-  refs.transcriptSave.addEventListener('click', function () {
-    var text = refs.transcriptText.value;
-    if (!text.trim()) {
-      toast('请先粘贴逐字稿内容', 'error');
-      return;
-    }
-    api(docUrl('/transcript'), jsonOptions('POST', { text: text })).then(function (body) {
-      refs.transcriptText.value = '';
-      if (body.report) state.report = body.report;
-      renderSources();
-      applyStatus();
-      setSaved(SAVE_OK);
-    }).catch(function (error) {
-      toast(error.message, 'error');
+  var transcriptTimer = null;
+  var REPLACE_CONFIRM = '将用新内容替换现有逐字稿（%n 字），确定吗？';
+
+  function transcriptExists() {
+    return !!(state.report && state.report.transcript_length > 0);
+  }
+
+  function replaceButton() {
+    var button = document.getElementById('r4TranscriptReplace');
+    if (button) return button;
+    button = el('button', 'btn sm', '用这段文字替换现有逐字稿');
+    button.type = 'button';
+    button.id = 'r4TranscriptReplace';
+    button.hidden = true;
+    refs.transcriptText.parentNode.insertBefore(button, refs.transcriptText.nextSibling);
+    button.addEventListener('click', function () {
+      var n = state.report && state.report.transcript_length || 0;
+      if (!window.confirm(REPLACE_CONFIRM.replace('%n', n))) return;
+      saveTranscript(true).then(function (saved) { if (saved) button.hidden = true; });
     });
+    return button;
+  }
+
+  function saveTranscript(force) {
+    var text = refs.transcriptText.value;
+    var trimmed = text.trim();
+    if (!trimmed || trimmed === state.savedTranscript) return Promise.resolve(false);
+    if (transcriptExists() && !force) {
+      replaceButton().hidden = false;
+      return Promise.resolve(false);
+    }
+    refs.transcriptMeta.textContent = '保存中…';
+    state.transcriptSaving = api(docUrl('/transcript'), jsonOptions('POST', { text: text }))
+      .then(function (body) {
+        if (body.report) state.report = body.report;
+        refs.transcriptText.value = '';
+        state.savedTranscript = '';
+        renderSources();
+        applyStatus();
+        setSaved(SAVE_OK);
+        return true;
+      }).catch(function (error) {
+        toast(error.message, 'error');
+        renderSources();
+        return false;
+      }).then(function (result) {
+        state.transcriptSaving = null;
+        return result;
+      });
+    return state.transcriptSaving;
+  }
+
+  if (refs.transcriptFile) {
+    refs.transcriptFile.addEventListener('change', function () {
+      if (!(refs.transcriptFile.files && refs.transcriptFile.files[0])) return;
+      if (transcriptExists()) {
+        var n = state.report.transcript_length;
+        if (!window.confirm(REPLACE_CONFIRM.replace('%n', n))) {
+          refs.transcriptFile.value = '';
+          return;
+        }
+      }
+      uploadTranscript();
+    });
+  }
+
+  refs.transcriptText.addEventListener('input', function () {
+    clearTimeout(transcriptTimer);
+    transcriptTimer = setTimeout(saveTranscript, 1500);
   });
+  refs.transcriptText.addEventListener('blur', function () {
+    clearTimeout(transcriptTimer);
+    saveTranscript();
+  });
+
+  var stepNav = document.getElementById('r4StepNav');
+  if (stepNav) {
+    stepNav.addEventListener('click', function (event) {
+      var button = event.target && event.target.closest ? event.target.closest('button[data-step]') : null;
+      if (button) showStep(button.getAttribute('data-step'));
+    });
+  }
+
+  var toExport = document.getElementById('r4ToExport');
+  if (toExport) toExport.addEventListener('click', function () { showStep('export'); });
+
+  var spkSave = document.getElementById('r4SpkSave');
+  if (spkSave) spkSave.addEventListener('click', saveSpeakers);
 
   load();
 })();
