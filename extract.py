@@ -82,8 +82,8 @@ def write_progress(stage: str, percent: int, message: str = ""):
 # ---------------------------------------------------------------------------
 # 环境变量 / API 配置（与 extract_with_api.py 一致，保持可互换）
 # ---------------------------------------------------------------------------
-# 阿里云 DashScope API Key（已 hard code，无需每次手动设置）
-DEFAULT_DASHSCOPE_KEY = "sk-ws-H.RYLDEIE.E3Vt.MEUCIQDhlaQEMxHpnz09zmIpQONyI6aUfqP61xHF6ek9bKwGTwIgMxoi1LjUk0j7Lmc5piivXxONI52as5Zx_Dlj9mFt2Qs"
+# 阿里云 DashScope API Key：只从环境变量 DASHSCOPE_API_KEY 读取，绝不写进代码（仓库是公开的）。
+DEFAULT_DASHSCOPE_KEY = ""
 
 DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", DEFAULT_DASHSCOPE_KEY).strip()
 SILICONFLOW_KEY = os.environ.get("SILICONFLOW_API_KEY", "").strip()

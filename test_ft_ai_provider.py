@@ -43,8 +43,9 @@ def requests(monkeypatch):
     return captured
 
 
-def test_defaults_to_dashscope_with_builtin_key(monkeypatch, requests):
+def test_defaults_to_dashscope_with_env_key(monkeypatch, requests):
     _clear_env(monkeypatch)
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "env-key")
     assert analysis.call_model("prompt") == {"ok": True}
     request, timeout = requests[0]
     assert request.full_url == (
@@ -54,7 +55,7 @@ def test_defaults_to_dashscope_with_builtin_key(monkeypatch, requests):
     assert body["model"] == "qwen-plus"
     assert body["temperature"] == 0.1
     assert body["response_format"] == {"type": "json_object"}
-    assert request.get_header("Authorization") == "Bearer " + extract.DEFAULT_DASHSCOPE_KEY
+    assert request.get_header("Authorization") == "Bearer env-key"
     assert timeout == 90
 
 

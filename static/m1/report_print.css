@@ -559,7 +559,7 @@ body.m1-report {
 .review-box p { margin: 0; font: 8.4pt/1.65 var(--sans); color: var(--body); white-space: pre-wrap; }
 
 /* ---------- 附录 ---------- */
-.appendix { margin-top: 22pt; }
+.appendix { margin-top: 22pt; break-before: page; }
 .appendix .appendix-rule {
   border-top: 0.6pt solid #D7C1D1;
   margin-bottom: 16pt;

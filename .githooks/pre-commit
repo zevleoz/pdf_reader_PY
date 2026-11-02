@@ -1,0 +1,4 @@
+#!/bin/sh
+# 拦截写进代码的 API key（仓库是公开的）。
+# 安装（每个 clone 一次）：git config core.hooksPath .githooks
+exec python3 scripts/check_secrets.py --staged

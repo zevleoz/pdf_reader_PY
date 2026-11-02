@@ -45,3 +45,8 @@ api_demo_client/
 # 6AM 规则文件（唯一数据源，需入库）
 !six_am/model_v06.json
 !static/m1/login_crest_white.png
+
+# 密钥：真实 key 只放环境变量或仓库外（如 ~/.config/y4_report/secrets.env），绝不写进代码
+*.env
+.env.*
+!.env.example

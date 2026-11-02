@@ -7,6 +7,7 @@ Model:    Qwen/Qwen3-VL-32B-Instruct
 from __future__ import annotations
 
 import base64
+import os
 import json
 import re
 import time
@@ -23,7 +24,7 @@ DATA_DIR = Path("data")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-API_KEY = "sk-eefqofgkmjohvjlbjevxeomtcoahqigghfwrjrhfyfxcpbaf"
+API_KEY = os.environ.get("SILICONFLOW_API_KEY", "").strip()  # key 只从环境变量读取
 ENDPOINT = "https://api.siliconflow.com/v1/chat/completions"
 MODEL = "Qwen/Qwen3-VL-32B-Instruct"
 

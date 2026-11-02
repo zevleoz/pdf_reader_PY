@@ -36,7 +36,7 @@ from app_utils import (BASE_DIR, INPUT_DIR, OUTPUT_DIR, DATA_DIR, TEMPLATE_DIR,
 # 会话/Cookie 配置加固（F10）：
 # 生产环境由 Y4_ENV=production（或 FLASK_ENV=production）标识；缺少强 SECRET_KEY 时
 # 拒绝启动，避免 session / CSRF token 用公开的开发默认值签名。
-DEV_SECRET_KEY = 'dev-key-change-in-production'
+DEV_SECRET_KEY = 'dev-key-change-in-production'  # not-a-secret: 公开的开发默认值，生产环境拒绝使用
 _TRUE_VALUES = {'1', 'true', 'yes', 'on'}
 _FALSE_VALUES = {'0', 'false', 'no', 'off'}
 

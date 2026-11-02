@@ -38,12 +38,13 @@ ACCURACY_RULES = """准确性要求（最重要，高于所有写作要求）：
 7. 资料不足时直接说明还不清楚，不要为了写满而推测。宁可少写，不能写错。"""
 
 FACT_CHECK_PROMPT = """你是事实核对员。只判断，不改写，不补充。
-逐句检查【文字】中的每一句话。每一句都要依次回答四个问题：
-1. 这件事资料里有吗？时间、地点、人物、次数、原因、感受、结果都要对得上。
+逐句检查【文字】中的每一句话。每一句都要依次回答五个问题：
+1. 这件事资料里有吗？时间、地点、人物、次数、原因、感受、结果都要对得上。人物要对上：做这件事的人和对象，必须是资料里同一件事中的人；不能把两件事里的人或情节对调、合并。
 2. 是谁说的？资料中标为“导师”或“老师”的话，以及学生对引导性提问的简单附和（如“可能吧”“嗯”“对”），都不能写成学生自己的想法。
 3. 真的发生了吗？回答“如果……会怎样”的内容是设想，不是实际行为；别人的猜测不是事实；资料标明【设想】的内容没有发生。
 4. 是一次还是经常？资料只写了一次的事，不能写成习惯、规律或“经常”。
-四个问题都没问题才算 supported。
+5. 前后和起因对吗？句中写的“在……之后”“当……时”“因为……”“于是”这类连接，资料里必须有；资料没有把两件事连在一起的，不能连在一起写。
+五个问题都没问题才算 supported。
 - supported：资料明确写到，或是忠实的转述。
 - partly：大部分有依据，但多了资料没有的细节。
 - unsupported：任何一个问题不通过，或与资料矛盾。
@@ -56,6 +57,7 @@ FACT_CHECK_PROMPT = """你是事实核对员。只判断，不改写，不补充
 %s"""
 
 REWRITE_PROMPT = """下面这段文字有几处没有资料依据。请只删除或改正这些地方，不增加任何新内容，其他部分尽量不动。
+第一人称的内容改成第三人称转述。
 改完如果信息很少也没关系，不要补充。只输出 JSON：{"text":""}
 【文字】
 %s
@@ -175,9 +177,11 @@ _TIME_WORDS = ("上周", "上个月", "上学期", "去年", "今年", "昨天",
                "下个月", "下学期", "明年")
 _INTENSITY_WORDS = ("极度", "极其", "非常", "特别", "严重", "显著", "明显", "强烈",
                     "剧烈", "一直", "总是", "经常", "常常", "反复", "多次", "长期",
-                    "每次", "每天", "从不", "从来", "始终", "频繁", "习惯")
+                    "每次", "每天", "从不", "从来", "始终", "频繁", "习惯",
+                    "频率", "持续性", "毫无", "几乎", "完全", "根本")
 _CONCLUSION_WORDS = ("说明", "表明", "证明", "反映", "体现", "具备", "机制")
 _HEDGE_WORDS = ("可能", "看起来", "也许", "提示", "还需要", "尚不清楚")
+_CONCLUSION_SKIP_WORDS = ("是否", "需确认", "需要确认", "尚不清楚", "还需要")
 _WEEKDAY_RE = re.compile(r"(?:周|星期)([一二三四五六日天])")
 _MONTH_DAY_RE = re.compile(r"(\d{1,2})\s*(月|日|号)")
 _YEAR_RE = re.compile(r"((?:19|20)\d{2})\s*年")
@@ -296,8 +300,12 @@ def _conclusion_facts(text: str) -> List[str]:
     """下了结论、却没有留出推断余地的句子。"""
     found = []
     for piece in _sentences(text):
-        if any(word in piece for word in _CONCLUSION_WORDS) and \
-                not any(word in piece for word in _HEDGE_WORDS):
+        # “几何证明”是学科名称，不是结论
+        probe = piece.replace("几何证明", "")
+        if any(word in probe for word in _CONCLUSION_SKIP_WORDS):
+            continue  # 开放的问题、待确认的说法，不是结论
+        if any(word in probe for word in _CONCLUSION_WORDS) and \
+                not any(word in probe for word in _HEDGE_WORDS):
             found.append(piece)
     return found
 
@@ -308,6 +316,14 @@ _MENTOR_LINE_RE = re.compile(
 _STUDENT_LINE_RE = re.compile(
     r"^\W*(?:\d{1,2}:\d{2}(?::\d{2})?\W*)?学生\s*"
     r"(?:\d{1,2}:\d{2}(?::\d{2})?\s*)?[：:]", re.IGNORECASE)
+# 导师自己的看法：导师复述学生的话不算
+_MENTOR_VIEW_WORDS = ("我觉得", "我听到", "说明", "是不是")
+_OBSERVER_RE = re.compile(
+    r"(老师|家长|母亲|父亲|妈妈|爸爸|同学)(观察到|发现|看到|注意到|指出|反馈)")
+_OBSERVER_EVIDENCE_WORDS = ("观察", "看到", "发现", "注意", "反馈", "亲眼", "补充", "填写")
+_PARENT_WORDS = ("家长", "妈妈", "母亲", "爸爸", "父亲")
+_Y4_SPEECH_RE = re.compile(
+    r"学生(表示|认为|说|提到|承认|觉得)[^。；]{0,24}(得分|档位|评级|测评|Y4)")
 
 
 def _shared_run(probe: str, lines: List[str], minimum: int = 5,
@@ -322,9 +338,11 @@ def _shared_run(probe: str, lines: List[str], minimum: int = 5,
 
 
 def _speaker_facts(text: str, source: str) -> List[str]:
-    """把导师的原话写成学生的想法。只在资料里有导师行时检查。"""
+    """把导师的原话写成学生的想法。只在资料里有导师自己的看法时检查。"""
     lines = str(source or "").splitlines()
-    mentor = [_norm(line) for line in lines if _MENTOR_LINE_RE.match(line)]
+    # 导师常复述学生的话，只有导师自己的看法才不能写成学生的
+    mentor = [_norm(line) for line in lines if _MENTOR_LINE_RE.match(line)
+              and any(word in line for word in _MENTOR_VIEW_WORDS)]
     if not mentor:
         return []
     student = [_norm(line) for line in lines if _STUDENT_LINE_RE.match(line)]
@@ -338,6 +356,41 @@ def _speaker_facts(text: str, source: str) -> List[str]:
         run = _shared_run(probe, mentor)
         if run and not any(run in line for line in student):
             found.append(piece)
+    return found
+
+
+def _observer_facts(text: str, source: str) -> List[str]:
+    """资料里没有旁人观察/看到/发现，就别写成旁人说的。"""
+    lines = [line for line in str(source or "").splitlines() if line.strip()]
+    found = []
+    for match in _OBSERVER_RE.finditer(text):
+        person = match.group(1)
+        people = _PARENT_WORDS if person in _PARENT_WORDS else (person,)
+        if any(any(who in line for who in people) and
+               any(word in line for word in _OBSERVER_EVIDENCE_WORDS)
+               for line in lines):
+            continue
+        found.append(match.group(0))
+    return found
+
+
+def _y4_as_speech_facts(text: str) -> List[str]:
+    """学生不会自己报告测评得分或档位。"""
+    return [match.group(0) for match in _Y4_SPEECH_RE.finditer(text)]
+
+
+def _first_person_facts(text: str, source: str) -> List[str]:
+    """引号外出现“我”，除非这一句本身是资料里的原句。"""
+    body = _outside_quotes(text)
+    lines = {_norm(line) for line in str(source or "").splitlines() if line.strip()}
+    found = []
+    for piece in _sentences(body):
+        if "我" not in piece.replace("自我", ""):
+            continue
+        probe = _norm(piece)
+        if probe and probe in lines:
+            continue  # 整句就是资料里的原句
+        found.append(piece)
     return found
 
 
@@ -380,6 +433,9 @@ def lint_facts(text: str, source: str, ignore: Iterable[str] = ()) -> List[Dict[
     add("intensity", _intensity_facts(bare, source))
     add("conclusion", _conclusion_facts(text))
     add("speaker", _speaker_facts(text, source))
+    add("observer", _observer_facts(bare, source))
+    add("y4_as_speech", _y4_as_speech_facts(bare))
+    add("first_person", _first_person_facts(text, source))
     add("quote", _quote_facts(text, source, ignore))
     return out
 
@@ -405,6 +461,9 @@ def lint_style(text: str) -> List[str]:
 
 
 _PRONOUN_RE = re.compile(r"(?<![其另])([他她])(?![人们乡处日])")
+# 逗号后接着说的“他”“她”，指的是同句里提到的旁人，不是学生
+_ROLE_PRONOUN_RE = re.compile(
+    r"(父亲|爸爸|母亲|妈妈|同学|朋友|老师|同桌|外婆|外公|奶奶|爷爷)[^。；！？]{0,20}，(他|她)")
 _MALE = {"男", "男生", "male", "m", "boy"}
 _FEMALE = {"女", "女生", "female", "f", "girl"}
 
@@ -415,7 +474,7 @@ def _outside_quotes(text: str) -> str:
 
 def pronoun_problem(text: str, gender: str) -> bool:
     """性别未填写时用了“他”“她”，或与已填写的性别相反。引号里的原话不查。"""
-    body = _outside_quotes(text)
+    body = _ROLE_PRONOUN_RE.sub(" ", _outside_quotes(text))
     pronouns = {match.group(1) for match in _PRONOUN_RE.finditer(body)}
     if not pronouns:
         return False
@@ -531,9 +590,15 @@ def verify_blocks(blocks: List[Dict[str, Any]], call: Optional[Callable] = None)
 # ---------------------------------------------------------------------------
 _KIND_LABEL = {"number": "数字", "time": "时间", "person": "人物", "quote": "引文",
                "intensity": "程度或频率", "conclusion": "没有依据的结论",
-               "speaker": "可能把导师的话当成学生的"}
+               "speaker": "可能把导师的话当成学生的",
+               "observer": "旁人没有看到的观察",
+               "y4_as_speech": "学生自述测评结果",
+               "first_person": "第一人称"}
 _KIND_PROBLEM = {"conclusion": "这句话下了结论，资料里没有依据",
-                 "speaker": "这句话可能把导师的话当成学生说的"}
+                 "speaker": "这句话可能把导师的话当成学生说的",
+                 "observer": "资料里没有老师或家长看到这件事，这里像是把学生的说法写成了旁人的观察",
+                 "y4_as_speech": "学生不会自己报告测评得分或档位",
+                 "first_person": "出现了第一人称，应改成第三人称转述"}
 
 
 def _sentence_with(text: str, value: str) -> str:

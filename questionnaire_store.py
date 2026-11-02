@@ -624,7 +624,7 @@ def _default_username(student_code: str, student_id: int) -> str:
 
 
 # 学生多在手机上手输：去掉易混字符（0/o、1/l/i）和符号
-_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"  # not-a-secret: 学生密码字符集
 
 
 def _new_password() -> str:

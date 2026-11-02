@@ -472,6 +472,48 @@ def api_report_evidence(prep_id: int, eid: str):
 # ---------------------------------------------------------------------------
 # 安全确认 / 审核流程
 # ---------------------------------------------------------------------------
+@bp.route("/api/m1/preps/<int:prep_id>/report/confirm-flag", methods=["POST"])
+@role_required(*_WRITE_ROLES)
+def api_report_confirm_flag(prep_id: int):
+    """导师人工核对过一条事实核对标记：记下路径，这条不再阻断（S2-P6 §10）。"""
+    prep, error = _api_prep(prep_id)
+    if error:
+        return error
+    body = _json_body()
+    rev = _rev(body)
+    if rev is None:
+        return _err("缺少 rev")
+    path = body.get("path")
+    if not isinstance(path, list) or not path or any(
+            isinstance(step, bool) or not isinstance(step, (str, int)) for step in path):
+        return _err("缺少 path")
+    report, version, error = _need_report(prep)
+    if error:
+        return error
+    doc = copy.deepcopy(version.get("doc") or {})
+    guard = doc.get("guard") if isinstance(doc.get("guard"), dict) else {}
+    flags = guard.get("flags") or []
+    if not any(isinstance(flag, dict) and list(flag.get("path") or []) == path
+               for flag in flags):
+        return _err("没有这条待核对内容", 404)
+    acked = doc.get("guard_ack")
+    acked = acked if isinstance(acked, list) else []
+    if path not in acked:
+        acked.append(list(path))
+    doc["guard_ack"] = acked
+    checks = checks_mod.run_checks(report, dict(version, doc=doc))
+    try:
+        saved = rstore.save_version(report["id"], rev, doc=doc, checks=checks)
+    except rstore.RevConflict as exc:
+        return jsonify({"ok": False, "error": str(exc), "rev": exc.rev}), 409
+    except rstore.StatusError as exc:
+        return _err(str(exc), 409)
+    store.audit(_user().get("user_id"), prep["student_id"], "m1.report_confirm_flag",
+                {"prep_id": prep_id, "path": path})
+    return jsonify({"ok": True, "rev": saved["rev"], "status": saved["status"],
+                    "checks": checks, "appendix": kb.appendix(doc)})
+
+
 @bp.route("/api/m1/preps/<int:prep_id>/report/safety-ack", methods=["POST"])
 @role_required(*_WRITE_ROLES)
 def api_report_safety_ack(prep_id: int):

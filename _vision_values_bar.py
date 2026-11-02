@@ -36,7 +36,7 @@ def normalize_label(name: str) -> str:
     return _LABEL_NO_SPACE_MAP.get(key, name.strip())
 
 
-DEFAULT_DASHSCOPE_KEY = "sk-ws-H.RYLDEIE.E3Vt.MEUCIQDhlaQEMxHpnz09zmIpQONyI6aUfqP61xHF6ek9bKwGTwIgMxoi1LjUk0j7Lmc5piivXxONI52as5Zx_Dlj9mFt2Qs"
+DEFAULT_DASHSCOPE_KEY = ""  # key 只从环境变量读取，绝不写进代码
 
 
 def call_vision_api(image_b64: str, prompt: str) -> str:

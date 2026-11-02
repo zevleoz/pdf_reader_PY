@@ -550,12 +550,37 @@
       return;
     }
     list.forEach(function (check) {
+      var item = el('div', 'r4-checkitem');
       var row = el('button', 'r4-check ' + (check.level === 'block' ? 'block' : 'review'));
       row.type = 'button';
       row.appendChild(el('span', 'r4-checklevel', check.level === 'block' ? '阻断' : '复核'));
       row.appendChild(el('span', '', check.message || ''));
       row.addEventListener('click', function () { scrollToPath(check.path); });
-      refs.checks.appendChild(row);
+      item.appendChild(row);
+      if (check.code === 'fact_unsupported' && check.path && check.path.length) {
+        var ack = el('button', 'r4-check review', '我已核对这条，确认保留');
+        ack.type = 'button';
+        ack.addEventListener('click', function () { confirmFlag(check.path); });
+        item.appendChild(ack);
+      }
+      refs.checks.appendChild(item);
+    });
+  }
+
+  function confirmFlag(path) {
+    var rev = (state.report || {}).rev;
+    api(docUrl('/confirm-flag'), jsonOptions('POST', { rev: rev, path: path })).then(function (body) {
+      state.report.rev = body.rev;
+      state.report.status = body.status;
+      state.report.label = STATUS_LABELS[body.status] || body.status;
+      state.checks = body.checks || [];
+      state.appendix = body.appendix || [];
+      state.has_edits = true;
+      applyStatus();
+      renderTodo();
+      toast('已确认这条内容。', 'ok');
+    }).catch(function (error) {
+      toast(error.message, 'error');
     });
   }
 

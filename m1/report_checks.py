@@ -29,11 +29,17 @@ META_KEYS = ("student_name", "grade", "school", "y4_date", "meeting_date",
              "report_date", "evidence_sources")
 
 _QUOTE_RES = (re.compile("“([^”]*)”"), re.compile('"([^"]*)"'),
-              re.compile("「([^」]*)」"))
+              re.compile("「([^」]*)」"), re.compile("‘([^’]*)’"),
+              re.compile("『([^』]*)』"))
 _TIME_RE = re.compile(r"(?<!\d)(\d{1,2}:\d{2}(?::\d{2})?)(?!\d)")
 _LEAD_MARK_RE = re.compile(r"^\s*[【\[]\s*\d+\s*[】\]]\s*")
 _ABILITY_RE = re.compile(r"(?<![A-Za-z0-9])R\d\.\d+(?![0-9])")
 _E4_RE = re.compile(r"(?<![A-Za-z0-9])E4(?![A-Za-z0-9])")
+
+NO_MEETING_TEXT = "本次会议未获得相关信息。"
+PROCESS_WORDS = ("待核实", "未核实", "证据条目", "证据编号", "数据质量", "零证据",
+                 "零会议证据", "quote_verified", "First Touch记录")
+INFERENCE_WORDS = ("可能", "看起来", "提示", "还需要了解")
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +91,8 @@ class TextIndex:
         needle = normalize(strip_marks(quote))
         return bool(needle) and needle in self.joined
 
-    def locate(self, quote: Any) -> Optional[Tuple[int, str]]:
-        """返回 ``(段号从 1 起, 该段时间标记)``；找不到返回 None。"""
+    def position(self, quote: Any) -> Optional[int]:
+        """引文所在段落的从 0 起的序号；找不到返回 None。"""
         needle = normalize(strip_marks(quote))
         if not needle:
             return None
@@ -96,8 +102,22 @@ class TextIndex:
         index = bisect.bisect_right(self._starts, found) - 1
         while index > 0 and self._lengths[index] == 0:
             index -= 1
-        index = max(index, 0)
+        return max(index, 0)
+
+    def locate(self, quote: Any) -> Optional[Tuple[int, str]]:
+        """返回 ``(段号从 1 起, 该段时间标记)``；找不到返回 None。"""
+        index = self.position(quote)
+        if index is None:
+            return None
         return index + 1, time_mark(self.paragraphs[index])
+
+    def paragraph(self, index: int) -> str:
+        if 0 <= index < len(self.paragraphs):
+            return self.paragraphs[index]
+        return ""
+
+    def previous(self, index: int) -> str:
+        return self.paragraph(index - 1)
 
 
 # ---------------------------------------------------------------------------
@@ -165,8 +185,13 @@ def supports_judgement(item: Dict[str, Any]) -> bool:
 _MENTOR_LABEL_RE = re.compile(
     r"^\W*(?:\d{1,2}:\d{2}(?::\d{2})?\W*)?(导师|老师|mentor)\s*"
     r"(?:\d{1,2}:\d{2}(?::\d{2})?\s*)?[：:]", re.IGNORECASE)
-_EVIDENCE_ID_RE = re.compile(r"\be\d+\b")
+_EVIDENCE_ID_RE = re.compile(r"(?<![A-Za-z0-9])e\d+(?![A-Za-z0-9])")
 _Y4_CODE_RE = re.compile(r"(?<!\d)\d{3}(?!\d)")
+
+
+def is_mentor_line(paragraph: Any) -> bool:
+    """这一段是否以导师标签开头。"""
+    return bool(_MENTOR_LABEL_RE.match(str(paragraph or "")))
 
 
 def mentor_labelled(index: "TextIndex", quote: Any) -> bool:
@@ -176,7 +201,7 @@ def mentor_labelled(index: "TextIndex", quote: Any) -> bool:
         return False
     for paragraph, norm in zip(index.paragraphs, index.norms):
         if needle in norm:
-            return bool(_MENTOR_LABEL_RE.match(paragraph))
+            return is_mentor_line(paragraph)
     return False
 
 
@@ -302,14 +327,28 @@ def run_checks(report: Dict[str, Any], version: Optional[Dict[str, Any]], *,
             if quote in tag_names:
                 continue
             if not (transcript_index.contains(quote) or ft_index.contains(quote)):
+                # 已核验的非会议证据（如家长补充）：证据提取时已对照它自己的资料核验过
+                if norm and any(norm in normalize(e.get("quote"))
+                                for e in evidence
+                                if supports_judgement(e) and e.get("source") != "M1"):
+                    continue
+                if path[:1] in (["plan"], ["review_advice"]):
+                    # 方案里的建议用语是提议，不是对学生原话的陈述
+                    out.append(_check("review", "quote_unverified",
+                                      "%s：建议用语带引号，请确认不是在引用学生原话"
+                                      % _where(path), path))
+                    continue
                 out.append(_check("block", "quote_unverified",
                                   "%s：引用在逐字稿中找不到" % _where(path), path))
                 continue
             key = (tuple(path), norm)
+            # 证据引文被家庭版引文包含时，至少要占家庭版引文一半的长度：
+            # 否则一个“你”这样的单字就能替一句导师的话挡下 quote_speaker。
             matches = [e for e in evidence
                        if normalize(e.get("quote")) and (
-                           norm in normalize(e.get("quote"))
-                           or normalize(e.get("quote")) in norm)]
+                           normalize(e.get("quote")) in norm
+                           and len(normalize(e.get("quote"))) >= len(norm) / 2
+                           or norm in normalize(e.get("quote")))]
             live = [e for e in matches if e.get("status") != "不采用"]
             problem = None
             if matches and not live:
@@ -383,26 +422,73 @@ def run_checks(report: Dict[str, Any], version: Optional[Dict[str, Any]], *,
         apath = ["dims", dim_id, "abilities", code, "tags"]
         sup = [e for e in items_for(evidence, code) if supports_judgement(e)]
         sup_m1 = [e for e in sup if e.get("source") == "M1"]
+        positive = [e for e in sup if e.get("type") != "假设性回应"]
+        if len(tags) >= 2 and len(sup) < 2:
+            out.append(_check("review", "double_tag_evidence",
+                              "%s：双标签只有 %d 条可支持判断的证据" % (code, len(sup)), apath))
         if "确认发展需求" in tags and not any(
                 e.get("type") == "具体行为事件" and e.get("speaker") not in ("待确认", "导师")
                 for e in sup_m1):
             out.append(_check("review", "tag_evidence",
                               "%s：确认发展需求缺少发言人明确的会议具体行为事件" % code, apath))
-        if "积极资源" in tags and not sup:
+        if "积极资源" in tags and not positive:
             out.append(_check("review", "tag_evidence",
                               "%s：积极资源缺少可支持判断的证据" % code, apath))
         if "暂未发现" in tags and not sup_m1:
             out.append(_check("review", "tag_evidence",
                               "%s：暂未发现缺少可支持判断的会议证据" % code, apath))
+        meeting = field_text(row.get("meeting"))
+        if meeting in ("", NO_MEETING_TEXT) and any(
+                supports_judgement(e) and e.get("source") == "M1"
+                for e in items_for(evidence, code)):
+            out.append(_check("review", "meeting_unused",
+                              "%s：有会议证据，但首次会议核实情况为空" % code,
+                              ["dims", dim_id, "abilities", code, "meeting"]))
     for path, text in family_fields(doc):
-        if _EVIDENCE_ID_RE.search(text) or any(c in ratings for c in _Y4_CODE_RE.findall(text)):
+        if _EVIDENCE_ID_RE.search(text):
+            out.append(_check("block", "family_evidence_id",
+                              "%s：家庭版文字里出现证据编号" % _where(path), path))
+    for path, text in family_fields(doc):
+        if any(c in ratings for c in _Y4_CODE_RE.findall(text)):
             out.append(_check("review", "family_code",
-                              "%s：家庭版文字里出现 Y4 指标编号或证据编号" % _where(path), path))
+                              "%s：家庭版文字里出现 Y4 指标编号" % _where(path), path))
+    for path, text in family_fields(doc):
+        hits = [w for w in PROCESS_WORDS if w in text]
+        if hits:
+            out.append(_check("review", "process_word",
+                              "%s：出现系统或流程用语 %s" % (_where(path), "、".join(hits)), path))
     for path, text in family_fields(doc):
         hits = [w for w in DIAGNOSIS_WORDS if w in text]
         if hits:
             out.append(_check("review", "diagnosis_word",
                               "%s：出现诊断类用词 %s" % (_where(path), "、".join(hits)), path))
+
+    # --- block: 事实核对标记（W5 §5、S2-P6 §10） ---------------------------
+    guard = doc.get("guard") if isinstance(doc, dict) else None
+    guard = guard if isinstance(guard, dict) else {}
+    acked = {tuple(p) for p in (doc.get("guard_ack") or []) if isinstance(p, list)}
+    for flag in guard.get("flags") or []:
+        path = flag.get("path") if isinstance(flag, dict) else None
+        if not isinstance(path, list) or not path or tuple(path) in acked:
+            continue
+        if _field_src(doc, path) != "ai":
+            continue
+        sentence = str(flag.get("sentence") or "").strip()
+        problem = str(flag.get("problem") or "这句在资料中找不到依据").strip()
+        message = "%s：%s" % (_where(path), problem)
+        if sentence:
+            message += "（%s）" % sentence
+        out.append(_check("block", "fact_unsupported", message, path))
+    if guard.get("status") != "checked":
+        out.append(_check("block", "fact_unchecked", "部分内容未完成事实核对，请人工核对。"))
+
+    for number in manifest.get("chunk_failed") or []:
+        try:
+            number = int(number)
+        except (TypeError, ValueError):
+            continue
+        out.append(_check("block", "chunk_failed",
+                          "逐字稿第 %d 段未能读取，请查看原文或重新生成。" % number))
     meta = doc.get("meta") if isinstance(doc, dict) else None
     meta = meta if isinstance(meta, dict) else {}
     for key in META_KEYS:

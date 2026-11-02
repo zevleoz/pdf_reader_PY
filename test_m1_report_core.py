@@ -8,6 +8,7 @@ import copy
 import filecmp
 import json
 import logging
+import re
 from datetime import date
 from pathlib import Path
 
@@ -60,13 +61,19 @@ def _item(quote, speaker, kind, codes, interp="示例解读", limits=""):
 
 
 class FakeModel:
-    """按提示词里的「任务：」分发；``dims`` 可覆盖单项能力的输出。"""
+    """按提示词里的「任务：」分发；``dims`` 可覆盖单项能力的输出。
+
+    事实核对默认全部通过；``unsupported`` 里的词所在的句子会被判为没有依据，
+    重写只原样返回，好让标记留下来（S2-P6 §10）。
+    """
 
     def __init__(self):
         self.calls = []
         self.meeting_items = [
             _item(Q_BODY, "学生", "具体行为事件", ["R1.1"]),
             _item("我心跳很快 手心出汗，整个下午都很烦。", "学生", "具体行为事件", ["R1.3"]),
+            # T7 §6：被长引文包含的短引文会并入长的一条，所以这里改用同一段里不重叠的一句
+            _item("上周数学小测没考好", "学生", "主观感受", ["R1.2"]),
             _item(Q_HIDE, "学生", "具体行为事件", ["R2.1"]),
             _item(Q_GUIDED, "学生", "引导下表现", ["R1.2"]),
             _item(Q_HELP, "学生", "具体行为事件", ["R3.5"]),
@@ -77,6 +84,7 @@ class FakeModel:
         ]
         self.overrides = {}
         self.fail = None
+        self.unsupported = ()
         self.profile_plan = [
             {"ability": "R1.1"}, {"ability": "R9.9"}, {"ability": "R2.1"},
             {"ability": "R3.5"}, {"ability": "R4.1"}]
@@ -93,9 +101,28 @@ class FakeModel:
             return self._dim(prompt)
         if prompt.startswith("任务：综合画像与阶段方案"):
             return self._profile()
+        if prompt.startswith("你是事实核对员"):
+            return self._verify(prompt)
+        if prompt.startswith("下面这段文字有几处没有资料依据"):
+            return self._rewrite(prompt)
         if "是否包含需要立即人工核实" in prompt:
             return {"confirmed": False, "items": []}
         raise AssertionError("未知提示词")
+
+    def _verify(self, prompt):
+        text = prompt.split("【文字】\n", 1)[1].split("\n【资料】", 1)[0]
+        rows = []
+        for sentence in (p.strip() for p in re.split(r"[。！？!?；;\n]+", text)):
+            if not sentence:
+                continue
+            bad = any(word in sentence for word in self.unsupported)
+            rows.append({"text": sentence, "verdict": "unsupported" if bad else "supported",
+                         "problem": "与资料不符" if bad else ""})
+        return {"sentences": rows}
+
+    def _rewrite(self, prompt):
+        text = prompt.split("【文字】\n", 1)[1].split("\n【问题】", 1)[0].strip()
+        return {"text": text}
 
     def _dim(self, prompt):
         payload = json.loads(prompt.split("【能力与资料】\n", 1)[1])
@@ -103,30 +130,44 @@ class FakeModel:
         for ability in payload:
             code = ability["code"]
             ids = [e["id"] for e in ability["meeting_evidence"]]
-            row = {"code": code, "y4_selected": [], "other_clues": "", "meeting": "",
+            row = {"code": code, "y4_selected": [], "other_clues": "",
+                   "meeting": {"sentences": []},
                    "tags": ["信息不足"], "evidence_ids": ids, "internal_note": "内部备注"}
             if code == "R1.1":
                 row.update(y4_selected=["013", "999"], tags=["确认发展需求"],
-                           meeting="学生说“%s”，提示有明显的身体反应。" % "心跳很快，手心出汗")
+                           meeting={"sentences": [{
+                               "text": "学生说“心跳很快，手心出汗”，整个下午都觉得很烦。",
+                               "evidence_ids": ids[:1], "kind": "fact"}]})
             elif code == "R1.2":
-                row.update(tags=["确认发展需求"], meeting="学生在提示下愿意尝试新方法。")
+                row.update(tags=["确认发展需求"],
+                           meeting={"sentences": [{
+                               "text": "学生设想可以试试，是在老师提出建议之后。",
+                               "evidence_ids": ids[-1:], "kind": "fact"}]})
             elif code == "R1.3":
-                row.update(tags=["积极资源"], meeting="学生能回顾自己的反应。")
+                row.update(tags=["积极资源"])
             elif code == "R1.4":
                 row.update(tags=["积极资源"])
             elif code == "R2.1":
                 row.update(y4_selected=[], tags=["积极资源", "信息不足"],
-                           meeting="学生选择独自待着，之后逐渐平复。")
+                           meeting={"sentences": [{
+                               "text": "学生选择独自待着，之后慢慢好一点。",
+                               "evidence_ids": ids[:1], "kind": "fact"}]})
             elif code == "R2.2":
                 row.update(tags=["乱写"])
             elif code == "R2.3":
-                row.update(tags=["可能存在"], meeting="学生经常走神。")
+                row.update(tags=["可能存在"],
+                           meeting={"sentences": [{
+                               "text": "学生可能有时会走神。",
+                               "evidence_ids": [], "kind": "inference"}]})
             elif code == "R2.5":
                 row.update(tags=["暂未发现"])
             row.update(self.overrides.get(code, {}))
             rows.append(row)
-        return {"abilities": rows, "core_finding": "本维度资料有限，需继续观察。",
-                "context_notes": ""}
+        return {"abilities": rows,
+                "core_finding": {"sentences": [{
+                    "text": "本维度的资料有限，还需要了解。",
+                    "evidence_ids": [], "kind": "inference"}]},
+                "context_notes": {"sentences": []}}
 
     def _profile(self):
         return {
@@ -135,7 +176,7 @@ class FakeModel:
                          for k in ("resources", "needs", "open")},
             "plan": [dict(row, goal="目标", mentor="导师支持", family="家庭支持",
                           evidence="成长证据") for row in self.profile_plan],
-            "review_advice": "三个月后回顾。",
+            "review_advice": "回顾时注意学生是否愿意说出自己的感受。",
         }
 
 
@@ -367,16 +408,17 @@ def test_meeting_items_verified_deduped_and_cleaned(rdb, fake):
     body = items[Q_BODY]
     assert body["quote_verified"] is True and body["location"] == "逐字稿第 2 段（00:00:30）"
     assert body["status"] == "已确认" and body["ability_codes"] == ["R1.1", "R1.3"]
-    # 带段号标记的重复项并入同一条，非法发言人变成待确认
+    # 带段号标记的重复项并入同一条；同一段话两个发言人 → 待确认
     hide = items[Q_HIDE]
     assert hide["ability_codes"] == ["R2.1", "R2.4"] and hide["location"].startswith("逐字稿第 4 段")
     assert "孙悟空" not in json.dumps(version["evidence"], ensure_ascii=False)
-    assert hide["speaker"] == "学生"      # 先出现的那条为准
+    assert hide["speaker"] == "待确认" and hide["status"] == "待核实"
     assert len(version["evidence"]) == 6   # 无效编号的两条被丢掉
+    # §11 规则 1：引文所在段落是导师的话，整条丢弃
+    assert Q_MENTOR not in items
     fake_item = items[Q_FAKE]
     assert fake_item["quote_verified"] is False and fake_item["status"] == "待核实"
     assert fake_item["location"] == ""
-    assert items[Q_MENTOR]["speaker"] == "导师"
     # 已核验的在前，找不到的在后
     assert version["evidence"][-1]["quote"] == Q_FAKE
 
@@ -438,7 +480,7 @@ def test_other_materials_become_other_items(rdb, fake, monkeypatch):
     monkeypatch.setattr(report_pipeline, "call_model", spy)
     _r, version = generate(rdb)
     other = [e for e in version["evidence"] if e["source"] == "OTHER"]
-    assert len(seen) == 1 and len(other) == 1
+    assert len(seen) == 4 and len(other) == 1      # 每个维度一次调用，结果合并成一条
     assert other[0]["quote_verified"] is True and other[0]["location"] == "其他资料：家长反馈"
     assert version["doc"]["meta"]["evidence_sources"].endswith("其他补充资料")
 
@@ -723,9 +765,14 @@ def test_review_check_fires_without_blocking(rdb, fake, code):
 
 
 def test_generation_flags_frequency_word_with_one_item(rdb, fake):
-    _report, version = generate(rdb)
-    hit = [c for c in version["checks"] if c["code"] == "frequency_word"]
-    assert hit and hit[0]["path"] == ["dims", "R2", "abilities", "R2.3", "meeting"]
+    # §10 会删掉没有依据的事实句，所以这里改生成后的文字：
+    # R2.1 只有一条可用会议证据，用“总是”就要提示频率依据不足。
+    report, good = _clean(rdb, fake)
+    bad = _mutate(good, lambda v: _row(v, "R2.1")["meeting"].update(
+        text="学生总是选择独自待着。"))
+    hit = [c for c in report_checks.run_checks(report, bad, first_touch_text="")
+           if c["code"] == "frequency_word"]
+    assert hit and hit[0]["path"] == ["dims", "R2", "abilities", "R2.1", "meeting"]
 
 
 def test_frequency_word_allowed_with_two_usable_items(rdb, fake):
@@ -843,7 +890,7 @@ def test_put_doc_validation_rev_and_impacts(client, rdb, fake, inline_jobs):
     res = doc_put(client, rdb, rev, [
         {"path": ["review_advice"], "value": "改过的建议"},
         {"path": ["meta", "meeting_date"], "value": "2026-10-20"},
-        {"path": ["dims", "R1", "core_finding"], "value": "本维度资料有限，需继续观察。"}])
+        {"path": ["dims", "R1", "core_finding"], "value": "本维度的资料有限，还需要了解。"}])
     body = res.get_json()
     assert res.status_code == 200 and body["rev"] == rev + 1 and body["impacts"] == []
     doc = client.get(url(rdb)).get_json()["doc"]
@@ -861,7 +908,7 @@ def test_put_doc_validation_rev_and_impacts(client, rdb, fake, inline_jobs):
     row = client.get(url(rdb)).get_json()["doc"]["dims"]["R3"]["abilities"]["R3.2"]
     assert row["tags_src"] == "edited"
     # 方案：整体替换，字段变成 edited
-    plan = [{"ability": "R2.1", "goal": "新目标", "mentor": {"text": "导师支持"},
+    plan = [{"ability": "R2.1", "goal": "新目标", "mentor": {"text": "导师支持。"},
              "family": "家庭支持", "evidence": "成长证据"}]
     res = doc_put(client, rdb, rev + 2, [{"path": ["plan"], "value": plan}])
     assert res.status_code == 200
@@ -918,7 +965,7 @@ def test_generate_with_edits_needs_confirmation(client, rdb, fake, inline_jobs):
     assert res.status_code == 200
     after = client.get(url(rdb)).get_json()
     assert len(after["versions"]) == len(versions_before) + 1
-    assert after["doc"]["review_advice"]["text"] == "三个月后回顾。"
+    assert after["doc"]["review_advice"]["text"] == "回顾时注意学生是否愿意说出自己的感受。"
     assert after["report"]["status"] == "needs_check" and after["has_edits"] is False
     old = report_store.get_version(versions_before[-1]["id"])
     assert old["doc"]["review_advice"]["text"] == "我改过了"      # 旧版本还在
@@ -1013,8 +1060,8 @@ def advisor_login(client, user_id, name, **policy):
 
 
 ENDPOINTS = [("get", ""), ("post", "/transcript"), ("post", "/generate"), ("put", "/doc"),
-             ("put", "/evidence/e1"), ("post", "/safety-ack"), ("post", "/approve"),
-             ("post", "/publish"), ("post", "/reopen")]
+             ("put", "/evidence/e1"), ("post", "/safety-ack"), ("post", "/confirm-flag"),
+             ("post", "/approve"), ("post", "/publish"), ("post", "/reopen")]
 
 
 def _hit(client, rdb, method, tail):
@@ -1106,8 +1153,8 @@ def test_logs_contain_no_transcript_or_report_text(rdb, fake, caplog):
     caplog.set_level(logging.DEBUG)
     _report, version = generate(rdb)
     logged = "\n".join(r.getMessage() for r in caplog.records)
-    texts = [Q_BODY, Q_HIDE, Q_HELP, Q_FAKE, "心跳很快", "本维度资料有限", "三个月后回顾",
-             "晓雨", "林晓雨", "导师支持"]
+    texts = [Q_BODY, Q_HIDE, Q_HELP, Q_FAKE, "心跳很快", "本维度的资料有限",
+             "回顾时注意学生", "晓雨", "林晓雨", "导师支持"]
     for text in texts:
         assert text not in logged, text
     assert "evidence=" in logged            # 只记录数量

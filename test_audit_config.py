@@ -68,7 +68,7 @@ def test_production_without_secret_key_refuses_to_start(monkeypatch, tmp_path):
 
 def test_production_with_dev_default_secret_key_refuses_to_start(monkeypatch, tmp_path):
     result = _probe(monkeypatch, tmp_path, production_var="Y4_ENV",
-                    secret_key="dev-key-change-in-production")
+                    secret_key="dev-key-change-in-production")  # not-a-secret: 开发默认值
 
     assert result.returncode != 0
     assert "SECRET_KEY" in result.stderr

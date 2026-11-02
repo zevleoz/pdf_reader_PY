@@ -49,7 +49,11 @@ def test_fake_quote_in_every_family_field_blocks(rdb, fake, where):
     report, version = _clean(rdb, fake)
     assert "quote_unverified" not in _codes(report, version)
     version = _mutate(version, lambda v: _set(v["doc"], where))
-    assert "quote_unverified" in _codes(report, version, "block")
+    # T8 §1：方案和回顾建议里的引号是建议用语，只提醒（review）；其余字段仍然阻断
+    level = "review" if where in ("plan", "review") else "block"
+    assert "quote_unverified" in _codes(report, version, level)
+    if level == "review":
+        assert "quote_unverified" not in _codes(report, version, "block")
 
 
 def test_real_quote_in_family_field_does_not_fail_verification(rdb, fake):
@@ -119,14 +123,13 @@ def test_mentor_labelled():
     assert not report_checks.mentor_labelled(idx, "不存在的话")
 
 
-def test_pipeline_moves_mentor_labelled_student_to_pending(rdb, fake):
+def test_pipeline_drops_mentor_labelled_student_quote(rdb, fake):
+    """§11 规则 1：引文所在段落是导师的话，不再作为学生的证据保留。"""
     fake.meeting_items = [_item(Q_MENTOR, "学生", "具体行为事件", ["R1.1"]),
                           _item(Q_BODY, "学生", "具体行为事件", ["R1.1"])]
     _r, version = generate(rdb, fake)
     by_quote = {e["quote"]: e for e in version["evidence"]}
-    mentor = by_quote[Q_MENTOR]
-    assert mentor["speaker"] == "待确认" and mentor["status"] == "待核实"
-    assert "逐字稿标注为导师" in mentor["limits"]
+    assert Q_MENTOR not in by_quote
     assert by_quote[Q_BODY]["speaker"] == "学生"
 
 
@@ -201,10 +204,9 @@ def test_tag_evidence_notice_does_not_block(rdb, fake):
 def test_family_code_notice_does_not_block(rdb, fake):
     report, version = _clean(rdb, fake)
     code = next(iter(version["y4_ratings"]))
-    for text in ("参考指标 %s 的结果" % code, "见证据 e12"):
-        v = copy.deepcopy(version)
-        v["doc"]["review_advice"] = text
-        got = [c for c in _checks(report, v) if c["code"] == "family_code"]
-        assert got and got[0]["level"] == "review"
-        assert "family_code" not in _codes(report, v, "block")
+    v = copy.deepcopy(version)
+    v["doc"]["review_advice"] = "参考指标 %s 的结果" % code
+    got = [c for c in _checks(report, v) if c["code"] == "family_code"]
+    assert got and got[0]["level"] == "review"
+    assert "family_code" not in _codes(report, v, "block")
     assert "family_code" not in _codes(report, version)
