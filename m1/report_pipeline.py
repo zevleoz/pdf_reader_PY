@@ -22,7 +22,7 @@ from growth_talk.analysis import AnalysisError, call_model
 
 import m1.sources as sources
 import m1.store as store
-from m1 import report_checks, report_kb, report_prompts, report_store, report_y4
+from m1 import report_checks, report_display, report_kb, report_prompts, report_store, report_y4
 from m1 import speakers
 from m1 import y4_evidence
 from m1.kb import load_kb
@@ -676,39 +676,6 @@ def _clues_text(evidence, code: str) -> str:
     return "".join(parts)
 
 
-CLUE_MAX = 60
-_CLUE_SPLIT_RE = re.compile(r"(?<=[。！？!?；;])")
-
-
-def _clue_for(evidence, code: str, used: set) -> str:
-    """Y4 以外的线索：每项能力最多 1 条，同一维度不重复（M1R D3）。引文只取原文开头的整句。"""
-    best = None
-    for item in report_checks.items_for(evidence, code):
-        if not report_checks.supports_judgement(item) or item.get("source") == "M1":
-            continue
-        if item.get("id") in used:
-            continue
-        quote = item["quote"]
-        if len(quote) > CLUE_MAX:
-            parts = [p for p in _CLUE_SPLIT_RE.split(quote) if p.strip()]
-            quote = parts[0].strip() if parts else quote
-        if len(quote) > CLUE_MAX:
-            continue
-        key = (len(item.get("ability_codes") or []), len(quote))
-        if best is None or key < best[0]:
-            best = (key, item, quote)
-    if best is None:
-        return ""
-    _key, item, quote = best
-    used.add(item.get("id"))
-    name = _clean(item.get("location"))
-    if name.startswith("其他资料："):
-        name = name[len("其他资料："):]
-    if name.startswith("补充问卷："):
-        name = "补充问卷《%s》" % name[len("补充问卷："):]
-    return "%s：“%s”" % (name, quote)
-
-
 _JUDGEMENT_RE = re.compile(
     r"，(?:说明|体现|显示出|显示|反映出|反映|提示|表明)[^。！？!?]*")
 
@@ -789,7 +756,6 @@ def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
 
     out = {}
     for dim_id, result, by_code in _parallel(run, list(dims)):
-        used_clues: set = set()
         path_prefix = ["dims", dim_id]
         abilities_out = {}
         for code in codes_by_dim[dim_id]:
@@ -801,7 +767,7 @@ def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
                                     "path": path})
             else:
                 row["y4_selected"] = [c for c in raw.get("y4_selected") or [] if isinstance(c, str)]
-                row["other_clues"] = _field(_clue_for(evidence, code, used_clues), "code")
+                row["other_clues"] = _field(report_display.sources_line(evidence, code), "code")
                 row["meeting"] = _sentences(raw.get("meeting"), _valid_ids(evidence, code),
                                             path + ["meeting"], adjustments, code)
                 _cut_judgements(row["meeting"], code, path + ["meeting"], adjustments)
@@ -1241,7 +1207,7 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None,
         version = {"doc": doc, "evidence": evidence, "y4_ratings": ratings,
                    "manifest": manifest}
         shown = dict(report, transcript_text=transcript, safety=safety, safety_ack_at=None)
-        return report_checks.run_checks(shown, version,
+        return report_checks.run_checks(shown, report_display.display_version(version),
                                         first_touch_text=ctx["first_touch_text"])
 
     checks = run("checks", finish)

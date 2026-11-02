@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 
-from m1 import report_checks, report_kb, report_pipeline, report_prompts
+from m1 import report_checks, report_display, report_kb, report_pipeline, report_prompts
 from test_m1_report_core import (FakeModel, TRANSCRIPT, fake, generate,  # noqa: F401
                                  rdb)
 from test_m1_store import m1db  # noqa: F401  临时库与虚构学生
@@ -82,7 +82,7 @@ def test_y4_capped_at_three(rdb, fake):
 
 
 # ---------------------------------------------------------------------------
-# §4.3 每项能力一条线索、同一维度不重复
+# §4.3 其他线索只写资料名（M1R-P6）
 # ---------------------------------------------------------------------------
 def _clue_item(item_id, quote, codes, location="其他资料：家长访谈"):
     return {"id": item_id, "quote": quote, "ability_codes": list(codes), "source": "FT",
@@ -90,26 +90,22 @@ def _clue_item(item_id, quote, codes, location="其他资料：家长访谈"):
 
 
 def test_one_clue_per_ability_no_repeat():
-    evidence = [_clue_item("e1", _sentence(20, "甲"), ["R1.1", "R1.2", "R1.3"]),
-                _clue_item("e2", _sentence(20, "乙"), ["R1.1", "R1.2", "R1.3"])]
-    used = set()
-    clues = {code: report_pipeline._clue_for(evidence, code, used)
-             for code in ("R1.1", "R1.2", "R1.3")}
-    assert clues["R1.3"] == ""
-    assert clues["R1.1"] and clues["R1.2"]
-    assert _sentence(20, "甲") in clues["R1.1"] and _sentence(20, "乙") not in clues["R1.1"]
-    assert _sentence(20, "乙") in clues["R1.2"] and _sentence(20, "甲") not in clues["R1.2"]
-    assert len(used) == 2
+    evidence = [_clue_item("e1", "甲", ["R1.1"], location="其他资料：Miranda review"),
+                _clue_item("e2", "乙", ["R1.1"], location="其他资料：访谈 9/25"),
+                _clue_item("e3", "丙", ["R1.1"], location="First Touch")]
+    line = report_display.sources_line(evidence, "R1.1")
+    assert line == "另见：Miranda review；访谈 9/25等 3 份资料。"
+    assert "“" not in line
 
 
 def test_long_clue_uses_first_sentence():
-    first, rest = _sentence(30, "甲"), _sentence(70, "乙")
-    source = "家庭访谈记录：" + first + rest
-    item = _clue_item("e1", first + rest, ["R1.1"])
-    clue = report_pipeline._clue_for([item], "R1.1", set())
-    assert first in clue and rest not in clue
-    assert first in source
-    assert clue == "家长访谈：“%s”" % first
+    evidence = [
+        {"id": "e1", "quote": "甲", "ability_codes": ["R1.1"], "source": "M1",
+         "status": "已确认", "quote_verified": True, "location": "M1 会议"},
+        _clue_item("e2", "乙", ["R1.1"], location="其他资料：未核实"),
+    ]
+    evidence[1].update(status="待核实", quote_verified=False)
+    assert report_display.sources_line(evidence, "R1.1") == ""
 
 
 # ---------------------------------------------------------------------------

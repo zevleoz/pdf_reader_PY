@@ -468,7 +468,12 @@
     var locked = status === 'published';
     var generating = status === 'generating';
     refs.generate.disabled = locked || generating || missing.length > 0;
-    refs.generateReason.textContent = generating ? '正在生成。' : (locked ? '' : missing.join('；'));
+    refs.generateReason.textContent = generating ? '正在生成。' : (locked ? '已正式发布。要重新生成，请先在「③ 导出」点「重新打开」。' : missing.join('；'));
+    var regen = document.getElementById('r4Regenerate');
+    if (regen) {
+      regen.disabled = refs.generate.disabled;
+      regen.title = refs.generateReason.textContent || '';
+    }
   }
 
   function renderSteps(steps, message) {
@@ -502,7 +507,7 @@
         if (job.status === 'done') {
           stopPolling();
           try { localStorage.removeItem(jobKey); } catch (error) { /* 忽略 */ }
-          load().then(function () { showStep('review'); });
+          load().then(function () { showStep('review'); loadPreview(true); });
         } else if (job.status === 'error') {
           stopPolling();
           try { localStorage.removeItem(jobKey); } catch (error) { /* 忽略 */ }
@@ -660,7 +665,7 @@
       node.hidden = node.getAttribute('data-step') !== name;
     });
     try { history.replaceState(null, '', stepHash(name, state.tab)); } catch (e) { /* ignore */ }
-    if (name === 'review') loadSpeakers();
+    if (name === 'review') { loadSpeakers(); loadPreview(false); }
     if (name === 'export') renderExportState();
     window.scrollTo(0, 0);
   }
@@ -677,6 +682,18 @@
     return api('/api/m1/preps/' + prepId + '/report/speakers').then(function (body) {
       renderSpeakers(body.speakers || {});
     }).catch(function () { /* card keeps its default text */ });
+  }
+
+  function loadPreview(force) {
+    var frame = document.getElementById('r4Preview');
+    var empty = document.getElementById('r4PreviewEmpty');
+    if (!frame) return;
+    var has = !!state.doc && state.report.status !== 'generating';
+    frame.hidden = !has;
+    if (empty) empty.hidden = has;
+    if (!has) return;
+    var src = '/m1/preps/' + prepId + '/report/print?edit=1';
+    if (force || !frame.getAttribute('src')) frame.setAttribute('src', src);
   }
 
   function roleSelect(current) {
@@ -1541,6 +1558,13 @@
 
   var spkSave = document.getElementById('r4SpkSave');
   if (spkSave) spkSave.addEventListener('click', saveSpeakers);
+
+  window.addEventListener('message', function (event) {
+    if (event.origin !== window.location.origin) return;
+    if (event.data && event.data.type === 'm1-report-edit') load();
+  });
+  var regen = document.getElementById('r4Regenerate');
+  if (regen) regen.addEventListener('click', function () { generate(false); });
 
   load();
 })();

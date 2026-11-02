@@ -18,7 +18,7 @@ import m1.report_store as rstore
 import m1.report_y4 as report_y4
 import m1.sources as sources
 import m1.store as store
-from m1 import speakers
+from m1 import report_display, speakers
 from app_utils import page_login_required, role_required
 from blueprints.m1 import (_WRITE_ROLES, _api_prep, _err, _json_body, _m1_access_guard,
                            _prep_or_404, _render_page, _user)
@@ -59,10 +59,15 @@ def _for_checks(report):
     return dict(report, transcript_text=speakers.analysis_text(report))
 
 
+def _checks(report, version):
+    """质量检查跑在家长实际看到的内容上（M1R-P6）。"""
+    return checks_mod.run_checks(_for_checks(report), report_display.display_version(version))
+
+
 def _live_checks(report, version):
     if not report or not version:
         return []
-    return checks_mod.run_checks(_for_checks(report), version)
+    return _checks(report, version)
 
 
 def _public_report(report: dict) -> dict:
@@ -161,12 +166,21 @@ def page_report_print(prep_id: int):
     report, version = _state(prep)
     if not report or not version:
         abort(404)
-    doc = version.get("doc") or {}
+    shown = report_display.display_version(version)
+    doc = shown.get("doc") or {}
     draft = report["status"] not in ("approved", "published")
+    editing = (request.args.get("edit") == "1"
+               and report["status"] not in ("published", "generating"))
+    edit_data = None
+    if editing:
+        edit_data = {"api": "/api/m1/preps/%d/report" % prep["id"],
+                     "rev": report["rev"],
+                     "checks": _checks(report, version),
+                     "tags": [tag["key"] for tag in kb.fixed()["tags"]]}
     return _render_page(
         "m1/report_print.html", prep=prep, prep_id=prep["id"], fixed=kb.fixed(), doc=doc,
-        appendix=kb.appendix(doc), y4_lines=y4_lines(doc, version.get("y4_ratings")),
-        draft=draft, status_label=report["label"])
+        appendix=kb.appendix(doc), y4_lines=y4_lines(doc, shown.get("y4_ratings")),
+        draft=draft, status_label=report["label"], editing=editing, edit_data=edit_data)
 
 
 @bp.route("/m1/preps/<int:prep_id>/report/evidence")
@@ -475,7 +489,7 @@ def api_report_doc(prep_id: int):
     except ChangeError as exc:
         return _err(str(exc), 400)
     candidate = dict(version, doc=new_doc)
-    checks = checks_mod.run_checks(_for_checks(report), candidate)
+    checks = _checks(report, candidate)
     try:
         saved = rstore.save_version(report["id"], rev, doc=new_doc, checks=checks)
     except rstore.RevConflict as exc:
@@ -518,7 +532,7 @@ def api_report_evidence(prep_id: int, eid: str):
         target["status"] = status
     if speaker is not None:
         target["speaker"] = speaker
-    checks = checks_mod.run_checks(_for_checks(report), dict(version, evidence=evidence))
+    checks = _checks(report, dict(version, evidence=evidence))
     try:
         saved = rstore.save_version(report["id"], rev, evidence=evidence, checks=checks)
     except rstore.RevConflict as exc:
@@ -563,7 +577,7 @@ def api_report_confirm_flag(prep_id: int):
     if path not in acked:
         acked.append(list(path))
     doc["guard_ack"] = acked
-    checks = checks_mod.run_checks(_for_checks(report), dict(version, doc=doc))
+    checks = _checks(report, dict(version, doc=doc))
     try:
         saved = rstore.save_version(report["id"], rev, doc=doc, checks=checks)
     except rstore.RevConflict as exc:
@@ -600,7 +614,7 @@ def api_report_approve(prep_id: int):
     report, version, error = _need_report(prep)
     if error:
         return error
-    checks = checks_mod.run_checks(_for_checks(report), version)
+    checks = _checks(report, version)
     blocks = checks_mod.blocking(checks)
     if blocks:
         return _err("还有 %d 项阻断问题，不能审核通过" % len(blocks), 400,

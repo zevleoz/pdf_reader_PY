@@ -214,3 +214,7 @@
   .r4-stepnav button { padding: 8px 6px; font-size: 14px; }
   .r4-spk-row { flex-wrap: wrap; }
 }
+
+/* M1R-P6：可编辑预览 */
+.r4-preview { display: block; width: 100%; height: calc(100vh - 220px); min-height: 520px;
+  border: 1px solid var(--line, #d9dde3); border-radius: 8px; background: #fff; }

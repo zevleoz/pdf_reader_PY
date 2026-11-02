@@ -43,11 +43,12 @@ def test_sections_tagged(client, m1db):  # noqa: F811
         ("r4Cover", "sources"),
         ("r4GenerateCard", "sources"),
         ("r4Speakers", "review"),
-        ("r4Todo", "review"),
-        ("r4Content", "review"),
+        ("r4PreviewCard", "review"),
         ("r4Export", "export"),
     ):
         assert 'data-step="%s"' % step in _tag(html, element_id)
+    for element_id in ("r4Todo", "r4Content"):
+        assert "data-step=" not in _tag(html, element_id)
 
 
 def test_no_save_buttons(client, m1db):  # noqa: F811
