@@ -1,7 +1,7 @@
 """家庭版显示规则（M1R-P6）：打印、预览和质量检查都用这一份。
 
 存库的文档不改，显示时：
-- 其他线索只写资料名称（“另见：……”），不引原话；导师手改过的照旧显示。
+- 不生成“另见：……”来源行；导师手改过的其他线索照旧显示。
 - Y4 行最多 3 条。
 - AI 写的栏目超过上限时，只保留前面的整句；导师改过的栏目不动。
 - 被删掉的句子上的事实核对标记一并去掉。
@@ -15,7 +15,6 @@ from typing import Any, Dict, List, Optional
 from m1 import report_checks
 
 _SPLIT_RE = re.compile(r"(?<=[。！？!?])")
-MAX_SOURCES = 2
 # 与 report_pipeline.NO_CLUES 相同的固定说明；没有资料来源时保留它，避免误报“栏目为空”。
 _NO_CLUES = "暂无直接相关资料。"
 
@@ -35,28 +34,9 @@ def cap_text(text: str, limit: int) -> str:
     return "".join(keep)
 
 
-def source_name(item: Dict[str, Any]) -> str:
-    name = (item.get("location") or "").strip()
-    if name.startswith("其他资料："):
-        name = name[len("其他资料："):]
-    if name.startswith("补充问卷："):
-        name = "补充问卷《%s》" % name[len("补充问卷："):]
-    return name.strip()
-
-
 def sources_line(evidence, code: str) -> str:
-    """某项能力的其他资料来源，只写名称。没有就返回空字符串。"""
-    names: List[str] = []
-    for item in report_checks.items_for(evidence or [], code):
-        if item.get("source") == "M1" or not report_checks.supports_judgement(item):
-            continue
-        name = source_name(item)
-        if name and name not in names:
-            names.append(name)
-    if not names:
-        return ""
-    more = "等 %d 份资料" % len(names) if len(names) > MAX_SOURCES else ""
-    return "另见：%s%s。" % ("；".join(names[:MAX_SOURCES]), more)
+    """其他资料来源行已下线；新报告和已有 AI 草稿都不显示。"""
+    return ""
 
 
 def get_path(doc: Any, path: Optional[list]) -> Any:

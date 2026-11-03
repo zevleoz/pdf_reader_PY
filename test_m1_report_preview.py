@@ -58,13 +58,22 @@ def _tag(html, element_id):
 # ---------------------------------------------------------------------------
 # 显示规则
 # ---------------------------------------------------------------------------
-def test_sources_line_names_only():
+def test_sources_line_never_generated():
     evidence = [_item("e1", "其他资料：Miranda review"),
                 _item("e2", "其他资料：访谈 9/25"),
                 _item("e3", "First Touch")]
-    line = report_display.sources_line(evidence, "R1.1")
-    assert line == "另见：Miranda review；访谈 9/25等 3 份资料。"
-    assert "“" not in line
+    assert report_display.sources_line(evidence, "R1.1") == ""
+
+
+def test_display_removes_generated_source_line_from_existing_draft():
+    doc = _doc("", y4=("001",))
+    _row(doc)["other_clues"] = {
+        "text": "另见：文字记录：个人兴趣与学业情况访谈 2026年9月25日；Miranda review。",
+        "src": "ai",
+    }
+    evidence = [_item("e1", "其他资料：Miranda review")]
+    shown = report_display.display_doc(doc, evidence)
+    assert _row(shown)["other_clues"]["text"] == ""
 
 
 def test_sources_line_skips_meeting_and_unsupported():
@@ -121,9 +130,9 @@ def test_print_uses_display_rules(client, m1db):  # noqa: F811
     _login(client, m1db.admin_id, "admin")
     html = client.get(f"/m1/preps/{prep['id']}/report/print").get_data(as_text=True)
 
-    assert "另见：Miranda review。" in html
-    cell = re.search(r'<div class="multiline">(.*?)</div>', html, re.S).group(1)
-    assert "“" not in cell
+    assert "另见：" not in html
+    assert "Miranda review" not in html
+    assert "家长访谈：“我很担心他的情绪。”" not in html
     rows = html.split("<tr>")
     assert max(item.count('class="y4-line"') for item in rows) <= 3
 

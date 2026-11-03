@@ -89,13 +89,11 @@ def _clue_item(item_id, quote, codes, location="其他资料：家长访谈"):
             "status": "已确认", "quote_verified": True, "location": location}
 
 
-def test_one_clue_per_ability_no_repeat():
+def test_source_line_not_generated_for_any_evidence():
     evidence = [_clue_item("e1", "甲", ["R1.1"], location="其他资料：Miranda review"),
                 _clue_item("e2", "乙", ["R1.1"], location="其他资料：访谈 9/25"),
                 _clue_item("e3", "丙", ["R1.1"], location="First Touch")]
-    line = report_display.sources_line(evidence, "R1.1")
-    assert line == "另见：Miranda review；访谈 9/25等 3 份资料。"
-    assert "“" not in line
+    assert report_display.sources_line(evidence, "R1.1") == ""
 
 
 def test_long_clue_uses_first_sentence():

@@ -75,18 +75,17 @@ def test_other_clues_built_by_code_not_by_model(monkeypatch):
     stub = DimStub()
     dims, _ = _dims(monkeypatch, evidence, stub)
     clues = dims["R1"]["abilities"]["R1.1"]["other_clues"]
-    assert clues["text"] == "另见：家长补充说明（虚构）。"
-    assert clues["src"] == "code"
-    assert "“" not in clues["text"]
+    assert clues["text"] == report_pipeline.NO_CLUES
+    assert clues["src"] == "ai"
+    assert "另见" not in clues["text"]
     assert "First Touch" not in clues["text"] and "补充问卷" not in clues["text"]
     assert "other_clues" not in report_prompts.DIM_PROMPT
 
 
-def test_questionnaire_clue_is_named_by_its_title(monkeypatch):
+def test_questionnaire_does_not_generate_source_line(monkeypatch):
     evidence = [_other_item("e1", "补充问卷：虚构问卷", "我不太爱说话")]
     dims, _ = _dims(monkeypatch, evidence, DimStub())
-    assert (dims["R1"]["abilities"]["R1.1"]["other_clues"]["text"]
-            == "另见：补充问卷《虚构问卷》。")
+    assert dims["R1"]["abilities"]["R1.1"]["other_clues"]["text"] == report_pipeline.NO_CLUES
 
 
 def test_clues_skip_meeting_items_and_unsupported_items(monkeypatch):
