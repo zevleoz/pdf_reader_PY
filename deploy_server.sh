@@ -1,7 +1,7 @@
 #!/bin/bash
 # ====================================================================
 # Y4 报告生成器 — 阿里云 ECS 一键部署脚本
-# ECS IP: 120.55.0.127
+# ECS IP: 8.153.154.174
 # 用法：SSH 登录 ECS 后，以 root 身份执行：
 #   bash deploy_server.sh
 # ====================================================================
@@ -13,7 +13,7 @@ LOG_DIR="/var/log/y4_report"
 
 echo "============================================"
 echo "  Y4 报告生成器 — 部署开始"
-echo "  ECS: 120.55.0.127"
+echo "  ECS: 8.153.154.174"
 echo "============================================"
 
 # ------------------------------------------
@@ -176,7 +176,7 @@ echo "  服务状态:"
 systemctl is-active y4_report && echo "  ✅ Gunicorn: running" || echo "  ❌ Gunicorn: failed"
 systemctl is-active nginx && echo "  ✅ Nginx: running" || echo "  ❌ Nginx: failed"
 echo ""
-echo "  访问地址: http://120.55.0.127"
+echo "  访问地址: http://8.153.154.174"
 echo ""
 echo "  查看日志:"
 echo "    sudo tail -f /var/log/y4_report/error.log"

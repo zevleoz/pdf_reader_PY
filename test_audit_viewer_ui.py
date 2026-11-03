@@ -35,7 +35,7 @@ def client(qdb):
 
 def _login_viewer(client, qdb):
     login_as(client, qdb, role="viewer", advisor_name="",
-             display_name="观察员", user_id=qdb.alice_id)
+             display_name="观察员", user_id=qdb.alice_id, detail_level="full")
 
 
 def _flat(html: str) -> str:

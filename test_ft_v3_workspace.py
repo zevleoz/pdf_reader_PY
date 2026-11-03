@@ -16,7 +16,8 @@ def _flat(html: str) -> str:
 
 def _workspace(client, qdb, *, role="advisor", advisor_name="Alice") -> str:
     login_as(client, qdb, role=role, advisor_name=advisor_name,
-             display_name="观察员" if role == "viewer" else advisor_name)
+             display_name="观察员" if role == "viewer" else advisor_name,
+             detail_level="full" if role == "viewer" else None)
     response = client.get(f"/first-touch/students/{qdb.student_id}")
     assert response.status_code == 200
     return response.get_data(as_text=True)
@@ -138,7 +139,7 @@ def test_viewer_sees_read_only_badge_and_disabled_controls(client, qdb):
 
 def test_workspace_without_session_shows_empty_state(client, qdb):
     login_as(client, qdb, role="viewer", advisor_name="",
-             display_name="观察员", user_id=qdb.alice_id)
+             display_name="观察员", user_id=qdb.alice_id, detail_level="full")
 
     response = client.get(f"/first-touch/students/{qdb.other_student_id}")
 
