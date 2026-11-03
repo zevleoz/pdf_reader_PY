@@ -84,6 +84,6 @@ def test_viewer_gets_first_touch_nav():
 
 def test_viewer_first_touch_pages_read_only(client, qdb):
     """A2 起 Viewer 可只读访问 First Touch 页面。"""
-    login_as(client, qdb, role="viewer", display_name="Viewer")
+    login_as(client, qdb, role="viewer", display_name="Viewer", detail_level="full")
     assert client.get("/first-touch").status_code == 200
     assert client.get(f"/first-touch/students/{qdb.student_id}").status_code == 200

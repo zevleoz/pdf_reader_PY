@@ -281,7 +281,7 @@ def _student_progress_context(student_id):
     }
 
 
-def _first_touch_context(student_id):
+def _first_touch_context(student_id, restricted=False):
     """学生 360 的 First Touch 卡片：能否开始、当前步骤、兴趣与已确认报告。"""
     import growth_talk_store as gt_store
     from growth_talk import y4_snapshot
@@ -352,6 +352,24 @@ def _first_touch_context(student_id):
     else:
         status = "in_progress"
 
+    if restricted:
+        # 概要账号：只留状态与日期，不给兴趣、评分、报告版本与会谈入口。
+        confirmed_dates = sorted(r["confirmedAt"] for r in reports
+                                 if r["confirmedAt"])
+        return {
+            "status": status,
+            "step": session.get("phase") if session else None,
+            "canStart": can_start,
+            "sessionId": None,
+            "interests": [],
+            "scoredCount": 0,
+            "pendingCount": 0,
+            "reports": [],
+            "restricted": True,
+            "updatedAt": (session or {}).get("updated_at") or "",
+            "confirmedAt": confirmed_dates[-1] if confirmed_dates else "",
+        }
+
     return {
         "status": status,
         "step": session.get("phase") if session else None,
@@ -396,7 +414,7 @@ def student_360(code):
         is_admin=session.get("role") == "admin",
         stage=_student_progress_context(st["id"]),
         stage_meta=PROGRESS_STAGES,
-        first_touch=_first_touch_context(st["id"]),
+        first_touch=_first_touch_context(st["id"], restricted=not full),
         questionnaire_flags=_questionnaire_flags(st["id"]) if full else [],
     )
 
