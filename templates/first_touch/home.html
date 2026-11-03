@@ -57,6 +57,7 @@
         <span class="ft-kicker">First Touch</span>
         <h1>First Touch</h1>
         <p>已完成 Y4 的学生可以直接开始会谈</p>
+        {% if ctx.restricted %}<p>当前账号不能查看 First Touch 内容</p>{% endif %}
       </div>
       <span class="spacer"></span>
       <a class="btn btn-sec btn-sm" href="/first-touch/guide">{{ icon('book', 13) }} 使用指南</a>
@@ -132,7 +133,7 @@
                 <a class="btn btn-sm btn-sec" href="/generate">去生成 Y4</a>
                 {% endif %}
               {% else %}
-                {% if s.sessionCount %}
+                {% if s.sessionCount and not ctx.restricted %}
                 <a class="btn btn-sm btn-sec" href="/first-touch/students/{{ s.id }}">查看</a>
                 {% endif %}
               {% endif %}

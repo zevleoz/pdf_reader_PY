@@ -246,6 +246,26 @@ def role_required(*roles):
     return decorator
 
 
+FIRST_TOUCH_RESTRICTED_MESSAGE = "当前账号不能查看 First Touch 内容"
+
+
+def first_touch_content_required(f):
+    """First Touch 内容闸：概要账号（``can_see_full()`` 为假）一律 403。
+
+    必须叠在 ``role_required`` / ``login_required`` 之下（先认证再判可见内容）。
+    API → 403 JSON；页面 → 403 页。判断只看 ``can_see_full()``，不看角色。
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not can_see_full():
+            if _is_api_request():
+                return jsonify({"ok": False,
+                                "error": FIRST_TOUCH_RESTRICTED_MESSAGE}), 403
+            abort(403)
+        return f(*args, **kwargs)
+    return wrapper
+
+
 def admin_required(f):
     """兼容桥（过渡期）：登录 + 非只读角色。
 

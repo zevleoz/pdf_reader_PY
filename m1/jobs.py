@@ -28,6 +28,7 @@ STEP_DEFS = (
     ("abilities", "逐项判断"),
     ("priority", "确定优先能力"),
     ("plan", "设计会议流程"),
+    ("verify", "核对事实"),
     ("assemble", "生成文档"),
 )
 

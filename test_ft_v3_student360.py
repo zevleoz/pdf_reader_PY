@@ -169,7 +169,7 @@ def test_special_focus_sorted_first_when_in_top_six(qdb):
 
 def test_viewer_has_no_start_button_but_downloads(client, qdb):
     login_as(client, qdb, role="viewer", advisor_name="",
-             display_name="观察员", user_id=qdb.alice_id)
+             display_name="观察员", user_id=qdb.alice_id, detail_level="full")
     qdb.add_y4()
     _session_with_run(qdb, confirm_reports=1)
 

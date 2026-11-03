@@ -41,6 +41,55 @@ PROCESS_WORDS = ("待核实", "未核实", "证据条目", "证据编号", "数�
                  "零会议证据", "quote_verified", "First Touch记录")
 INFERENCE_WORDS = ("可能", "看起来", "提示", "还需要了解")
 
+# M1R D1：家长版各栏字数上限（含标点）
+LIMITS = {"meeting": 60, "meeting_two_tags": 80, "core_finding": 80, "context_notes": 50,
+          "portrait": 60, "finding": 40, "meaning": 40, "plan_cell": 40, "review_advice": 60}
+Y4_MAX = 3
+TOTAL_MAX = 3000
+_FINDING_NAMES = {"resources": "关键发展资源", "needs": "关键发展需求", "open": "仍待观察"}
+_FINDING_PARTS = {"finding": "发现", "meaning": "发展意义"}
+_PLAN_CELLS = {"goal": "阶段目标", "mentor": "导师支持方式", "family": "家庭支持方式",
+               "evidence": "成长证据与回顾"}
+
+
+def family_fields_with_limits(doc: Dict[str, Any]) -> List[tuple]:
+    """家长版里 AI 写的每一栏：(路径, 名称, 文字, 上限)。Y4 行、其他线索和内部备注不算。"""
+    out = []
+    if not isinstance(doc, dict):
+        return out
+
+    def text_of(field):
+        return field.get("text") or "" if isinstance(field, dict) else ""
+
+    for dim_id, dim in (doc.get("dims") or {}).items():
+        for code, row in (dim.get("abilities") or {}).items():
+            limit = LIMITS["meeting_two_tags"] if len(row.get("tags") or []) == 2 else LIMITS["meeting"]
+            out.append((["dims", dim_id, "abilities", code, "meeting"],
+                        "%s 首次会议核实情况" % code, text_of(row.get("meeting")), limit))
+        out.append((["dims", dim_id, "core_finding"], "%s 本维度当前核心发现" % dim_id,
+                    text_of(dim.get("core_finding")), LIMITS["core_finding"]))
+        out.append((["dims", dim_id, "context_notes"], "%s 情境差异与后续观察" % dim_id,
+                    text_of(dim.get("context_notes")), LIMITS["context_notes"]))
+    for dim_id, field in (doc.get("portrait") or {}).items():
+        out.append((["portrait", dim_id], "%s 当前核心观察" % dim_id, text_of(field),
+                    LIMITS["portrait"]))
+    for kind, pair in (doc.get("findings") or {}).items():
+        for part in ("finding", "meaning"):
+            out.append((["findings", kind, part],
+                        "%s·%s" % (_FINDING_NAMES.get(kind, kind), _FINDING_PARTS[part]),
+                        text_of((pair or {}).get(part)), LIMITS[part]))
+    for i, row in enumerate(doc.get("plan") or []):
+        for cell, name in _PLAN_CELLS.items():
+            out.append((["plan", i, cell], "方案第 %d 项·%s" % (i + 1, name),
+                        text_of(row.get(cell)), LIMITS["plan_cell"]))
+    out.append((["review_advice"], "阶段回顾建议", text_of(doc.get("review_advice")),
+                LIMITS["review_advice"]))
+    return out
+
+
+def ai_text_length(doc: Dict[str, Any]) -> int:
+    return sum(len(text) for _p, _n, text, _l in family_fields_with_limits(doc))
+
 
 # ---------------------------------------------------------------------------
 # 文本定位
@@ -507,6 +556,14 @@ def run_checks(report: Dict[str, Any], version: Optional[Dict[str, Any]], *,
         if isinstance(item, dict):
             out.append(_check("review", "code_adjusted", item.get("message") or "",
                               item.get("path") or []))
+    for path, name, text, limit in family_fields_with_limits(doc):
+        if len(text) > limit:
+            out.append(_check("review", "field_too_long",
+                              "%s：%d 字，建议不超过 %d 字" % (name, len(text), limit), path))
+    total = ai_text_length(doc)
+    if total > TOTAL_MAX:
+        out.append(_check("review", "too_long",
+                          "报告正文约 %d 字，超过 %d 字，建议精简" % (total, TOTAL_MAX), ["dims"]))
     return out
 
 
