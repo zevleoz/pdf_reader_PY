@@ -687,6 +687,7 @@
     renderLock(final);
     renderPriority();
     renderWarnings();
+    renderFactFlags();
     renderFinalizeState();
     renderSync();
   }
@@ -698,15 +699,118 @@
     document.getElementById('stamp').textContent = stamp;
   }
 
+  /* 事实核对标记：和服务器同一规则——已核对，或那一段文字已被改动，就算处理过。 */
+  function blockText(id) {
+    var found = null;
+    (function walk(value) {
+      if (found !== null || !value) return;
+      if (Array.isArray(value)) { value.forEach(walk); return; }
+      if (typeof value !== 'object') return;
+      if (value.id === id && typeof value.text === 'string') { found = value.text; return; }
+      Object.keys(value).forEach(function (key) {
+        if (key !== 'fact_flags') walk(value[key]);
+      });
+    })(state.doc);
+    return found;
+  }
+
+  function openFactFlags() {
+    return ((state.doc && state.doc.fact_flags) || []).filter(function (flag) {
+      if (flag.acked) return false;
+      if (flag.block_id && flag.block_text !== undefined && flag.block_text !== null) {
+        var current = blockText(flag.block_id);
+        if (current === null || current.trim() !== String(flag.block_text).trim()) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderFactFlags() {
+    var card = document.getElementById('factCard');
+    var list = document.getElementById('factList');
+    if (!card || !list) return;
+    var flags = state.status === 'final' ? [] : openFactFlags();
+    list.textContent = '';
+    card.hidden = !flags.length;
+    document.getElementById('factTitle').textContent = '需要核对（' + flags.length + '）';
+    flags.forEach(function (flag) {
+      var row = el('div', 'warnline w');
+      row.appendChild(el('span', 'dot'));
+      var body = el('div');
+      body.style.display = 'grid';
+      body.style.gap = '4px';
+      body.appendChild(el('b', '', flag.sentence || ''));
+      if (flag.problem && flag.problem !== flag.sentence) {
+        body.appendChild(el('span', '', flag.problem));
+      }
+      if (flag.source_excerpt) {
+        body.appendChild(el('span', 'hint', '资料原文：' + flag.source_excerpt));
+      }
+      var actions = el('div');
+      actions.style.display = 'flex';
+      actions.style.gap = '8px';
+      if (flag.block_id) {
+        var jump = el('button', 'btn sm ghost', '定位到文档');
+        jump.setAttribute('type', 'button');
+        jump.addEventListener('click', function () { jumpToBlock(flag.block_id); });
+        actions.appendChild(jump);
+      }
+      var ack = el('button', 'btn sm', '已核对');
+      ack.setAttribute('type', 'button');
+      ack.addEventListener('click', function () { ackFactFlag(flag, ack); });
+      actions.appendChild(ack);
+      body.appendChild(actions);
+      row.appendChild(body);
+      list.appendChild(row);
+    });
+  }
+
+  function jumpToBlock(id) {
+    var nodes = docEl.querySelectorAll('[data-bid]');
+    for (var i = 0; i < nodes.length; i += 1) {
+      if (nodes[i].getAttribute('data-bid') === id) {
+        nodes[i].scrollIntoView({ block: 'center', behavior: 'smooth' });
+        nodes[i].focus();
+        return;
+      }
+    }
+  }
+
+  function ackFactFlag(flag, button) {
+    button.disabled = true;
+    // 先把还没保存的修改存上，再核对，避免两边的版本号对不上
+    var pending = state.saveTimer ? (clearTimeout(state.saveTimer), saveDoc()) : Promise.resolve();
+    pending.then(function () {
+      return api('/api/m1/preps/' + state.prepId + '/fact-flags/' +
+        encodeURIComponent(flag.id) + '/ack', { method: 'POST' });
+    }).then(function (body) {
+      flag.acked = true;
+      state.rev = body.rev !== undefined ? body.rev : state.rev;
+      renderFactFlags();
+      renderFinalizeState();
+    }).catch(function (error) {
+      button.disabled = false;
+      if (error.status === 409 && error.body && error.body.rev !== undefined) {
+        showConflict(error.body);
+      } else {
+        toast(error.message, 'error');
+      }
+    });
+  }
+
   function renderFinalizeState() {
     var safety = ((state.doc.flags || {}).safety) || [];
     var acked = !!state.prep.safety_ack_at;
     var btn = document.getElementById('finalizeBtn');
     var hint = document.getElementById('finalizeHint');
     if (state.status === 'final') return;
+    var facts = openFactFlags().length;
     if (safety.length && !acked) {
       btn.disabled = true;
       hint.textContent = '先处理顶部的安全提示，才能定稿。';
+    } else if (facts) {
+      btn.disabled = true;
+      hint.textContent = '还有 ' + facts + ' 处内容需要核对，处理后才能定稿。';
     } else {
       btn.disabled = false;
       hint.textContent = '点击文档里任何文字都可以直接修改。定稿后锁定这一版用于会议。';
@@ -967,6 +1071,8 @@
     dot.style.color = 'var(--warn)';
     badge.appendChild(dot);
     badge.appendChild(document.createTextNode('未保存 · ' + nowHM()));
+    renderFactFlags();
+    renderFinalizeState();
     scheduleSave();
   }
 
@@ -977,8 +1083,8 @@
   }
 
   function saveDoc() {
-    if (!state.doc || state.status === 'final' || state.conflict) return;
-    api('/api/m1/preps/' + state.prepId + '/doc', {
+    if (!state.doc || state.status === 'final' || state.conflict) return Promise.resolve();
+    return api('/api/m1/preps/' + state.prepId + '/doc', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rev: state.rev, doc: state.doc })

@@ -25,7 +25,8 @@ from sqlalchemy.orm import Session
 
 import db as _db
 import growth_talk_store as store
-from app_utils import _advisor_scope, role_required
+from app_utils import (_advisor_scope, can_see_full, first_touch_content_required,
+                       role_required)
 from growth_talk import (analysis, copilot, copilot_report, jobs, report_contract,
                          y4_snapshot)
 from growth_talk.errors import ActionError
@@ -221,11 +222,20 @@ def _default_meeting_at() -> str:
 def api_list_sessions(sid: int):
     if not _student_or_404(sid):
         return _error("学生不存在或未分配至你的本地工作区", 404)
-    return jsonify({"sessions": store.list_sessions(sid)})
+    sessions = store.list_sessions(sid)
+    if not can_see_full():
+        # 概要账号：只留阶段、状态与日期，内容字段清空。
+        keep = ("id", "student_id", "phase", "status", "meeting_at",
+                "created_at", "updated_at", "completed_at")
+        return jsonify({"restricted": True, "sessions": [
+            {**{k: item.get(k) for k in keep}, "script": {}, "interests": []}
+            for item in sessions]})
+    return jsonify({"sessions": sessions})
 
 
 @bp.route("/api/v2/students/<int:sid>/copilot/sessions", methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_create_session(sid: int):
     if not _student_or_404(sid):
         return _error("学生不存在或未分配至你的本地工作区", 404)
@@ -248,6 +258,7 @@ def api_create_session(sid: int):
 
 @bp.route("/api/v2/copilot/sessions/<int:session_id>")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def api_get_session(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -323,6 +334,7 @@ def api_get_session(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/phase", methods=["PATCH"])
 @role_required("admin", "advisor")
 @_conflict_guard
+@first_touch_content_required
 def api_save_phase(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -438,6 +450,7 @@ def api_save_phase(session_id: int):
           methods=["PATCH"])
 @role_required("admin", "advisor")
 @_conflict_guard
+@first_touch_content_required
 def api_save_interest_draft(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -480,6 +493,7 @@ def api_save_interest_draft(session_id: int):
           methods=["POST"])
 @role_required("admin", "advisor")
 @_conflict_guard
+@first_touch_content_required
 def api_upload_source(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -541,6 +555,7 @@ def api_upload_source(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/supplement",
           methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_supplement(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -555,6 +570,7 @@ def api_supplement(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/next-steps",
           methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_next_steps(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -569,6 +585,7 @@ def api_next_steps(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/talking-points",
           methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_talking_points(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -583,6 +600,7 @@ def api_talking_points(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/projects",
           methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_generate_projects(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -597,6 +615,7 @@ def api_generate_projects(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/projects",
           methods=["PATCH"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_review_projects(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -615,6 +634,7 @@ def api_review_projects(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/report-prepare",
           methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_prepare_report(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -628,6 +648,7 @@ def api_prepare_report(session_id: int):
 
 @bp.route("/api/v2/copilot/jobs/<job_id>")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def api_job_status(job_id: str):
     if not _JOB_ID_RE.fullmatch(job_id):
         return _error("任务不存在", 404)
@@ -646,6 +667,7 @@ def api_job_status(job_id: str):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/report-preview",
           methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_preview_report(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -673,6 +695,7 @@ def api_preview_report(session_id: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/report-confirm",
           methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_confirm_report(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -712,6 +735,7 @@ def api_confirm_report(session_id: int):
 
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/report-pdf")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def api_report_pdf(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -891,7 +915,9 @@ def _first_touch_students() -> list[dict]:
 @bp.route("/first-touch")
 @role_required("admin", "advisor", "viewer")
 def page_home():
-    can_write = session.get("role") in ("admin", "advisor")
+    restricted = not can_see_full()
+    # 概要账号只看到状态与日期，不能进入会谈内容，也不能开始或导入。
+    can_write = session.get("role") in ("admin", "advisor") and not restricted
     return render_template(
         "first_touch/home.html", nav_active="first_touch",
         ctx={
@@ -900,6 +926,7 @@ def page_home():
             "isAdmin": session.get("role") == "admin",
             "canWrite": can_write,
             "readOnly": not can_write,
+            "restricted": restricted,
             "role": session.get("role") or "",
         })
 
@@ -912,6 +939,7 @@ def page_chat_picker():
 
 @bp.route("/first-touch/copilot/<int:sid>")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def page_chat(sid: int):
     profile = _student_profile(sid)
     if not profile or not _student_or_404(sid):
@@ -965,6 +993,7 @@ def page_archive(sid: int):
 
 @bp.route("/first-touch/students/<int:sid>")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def page_workspace(sid: int):
     profile = _student_profile(sid)
     if not profile or not _student_or_404(sid):
@@ -1038,6 +1067,7 @@ def _assistant_response(student_id: int, row: dict | None = None):
 
 @bp.route("/api/students/<int:sid>/copilot/assistant", methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_student_assistant(sid: int):
     if not _student_or_404(sid):
         return _error("学生不存在或未分配至你的本地工作区", 404)
@@ -1047,6 +1077,7 @@ def api_student_assistant(sid: int):
 @bp.route("/api/v2/copilot/sessions/<int:session_id>/assistant",
           methods=["POST"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_session_assistant(session_id: int):
     row = _session_or_404(session_id)
     if not row:
@@ -1056,6 +1087,7 @@ def api_session_assistant(session_id: int):
 
 @bp.route("/api/students/<int:sid>/copilot/chats")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def api_list_chats(sid: int):
     if not _student_or_404(sid):
         return _error("学生不存在或未分配至你的本地工作区", 404)
@@ -1064,6 +1096,7 @@ def api_list_chats(sid: int):
 
 @bp.route("/api/copilot/chats/<chat_id>")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def api_get_chat(chat_id: str):
     try:
         chat = store.get_chat(chat_id)
@@ -1076,6 +1109,7 @@ def api_get_chat(chat_id: str):
 
 @bp.route("/api/copilot/chats/<chat_id>", methods=["DELETE"])
 @role_required("admin", "advisor")
+@first_touch_content_required
 def api_delete_chat(chat_id: str):
     try:
         chat = store.get_chat(chat_id)
@@ -1197,6 +1231,7 @@ def _activity_hub_profile(report: dict, student: dict) -> dict:
 
 @bp.route("/api/first-touch/reports/<int:report_id>/activity-hub.json")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def api_report_activity_hub(report_id: int):
     report = store.get_report(report_id)
     if not report or not _student_or_404(report["student_id"]):

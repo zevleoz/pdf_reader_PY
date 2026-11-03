@@ -113,6 +113,17 @@ def _fake_ask(behaviour):
                            {"conflict": "", "context": "", "attention": ""},
                 "growth": {"wish": "你最希望哪里更轻松？", "next": "先做一次小练习。"},
             }
+        if schema_name == pipeline.SCHEMA_SUMMARY:
+            rows = _section(prompt, "【证据】")
+            return {"sentences": [{"text": "这份资料记录了学生的一段经历。",
+                                   "evidence_ids": [rows[0]["id"]]}]}
+        if schema_name == pipeline.SCHEMA_VERIFY:
+            text = prompt.split("【文字】\n", 1)[1].split("\n【资料】", 1)[0]
+            return {"sentences": [{"text": piece, "verdict": "supported", "problem": ""}
+                                  for piece in __import__("re").split(r"[。！？；;\n]+", text)
+                                  if piece.strip()]}
+        if schema_name == pipeline.SCHEMA_REWRITE:
+            return {"text": prompt.split("【文字】\n", 1)[1].split("\n【问题】", 1)[0]}
         raise AssertionError("未知 schema：%s" % schema_name)
 
     return ask
@@ -184,7 +195,7 @@ def _behavior_all(parent_ref, case_ref, ft_ref, other_ref=""):
         case_ref: [{"text": "课堂观察", "quote": "答错后整节课低头不说话",
                     "abilities": ["R3.5"], "kind": "direct",
                     "independent": True}],
-        ft_ref: [{"text": "考后反复回想", "quote": "晚上躺在床上一直在想哪道题错了",
+        ft_ref: [{"text": "晚上一直在想错题", "quote": "晚上躺在床上一直在想哪道题错了",
                   "abilities": ["R2.2", "R3.3"], "kind": "direct",
                   "independent": False}],
     }
@@ -290,7 +301,9 @@ def test_conflicting_sources_appear_in_special(m1db, monkeypatch):
                 "abilities": ["R3.2"], "kind": "direct", "independent": True}],
         },
         "recommend": ["R3.2"],
-        "contradictions": {"R3.2": ["家长反馈与 Case Review 解读不一致"]},
+        # the model names two pieces of evidence; code writes the sentence (T6b-4)
+        "contradictions": {"R3.2": [{"a": "src-%s-1" % parent["id"],
+                                     "b": "src-%s-1" % case["id"]}]},
         "special": {"conflict": conflict, "context": "", "attention": ""},
     }
     _install(monkeypatch, behaviour)
@@ -298,7 +311,12 @@ def test_conflicting_sources_appear_in_special(m1db, monkeypatch):
     pipeline.generate(prep["id"])
 
     draft = _latest_draft(prep["id"])
-    assert draft["doc"]["special"]["conflict"]["text"] == conflict
+    by_source = {item["source"]: item for item in draft["evidence"]}
+    expected = "%s：%s；%s：%s。" % (
+        pipeline.SOURCE_LABELS["parent"], by_source["parent"]["text"],
+        pipeline.SOURCE_LABELS["case_review"], by_source["case_review"]["text"])
+    assert draft["doc"]["special"]["conflict"]["text"] == expected
+    assert draft["doc"]["special"]["conflict"]["text"] != conflict  # the model's own text is ignored
     case_items = [item for item in draft["evidence"]
                   if item["source"] == "case_review"]
     assert case_items and case_items[0]["kind"] == "hypothesis"

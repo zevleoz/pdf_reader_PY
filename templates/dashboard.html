@@ -1160,6 +1160,7 @@
         </section>`;
     }
 
+    {% if current_role == 'admin' %}
     // ===== ADVISOR =====
     function renderAdvisor(s) {
       const ap = s.advisor_performance;
@@ -1208,6 +1209,11 @@
         </section>`;
     }
 
+    {% else %}
+    function renderAdvisor(s) { return ''; }
+    function renderTimeline(s) { return ''; }
+    {% endif %}
+
     // ===== FEEDBACK =====
     function renderFeedback(s) {
       const f = s.feedback_placeholder;
@@ -1233,8 +1239,10 @@
         ['makeup', '07', '学生构成'],
         ['correlation', '08', '维度关联'],
         ['insights', '09', '数据洞察'],
+        {% if current_role == 'admin' %}
         ['advisor', '10', '顾问产出'],
         ['timeline', '11', '月度产出'],
+        {% endif %}
       ];
       const lis = items.map(([id, num, name]) =>
         `<li><a href="#${id}">${num ? `<span class="ix-num">${num}</span>` : ''}<span class="ix-name">${name}</span></a></li>`
@@ -1353,8 +1361,10 @@
         const data = labels.map(d => p.dimensions[d]?.healthy || 0);
         charts.push(makeRadar(`radar_${i}`, labels, data));
       }
+      {% if current_role == 'admin' %}
       const tl = s.timeline;
       charts.push(makeLine('chartTimeline', tl.map(t => t.month), tl.map(t => t.report_count)));
+      {% endif %}
       renderHeatmap(s);
       drawScatter(s);
     }

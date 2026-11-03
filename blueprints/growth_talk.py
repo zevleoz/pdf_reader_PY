@@ -13,7 +13,7 @@ from flask import (Blueprint, abort, jsonify, redirect, send_file)
 
 import db as _db
 import growth_talk_store as store
-from app_utils import _advisor_scope, role_required
+from app_utils import _advisor_scope, first_touch_content_required, role_required
 from growth_talk import report_contract
 from growth_talk.report_pdf import render_report_pdf, report_filename
 
@@ -50,6 +50,7 @@ def _report_or_404(report_id: int):
 # ---------------------------------------------------------------------------
 @bp.route("/students/<int:sid>/growth-talk")
 @role_required("admin", "advisor")
+@first_touch_content_required
 def page_workspace(sid: int):
     if not _student_or_404(sid):
         abort(404)
@@ -61,6 +62,7 @@ def page_workspace(sid: int):
 # ---------------------------------------------------------------------------
 @bp.route("/api/growth-talk/reports/<int:report_id>/download.json")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def api_download_report_json(report_id: int):
     report = _report_or_404(report_id)
     if not report:
@@ -77,6 +79,7 @@ def api_download_report_json(report_id: int):
 
 @bp.route("/api/growth-talk/reports/<int:report_id>/download.pdf")
 @role_required("admin", "advisor", "viewer")
+@first_touch_content_required
 def api_download_report_pdf(report_id: int):
     report = _report_or_404(report_id)
     if not report:

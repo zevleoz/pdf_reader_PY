@@ -6,7 +6,8 @@ import json
 import os
 from typing import Dict, List, Optional
 
-from flask import Blueprint, Response, jsonify, redirect, render_template, request
+from flask import (Blueprint, Response, jsonify, redirect, render_template, request,
+                   session)
 
 import db as _db
 from app_utils import (admin_required, page_login_required, report_scoped,
@@ -34,6 +35,14 @@ def api_dashboard_stats():
     stats["indicator_trends"] = _db.get_indicator_trends()
     stats["cluster_patterns"] = _db.get_cluster_patterns()
     stats["dimension_balance"] = _db.get_dimension_balance()
+    if session.get("role") != "admin":
+        # 顾问产出 / 月度产出 仅管理员可见：服务端不下发这些数据。
+        for key in ("advisor_performance", "advisor_name_review", "timeline"):
+            stats.pop(key, None)
+        highlights = dict(stats.get("highlights") or {})
+        for key in ("top_advisor", "top_advisor_count"):
+            highlights.pop(key, None)
+        stats["highlights"] = highlights
     return jsonify({"ok": True, "stats": stats})
 
 
