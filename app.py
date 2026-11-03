@@ -235,6 +235,7 @@ def create_app() -> Flask:
 
     # --- 注册蓝图（导入放在 create_app 内，避免与 app_utils 形成导入环） ---
     from blueprints.api_v1 import bp as api_v1_bp
+    from blueprints.app_shell import bp as app_shell_bp
     from blueprints.auth import bp as auth_bp
     from blueprints.copilot import bp as copilot_bp
     from blueprints.growth_talk import bp as growth_talk_bp
@@ -250,7 +251,8 @@ def create_app() -> Flask:
 
     for _bp in (auth_bp, workspace_bp, students_bp, reports_bp,
                 growth_talk_bp, copilot_bp, questionnaires_bp,
-                insights_bp, m1_bp, m1_report_bp, tools_bp, system_bp, api_v1_bp):
+                insights_bp, m1_bp, m1_report_bp, tools_bp, system_bp,
+                app_shell_bp, api_v1_bp):
         app.register_blueprint(_bp)
 
     return app

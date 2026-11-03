@@ -50,3 +50,6 @@ api_demo_client/
 *.env
 .env.*
 !.env.example
+
+# 新前端的配置文件要进仓库（根目录 *.json 规则的例外）
+!frontend/*.json
