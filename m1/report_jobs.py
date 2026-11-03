@@ -24,6 +24,7 @@ from m1.jobs import JOB_ID_RE, JobLaunchError, LAUNCH_GRACE_SECONDS, read_job, w
 
 STEP_DEFS = (
     ("check", "资料检查"),
+    ("speakers", "发言人识别"),
     ("y4", "Y4 标准化"),
     ("mapping", "R4 Mapping"),
     ("first_touch", "First Touch 分析"),

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ fixed.cover.title_parts|join('') }} · {{ doc.meta.student_name }}</title>
+<title>{{ doc.meta.student_name }}_首次情绪力分析报告_{{ doc.meta.report_date }}</title>
 <link rel="stylesheet" href="/m1/assets/report_print.css">
 <style>
   /* 页眉页脚内容随学生与固定文案变化，故写在页面内；版式在 report_print.css。 */
@@ -84,6 +84,9 @@
 </head>
 <body class="m1-report">
 
+{% macro ed(path) -%}{% if editing %} data-path='{{ path|tojson }}' contenteditable="plaintext-only" spellcheck="false"{% endif %}{%- endmacro %}
+
+{% if not editing %}
 <div class="print-bar">
   <b>打印预览</b>
   <span class="sub">{{ status_label }}</span>
@@ -91,6 +94,23 @@
   <button type="button" id="printClose">关闭</button>
   <button type="button" class="pri" id="printGo">下载 PDF</button>
 </div>
+{% endif %}
+
+{% if editing %}
+<div class="edit-bar" id="editBar">
+  <b>预览与修改</b>
+  <span class="sub" id="editSaved">直接点文字修改，离开输入框自动保存。</span>
+  <span class="sp"></span>
+  <span class="edit-msg" id="editMsg"></span>
+  <button type="button" id="editAck" hidden>已核对，保留</button>
+  <span class="edit-count" id="editCount"></span>
+  <button type="button" id="editPrev">上一处</button>
+  <button type="button" class="pri" id="editNext">下一处</button>
+  <button type="button" class="link" id="editMore" hidden></button>
+</div>
+<div class="edit-banner" id="editBanner" hidden></div>
+<script type="application/json" id="editData">{{ edit_data|tojson }}</script>
+{% endif %}
 
 {% set ability_names = {} %}
 {% for dim in fixed.dims %}
@@ -290,14 +310,14 @@
           <td>
             {% set lines = y4_lines.get(ability.code, []) %}
             {% for line in lines %}<span class="y4-line">{{ line }}</span>{% endfor %}
-            {% if ability_doc.other_clues.text %}
-            <div class="multiline">{{ ability_doc.other_clues.text }}</div>
+            {% if ability_doc.other_clues.text or editing %}
+            <div class="multiline"{{ ed(["dims", dim.id, "abilities", ability.code, "other_clues"]) }}>{{ ability_doc.other_clues.text }}</div>
             {% elif not lines %}
             <span class="empty-note">暂无直接相关资料。</span>
             {% endif %}
           </td>
-          <td class="multiline">{{ ability_doc.meeting.text if ability_doc.meeting.text else '本次会议未获得相关信息。' }}</td>
-          <td>
+          <td class="multiline"{{ ed(["dims", dim.id, "abilities", ability.code, "meeting"]) }}>{{ ability_doc.meeting.text if ability_doc.meeting.text else '本次会议未获得相关信息。' }}</td>
+          <td{% if editing %} data-tags-path='{{ ["dims", dim.id, "abilities", ability.code, "tags"]|tojson }}' data-tags='{{ ability_doc.tags|tojson }}'{% endif %}>
             {% for tag_key in ability_doc.tags %}
             {% set tag = (fixed.tags|selectattr('key', 'equalto', tag_key)|list|first) %}
             {% if tag %}
@@ -310,15 +330,15 @@
       </tbody>
     </table>
 
-    <div class="dim-boxes{% if not dim_doc.context_notes.text %} single{% endif %}">
+    <div class="dim-boxes{% if not dim_doc.context_notes.text and not editing %} single{% endif %}">
       <div class="dim-box core">
         <h4>{{ fixed.analysis.finding_title }}</h4>
-        <p>{{ dim_doc.core_finding.text }}</p>
+        <p{{ ed(["dims", dim.id, "core_finding"]) }}>{{ dim_doc.core_finding.text }}</p>
       </div>
-      {% if dim_doc.context_notes.text %}
+      {% if dim_doc.context_notes.text or editing %}
       <div class="dim-box context">
         <h4>{{ fixed.analysis.context_title }}</h4>
-        <p>{{ dim_doc.context_notes.text }}</p>
+        <p{{ ed(["dims", dim.id, "context_notes"]) }}>{{ dim_doc.context_notes.text }}</p>
       </div>
       {% endif %}
     </div>
@@ -358,7 +378,7 @@
             <div class="dim-title">{{ dim.en }} ｜ {{ dim.zh }}</div>
             <div class="dim-sub">{{ dim.portrait_sub }}</div>
           </td>
-          <td>{{ doc.portrait[dim.id].text }}</td>
+          <td{{ ed(["portrait", dim.id]) }}>{{ doc.portrait[dim.id].text }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -382,8 +402,8 @@
         {% for key in ['resources', 'needs', 'open'] %}
         <tr>
           <td class="type-cell {{ key }}">{{ fixed.profile.findings_rows[key] }}</td>
-          <td>{{ doc.findings[key].finding.text }}</td>
-          <td>{{ doc.findings[key].meaning.text }}</td>
+          <td{{ ed(["findings", key, "finding"]) }}>{{ doc.findings[key].finding.text }}</td>
+          <td{{ ed(["findings", key, "meaning"]) }}>{{ doc.findings[key].meaning.text }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -426,10 +446,10 @@
             <span class="ability-code">{{ row.ability }}</span>
             <span class="ability-name">{{ ability_names.get(row.ability, '') }}</span>
           </td>
-          <td>{{ row.goal.text }}</td>
-          <td>{{ row.mentor.text }}</td>
-          <td>{{ row.family.text }}</td>
-          <td>{{ row.evidence.text }}</td>
+          <td{{ ed(["plan", loop.index0, "goal"]) }}{% if editing %} data-plan-index="{{ loop.index0 }}" data-plan-key="goal" data-plan-ability="{{ row.ability }}"{% endif %}>{{ row.goal.text }}</td>
+          <td{{ ed(["plan", loop.index0, "mentor"]) }}{% if editing %} data-plan-index="{{ loop.index0 }}" data-plan-key="mentor" data-plan-ability="{{ row.ability }}"{% endif %}>{{ row.mentor.text }}</td>
+          <td{{ ed(["plan", loop.index0, "family"]) }}{% if editing %} data-plan-index="{{ loop.index0 }}" data-plan-key="family" data-plan-ability="{{ row.ability }}"{% endif %}>{{ row.family.text }}</td>
+          <td{{ ed(["plan", loop.index0, "evidence"]) }}{% if editing %} data-plan-index="{{ loop.index0 }}" data-plan-key="evidence" data-plan-ability="{{ row.ability }}"{% endif %}>{{ row.evidence.text }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -442,7 +462,7 @@
     </div>
     <div class="review-box">
       <h4>{{ fixed.plan.review_box_title }}</h4>
-      <p>{{ doc.review_advice.text }}</p>
+      <p{{ ed(["review_advice"]) }}>{{ doc.review_advice.text }}</p>
     </div>
   </section>
 
@@ -489,6 +509,7 @@
 
 </article>
 
+{% if not editing %}
 <script>
   document.getElementById('printGo').addEventListener('click', function () {
     window.print();
@@ -497,6 +518,57 @@
     if (window.history.length > 1) window.close();
     else window.history.back();
   });
+  if (new URLSearchParams(window.location.search).get('print') === '1') {
+    var go = function () { setTimeout(function () { window.print(); }, 300); };
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(go);
+    else window.addEventListener('load', go);
+  }
 </script>
+{% endif %}
+{% if editing %}
+<style>
+  .edit-bar { position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; align-items: center;
+    flex-wrap: wrap; padding: 8px 12px; background: #fff; border-bottom: 1px solid #d9dde3;
+    font: 13px/1.4 system-ui, sans-serif; }
+  .edit-bar .sp { flex: 1; }
+  .edit-bar button { font: inherit; padding: 4px 10px; border: 1px solid #c9ced6; border-radius: 6px;
+    background: #fff; cursor: pointer; }
+  .edit-bar button.pri { background: #0B3FD6; border-color: #0B3FD6; color: #fff; }
+  .edit-bar button.link { border: 0; background: none; color: #0B3FD6; text-decoration: underline; }
+  .edit-msg { color: #8a5a00; max-width: 520px; }
+  .edit-count { font-weight: 600; }
+  .edit-banner { margin: 8px 12px; padding: 8px 12px; border: 1px solid #f0c36d; background: #fff8e6;
+    border-radius: 6px; font: 13px/1.5 system-ui, sans-serif; }
+  [data-path] { outline: 1px dashed transparent; cursor: text; }
+  [data-path]:hover { outline-color: #9db3f5; }
+  [data-path]:focus { outline: 2px solid #0B3FD6; background: #f5f8ff; }
+  .needs-check { outline: 2px solid #f0b429 !important; background: #fff8e6; }
+  .needs-check.current { outline-width: 3px !important; box-shadow: 0 0 0 4px rgba(240,180,41,.25); }
+  .tag-edit { margin-top: 4px; font-size: 12px; border: 1px solid #c9ced6; border-radius: 6px;
+    background: #fff; padding: 2px 8px; cursor: pointer; }
+  .tag-pop { margin-top: 6px; padding: 6px; border: 1px solid #c9ced6; border-radius: 6px; background: #fff; }
+  .tag-pop label { display: block; font-size: 12px; }
+  @media print { .edit-bar, .edit-banner, .tag-edit, .tag-pop { display: none !important; }
+    .needs-check, [data-path] { outline: none !important; background: none !important; box-shadow: none !important; } }
+</style>
+<script type="application/json" id="editCsrf">{{ csrf_token()|tojson }}</script>
+<script>
+  // 打印页是独立页面，没有主页面壳的 fetch 包装；编辑模式自行补上 CSRF 请求头。
+  (function () {
+    var node = document.getElementById('editCsrf');
+    var token = node ? JSON.parse(node.textContent) : '';
+    var origFetch = window.fetch;
+    window.fetch = function (url, opts) {
+      opts = opts || {};
+      var method = (opts.method || 'GET').toUpperCase();
+      if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
+        opts.headers = Object.assign({}, opts.headers, { 'X-CSRF-Token': token });
+      }
+      return origFetch.call(this, url, opts);
+    };
+  })();
+</script>
+<script src="/m1/assets/report_edit.js"></script>
+{% endif %}
 </body>
 </html>

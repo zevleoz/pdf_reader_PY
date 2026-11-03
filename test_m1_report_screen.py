@@ -75,7 +75,7 @@ def test_report_page_renders_for_admin(client, m1db):
     html = resp.get_data(as_text=True)
     assert 'class="m1-platform"' in html
     assert 'id="r4TranscriptFile"' in html
-    for label in ("预览 PDF", "下载 PDF", "内部证据记录", "审核通过", "正式发布", "重新打开"):
+    for label in ("导出 PDF", "内部证据记录", "审核通过", "正式发布", "重新打开"):
         assert label in html
     assert "暂不支持音频，请上传转写文字（txt、docx、pdf）。" in html
 

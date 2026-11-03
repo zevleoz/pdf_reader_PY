@@ -75,6 +75,22 @@ class M1ReportVersion(Base):
     __table_args__ = (Index("ix_m1_report_versions_report_n", "report_id", "n"),)
 
 
+class M1ReportSpeakers(Base):
+    """会后报告的发言人识别结果（每份报告一行）。"""
+    __tablename__ = "m1_report_speakers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    report_id = Column(Integer, ForeignKey("m1_reports.id"), nullable=False, unique=True)
+    transcript_hash = Column(String(64), nullable=False, default="")
+    status = Column(String(20), nullable=False, default="none")
+    format = Column(String(20), nullable=False, default="")
+    turns = Column(Text, nullable=False, default="[]")
+    labels = Column(Text, nullable=False, default="{}")
+    message = Column(String(500), nullable=False, default="")
+    updated_by = Column(Integer)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class NotFound(Exception):
     """记录不存在。"""
 
@@ -94,7 +110,7 @@ class StatusError(Exception):
 def ensure_tables(engine=None) -> None:
     """幂等建表（主要给生成子进程与命令行用；正常启动由 ``init_db`` 建）。"""
     Base.metadata.create_all(engine or _db.engine, tables=[
-        M1Report.__table__, M1ReportVersion.__table__])
+        M1Report.__table__, M1ReportVersion.__table__, M1ReportSpeakers.__table__])
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +197,35 @@ def get_report_by_id(report_id: int) -> Optional[Dict[str, Any]]:
     with Session(_engine()) as sess:
         row = sess.get(M1Report, int(report_id))
         return _report_row(row) if row else None
+
+
+def get_speakers(report_id: int) -> Optional[Dict[str, Any]]:
+    with Session(_engine()) as sess:
+        row = sess.query(M1ReportSpeakers).filter_by(report_id=int(report_id)).first()
+        if not row:
+            return None
+        return {"report_id": row.report_id, "transcript_hash": row.transcript_hash,
+                "status": row.status, "format": row.format,
+                "turns": _loads(row.turns, []), "labels": _loads(row.labels, {}),
+                "message": row.message, "updated_by": row.updated_by,
+                "updated_at": _iso(row.updated_at)}
+
+
+def save_speakers(report_id: int, **fields: Any) -> None:
+    allowed = ("transcript_hash", "status", "format", "turns", "labels", "message", "updated_by")
+    with Session(_engine()) as sess:
+        row = sess.query(M1ReportSpeakers).filter_by(report_id=int(report_id)).first()
+        if not row:
+            row = M1ReportSpeakers(report_id=int(report_id))
+            sess.add(row)
+        for key in allowed:
+            if key not in fields:
+                continue
+            value = fields[key]
+            if key in ("turns", "labels"):
+                value = _dumps(value)
+            setattr(row, key, value if value is not None else getattr(row, key))
+        sess.commit()
 
 
 def get_or_create_report(prep_id: int, created_by=None) -> Dict[str, Any]:
