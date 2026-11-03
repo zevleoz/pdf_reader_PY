@@ -77,7 +77,7 @@ def seeded(qdb):
 
 def _login_viewer(client, qdb):
     login_as(client, qdb, role="viewer", advisor_name="",
-             display_name="观察员", user_id=qdb.alice_id)
+             display_name="观察员", user_id=qdb.alice_id, detail_level="full")
 
 
 def test_viewer_read_routes_return_200(client, qdb, seeded):

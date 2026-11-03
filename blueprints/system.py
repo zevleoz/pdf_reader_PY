@@ -99,3 +99,40 @@ def api_users_delete(user_id):
     _db.delete_user(user_id)
     invalidate_session_user(user_id)
     return jsonify({"ok": True})
+
+
+_COMMIT = None
+
+
+def _deployed_commit() -> str:
+    """部署的代码版本（git 短哈希），启动后只读一次；读不到返回 unknown。"""
+    global _COMMIT
+    if _COMMIT is None:
+        import subprocess
+        from pathlib import Path
+        try:
+            out = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                                 cwd=str(Path(__file__).resolve().parent.parent),
+                                 capture_output=True, text=True, timeout=5)
+            _COMMIT = out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else "unknown"
+        except Exception:
+            _COMMIT = "unknown"
+    return _COMMIT
+
+
+@bp.route("/healthz")
+def healthz():
+    """存活检查：不需登录，只说明服务和数据库是否可用，不返回任何数据。"""
+    from sqlalchemy import text
+    try:
+        with _db.engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return jsonify({"ok": True})
+    except Exception:
+        return jsonify({"ok": False}), 503
+
+
+@bp.route("/api/admin/version")
+@role_required('admin')
+def api_admin_version():
+    return jsonify({"ok": True, "commit": _deployed_commit()})

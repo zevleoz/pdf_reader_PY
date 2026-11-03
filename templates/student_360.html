@@ -673,7 +673,9 @@
         <div style="min-width:0">
           <div class="surface-title">First Touch</div>
           <div class="card-title-sub">
-            {% if ft_status == 'needs_y4' %}
+            {% if ft.get('restricted') %}
+              当前账号不能查看 First Touch 内容
+            {% elif ft_status == 'needs_y4' %}
               该学生还没有完整的 Y4 报告，不能开始会谈。
             {% elif ft.get('sessionId') %}
               三步会谈：会前准备 · 会谈记录 · 会后整理
@@ -684,7 +686,8 @@
         </div>
         <span class="badge {{ ft_class }}">{{ ft_label }}</span>
         <span class="spacer"></span>
-        {% if not ft.get('canStart') %}
+        {% if ft.get('restricted') %}
+        {% elif not ft.get('canStart') %}
         <button type="button" class="btn btn-sec btn-sm" disabled>需先完成 Y4</button>
         <a class="btn btn-sec btn-sm" href="/generate">去生成 Y4</a>
         {% else %}
@@ -697,6 +700,12 @@
         </a>
         {% endif %}
       </div>
+      {% if ft.get('restricted') %}
+      <div style="padding:12px 16px 16px" class="mono">
+        {%- if ft.get('updatedAt') %}更新 {{ ft['updatedAt'] | dt_short }}{% endif %}
+        {%- if ft.get('confirmedAt') %} · 报告确认 {{ ft['confirmedAt'] | dt_short }}{% endif %}
+      </div>
+      {% else %}
       <div style="padding:12px 16px 16px; display:grid; gap:14px">
         <div x-show="firstTouch.interests && firstTouch.interests.length">
           <div class="page-sub" style="margin:0 0 6px">兴趣（喜欢 + 擅长 最高的 6 项）</div>
@@ -741,6 +750,7 @@
           </div>
         </div>
       </div>
+      {% endif %}
     </section>
   </div>
 

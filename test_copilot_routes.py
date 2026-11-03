@@ -108,13 +108,15 @@ def client(qdb):
 
 
 def login_as(client, qdb, *, role="advisor", advisor_name="Alice",
-             display_name="Alice", user_id=None):
+             display_name="Alice", user_id=None, detail_level=None):
     with client.session_transaction() as sess:
         sess["user_id"] = user_id if user_id is not None else (
             qdb.bob_id if advisor_name == "Bob" else qdb.alice_id)
         sess["role"] = role
         sess["advisor_name"] = advisor_name
         sess["display_name"] = display_name
+        if detail_level is not None:
+            sess["detail_level"] = detail_level
 
 
 def _inline_jobs(monkeypatch):
