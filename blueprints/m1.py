@@ -201,6 +201,43 @@ def _sanitize_version(version: dict | None) -> dict | None:
     return version
 
 
+def _doc_blocks(value, found=None) -> dict:
+    """id → block for every ``{id, text}`` block in a document (flags excluded)."""
+    found = {} if found is None else found
+    if isinstance(value, dict):
+        if isinstance(value.get("id"), str) and isinstance(value.get("text"), str):
+            found.setdefault(value["id"], value)
+        for key, child in value.items():
+            if key != "fact_flags":
+                _doc_blocks(child, found)
+    elif isinstance(value, list):
+        for child in value:
+            _doc_blocks(child, found)
+    return found
+
+
+def _open_fact_flags(doc) -> list:
+    """Fact flags the mentor still has to deal with. A flag is closed when it was
+    acknowledged, or when its block's text is no longer the text that was flagged
+    (edited or removed). A flag without a block closes only by acknowledgement."""
+    flags = doc.get("fact_flags") if isinstance(doc, dict) else None
+    if not isinstance(flags, list):
+        return []
+    blocks = _doc_blocks(doc)
+    open_flags = []
+    for flag in flags:
+        if not isinstance(flag, dict) or flag.get("acked"):
+            continue
+        block_id = flag.get("block_id")
+        if block_id and flag.get("block_text") is not None:
+            block = blocks.get(block_id)
+            if block is None or (block.get("text") or "").strip() != \
+                    (flag.get("block_text") or "").strip():
+                continue
+        open_flags.append(flag)
+    return open_flags
+
+
 def _detail(prep: dict) -> dict:
     auto = _sanitize_auto(sources.auto_sources(prep["student_id"]))
     uploaded = store.list_sources(prep["id"])
@@ -251,7 +288,13 @@ def page_workspace(prep_id: int):
 @page_login_required
 def page_print(prep_id: int):
     prep = _prep_or_404(prep_id)
+    prep["current_version"] = _sanitize_version(prep.get("current_version"))
     detail = _detail(prep)
+    # the fact flags are for the mentor's review only and never reach the print page
+    for holder in (detail, detail.get("version") or {}, prep.get("current_version") or {}):
+        if isinstance(holder.get("doc"), dict):
+            holder["doc"] = {key: value for key, value in holder["doc"].items()
+                             if key != "fact_flags"}
     return _render_page("m1/print.html", prep=prep, prep_id=prep["id"],
                         detail=detail, ctx={"prep": prep, "detail": detail})
 
@@ -460,6 +503,15 @@ def api_save_doc(prep_id: int):
         return _err("缺少 rev")
     if not isinstance(doc, dict):
         return _err("doc 必须是对象")
+    # 浏览器保存不能改动事实标记：以最近一次草稿里存的为准，
+    # 既不能删掉标记，也不能把 acked 设成 true；只有 ack 路由能设 acked。
+    draft = store.get_latest_version(prep_id, "edit") or {}
+    stored_doc = draft.get("doc")
+    stored_flags = stored_doc.get("fact_flags") if isinstance(stored_doc, dict) else None
+    if stored_flags is not None:
+        doc["fact_flags"] = stored_flags
+    else:
+        doc.pop("fact_flags", None)
     try:
         result = store.save_doc(prep_id, rev, doc)
     except store.RevConflict as exc:
@@ -491,6 +543,11 @@ def api_finalize(prep_id: int):
     prep, error = _api_prep(prep_id)
     if error:
         return error
+    if prep["status"] != "final":
+        draft = store.get_latest_version(prep_id, "edit") or {}
+        open_flags = _open_fact_flags(draft.get("doc"))
+        if open_flags:
+            return _err("还有未核对的内容", 409, flags=open_flags)
     try:
         version = store.finalize_prep(prep_id, _user().get("user_id"))
     except store.FinalizeBlocked as exc:
@@ -498,6 +555,32 @@ def api_finalize(prep_id: int):
     store.audit(_user().get("user_id"), prep["student_id"], "m1.final",
                 {"prep_id": prep_id, "version_id": version["id"]})
     return jsonify({"ok": True, "version": version, "prep": store.get_prep(prep_id)})
+
+
+@bp.route("/api/m1/preps/<int:prep_id>/fact-flags/<flag_id>/ack", methods=["POST"])
+@role_required(*_WRITE_ROLES)
+def api_fact_flag_ack(prep_id: int, flag_id: str):
+    prep, error = _api_prep(prep_id)
+    if error:
+        return error
+    draft = store.get_latest_version(prep_id, "edit") or {}
+    doc = draft.get("doc")
+    flags = doc.get("fact_flags") if isinstance(doc, dict) else None
+    flag = next((row for row in flags or []
+                 if isinstance(row, dict) and row.get("id") == flag_id), None)
+    if flag is None:
+        return _err("没有这条核对标记", 404)
+    flag["acked"] = True
+    try:
+        result = store.save_doc(prep_id, prep["rev"], doc)
+    except store.RevConflict as exc:
+        return jsonify({"ok": False, "error": str(exc), "rev": exc.rev,
+                        "doc": exc.doc}), 409
+    except store.FinalizeBlocked as exc:
+        return _err(str(exc), 409)
+    store.audit(_user().get("user_id"), prep["student_id"], "m1.fact_flag_ack",
+                {"prep_id": prep_id, "flag_id": flag_id, "kind": flag.get("kind")})
+    return jsonify({"ok": True, "rev": result["rev"], "flag_id": flag_id})
 
 
 @bp.route("/api/m1/preps/<int:prep_id>/reopen", methods=["POST"])

@@ -9,20 +9,25 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 import time
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import ai_writing
+import db as _db
 from growth_talk.analysis import AnalysisError, call_model
+from sqlalchemy.orm import Session
 
 import m1.sources as sources
 import m1.store as store
+from m1 import report_checks, report_pipeline
 from m1.kb import load_kb
 from m1.prompts import (_STYLE, ABILITY_PROMPT, MEETING_PLAN_PROMPT,
                         PRIORITY_PROMPT, SAFETY_CHECK_PROMPT, SAFETY_KEYWORDS,
-                        SOURCE_ITEMS_PROMPT)
+                        SOURCE_ITEMS_PROMPT, SOURCE_SUMMARY_PROMPT)
 from m1.validate_doc import redact_raw_numbers, validate_doc
 
 SCHEMA_SOURCE = "source_items"
@@ -30,6 +35,11 @@ SCHEMA_SAFETY = "safety_check"
 SCHEMA_ABILITY = "ability"
 SCHEMA_PRIORITY = "priority"
 SCHEMA_PLAN = "meeting_plan"
+SCHEMA_SUMMARY = "source_summary"
+SCHEMA_VERIFY = "fact_check"
+SCHEMA_REWRITE = "fact_rewrite"
+
+logger = logging.getLogger(__name__)
 
 SOURCE_LABELS = {
     "y4": "Y4",
@@ -44,9 +54,30 @@ SOURCE_LABELS = {
 # interpretations of Y4 are "hypothesis" and never become events
 _EVENT_SOURCES = {"first_touch", "parent", "other", "case_review"}
 _EVENT_KINDS = {"direct", "context"}
-_KINDS = {"direct", "indirect", "context", "inference", "hypothesis"}
+_KINDS = {"direct", "indirect", "context", "inference", "hypothesis", "hypothetical"}
 _Y4_REF_RE = re.compile(r"Y4|测评|报告|得分|档位|分数|量表|测验|问卷")
-_TEXT_LIMIT = 12000
+# 导师的发言、引导性提问与学生附和、假设性回答都不是学生的真实经历
+_TIME_MARK = r"(?:\d{1,2}:\d{2}(?::\d{2})?)"
+_MENTOR_LINE_RE = re.compile(
+    r"^\W*(?:" + _TIME_MARK + r"\W*)?(导师|老师|mentor)\s*"
+    r"(?:" + _TIME_MARK + r"\s*)?[：:]", re.I)
+_LEADING_RE = re.compile(r"是不是|对不对|是吗|吧[？?]")
+_HYPOTHETICAL_RE = re.compile(r"如果|假如|要是|万一|下次")
+# a student line that talks about something that really happened is not a supposition,
+# even when the mentor's question before it began with 如果 (unless the line itself
+# is worded as a supposition: 要是、如果、下次……, e.g. "上台之前先跟同学对稿，要是……")
+_PAST_EVENT_WORDS = ("上个月", "上周", "上次", "那次", "有一次", "当时", "之前", "昨天", "去年", "上学期")
+# 学生中途改口（“……不对，其实……”）：只留改口之后的说法；“对不对”不是改口
+_CORRECTION_RE = re.compile(r"(?<!对)不对")
+_LEADING_PUNCT = "，,。.、；;：:！!？?…—-~～ \u3000\"'“”‘’「」『』（）()"
+# one source is cut into pieces of at most this many characters; every piece is read
+_TEXT_LIMIT = 6000
+# 1.2 summaries: whole sentences only, dropped from the end when too long
+_SUMMARY_LIMIT = 300
+SUMMARY_FALLBACK = "已取得资料，未能生成摘要，请查看原文。"
+UNCHECKED_FLAG_TEXT = "部分内容未完成事实核对，请人工核对。"
+# the fact check must not hold up a document for long; unfinished checks are flagged
+_GUARD_BUDGET_SECONDS = 300
 _MAX_EVENT_QUESTIONS = 4
 
 
@@ -72,7 +103,13 @@ def _strip_ids(value, by_id) -> str:
 _ID_ALT = r"(?:y4|y|src|ft|q|6am|ev)-\d+(?:-\d+)?"
 
 
-def _style_for(evidence: List[Dict[str, Any]]) -> str:
+def _gender_line(gender: str) -> str:
+    if gender in ("男", "女"):
+        return "\n- 学生性别：%s。" % gender
+    return "\n- 资料没有写明学生性别：不要用“他”“她”指代学生，写“学生”。"
+
+
+def _style_for(evidence: List[Dict[str, Any]], gender: str = "") -> str:
     """_STYLE plus the list of sources this student actually has, so the model
     does not cite a Case Review or parent feedback that was never provided."""
     present = []
@@ -80,7 +117,23 @@ def _style_for(evidence: List[Dict[str, Any]]) -> str:
         label = SOURCE_LABELS.get(item.get("source"), "")
         if label and label not in present:
             present.append(label)
-    return _STYLE + "\n- 本学生已有的资料来源只有：%s。不要提到其他来源。" % ("、".join(present) or "无")
+    return (_STYLE + "\n- 本学生已有的资料来源只有：%s。不要提到其他来源。" % ("、".join(present) or "无")
+            + _gender_line(gender))
+
+
+def _student_gender(student_id) -> str:
+    """The record's gender, normalised to 男 / 女 / '' (blank = not stated)."""
+    try:
+        with Session(store._engine()) as sess:
+            student = sess.get(_db.Student, int(student_id))
+            value = str(getattr(student, "gender", "") or "").strip().lower()
+    except Exception:
+        return ""
+    if value in ("男", "男生", "male", "m", "boy"):
+        return "男"
+    if value in ("女", "女生", "female", "f", "girl"):
+        return "女"
+    return ""
 
 
 # a 2.3 conflict must name at least one source outside Y4
@@ -328,66 +381,177 @@ def _six_am_items(auto: Dict[str, Any]) -> List[Dict[str, Any]]:
     return items
 
 
+def _split_pieces(text: str, limit: int = _TEXT_LIMIT) -> List[str]:
+    """Cut a long source at line breaks into pieces of at most ``limit`` characters,
+    so no part of a long meeting is silently ignored."""
+    pieces: List[str] = []
+    current: List[str] = []
+    size = 0
+    for line in str(text or "").split("\n"):
+        while len(line) > limit:  # a single line longer than a piece
+            if current:
+                pieces.append("\n".join(current))
+                current, size = [], 0
+            pieces.append(line[:limit])
+            line = line[limit:]
+        if current and size + len(line) + 1 > limit:
+            pieces.append("\n".join(current))
+            current, size = [], 0
+        current.append(line)
+        size += len(line) + 1
+    if current:
+        pieces.append("\n".join(current))
+    return [piece for piece in pieces if piece.strip()]
+
+
+def _quote_lines(text: str, quote: str) -> Tuple[str, str]:
+    """引文所在的那一行，以及它的上一行；跨行引文返回两个空字符串。"""
+    lines = [line.strip() for line in str(text or "").split("\n") if line.strip()]
+    target = _norm(quote)
+    for index, line in enumerate(lines):
+        if target and target in _norm(line):
+            return line, (lines[index - 1] if index else "")
+    return "", ""
+
+
+def _after_correction(quote: str) -> str:
+    """The part of a quote after the student corrected themselves with 不对;
+    the quote unchanged when there is no correction or nothing follows it."""
+    parts = _CORRECTION_RE.split(quote)
+    if len(parts) < 2:
+        return quote
+    return parts[-1].lstrip(_LEADING_PUNCT) or quote
+
+
+def _read_piece(prompt: str) -> Tuple[Optional[Dict[str, Any]], Optional[Exception]]:
+    """One piece of one source: asked, and asked once more when the call fails."""
+    error: Optional[Exception] = None
+    for _attempt in range(2):
+        try:
+            return _ask(prompt, SCHEMA_SOURCE), None
+        except (AnalysisError, ValueError) as exc:
+            error = exc
+    return None, error
+
+
 def _source_text_items(auto: Dict[str, Any],
-                       uploaded: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """每个文字来源一次 AI 调用；quote 不存在的条目直接丢弃。"""
+                       uploaded: List[Dict[str, Any]],
+                       gender: str = "",
+                       failures: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """每个文字来源按段各一次 AI 调用；quote 不存在于全文的条目直接丢弃。
+
+    A piece that fails twice is recorded in ``failures`` and the other pieces carry
+    on; only when every piece of every source fails does this raise."""
     items: List[Dict[str, Any]] = []
+    attempted = 0
+    failed = 0
+    last_error: Optional[Exception] = None
     valid_codes = _kb_codes()
+    abilities = [{"code": row.get("code"), "name": row.get("name")}
+                 for row in load_kb().get("abilities") or []]
     for row in _text_sources(auto, uploaded):
-        payload = {
-            "source_ref": row["source_ref"],
-            "label": row["label"],
-            "date": row["date"],
-            "text": row["text"][:_TEXT_LIMIT],
-            "abilities": [{"code": row.get("code"), "name": row.get("name")}
-                          for row in load_kb().get("abilities") or []],
-        }
-        result = _ask(SOURCE_ITEMS_PROMPT % _json(payload), SCHEMA_SOURCE)
+        full_norm = _norm(row["text"])
         seen_quotes = set()
-        for index, raw in enumerate(result.get("items") or [], start=1):
-            if not isinstance(raw, dict):
-                continue
-            quote = _clean(raw.get("quote"))
-            normalised = _norm(quote)
-            if not normalised or normalised not in _norm(row["text"]):
-                continue
-            if normalised in seen_quotes:
-                continue
-            seen_quotes.add(normalised)
-
-            kind = _clean(raw.get("kind")).lower()
-            if row["source"] == "case_review":
-                independent = bool(raw.get("independent")) and _is_first_hand(quote)
-                kind = "direct" if independent else "hypothesis"
-            elif kind not in _KINDS:
-                kind = "inference"
-            elif kind == "hypothesis":
-                kind = "inference"
-
-            abilities = []
-            for code in raw.get("abilities") or []:
-                code = _clean(code)
-                if code in valid_codes and code not in abilities:
-                    abilities.append(code)
-
-            items.append({
-                "id": "%s-%d" % (row["id_prefix"], index),
-                "source": row["source"],
+        index = 0
+        for number, piece in enumerate(_split_pieces(row["text"]), start=1):
+            payload = {
                 "source_ref": row["source_ref"],
+                "label": row["label"],
                 "date": row["date"],
-                "kind": kind,
-                "group": row["source_ref"],
-                "text": _clean(raw.get("text")) or quote,
-                "quote": quote,
+                "student_gender": gender,
+                "text": piece,
                 "abilities": abilities,
-                "band": "",
-                "raw": None,
-            })
+            }
+            attempted += 1
+            result, error = _read_piece(SOURCE_ITEMS_PROMPT % _json(payload))
+            if result is None:
+                failed += 1
+                last_error = error
+                if failures is not None:
+                    failures.append({"label": row["label"], "piece": number})
+                continue
+            for raw in result.get("items") or []:
+                index += 1
+                if not isinstance(raw, dict):
+                    continue
+                quote = _clean(raw.get("quote"))
+                normalised = _norm(quote)
+                if not normalised or normalised not in full_norm:
+                    continue
+                corrected = _after_correction(quote)
+                if corrected != quote:
+                    quote, normalised = corrected, _norm(corrected)
+                if normalised in seen_quotes:
+                    continue
+                seen_quotes.add(normalised)
+
+                # Case Review 的老师发言本身就是证据，所以只在其他来源里筛
+                line, previous_line = _quote_lines(row["text"], quote)
+                if row["source"] != "case_review":
+                    if _MENTOR_LINE_RE.match(line):
+                        continue
+                    if (len(normalised) <= 4
+                            or (len(normalised) <= 12
+                                and bool(_MENTOR_LINE_RE.match(previous_line))
+                                and bool(_LEADING_RE.search(previous_line))
+                                )
+                            or raw.get("prompted")):
+                        continue
+
+                kind = _clean(raw.get("kind")).lower()
+                hypothetical = False
+                if row["source"] == "case_review":
+                    independent = bool(raw.get("independent")) and _is_first_hand(quote)
+                    kind = "direct" if independent else "hypothesis"
+                else:
+                    hypothetical = kind == "hypothetical" or bool(
+                        _MENTOR_LINE_RE.match(previous_line)
+                        and _HYPOTHETICAL_RE.search(previous_line)
+                        and not (any(word in line for word in _PAST_EVENT_WORDS)
+                                 and not _HYPOTHETICAL_RE.search(line)))
+                    if hypothetical:
+                        kind = "hypothetical"
+                    elif kind not in _KINDS:
+                        kind = "inference"
+                    elif kind == "hypothesis":
+                        kind = "inference"
+
+                codes = []
+                for code in raw.get("abilities") or []:
+                    code = _clean(code)
+                    if code in valid_codes and code not in codes:
+                        codes.append(code)
+
+                # the summary line may only say what its quote says
+                text = _clean(raw.get("text"))
+                if corrected != _clean(raw.get("quote")) or not text \
+                        or ai_writing.lint_facts(text, quote):
+                    text = quote
+                if hypothetical and not text.startswith("学生设想"):
+                    text = "学生设想：" + text
+
+                items.append({
+                    "id": "%s-%d" % (row["id_prefix"], index),
+                    "source": row["source"],
+                    "source_ref": row["source_ref"],
+                    "date": row["date"],
+                    "kind": kind,
+                    "group": row["source_ref"],
+                    "text": text,
+                    "quote": quote,
+                    "abilities": codes,
+                    "band": "",
+                    "raw": None,
+                })
+    if attempted and failed == attempted:
+        raise last_error or AnalysisError("资料未能读取")
     return items
 
 
 def _build_evidence(auto: Dict[str, Any],
-                    uploaded: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                    uploaded: List[Dict[str, Any]],
+                    gender: str = "",
+                    failures: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     y4 = auto.get("y4") or {}
     for raw in y4.get("items") or []:
@@ -409,17 +573,147 @@ def _build_evidence(auto: Dict[str, Any],
         })
     items.extend(_six_am_items(auto))
     items.extend(_questionnaire_items(auto))
-    items.extend(_source_text_items(auto, uploaded))
+    items.extend(_source_text_items(auto, uploaded, gender, failures))
     for index, item in enumerate(items, start=1):
         if not item["id"]:
             item["id"] = "ev-%d" % index
     return items
 
 
+_SUMMARY_SOURCES = ("first_touch", "parent", "case_review", "other")
+
+
+def _summary_rows(result: Dict[str, Any], valid_ids: set) -> List[Dict[str, Any]]:
+    """摘要里通过来源核查的句子，每句带上它自己依据的条目 id。"""
+    rows: List[Dict[str, Any]] = []
+    for raw in (result or {}).get("sentences") or []:
+        if not isinstance(raw, dict):
+            continue
+        text = _strip_ids(raw.get("text"), {})
+        cited = [item_id for item_id in _as_list(raw.get("evidence_ids"))
+                 if item_id in valid_ids]
+        if not text or not cited:
+            continue  # a sentence without a valid source is dropped
+        rows.append({"text": text, "evidence_ids": list(dict.fromkeys(cited))})
+    # never cut mid-sentence: drop whole sentences from the end instead
+    while len(rows) > 1 and len("".join(row["text"] for row in rows)) > _SUMMARY_LIMIT:
+        rows.pop()
+    return rows
+
+
+def _summary_sentences(result: Dict[str, Any],
+                       valid_ids: set) -> Tuple[List[str], List[str]]:
+    """摘要里通过来源核查的句子，以及它们用到的条目 id。"""
+    rows = _summary_rows(result, valid_ids)
+    ids: List[str] = []
+    for row in rows:
+        ids.extend(item_id for item_id in row["evidence_ids"] if item_id not in ids)
+    return [row["text"] for row in rows], ids
+
+
+def _source_summaries(evidence: List[Dict[str, Any]],
+                      gender: str = "") -> Dict[str, Dict[str, Any]]:
+    """1.2 「会前提取信息」: 2–4 complete sentences per text source, each tied to
+    its evidence ids. A source whose call fails or yields nothing valid is left
+    out, and the document shows a fixed sentence instead of a text fragment."""
+    summaries: Dict[str, Dict[str, Any]] = {}
+    retried = 0
+    for key in _SUMMARY_SOURCES:
+        rows = [item for item in evidence if item.get("source") == key]
+        if not rows:
+            continue
+        valid_ids = {item["id"] for item in rows}
+        prompt = SOURCE_SUMMARY_PROMPT % (
+            SOURCE_LABELS[key], _style_for(evidence, gender),
+            _json([_public_item(item) for item in rows]))
+        try:
+            result = _ask(prompt, SCHEMA_SUMMARY)
+        except Exception:
+            continue
+        rows = _summary_rows(result, valid_ids)
+        if not rows:
+            # 没有写出依据 id 时再问一次；仍然不行就用固定句
+            retried += 1
+            try:
+                result = _ask(prompt + "\n每一句都必须在 evidence_ids 里写出依据的 id。",
+                              SCHEMA_SUMMARY)
+            except Exception:
+                result = {}
+            rows = _summary_rows(result, valid_ids)
+        if rows:
+            ids: List[str] = []
+            for row in rows:
+                ids.extend(item_id for item_id in row["evidence_ids"] if item_id not in ids)
+            # the sentences keep their own evidence ids: each is checked on its own
+            summaries[key] = {"text": "".join(row["text"] for row in rows),
+                              "evidence_ids": ids, "sentences": rows}
+    if retried:
+        logger.info("来源摘要重试次数：%d", retried)
+    return summaries
+
+
 # ---------------------------------------------------------------------------
 # B. 逐项判断
 # ---------------------------------------------------------------------------
-def _judge_abilities(evidence: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+# 推荐理由由代码按证据条件生成，模型只给 reason_code
+_REASON_TEXTS = {
+    "impact": "现有线索显示它已影响学习、睡眠或关系，建议优先确认。",
+    "both": "同时有积极线索和干扰线索，建议优先确认。",
+    "conflict": "两个来源的说法不一致，建议优先确认。",
+    "concern": "学生或家长提到了这方面的担心，建议优先确认。",
+    "case_review": "Case Review 提出了待验证方向，建议优先确认。",
+    "none": "暂未发现需要优先确认的理由。",
+}
+_APPENDIX_CHOSEN = "已列入本次优先能力。"
+_APPENDIX_LEFT_OUT = "本次不单列，可在相关情境中顺带了解。"
+
+
+def _reason_for(code: str,
+                has_cites: bool,
+                potential: List[str],
+                interference: List[str],
+                contradictions: List[str],
+                groups: set,
+                cited: List[Dict[str, Any]]) -> str:
+    """reason_code 对应的理由；条件不成立、代码未知或缺失时都是 none。"""
+    if code == "case_review":
+        ok = any(item.get("source") == "case_review" for item in cited)
+    elif code == "conflict":
+        ok = bool(contradictions) and len(groups) >= 2
+    elif code == "both":
+        ok = bool(potential) and bool(interference)
+    elif code in ("impact", "concern"):
+        ok = bool(has_cites)
+    else:
+        ok = False
+    return _REASON_TEXTS[code] if ok and code in _REASON_TEXTS else _REASON_TEXTS["none"]
+
+
+def _conflict_sentences(raw_pairs, by_id: Dict[str, Dict[str, Any]]) -> List[str]:
+    """Conflicts written by code from pairs of real evidence. The model only names
+    two ids; a pair counts when both exist, differ and come from different groups."""
+    sentences: List[str] = []
+    if not isinstance(raw_pairs, list):
+        return sentences
+    for raw in raw_pairs:
+        if not isinstance(raw, dict):
+            continue
+        first, second = by_id.get(_clean(raw.get("a"))), by_id.get(_clean(raw.get("b")))
+        if not first or not second or first["id"] == second["id"] \
+                or first.get("group") == second.get("group"):
+            continue
+        parts = []
+        for item in (first, second):
+            parts.append("%s：%s" % (SOURCE_LABELS.get(item.get("source"), "资料"),
+                                    _clean(item.get("text")).rstrip("。；，、 ")))
+        sentence = "%s；%s。" % tuple(parts)
+        if sentence not in sentences:
+            sentences.append(sentence)
+    return sentences
+
+
+def _judge_abilities(evidence: List[Dict[str, Any]],
+                     gender: str = "") -> Dict[str, Dict[str, Any]]:
     kb = load_kb()
     by_id = {item["id"]: item for item in evidence}
     public = [_public_item(item) for item in evidence]
@@ -445,7 +739,7 @@ def _judge_abilities(evidence: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]
             "indicator_note": row.get("indicator_note"),
         } for row in abilities]
         result = _ask(
-            ABILITY_PROMPT % (_style_for(evidence), dimension.get("id"), _json(ability_payload),
+            ABILITY_PROMPT % (_style_for(evidence, gender), dimension.get("id"), _json(ability_payload),
                               _json(relevant)),
             SCHEMA_ABILITY)
         return codes, result
@@ -465,15 +759,20 @@ def _judge_abilities(evidence: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]
                      if item_id in by_id]
             strip = lambda value: _strip_ids(value, by_id)
             groups = {by_id[item_id]["group"] for item_id in cites}
-            has_cites = bool(cites)
+            cited = [by_id[item_id] for item_id in cites]
+            # 全部依据都是设想时，等于没有可引用的证据
+            has_cites = bool(cites) and any(
+                item.get("kind") != "hypothetical" for item in cited)
             supported = len(groups) >= 2
 
             potential = [strip(x) for x in _as_list(raw.get("potential"))] if has_cites else []
             interference = [strip(x) for x in _as_list(raw.get("interference"))] if has_cites else []
-            contradictions = [strip(x) for x in _as_list(raw.get("contradictions"))] if has_cites else []
+            contradictions = _conflict_sentences(raw.get("contradictions"), by_id) if has_cites else []
             missing = [strip(x) for x in _as_list(raw.get("missing"))]
             check_text = strip(raw.get("check_text"))
-            reason = strip(raw.get("reason"))
+            reason = _reason_for(_clean(raw.get("reason_code")).lower(), has_cites,
+                                  potential, interference, contradictions,
+                                  groups, cited)
 
             judgements[code] = {
                 "code": code,
@@ -595,7 +894,8 @@ def _priority_evidence_lines(row: Dict[str, Any],
 
 
 def _write_priorities(chosen: List[str], judgements: Dict[str, Dict[str, Any]],
-                      by_id: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+                      by_id: Dict[str, Dict[str, Any]],
+                      gender: str = "") -> List[Dict[str, Any]]:
     if not chosen:
         return []
     payload = [{
@@ -611,7 +911,7 @@ def _write_priorities(chosen: List[str], judgements: Dict[str, Dict[str, Any]],
             item = by_id.get(item_id)
             if item and _public_item(item) not in cited_items:
                 cited_items.append(_public_item(item))
-    result = _ask(PRIORITY_PROMPT % (_style_for(list(by_id.values())), _json(payload),
+    result = _ask(PRIORITY_PROMPT % (_style_for(list(by_id.values()), gender), _json(payload),
                                      _json(cited_items)),
                   SCHEMA_PRIORITY)
     texts: Dict[str, Dict[str, str]] = {}
@@ -679,10 +979,21 @@ def _open_topic(priority_codes: List[str]) -> Dict[str, Any]:
     }
 
 
+def _special_text(raw: Dict[str, Any], key: str,
+                  by_id: Dict[str, Dict[str, Any]]) -> Tuple[str, List[str]]:
+    """The text of special.<key> without evidence ids, and the valid ids the model
+    named for it (in ``<key>_ids`` or written in the text)."""
+    text = _clean(raw.get(key))
+    named = list(_as_list(raw.get("%s_ids" % key))) + re.findall(_ID_ALT, text)
+    ids = [i for i in dict.fromkeys(named) if i in by_id]
+    return _strip_ids(text, by_id), ids
+
+
 def _build_plan(prep: Dict[str, Any], evidence: List[Dict[str, Any]],
                 judgements: Dict[str, Dict[str, Any]],
                 priority_rows: List[Dict[str, Any]],
-                insufficient: List[str]) -> Dict[str, Any]:
+                insufficient: List[str],
+                gender: str = "") -> Dict[str, Any]:
     kb = load_kb()
     by_id = {item["id"]: item for item in evidence}
     event_pool = [item for item in evidence
@@ -700,13 +1011,14 @@ def _build_plan(prep: Dict[str, Any], evidence: List[Dict[str, Any]],
     duration = int(prep.get("duration") or 60)
     max_events = 2 if duration <= 60 else 3
     result = _ask(
-        MEETING_PLAN_PROMPT % (duration, max_events, _style_for(evidence),
+        MEETING_PLAN_PROMPT % (duration, max_events, _style_for(evidence, gender),
                                _json([_public_item(item) for item in event_pool]),
                                _json(priority_payload),
                                _json([_public_item(item) for item in evidence])),
         SCHEMA_PLAN)
     valid_codes = _kb_codes()
     events: List[Dict[str, Any]] = []
+    event_ids: Dict[str, List[str]] = {}
     for raw in result.get("events") or []:
         if len(events) >= max_events:
             break
@@ -724,6 +1036,7 @@ def _build_plan(prep: Dict[str, Any], evidence: List[Dict[str, Any]],
             abilities = [code for code in cited[0].get("abilities") or []
                          if code in priority_codes]
         event_id = "ev%d" % (len(events) + 1)
+        event_ids[event_id] = ids
         title = _strip_ids(raw.get("title"), by_id) or _clean(cited[0].get("text"))
         clue = "；".join(_evidence_line(item) for item in cited[:2])
         gap = _strip_ids(raw.get("gap"), by_id) or "待会议中确认具体细节。"
@@ -761,18 +1074,22 @@ def _build_plan(prep: Dict[str, Any], evidence: List[Dict[str, Any]],
             "timing": "第 4 环节；如已回答则跳过",
         })
 
-    contradictions = []
-    for code, row in judgements.items():
+    # the conflict block is written by code from checked pairs of evidence only;
+    # whatever the model put in special.conflict is ignored
+    contradictions: List[str] = []
+    for row in judgements.values():
         for text in row.get("contradictions") or []:
-            contradictions.append("%s：%s" % (code, text))
+            if text not in contradictions:
+                contradictions.append(text)
+    conflict = "\n".join(contradictions[:3]) \
+        or "本次资料中未见两个独立来源之间的明显矛盾。"
     special_raw = result.get("special") if isinstance(result.get("special"), dict) else {}
-    conflict = _strip_ids(special_raw.get("conflict"), by_id) or "；".join(contradictions[:2])
-    if not any(word in conflict for word in _NON_Y4_WORDS):
-        # two Y4 scales disagreeing is one source, not an evidence conflict
-        conflict = "本次资料中未见两个独立来源之间的明显矛盾。"
-    context = _strip_ids(special_raw.get("context"), by_id) or "信息不足，待会议中补充。"
-    attention = _strip_ids(special_raw.get("attention"), by_id) \
-        or "；".join(insufficient[:3]) or "信息不足，待会议中补充。"
+    # the ids the model gave are kept as the block's cites before they are stripped
+    # from the text: they decide what each sentence is checked against
+    context, context_ids = _special_text(special_raw, "context", by_id)
+    attention, attention_ids = _special_text(special_raw, "attention", by_id)
+    context = context or "信息不足，待会议中补充。"
+    attention = attention or "；".join(insufficient[:3]) or "信息不足，待会议中补充。"
 
     growth_raw = result.get("growth") if isinstance(result.get("growth"), dict) else {}
     wish = _strip_ids(growth_raw.get("wish"), by_id) \
@@ -792,6 +1109,8 @@ def _build_plan(prep: Dict[str, Any], evidence: List[Dict[str, Any]],
             "wish": _block("gw", wish),
             "next": _block("nd", next_step),
         },
+        "event_ids": event_ids,
+        "special_ids": {"c2": context_ids, "c3": attention_ids},
         "raw": result,
     }
 
@@ -799,21 +1118,6 @@ def _build_plan(prep: Dict[str, Any], evidence: List[Dict[str, Any]],
 # ---------------------------------------------------------------------------
 # E. 组装
 # ---------------------------------------------------------------------------
-def _snippet(text: str, limit: int = 90) -> str:
-    text = re.sub(r"\s+", " ", str(text or "")).strip()
-    return text if len(text) <= limit else text[:limit] + "…"
-
-
-def _join_snippets(values, limit: int = 180) -> str:
-    parts: List[str] = []
-    for value in values:
-        snippet = _snippet(value)
-        if snippet and snippet not in parts:
-            parts.append(snippet)
-    joined = "；".join(parts)
-    return joined if len(joined) <= limit else joined[:limit] + "…"
-
-
 _STATUS_CN = {"ok": "完整", "partial": "部分信息", "unreadable": "无法识别"}
 
 
@@ -831,22 +1135,22 @@ def _upload_status(rows: List[Dict[str, Any]]) -> str:
     return text
 
 
-def _extracted(evidence, source: str, fallback: str) -> str:
-    """1.2 「会前提取信息」: what was extracted from the source (the evidence
-    texts), not the first lines of the raw document."""
-    texts = []
-    for item in evidence or []:
-        if item.get("source") == source and item.get("text") and item["text"] not in texts:
-            texts.append(item["text"])
-    joined = "；".join(texts[:5])
-    if len(joined) > 160:
-        joined = joined[:159].rstrip("；") + "…"
-    return joined or fallback
+def _summary_text(key: str, summaries: Dict[str, Dict[str, Any]],
+                  rows: List[Dict[str, Any]]) -> str:
+    """1.2 text for a source: the checked summary, a fixed sentence when material
+    exists but no summary could be made, or the "not received" line."""
+    if key in summaries:
+        return summaries[key]["text"]
+    if any(_clean(row.get("text")) for row in rows):
+        return SUMMARY_FALLBACK
+    return "尚未取得相关资料"
 
 
 def _source_entries(auto: Dict[str, Any],
                     uploaded: List[Dict[str, Any]],
-                    evidence: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+                    evidence: Optional[List[Dict[str, Any]]] = None,
+                    summaries: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    summaries = summaries or {}
     y4 = auto.get("y4") or {}
     first_touch = auto.get("first_touch") or {}
     questionnaires = auto.get("questionnaires") or []
@@ -865,9 +1169,7 @@ def _source_entries(auto: Dict[str, Any],
     entries.append({
         "key": "parent",
         "label": "家长初始反馈",
-        "extracted": _block("src-parent",
-                            _extracted(evidence, "parent", _join_snippets([row.get("text") for row in parent]))
-                            or "尚未取得相关资料"),
+        "extracted": _block("src-parent", _summary_text("parent", summaries, parent)),
         "status_text": _upload_status(parent),
     })
 
@@ -921,16 +1223,14 @@ def _source_entries(auto: Dict[str, Any],
     })
 
     # First Touch
-    first_touch_texts = []
+    first_touch_rows = list(first_touch_extra)
     if first_touch.get("present"):
-        first_touch_texts.append(first_touch.get("text"))
-    first_touch_texts.extend(row.get("text") for row in first_touch_extra)
+        first_touch_rows.append({"text": first_touch.get("text")})
     entries.append({
         "key": "first_touch",
         "label": "First Touch Meeting",
         "extracted": _block("src-first-touch",
-                            _extracted(evidence, "first_touch", _join_snippets(first_touch_texts))
-                            or "尚未取得相关资料"),
+                            _summary_text("first_touch", summaries, first_touch_rows)),
         "status_text": ("完整；%s" % _date(first_touch.get("date"))
                         if first_touch.get("present") and first_touch.get("date")
                         else ("完整" if first_touch.get("present")
@@ -942,8 +1242,7 @@ def _source_entries(auto: Dict[str, Any],
         "key": "case_review",
         "label": "Case Review Meetings",
         "extracted": _block("src-case-review",
-                            _extracted(evidence, "case_review", _join_snippets([row.get("text") for row in case_review]))
-                            or "尚未取得相关资料"),
+                            _summary_text("case_review", summaries, case_review)),
         "status_text": _upload_status(case_review),
     })
 
@@ -951,9 +1250,7 @@ def _source_entries(auto: Dict[str, Any],
     entries.append({
         "key": "other",
         "label": "其他证据",
-        "extracted": _block("src-other",
-                            _extracted(evidence, "other", _join_snippets([row.get("text") for row in other]))
-                            or "尚未取得相关资料"),
+        "extracted": _block("src-other", _summary_text("other", summaries, other)),
         "status_text": _upload_status(other),
     })
     return entries
@@ -1041,16 +1338,114 @@ def _appendix(judgements: Dict[str, Dict[str, Any]],
     for defined in load_kb().get("abilities") or []:
         code = str(defined.get("code"))
         row = judgements.get(code) or {}
-        reason = _clean(row.get("reason")) \
-            or ("建议优先确认" if code in chosen else "信息不足，暂不单独验证。")
+        if code in chosen:
+            reason = _clean(row.get("reason"))
+            shown = reason if reason and reason != _REASON_TEXTS["none"] \
+                else _APPENDIX_CHOSEN
+        else:
+            shown = _APPENDIX_LEFT_OUT
         check = _clean(row.get("check_text")) or "尚未取得可引用的证据。"
         rows.append({
             "code": code,
             "recommend": code in chosen,
-            "reason": _block("ap-r-%s" % code, reason),
+            "reason": _block("ap-r-%s" % code, shown),
             "check": _block("ap-c-%s" % code, check),
         })
     return rows
+
+
+def _longest_common(first: str, second: str) -> int:
+    """Length of the longest run of characters the two texts share."""
+    best = 0
+    previous = [0] * (len(second) + 1)
+    for char in first:
+        current = [0] * (len(second) + 1)
+        for index, other in enumerate(second, start=1):
+            if char == other:
+                current[index] = previous[index - 1] + 1
+                best = max(best, current[index])
+        previous = current
+    return best
+
+
+_NOTE_OVERLAP = 6  # normalised characters an item must share with the text it is credited for
+
+
+def _source_note(cites: List[str], by_id: Dict[str, Dict[str, Any]],
+                 check_text: str = "") -> str:
+    """（来源：A、B），按引用顺序，每种来源只出现一次。A source is listed only when a
+    cited item from it shares at least ``_NOTE_OVERLAP`` characters with the text."""
+    probe = report_checks.normalize(check_text)
+    labels: List[str] = []
+    for item_id in cites:
+        item = by_id.get(item_id) or {}
+        label = SOURCE_LABELS.get(item.get("source"), "")
+        if not label or label in labels:
+            continue
+        if any(_longest_common(probe, report_checks.normalize(item.get(key))) >= _NOTE_OVERLAP
+               for key in ("text", "quote")):
+            labels.append(label)
+    return "（来源：%s）" % "、".join(labels) if labels else ""
+
+
+_SENTENCE_PIECE_RE = re.compile(r"[^。！？!?]*[。！？!?]+|[^。！？!?]+$")
+_CHECK_LIMIT = 120
+
+
+def _whole_sentences(text: str, limit: int = _CHECK_LIMIT) -> str:
+    """As many whole sentences as fit in ``limit`` characters; never cuts inside a
+    sentence (a first sentence that is longer than the limit is kept whole)."""
+    kept = ""
+    for match in _SENTENCE_PIECE_RE.finditer(text):
+        piece = match.group(0)
+        if kept and len(kept) + len(piece) > limit:
+            break
+        kept += piece
+    return kept
+
+
+def _append_source_notes(doc: Dict[str, Any],
+                         judgements: Dict[str, Dict[str, Any]],
+                         by_id: Dict[str, Dict[str, Any]]) -> None:
+    """After the check: keep whole sentences of each 证据核验 text, then credit
+    the sources it actually uses. The check prompt never sees the note."""
+    for row in doc.get("appendix") or []:
+        judged = judgements.get(row.get("code")) or {}
+        block = row.get("check") or {}
+        text = _clean(block.get("text"))
+        if not text or text in _FIXED_TEXTS:
+            continue
+        text = _whole_sentences(text)
+        note = _source_note(judged.get("cites") or [], by_id, text)
+        block["text"] = block["ai_text"] = text + note
+
+
+_CLOSING = "。！？!?…”\"」』）)."
+# blocks written by code, or question lists that are not sentences
+_NO_PUNCT_IDS = {"src-y4", "src-questionnaire", "c1"}
+
+
+def _close_sentence(text: str, title: bool = False) -> str:
+    text = _clean(text)
+    while text and text[-1] in "，,；;、 ":
+        text = text[:-1]
+    if text and not title and text[-1] not in _CLOSING:
+        text += "。"
+    return text
+
+
+def _end_blocks_properly(doc: Dict[str, Any]) -> None:
+    """Every AI block ends as a sentence: no trailing ，；、 and a closing mark."""
+    for block_id, block in _blocks_by_id(doc).items():
+        if block.get("origin") != "ai" or block_id in _NO_PUNCT_IDS \
+                or block_id.endswith("-questions") or block_id.startswith("bk-q-"):
+            continue
+        text = _clean(block.get("text"))
+        if not text or text in _FIXED_TEXTS:
+            continue
+        closed = _close_sentence(text, title=block_id.endswith("-title"))
+        if closed != text:
+            block["text"] = block["ai_text"] = closed
 
 
 def _assemble_doc(prep: Dict[str, Any], auto: Dict[str, Any],
@@ -1059,7 +1454,8 @@ def _assemble_doc(prep: Dict[str, Any], auto: Dict[str, Any],
                   priority_rows: List[Dict[str, Any]],
                   plan: Dict[str, Any],
                   safety: List[Dict[str, str]],
-                  insufficient: List[str]) -> Dict[str, Any]:
+                  insufficient: List[str],
+                  summaries: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     return {
         "meta": {
             "student": prep.get("student_name") or "",
@@ -1070,7 +1466,7 @@ def _assemble_doc(prep: Dict[str, Any], auto: Dict[str, Any],
             "duration": int(prep.get("duration") or 60),
             "people": prep.get("attendees") or [],
         },
-        "sources": _source_entries(auto, uploaded, evidence),
+        "sources": _source_entries(auto, uploaded, evidence, summaries),
         "dims": _dim_entries(judgements),
         "priority": priority_rows,
         "special": plan["special"],
@@ -1083,6 +1479,469 @@ def _assemble_doc(prep: Dict[str, Any], auto: Dict[str, Any],
             "insufficient": insufficient,
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# F. 核对事实：每段 AI 文字对照它自己的来源
+# ---------------------------------------------------------------------------
+_GUARD_SOURCE_LIMIT = 20000
+_BAND_WORDS = ("需关注", "需特殊关注", "偏低", "明显偏低", "严重偏低", "较低", "正常",
+               "较好", "良好", "偏高", "较高", "高", "中等", "低")
+# fixed sentences written by code, never by the model
+_FIXED_TEXTS = {"信息不足。", "信息不足，需在会议中确认。", "尚未取得可引用的证据。",
+                "证据有限，待会议中确认。", "尚未取得相关资料", SUMMARY_FALLBACK,
+                "现有证据不足以形成明确假设，待会议中确认。", "证据有限，需要当面确认。",
+                "待会议中确认具体细节。", "信息不足，待会议中补充。",
+                "本次资料中未见两个独立来源之间的明显矛盾。",
+                "信息不足，正式方向待会议中与学生讨论后确定。"}
+# 推荐理由与附录理由都由代码写，不送进核对
+_FIXED_TEXTS |= set(_REASON_TEXTS.values()) | {_APPENDIX_CHOSEN, _APPENDIX_LEFT_OUT}
+
+
+def _guard_call(prompt: str) -> Dict[str, Any]:
+    """The fact check and its one rewrite go through ``_ask`` like every other call."""
+    schema = SCHEMA_VERIFY if "事实核对员" in prompt else SCHEMA_REWRITE
+    return _ask(prompt, schema)
+
+
+class _PrepIndex:
+    """``report_pipeline._evidence_context`` wants one ``TextIndex``; a prep has one
+    per text source. This answers for the sources of the items being checked."""
+
+    def __init__(self, texts: Dict[str, str], refs: List[str], cache: Dict[str, Any],
+                 labels: Optional[Dict[str, str]] = None):
+        """``labels`` maps a source ref to the label put before a paragraph of a
+        source that is not a transcript (a parent note speaks as 家长 without saying
+        so); only the code checks pass it."""
+        self._indexes = []
+        self._labels = []
+        for ref in dict.fromkeys(refs):
+            if ref in texts:
+                if ref not in cache:
+                    cache[ref] = report_checks.TextIndex(texts[ref])
+                self._indexes.append(cache[ref])
+                self._labels.append((labels or {}).get(ref, ""))
+
+    def position(self, quote):
+        for number, index in enumerate(self._indexes):
+            found = index.position(quote)
+            if found is not None:
+                return (number, found)
+        return None
+
+    def paragraph(self, where):
+        text = self._indexes[where[0]].paragraph(where[1])
+        label = self._labels[where[0]]
+        return "%s：%s" % (label, text) if label and text else text
+
+    def previous(self, where):
+        return self._indexes[where[0]].previous(where[1])
+
+
+def _item_head(item: Dict[str, Any]) -> str:
+    label = SOURCE_LABELS.get(item.get("source"), "资料")
+    return ("%s %s" % (label, item.get("date") or "")).strip()
+
+
+def _context_item(item: Dict[str, Any], texts: Dict[str, str]) -> Dict[str, Any]:
+    """An evidence item in the shape ``_evidence_context`` reads: a quote found in a
+    text source is looked up in it; anything else is its label plus its text."""
+    quote = _clean(item.get("quote"))
+    in_text = bool(quote) and item.get("source_ref") in texts
+    return {"id": item["id"], "source": "M1" if in_text else "其他",
+            "quote": quote or _clean(item.get("text")),
+            "location": _item_head(item),
+            "type": "假设性回应" if item.get("kind") == "hypothetical" else ""}
+
+
+def _evidence_lines(items: List[Dict[str, Any]], texts: Dict[str, str],
+                    cache: Optional[Dict[str, Any]] = None) -> List[str]:
+    """What a sentence citing these items may be checked against: for a transcript
+    item the paragraph and the one before it, for anything else the label and the
+    text. Written by ``report_pipeline._evidence_context``, shared with 会后报告."""
+    cache = {} if cache is None else cache
+    lines: List[str] = []
+    for item in items:
+        adapted = _context_item(item, texts)
+        index = _PrepIndex(texts, [item.get("source_ref")], cache)
+        for line in report_pipeline._evidence_context([adapted], [adapted["id"]], index).split("\n"):
+            if line and line not in lines:
+                lines.append(line)
+    return lines
+
+
+def _guard_source(items: List[Dict[str, Any]], texts: Dict[str, str],
+                  cache: Optional[Dict[str, Any]] = None) -> str:
+    """What a text may be checked against: only the evidence it cites, each with
+    the paragraph around its quote and the one before it (usually the mentor's
+    question). The model's own summary lines are not included."""
+    cache = {} if cache is None else cache
+    parts: List[str] = []
+    seen = set()
+    headed = set()
+    size = 0
+    for item in items:
+        if item.get("kind") == "hypothetical":
+            parts.append("【设想：以下内容没有实际发生】")
+        for line in _evidence_lines([item], texts, cache):
+            if line in seen:
+                continue
+            key = item.get("source_ref") or _item_head(item)
+            if key not in headed:
+                headed.add(key)
+                parts.append("【%s】" % _item_head(item))
+            seen.add(line)
+            parts.append(line)
+            size += len(line)
+        if size > _GUARD_SOURCE_LIMIT:
+            break
+    return "\n".join(parts)
+
+
+def _blocks_by_id(value, found: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Dict[str, Any]]:
+    found = {} if found is None else found
+    if isinstance(value, dict):
+        if isinstance(value.get("id"), str) and isinstance(value.get("text"), str):
+            found.setdefault(value["id"], value)
+        for key, child in value.items():
+            if key != "fact_flags":
+                _blocks_by_id(child, found)
+    elif isinstance(value, list):
+        for child in value:
+            _blocks_by_id(child, found)
+    return found
+
+
+def _summary_blocks(doc: Dict[str, Any],
+                    summaries: Dict[str, Dict[str, Any]]) -> List[Tuple[Dict[str, Any], str, List[Dict[str, Any]]]]:
+    """1.2 summaries whose sentences each carry their own evidence ids:
+    ``(block, source key, sentences)``. A summary the mentor or the guard has since
+    changed, so that it no longer reads as those sentences, is not split."""
+    found = []
+    for entry in doc.get("sources") or []:
+        key = entry.get("key")
+        block = entry.get("extracted") or {}
+        rows = (summaries.get(key) or {}).get("sentences") or []
+        if rows and _clean(block.get("text")) == "".join(row["text"] for row in rows):
+            found.append((block, key, rows))
+    return found
+
+
+def _guard_inputs(doc: Dict[str, Any], evidence: List[Dict[str, Any]],
+                  judgements: Dict[str, Dict[str, Any]], plan: Dict[str, Any],
+                  texts: Dict[str, str],
+                  summaries: Dict[str, Dict[str, Any]],
+                  fixed: Optional[set] = None) -> List[Dict[str, str]]:
+    """Every block the model wrote that states facts, with the evidence it cites
+    and nothing else. A 1.2 summary becomes one block per sentence, each with the
+    evidence of that sentence (ids ``<block>#<n>``). Blocks that only say what to
+    find out (``w-*``, ``ev*-gap``, ``g-*``, ``bk-*``) are not fact-checked."""
+    fixed = _FIXED_TEXTS | (fixed or set())
+    by_id = {item["id"]: item for item in evidence}
+    dim_of = {str(row.get("code")): str(row.get("dim"))
+              for row in load_kb().get("abilities") or []}
+    cache: Dict[str, Any] = {}
+
+    def source_of(ids) -> str:
+        return _guard_source([by_id[i] for i in ids if i in by_id], texts, cache)
+
+    blocks: List[Dict[str, str]] = []
+
+    def add(block, source: str, block_id: Optional[str] = None) -> None:
+        text = _clean((block or {}).get("text"))
+        if text and text not in fixed and source.strip():
+            blocks.append({"id": block_id or block["id"], "text": text, "source": source})
+
+    split = set()
+    for block, _key, rows in _summary_blocks(doc, summaries):
+        for number, row in enumerate(rows):
+            add({"text": row["text"]}, source_of(row["evidence_ids"]),
+                "%s#%d" % (block["id"], number))
+        split.add(block["id"])
+    for entry in doc.get("sources") or []:
+        block = entry.get("extracted") or {}
+        if entry.get("key") in summaries and block.get("id") not in split:
+            add(block, _guard_source(
+                [item for item in evidence if item.get("source") == entry["key"]],
+                texts, cache))
+
+    for row in doc.get("dims") or []:
+        cites: List[str] = []
+        for code, judged in judgements.items():
+            if dim_of.get(code) == str(row.get("dim")):
+                cites.extend(i for i in judged.get("cites") or [] if i not in cites)
+        if cites:
+            source = source_of(cites)
+            add(row.get("potential"), source)
+            add(row.get("interference"), source)
+
+    for row in doc.get("appendix") or []:
+        judged = judgements.get(row.get("code")) or {}
+        if judged.get("cites"):
+            source = source_of(judged["cites"])
+            add(row.get("reason"), source)
+            add(row.get("check"), source)
+
+    for row in doc.get("priority") or []:
+        judged = judgements.get(row.get("code")) or {}
+        if judged.get("cites"):
+            add(row.get("hypothesis"), source_of(judged["cites"]))
+
+    for event in doc.get("events") or []:
+        ids = (plan.get("event_ids") or {}).get(event.get("id")) or []
+        if ids:
+            add(event.get("title"), source_of(ids))
+
+    # "conflict" (c1) is written by code from checked evidence and is not sent to the guard
+    # c2/c3 are checked against the evidence the model named for them, and against
+    # nothing when it named none, so a factual sentence is flagged, not passed
+    for key, short in (("context", "c2"), ("attention", "c3")):
+        ids = (plan.get("special_ids") or {}).get(short) or []
+        add((doc.get("special") or {}).get(key),
+            source_of(ids) if ids else report_pipeline.NO_SOURCE)
+    return blocks
+
+
+# 常 as a frequency: 时常、常常, or 常 before a verb-like character. 正常、日常、异常、
+# 非常、平常、通常、常规、常见 can never match: they are excluded by the character before
+# 常 or are not followed by one of these characters.
+_OFTEN_RE = re.compile(r"时常|常常|(?<![正日异非平通])常(?=[写因会在到持选至])")
+_HEDGE_WORDS = ("有时", "有一次", "偶尔")
+_FREQUENCY_WORDS = ("经常", "总是", "一直", "每天", "每次", "每周", "天天", "往往", "常常", "时常")
+# strong emotion and clinical words: only when the cited evidence uses them
+_STRONG_WORDS = ("愤怒", "情绪激动", "暴躁", "崩溃", "灾难化", "情绪耗竭", "回避型", "完美主义")
+
+
+def _word_flags(text: str, ctx: str) -> List[Tuple[str, str]]:
+    """Words a sentence uses that its own evidence does not: ``(kind, problem)``."""
+    found: List[Tuple[str, str]] = []
+    if _OFTEN_RE.search(text):
+        if any(word in ctx for word in _HEDGE_WORDS):
+            found.append(("intensity", "资料说的是“有时”或“有一次”，这里写成了常态"))
+        elif not any(word in ctx for word in _FREQUENCY_WORDS) \
+                and not _OFTEN_RE.search(ctx):
+            found.append(("intensity", "资料里没有表示经常的说法，这里写成了常态"))
+    for word in _STRONG_WORDS:
+        if word in text and word not in ctx:
+            found.append(("label", "资料里没有“%s”这个说法" % word))
+    return found
+
+
+_HEDGED_QUOTE_WORDS = ("有时", "有一次", "偶尔", "不太多")
+_HEDGE_KEPT_WORDS = ("有时", "有一次", "偶尔", "曾", "一次", "不太多")
+_PARAPHRASE_RUN = 6
+
+
+def _dropped_hedge(text: str, items: List[Dict[str, Any]]) -> bool:
+    """A sentence that restates a hedged quote (it shares a run of at least
+    ``_PARAPHRASE_RUN`` characters with it) but keeps none of the hedge words. The
+    shared hedge rule only fires when every cited quote is hedged."""
+    if any(word in text for word in _HEDGE_KEPT_WORDS):
+        return False
+    probe = report_checks.normalize(text)
+    for item in items:
+        quote = _clean(item.get("quote"))
+        if quote and any(word in quote for word in _HEDGED_QUOTE_WORDS) \
+                and _longest_common(probe, report_checks.normalize(quote)) >= _PARAPHRASE_RUN:
+            return True
+    return False
+
+
+def _check_units(doc: Dict[str, Any], judgements: Dict[str, Dict[str, Any]],
+                 plan: Dict[str, Any],
+                 summaries: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Every shown sentence that has cites, with the evidence ids it must be checked
+    against: 1.2 sentences, each p-/i- segment, h-, the appendix check cells, the
+    first sentence of w-, and c2/c3."""
+    units: List[Dict[str, Any]] = []
+
+    def add(block_id: str, text: str, ids) -> None:
+        text = _clean(text)
+        if text and text not in _FIXED_TEXTS and ids:
+            units.append({"block_id": block_id, "text": text, "ids": list(ids)})
+
+    for block, _key, rows in _summary_blocks(doc, summaries):
+        for row in rows:
+            add(block["id"], row["text"], row["evidence_ids"])
+    for row in doc.get("dims") or []:
+        for field in ("potential", "interference"):
+            block = row.get(field) or {}
+            code = ""
+            for segment in _clean(block.get("text")).split("；"):
+                match = re.match(r"(R\d\.\d)\s+", segment)
+                if match:
+                    code, segment = match.group(1), segment[match.end():]
+                add(block.get("id"), segment, (judgements.get(code) or {}).get("cites"))
+    for row in doc.get("priority") or []:
+        cites = (judgements.get(row.get("code")) or {}).get("cites")
+        add((row.get("hypothesis") or {}).get("id"), (row.get("hypothesis") or {}).get("text"), cites)
+        first = _SENTENCE_PIECE_RE.match(_clean((row.get("why") or {}).get("text")))
+        if first:
+            add((row.get("why") or {}).get("id"), first.group(0), cites)
+    for row in doc.get("appendix") or []:
+        block = row.get("check") or {}
+        add(block.get("id"), block.get("text"),
+            (judgements.get(row.get("code")) or {}).get("cites"))
+    ids_of = plan.get("special_ids") or {}
+    for key, short in (("context", "c2"), ("attention", "c3")):
+        block = (doc.get("special") or {}).get(key) or {}
+        add(block.get("id"), block.get("text"), ids_of.get(short))
+    return units
+
+
+def _sentence_code_flags(doc: Dict[str, Any], evidence: List[Dict[str, Any]],
+                         texts: Dict[str, str],
+                         summaries: Dict[str, Dict[str, Any]],
+                         judgements: Optional[Dict[str, Dict[str, Any]]] = None,
+                         plan: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """Code checks on each shown sentence and its own evidence, before the model
+    check: the same rules 会后报告 applies (``report_pipeline._sentence_checks``),
+    plus the words in ``_word_flags``."""
+    by_id = {item["id"]: item for item in evidence}
+    labels = {item.get("source_ref"): SOURCE_LABELS.get(item.get("source"), "")
+              for item in evidence if item.get("source") != "first_touch"}
+    cache: Dict[str, Any] = {}
+    found: List[Dict[str, Any]] = []
+    for unit in _check_units(doc, judgements or {}, plan or {}, summaries):
+        items = [by_id[i] for i in unit["ids"] if i in by_id]
+        if not items:
+            continue
+        index = _PrepIndex(texts, [item.get("source_ref") for item in items], cache, labels)
+        dims = {"x": {"abilities": {unit["block_id"]: {"meeting": {
+            "sentences": [{"text": unit["text"], "evidence_ids": [i["id"] for i in items]}]}}}}}
+        state: Dict[str, Any] = {"flags": []}
+        report_pipeline._sentence_checks(
+            dims, [_context_item(item, texts) for item in items], index, state)
+        for flag in state["flags"]:
+            found.append({"block_id": unit["block_id"], "sentence": flag["sentence"],
+                          "kind": flag["kind"], "problem": flag["problem"],
+                          "source_excerpt": flag["source_excerpt"]})
+        ctx = "\n".join(_evidence_lines(items, texts, cache))
+        if _dropped_hedge(unit["text"], items):
+            found.append({"block_id": unit["block_id"], "sentence": unit["text"],
+                          "kind": "intensity",
+                          "problem": "资料说的是“有时”或“有一次”，这里写成了常态",
+                          "source_excerpt": ctx[:200]})
+        for kind, problem in _word_flags(unit["text"], ctx):
+            found.append({"block_id": unit["block_id"], "sentence": unit["text"],
+                          "kind": kind, "problem": problem, "source_excerpt": ctx[:200]})
+    unique, seen = [], set()
+    for flag in found:
+        key = (flag["block_id"], flag["sentence"], flag["kind"], flag["problem"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(flag)
+    return unique
+
+
+def _fact_check(doc: Dict[str, Any], evidence: List[Dict[str, Any]],
+                judgements: Dict[str, Dict[str, Any]], plan: Dict[str, Any],
+                texts: Dict[str, str], summaries: Dict[str, Dict[str, Any]],
+                gender: str, insufficient: Optional[List[str]] = None) -> None:
+    """Check every AI text against its source, keep the guard's final text, and
+    store what still fails as ``doc["fact_flags"]``. Never raises: a check that
+    could not run is itself flagged, so it cannot look like a pass."""
+    ignore = list(SOURCE_LABELS.values()) + ["Y4", "First Touch", "Case Review"] \
+        + list(_BAND_WORDS) + [_clean(item.get("band")) for item in evidence
+                               if _clean(item.get("band"))]
+    summary_rows = {block["id"]: (key, rows)
+                    for block, key, rows in _summary_blocks(doc, summaries)}
+    try:
+        # the "attention" fallback is the code-written list of missing sources
+        blocks = _guard_inputs(doc, evidence, judgements, plan, texts, summaries,
+                               {"；".join((insufficient or [])[:3])})
+        result = ai_writing.run_guard(blocks, call=_guard_call,
+                                      budget_seconds=_GUARD_BUDGET_SECONDS,
+                                      gender=gender, ignore=ignore)
+    except Exception:
+        blocks, result = [], {"blocks": {}, "flags": [], "status": "skipped"}
+
+    holders = _blocks_by_id(doc)
+    parts: Dict[str, Dict[int, str]] = {}
+    for block_id, text in (result.get("blocks") or {}).items():
+        if "#" in block_id:  # one sentence of a summary
+            base, _sep, number = block_id.rpartition("#")
+            if base in holders and number.isdigit():
+                parts.setdefault(base, {})[int(number)] = text
+            continue
+        holder = holders.get(block_id)
+        if holder is not None and text and _clean(text) != _clean(holder.get("text")):
+            holder["text"] = holder["ai_text"] = _clean(text)
+    final_summaries = copy.deepcopy(summaries)
+    for base, pieces in parts.items():
+        joined = "".join(_clean(pieces[number]) for number in sorted(pieces))
+        holder = holders[base]
+        if joined and joined != _clean(holder.get("text")):
+            holder["text"] = holder["ai_text"] = joined
+        if base in summary_rows:  # the sentences as the guard left them
+            key, rows = summary_rows[base]
+            final_summaries[key]["sentences"] = [
+                dict(row, text=_clean(pieces.get(number, row["text"])))
+                for number, row in enumerate(rows)]
+
+    # the code checks are deterministic, so they run on the text the guard and its
+    # rewrites left, not on the draft: a rewrite can drop 有时候 or add a new error
+    code_ok = True
+    try:
+        code_flags = _sentence_code_flags(doc, evidence, texts, final_summaries,
+                                          judgements, plan)
+    except Exception:
+        code_flags, code_ok = [], False
+
+    rows = [dict(flag) for flag in code_flags]
+    for flag in result.get("flags") or []:
+        rows.append({"block_id": (flag.get("id") or "").rpartition("#")[0]
+                     if "#" in (flag.get("id") or "") else flag.get("id") or "",
+                     "sentence": flag.get("sentence") or "", "kind": flag.get("kind") or "",
+                     "problem": flag.get("problem") or "",
+                     "source_excerpt": flag.get("source_excerpt") or ""})
+    fact_flags: List[Dict[str, Any]] = []
+    for number, flag in enumerate(rows, start=1):
+        holder = holders.get(flag["block_id"]) or {}
+        fact_flags.append({
+            "id": "ff%d" % number,
+            "block_id": flag["block_id"],
+            "sentence": flag["sentence"],
+            "kind": flag["kind"],
+            "problem": flag["problem"],
+            "source_excerpt": flag["source_excerpt"],
+            "block_text": _clean(holder.get("text")),
+            "acked": False,
+        })
+    if result.get("status") != "checked" or not code_ok:
+        fact_flags.append({
+            "id": "ff-doc", "block_id": "", "sentence": UNCHECKED_FLAG_TEXT,
+            "kind": "unchecked", "problem": UNCHECKED_FLAG_TEXT,
+            "source_excerpt": "", "block_text": "", "acked": False,
+        })
+    doc["fact_flags"] = fact_flags
+
+
+def _add_read_failure_flags(doc: Dict[str, Any],
+                            failures: List[Dict[str, Any]]) -> None:
+    """One document-level flag for each piece of a source that could not be read.
+    It has no block, so only an acknowledgement closes it."""
+    flags = doc.setdefault("fact_flags", [])
+    for number, failure in enumerate(failures, start=1):
+        text = "资料「%s」第 %d 段未能读取，请人工查看原文。" % (
+            failure.get("label"), failure.get("piece"))
+        flags.append({
+            "id": "ff-read%d" % number, "block_id": "", "sentence": text,
+            "kind": "unread", "problem": text, "source_excerpt": "",
+            "block_text": "", "acked": False,
+        })
+
+
+def _sync_flag_texts(doc: Dict[str, Any]) -> None:
+    """A flag remembers the text of its block when it was raised; a block whose text
+    differs counts as edited, which closes the flag. Whatever the pipeline does to a
+    block after the check, the remembered text must be the final one, or every flag
+    would close the moment the document is opened."""
+    holders = _blocks_by_id(doc)
+    for flag in doc.get("fact_flags") or []:
+        holder = holders.get(flag.get("block_id"))
+        if holder is not None:
+            flag["block_text"] = _clean(holder.get("text"))
 
 
 def _y4_snapshot(auto: Dict[str, Any]) -> Dict[str, Any]:
@@ -1129,28 +1988,53 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None) -> int:
 
     auto = sources.auto_sources(prep["student_id"])
     uploaded = store.list_sources(prep["id"])
+    gender = _student_gender(prep["student_id"])
+    texts = {row["source_ref"]: row["text"] for row in _text_sources(auto, uploaded)}
 
     safety = run("safety", lambda: _scan_safety(auto, uploaded))
-    evidence = run("evidence", lambda: _build_evidence(auto, uploaded))
-    judgements = run("abilities", lambda: _judge_abilities(evidence))
+
+    failures: List[Dict[str, Any]] = []
+
+    def evidence_stage():
+        rows = _build_evidence(auto, uploaded, gender, failures)
+        return rows, _source_summaries(rows, gender)
+
+    evidence, summaries = run("evidence", evidence_stage)
+    judgements = run("abilities", lambda: _judge_abilities(evidence, gender))
     by_id = {item["id"]: item for item in evidence}
 
     def priority_stage():
         chosen = _choose_priorities(judgements, by_id)
-        return chosen, _write_priorities(chosen, judgements, by_id)
+        return chosen, _write_priorities(chosen, judgements, by_id, gender)
 
     _chosen, priority_rows = run("priority", priority_stage)
     insufficient = _insufficient(auto, uploaded)
     plan = run("plan", lambda: _build_plan(prep, evidence, judgements,
-                                           priority_rows, insufficient))
+                                           priority_rows, insufficient, gender))
+
+    def verify():
+        doc = _assemble_doc(prep, auto, uploaded, evidence, judgements,
+                            priority_rows, plan, safety, insufficient, summaries)
+        # drop leaked Y4 scores first, so a flag is never closed by this later cleanup
+        redact_raw_numbers(doc, evidence)
+        _fact_check(doc, evidence, judgements, plan, texts, summaries, gender,
+                    insufficient)
+        _add_read_failure_flags(doc, failures)
+        # 句子取整、来源标注都在核对之后做，核对提示词里看不到它们
+        _end_blocks_properly(doc)
+        _append_source_notes(doc, judgements, by_id)
+        return doc
+
+    doc = run("verify", verify)
 
     def assemble():
-        doc = _assemble_doc(prep, auto, uploaded, evidence, judgements,
-                            priority_rows, plan, safety, insufficient)
         # the model sometimes repeats a Y4 score next to its indicator; drop it
         # rather than failing a multi-minute generation (owner rule: bands only)
         redact_raw_numbers(doc, evidence)
-        validate_doc(doc, evidence)
+        # fact_flags quote the source on purpose, so they are not scanned for placeholders
+        validate_doc({key: value for key, value in doc.items() if key != "fact_flags"},
+                     evidence)
+        _sync_flag_texts(doc)
         return doc
 
     doc = run("assemble", assemble)
