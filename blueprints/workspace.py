@@ -18,7 +18,8 @@ from datetime import datetime
 
 from flask import Blueprint, render_template, session
 
-from app_utils import DATA_DIR, JOB_FILE, _advisor_scope, role_required
+from app_utils import (DATA_DIR, JOB_FILE, _advisor_scope, login_required, role_required,
+                       visible_student_filter)
 from pipeline import STAGES, compute_stages
 
 bp = Blueprint("workspace", __name__)
@@ -179,3 +180,53 @@ def _ago(seconds) -> str:
     if seconds < 86400:
         return f"{seconds // 3600} 小时前"
     return f"{seconds // 86400} 天前"
+
+
+# ---------------------------------------------------------------------------
+# Profiling 阶段 API（C2：学生档案数据，只读；规则见 profiling_stages.py）
+# ---------------------------------------------------------------------------
+def _int_arg(name, default, lo, hi=None):
+    from flask import request
+    try:
+        value = int(request.args.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+    value = max(lo, value)
+    return min(hi, value) if hi else value
+
+
+@bp.route("/api/profiling/students")
+@login_required
+def api_profiling_students():
+    from flask import jsonify, request
+    from sqlalchemy import select
+    import db as _db
+    import profiling_stages as ps
+
+    stage = (request.args.get("stage") or "").strip()
+    if stage and stage != "done" and stage not in ps.STAGE_KEYS:
+        return jsonify({"ok": False, "error": "未知阶段"}), 400
+    sort = "name" if (request.args.get("sort") or "").strip() == "name" else "updated"
+    stmt = visible_student_filter(select(
+        _db.Student.id, _db.Student.student_code, _db.Student.name,
+        _db.Student.school, _db.Student.advisor_name, _db.Student.created_at))
+    body = ps.list_students(
+        stmt, q=request.args.get("q") or "", stage=stage,
+        advisor=(request.args.get("advisor") or "").strip(),
+        page=_int_arg("page", 1, 1), per_page=_int_arg("per_page", 50, 1, 200),
+        sort=sort)
+    return jsonify({"ok": True, **body})
+
+
+@bp.route("/api/profiling/students/<code>/progress")
+@login_required
+def api_profiling_student_progress(code):
+    from flask import jsonify
+    import db as _db
+    import profiling_stages as ps
+
+    st = _db.get_student_by_code(code)
+    scope = _advisor_scope()
+    if not st or (scope is not None and (st.get("advisor_name") or "") != scope):
+        return jsonify({"ok": False, "error": "学生不存在"}), 404
+    return jsonify({"ok": True, "progress": ps.progress_for_student(st["id"])})
