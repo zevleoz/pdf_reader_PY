@@ -8,6 +8,7 @@ AI 只负责证据提取、能力分析和综合画像；Y4 评级、引文核�
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import logging
 import re
@@ -22,7 +23,8 @@ from growth_talk.analysis import AnalysisError, call_model
 
 import m1.sources as sources
 import m1.store as store
-from m1 import report_checks, report_display, report_kb, report_prompts, report_store, report_y4
+from m1 import (report_assessment, report_checks, report_display, report_kb,
+                report_prompts, report_store, report_y4)
 from m1 import speakers
 from m1 import y4_evidence
 from m1.kb import load_kb
@@ -162,7 +164,7 @@ def step_check(prep: Dict[str, Any], report: Dict[str, Any], today: Optional[dat
         "y4_date": y4_date,
         "meeting_date": meeting_date,
         "report_date": (today or date.today()).isoformat(),
-        "evidence_sources": "、".join(labels),
+        "evidence_sources": "Y4 测评",
     }
     return {
         "meta": meta,
@@ -260,6 +262,7 @@ def _normalise_items(raw_items, valid_codes) -> List[Dict[str, Any]]:
             "quote": quote,
             "interpretation": _clean(raw.get("interpretation")),
             "limits": _clean(raw.get("limits")),
+            "event_key": _clean(raw.get("event_key")),
         })
     return out
 
@@ -342,7 +345,8 @@ def _merge_overlaps(merged: Dict[str, Dict[str, Any]]) -> None:
 
 
 _SPEAKER_LABEL_RE = re.compile(
-    r"^\W*(?:\d{1,2}:\d{2}(?::\d{2})?\W*)?(?:学生|导师|老师|家长|妈妈|爸爸|其他|待确认)\s*[：:]\s*")
+    r"^\W*(?:\d{1,2}:\d{2}(?::\d{2})?\W*)?"
+    r"(?:学生|导师|老师|家长|妈妈|爸爸|其他|待确认)(?:\s*\[[^\]]*\])?\s*[：:]\s*")
 
 
 def extract_items(text: str, template: str, template_args: tuple, source: str,
@@ -390,10 +394,13 @@ def extract_items(text: str, template: str, template_args: tuple, source: str,
                 continue
             item["quote"] = stripped
             if source == "M1":
+                item["speaker"] = "待确认"     # 发言人只由逐字稿段首决定，提取模型不猜
                 if not _drop_mentor_lead(item, index):
                     continue
                 if _m1_rules(item, index):
                     continue
+                if roles is not None:
+                    item["speaker"] = roles(item["quote"])
             key = report_checks.normalize(item["quote"]) or item["quote"]
             if key in merged:                      # 重叠部分或跨维度的重复项
                 for code in item["ability_codes"]:
@@ -411,8 +418,6 @@ def extract_items(text: str, template: str, template_args: tuple, source: str,
         raise failed[next(iter(failed))]
     out = []
     for item in merged.values():
-        if roles is not None and source == "M1":
-            item["speaker"] = roles(item["quote"])
         where = index.locate(item["quote"])
         quote = item["quote"]
         item["quote_verified"] = (where is not None
@@ -426,8 +431,11 @@ def extract_items(text: str, template: str, template_args: tuple, source: str,
         else:
             item["location"] = label
         item["_order"] = where[0] if where else 10 ** 9
-        item["status"] = ("待核实" if source != "M1" or item["speaker"] == "待确认"
-                          or not item["quote_verified"] else "已确认")
+        if source == "M1" and where is None:
+            item["status"] = "不采用"      # 找不到原文的引文自动弃用，保留追溯记录
+        else:
+            item["status"] = ("待核实" if source != "M1" or item["speaker"] == "待确认"
+                              or not item["quote_verified"] else "已确认")
         if (source == "M1" and item["speaker"] in ("学生", "家长")
                 and item["quote_verified"]
                 and report_checks.mentor_labelled(index, item["quote"])):
@@ -510,13 +518,23 @@ def step_meeting(transcript: str,
                          failures=failures, roles=roles)
 
 
+def _event_id(source: str, key: str) -> str:
+    digest = hashlib.sha1(("%s\0%s" % (source, key)).encode("utf-8")).hexdigest()
+    return "evt-" + digest[:12]
+
+
 def assign_ids(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """证据编号 + 事件编号；event_key 跨引文共享 event_id，来源不同不合并。"""
     out = []
     for number, item in enumerate(items, 1):
-        row = {"id": "e%d" % number}
-        for key in ("ability_codes", "source", "location", "speaker", "type", "quote",
-                    "quote_verified", "interpretation", "limits", "status"):
-            row[key] = item.get(key, [] if key == "ability_codes" else "")
+        key = report_checks.normalize(item.get("event_key") or "")
+        if not key:
+            key = report_checks.normalize(item.get("location") or item.get("quote") or "")
+        row = {"id": "e%d" % number,
+               "event_id": _event_id(item.get("source") or "", key)}
+        for field in ("ability_codes", "source", "location", "speaker", "type", "quote",
+                      "quote_verified", "interpretation", "limits", "status"):
+            row[field] = item.get(field, [] if field == "ability_codes" else "")
         out.append(row)
     return out
 
@@ -524,29 +542,59 @@ def assign_ids(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # 四维分析
 # ---------------------------------------------------------------------------
+def _evidence_view(e: Dict[str, Any]) -> Dict[str, Any]:
+    return {"id": e["id"], "event_id": e.get("event_id") or e["id"],
+            "speaker": e["speaker"], "type": e["type"], "quote": e["quote"],
+            "interpretation": e["interpretation"], "limits": e["limits"]}
+
+
+def _usable(evidence, code: str) -> List[Dict[str, Any]]:
+    return [e for e in report_checks.items_for(evidence, code)
+            if report_checks.supports_judgement(e)]
+
+
 def _dim_payload(dim_id: str, mapping, evidence,
-                 codes: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-    """一个维度的能力与可用资料；只给能支持判断的证据（S2-P6 §5）。"""
+                 codes: Optional[List[str]] = None,
+                 final: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """一个维度的能力与可用资料；写作层另带只读的 final_assessment。"""
     abilities = report_kb.ability_map()
     rows = []
     for code, info in abilities.items():
         if info["dim"] != dim_id or (codes is not None and code not in codes):
             continue
-        usable = [e for e in report_checks.items_for(evidence, code)
-                  if report_checks.supports_judgement(e)]
-
-        def view(e):
-            return {"id": e["id"], "speaker": e["speaker"], "type": e["type"],
-                    "quote": e["quote"], "interpretation": e["interpretation"],
-                    "limits": e["limits"]}
-        rows.append({
+        usable = _usable(evidence, code)
+        row = {
             "code": code, "name": info["name"], "description": info["description"],
             "gap_note": info["gap_note"], "supplement": info["supplement"], "ask": info["ask"],
             "y4_lines": [{"code": line["code"], "line": line["family_line"]}
                          for line in mapping[code]["lines"]],
-            "first_touch_and_other": [dict(view(e), source=e["source"])
+            "first_touch_and_other": [dict(_evidence_view(e), source=e["source"])
                                       for e in usable if e["source"] != "M1"],
-            "meeting_evidence": [view(e) for e in usable if e["source"] == "M1"],
+            "meeting_evidence": [_evidence_view(e) for e in usable if e["source"] == "M1"],
+        }
+        if final and code in final:
+            row["final_assessment"] = {
+                "tags": final[code]["tags"],
+                "evidence_ids": final[code]["evidence_ids"],
+                "internal_note": final[code]["internal_note"]}
+        rows.append(row)
+    return rows
+
+
+def _assessment_payload(dim_id: str, evidence,
+                        codes: List[str]) -> List[Dict[str, Any]]:
+    """判断层只看能力说明与可用证据，不看写作文本。"""
+    abilities = report_kb.ability_map()
+    rows = []
+    for code in codes:
+        info = abilities[code]
+        usable = _usable(evidence, code)
+        rows.append({
+            "code": code, "name": info["name"], "description": info["description"],
+            "gap_note": info["gap_note"], "supplement": info["supplement"], "ask": info["ask"],
+            "first_touch_and_other": [dict(_evidence_view(e), source=e["source"])
+                                      for e in usable if e["source"] != "M1"],
+            "meeting_evidence": [_evidence_view(e) for e in usable if e["source"] == "M1"],
         })
     return rows
 
@@ -606,41 +654,6 @@ def enforce_ability(code: str, row: Dict[str, Any], evidence, mapping,
     if removed:
         note("所选 Y4 指标 %s 不在该能力的指定映射中，已移除" % "、".join(removed), "y4_selected")
     row["y4_selected"] = kept
-
-    # 标签：不合法则只留第一个合法标签
-    names = report_kb.tag_names()
-    tags = [t for t in row["tags"] if t in names]
-    if tags != row["tags"] or report_kb.tags_problem(tags):
-        first = [t for t in row["tags"] if t in names][:1]
-        note("标签不合规（须为五种标签之一、最多两个且符合并列规则），已保留第一个有效标签", "tags")
-        tags = first
-    usable = [e for e in report_checks.items_for(evidence, code)
-              if report_checks.supports_judgement(e)]
-    usable_m1 = [e for e in usable if e["source"] == "M1"]
-
-    def replace(old: str, reason: str, fallback: str):
-        nonlocal tags
-        if old not in tags:
-            return
-        rest = [t for t in tags if t != old]
-        new = rest if rest else [fallback]
-        note("%s，标签由「%s」改为「%s」" % (reason, old, "、".join(new)), "tags")
-        tags = new
-
-    if "确认发展需求" in tags and not any(
-            e["type"] == "具体行为事件" and e["speaker"] != "待确认" for e in usable_m1):
-        if "可能存在" in tags:
-            note("缺少发言人已确认的会议具体行为事件，已去掉「确认发展需求」", "tags")
-            tags = [t for t in tags if t != "确认发展需求"]
-        else:
-            tags = ["可能存在" if t == "确认发展需求" else t for t in tags]
-            note("缺少发言人已确认的会议具体行为事件，「确认发展需求」改为「可能存在」", "tags")
-    positive = [e for e in usable if e["type"] != "假设性回应"]
-    if "积极资源" in tags and not positive:
-        replace("积极资源", "没有可用的非 Y4 证据", "信息不足")
-    if "暂未发现" in tags and not usable_m1:
-        replace("暂未发现", "没有可用的会议证据", "信息不足")
-    row["tags"] = tags
 
     if not row["meeting"]["text"]:
         row["meeting"] = _field(NO_MEETING)
@@ -738,32 +751,59 @@ def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
     def name_of(dim_id: str) -> str:
         return "%s %s｜%s" % (dim_id, dims[dim_id]["en"], dims[dim_id]["zh"])
 
-    def ask(dim_id: str, codes: List[str]) -> Dict[str, Any]:
-        payload = _dim_payload(dim_id, mapping, evidence, codes)
+    def ask_assess(dim_id: str, codes: List[str],
+                   errors: List[str]) -> Dict[str, Any]:
+        payload = _assessment_payload(dim_id, evidence, codes)
+        prompt = report_prompts.ASSESS_PROMPT % (name_of(dim_id), _json(payload))
+        if errors:
+            prompt += "\n\n【上次判断的问题】\n" + "\n".join("- " + e for e in errors)
+        return _ask(prompt)
+
+    def ask_write(dim_id: str, final) -> Dict[str, Any]:
+        payload = _dim_payload(dim_id, mapping, evidence, codes_by_dim[dim_id], final)
         prompt = report_prompts.DIM_PROMPT % (name_of(dim_id), report_prompts.FAMILY_STYLE,
                                               _json(payload))
         return _ask(prompt)
 
     def run(dim_id: str):
-        result = ask(dim_id, codes_by_dim[dim_id])
-        by_code = _by_code(result)
-        missing = [c for c in codes_by_dim[dim_id] if c not in by_code]
-        if missing:                       # §4：漏掉的能力单独追问一次，仍缺就留空
-            follow = _by_code(ask(dim_id, missing))
-            for code, item in follow.items():
-                by_code.setdefault(code, item)
-        return dim_id, result, by_code
+        codes = codes_by_dim[dim_id]
+        by_code = _by_code(ask_assess(dim_id, codes, []))
+        errors: List[str] = []
+        bad: List[str] = []
+        for code in codes:
+            raw = by_code.get(code)
+            if raw is None:
+                errors.append("%s：模型没有返回这项能力的判断" % code)
+                bad.append(code)
+                continue
+            found = ["%s：%s" % (code, error) for error in
+                     report_assessment.assessment_errors(raw, evidence, code)]
+            if found:
+                errors.extend(found)
+                bad.append(code)
+        if bad:                     # 只把有问题的能力带错误重试一次
+            by_code.update(_by_code(ask_assess(dim_id, bad, errors)))
+        final = {code: report_assessment.resolve_assessment(by_code.get(code) or {},
+                                                            evidence, code)
+                 for code in codes}
+        return dim_id, ask_write(dim_id, final), final
 
     out = {}
-    for dim_id, result, by_code in _parallel(run, list(dims)):
+    for dim_id, result, final in _parallel(run, list(dims)):
         path_prefix = ["dims", dim_id]
+        by_code = _by_code(result)
         abilities_out = {}
         for code in codes_by_dim[dim_id]:
             path = path_prefix + ["abilities", code]
             raw = by_code.get(code)
+            resolved = final[code]
             row = _blank_row()
+            row["tags"] = resolved["tags"]
+            for message in resolved["diagnostics"]:
+                adjustments.append({"message": "%s：%s" % (code, message),
+                                    "path": path + ["tags"]})
             if raw is None:
-                adjustments.append({"message": "%s：AI 没有返回这项能力的分析" % code,
+                adjustments.append({"message": "%s：AI 没有返回这项能力的写作" % code,
                                     "path": path})
             else:
                 row["y4_selected"] = [c for c in raw.get("y4_selected") or [] if isinstance(c, str)]
@@ -771,13 +811,16 @@ def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
                 row["meeting"] = _sentences(raw.get("meeting"), _valid_ids(evidence, code),
                                             path + ["meeting"], adjustments, code)
                 _cut_judgements(row["meeting"], code, path + ["meeting"], adjustments)
-                row["tags"] = [t for t in raw.get("tags") or [] if isinstance(t, str)]
                 row["evidence_ids"] = [i for i in raw.get("evidence_ids") or [] if isinstance(i, str)]
                 row["internal_note"] = _clean(raw.get("internal_note"))
                 limit = (report_checks.LIMITS["meeting_two_tags"] if len(row["tags"]) == 2
                          else report_checks.LIMITS["meeting"])
                 _cap_field(row["meeting"], limit, "%s 首次会议核实情况" % code,
                            path + ["meeting"], adjustments)
+            row["evidence_ids"] = list(dict.fromkeys(
+                resolved["evidence_ids"] + row["evidence_ids"]))
+            if not row["internal_note"]:
+                row["internal_note"] = resolved["internal_note"]
             enforce_ability(code, row, evidence, mapping, adjustments, path)
             row["y4_selected"] = row["y4_selected"][:report_checks.Y4_MAX]
             abilities_out[code] = row
@@ -1164,13 +1207,15 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None,
     analysis = run("speakers", lambda: speakers.for_generation(report, _ask, actor_id))
     transcript = (speakers.marked_text(analysis["turns"]) if analysis
                   else report["transcript_text"])
+    meeting_text = (speakers.prompt_text(analysis["turns"]) if analysis
+                    else report["transcript_text"])
     roles = speakers.role_lookup(analysis["turns"]) if analysis else None
     ratings = run("y4", lambda: step_y4(ctx["values"]))
     mapping = run("mapping", lambda: step_mapping(ratings))
     other_items = run("first_touch", lambda: step_first_touch(ctx)) or []
     safety = run("safety", lambda: step_safety(transcript))
     chunk_failed: List[int] = []
-    meeting_items = run("meeting", lambda: step_meeting(transcript, chunk_failed,
+    meeting_items = run("meeting", lambda: step_meeting(meeting_text, chunk_failed,
                                                        roles=roles))
     evidence = assign_ids(meeting_items + other_items)
 
@@ -1211,12 +1256,10 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None,
                                         first_touch_text=ctx["first_touch_text"])
 
     checks = run("checks", finish)
-    needs_check = bool(checks) or any(e["status"] == "待核实" for e in evidence)
     saved = report_store.add_version(
         report["id"], y4_ratings=ratings, evidence=evidence, ai_doc=doc,
         doc=copy.deepcopy(doc), checks=checks, manifest=manifest,
-        status="needs_check" if needs_check else "ai_draft",
-        safety=safety, created_by=actor_id)
+        status="ai_draft", safety=safety, created_by=actor_id)
     log.info("m1 report generated: report=%s version=%s evidence=%d checks=%d safety=%d",
              report["id"], saved["id"], len(evidence), len(checks), len(safety))
     return saved["id"]

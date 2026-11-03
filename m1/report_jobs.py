@@ -159,11 +159,10 @@ def load_fixture(prep_id: int, path: str) -> int:
     manifest = {"sources": ["样例文档"], "fixture": Path(path).name, "adjustments": []}
     version = {"doc": doc, "evidence": evidence, "y4_ratings": ratings, "manifest": manifest}
     checks = report_checks.run_checks(report, version)
-    needs = bool(checks) or any(e.get("status") == "待核实" for e in evidence)
     saved = report_store.add_version(
         report["id"], y4_ratings=ratings, evidence=evidence, ai_doc=doc,
         doc=copy.deepcopy(doc), checks=checks, manifest=manifest,
-        status="needs_check" if needs else "ai_draft", safety=[])
+        status="ai_draft", safety=[])
     return saved["id"]
 
 

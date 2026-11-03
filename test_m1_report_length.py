@@ -7,8 +7,8 @@ from __future__ import annotations
 import json
 
 from m1 import report_checks, report_display, report_kb, report_pipeline, report_prompts
-from test_m1_report_core import (FakeModel, TRANSCRIPT, fake, generate,  # noqa: F401
-                                 rdb)
+from test_m1_report_core import (Q_HELP, FakeModel, TRANSCRIPT, _item, fake,  # noqa: F401
+                                 generate, rdb)
 from test_m1_store import m1db  # noqa: F401  临时库与虚构学生
 
 
@@ -114,6 +114,22 @@ def test_long_clue_uses_first_sentence():
 class _LongMeetingModel(FakeModel):
     """R1.1 双标签、R1.2 单标签，两者都拿到同一段 75 字的会议文字。"""
 
+    def __init__(self):
+        super().__init__()
+        # R1.1 需要两个不同事件才能拿到双标签
+        self.meeting_items = self.meeting_items + [
+            _item(Q_HELP, "学生", "具体行为事件", ["R1.1"])]
+        self.assessment_overrides = {"R1.1": self._dual}
+
+    @staticmethod
+    def _dual(ability):
+        views = ability["meeting_evidence"]
+
+        def judge(tag, view):
+            return {"tag": tag, "evidence_ids": [view["id"]],
+                    "event_ids": [view["event_id"]], "rationale": "示例判断理由"}
+        return [judge("积极资源", views[0]), judge("确认发展需求", views[1])]
+
     def _dim(self, prompt):
         out = super()._dim(prompt)
         payload = json.loads(prompt.split("【能力与资料】\n", 1)[1])
@@ -126,8 +142,6 @@ class _LongMeetingModel(FakeModel):
             row["meeting"] = {"sentences": [
                 {"text": text, "evidence_ids": ids.get(code, [])[:1], "kind": "fact"}
                 for text in sentences]}
-            row["tags"] = (["积极资源", "确认发展需求"] if code == "R1.1"
-                           else ["积极资源"])
         return out
 
 
@@ -193,7 +207,8 @@ def test_prompts_carry_limits():
     assert "合计不超过 60 字" in report_prompts.DIM_PROMPT
     assert "最多 3 个" in report_prompts.DIM_PROMPT
     assert "不超过 40 字" in report_prompts.PROFILE_PROMPT
-    assert "照段首标注填写" in report_prompts.MEETING_PROMPT
+    assert "event_key" in report_prompts.MEETING_PROMPT
+    assert "speaker" not in report_prompts.MEETING_PROMPT      # 发言人不再由提取模型判断
     assert "默认选 1–2 个最有代表性的事件" not in report_prompts.DIM_PROMPT
 
 

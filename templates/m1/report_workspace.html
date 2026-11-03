@@ -157,11 +157,10 @@
 
     <section class="surface" id="r4PreviewCard" data-step="review">
       <div class="head"><h2>预览与修改</h2><span class="sp"></span>
-        <span class="sub">直接在报告里改文字；黄色框是需要核对的地方。</span>
+        <span class="sub">直接在报告里改文字；黄色框是报告还不完整的地方。</span>
         <button type="button" class="btn sm" id="r4Regenerate">重新生成</button></div>
       <div class="safety" id="r4Safety" hidden>
         <div id="r4SafetyItems" class="r4-safety-items"></div>
-        <button type="button" class="btn sm" id="r4SafetyAck">已知悉并人工核实</button>
       </div>
       <iframe id="r4Preview" class="r4-preview" title="报告预览与修改"></iframe>
       <p class="sub" id="r4PreviewEmpty" hidden>还没有生成报告。请回到「① 资料」生成。</p>
@@ -195,13 +194,12 @@
       <div class="head"><h2>导出</h2></div>
       <div class="body">
         <p class="r4-export-state" id="r4ExportState"></p>
-        <p class="hint">审核通过前导出的 PDF 带“草稿”水印。</p>
+        <p class="hint">正式发布前导出的 PDF 带“草稿”水印。</p>
         <div class="r4-actions" id="r4Actions">
           <a class="btn pri" id="r4Print" href="/m1/preps/{{ prep.id }}/report/print?print=1"
              target="_blank" rel="noopener" hidden>导出 PDF</a>
           <a class="btn" id="r4Evidence" href="/m1/preps/{{ prep.id }}/report/evidence"
              target="_blank" rel="noopener" hidden>内部证据记录</a>
-          <button type="button" class="btn" id="r4Approve" hidden>审核通过</button>
           <button type="button" class="btn pri" id="r4Publish" hidden>正式发布</button>
           <button type="button" class="btn" id="r4Reopen" hidden>重新打开</button>
         </div>

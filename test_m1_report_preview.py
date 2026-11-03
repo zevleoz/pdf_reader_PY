@@ -177,7 +177,7 @@ def test_workspace_preview_markup(client, m1db):  # noqa: F811
 
 def test_edit_js_contract():
     js = EDIT_JS.read_text(encoding="utf-8")
-    for text in ("'/doc'", "'/confirm-flag'", "还需核对", "m1-report-edit"):
+    for text in ("'/doc'", "报告还不完整", "m1-report-edit"):
         assert text in js, text
     assert "plaintext" not in js
     assert "innerHTML" not in js

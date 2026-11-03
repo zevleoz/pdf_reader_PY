@@ -41,6 +41,13 @@ PROCESS_WORDS = ("待核实", "未核实", "证据条目", "证据编号", "数�
                  "零会议证据", "quote_verified", "First Touch记录")
 INFERENCE_WORDS = ("可能", "看起来", "提示", "还需要了解")
 
+# AI 质量与安全提示只作信息展示，不阻断审核或发布（M1 会后 AI 工作流 §9.1）
+INFORMATIONAL_CHECK_CODES = {
+    "quote_unverified", "quote_speaker", "quote_no_evidence", "need_speaker",
+    "old_model", "family_evidence_id", "safety_unacked",
+    "fact_unsupported", "fact_unchecked", "chunk_failed",
+}
+
 # M1R D1：家长版各栏字数上限（含标点）
 LIMITS = {"meeting": 60, "meeting_two_tags": 80, "core_finding": 80, "context_notes": 50,
           "portrait": 60, "finding": 40, "meaning": 40, "plan_cell": 40, "review_advice": 60}
@@ -233,7 +240,7 @@ def supports_judgement(item: Dict[str, Any]) -> bool:
 
 _MENTOR_LABEL_RE = re.compile(
     r"^\W*(?:\d{1,2}:\d{2}(?::\d{2})?\W*)?(导师|老师|mentor)\s*"
-    r"(?:\d{1,2}:\d{2}(?::\d{2})?\s*)?[：:]", re.IGNORECASE)
+    r"(?:\d{1,2}:\d{2}(?::\d{2})?\s*)?(?:\s*\[[^\]]*\])?[：:]", re.IGNORECASE)
 _EVIDENCE_ID_RE = re.compile(r"(?<![A-Za-z0-9])e\d+(?![A-Za-z0-9])")
 _Y4_CODE_RE = re.compile(r"(?<!\d)\d{3}(?!\d)")
 
@@ -564,6 +571,9 @@ def run_checks(report: Dict[str, Any], version: Optional[Dict[str, Any]], *,
     if total > TOTAL_MAX:
         out.append(_check("review", "too_long",
                           "报告正文约 %d 字，超过 %d 字，建议精简" % (total, TOTAL_MAX), ["dims"]))
+    for check in out:
+        if check.get("code") in INFORMATIONAL_CHECK_CODES:
+            check["level"] = "review"
     return out
 
 

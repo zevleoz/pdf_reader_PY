@@ -634,16 +634,21 @@ def api_report_publish(prep_id: int):
     prep, error = _api_prep(prep_id)
     if error:
         return error
-    report = rstore.get_report(prep_id)
-    if not report:
-        return _err("报告还没有生成", 409)
+    report, version, error = _need_report(prep)
+    if error:
+        return error
+    checks = checks_mod.run_checks(_for_checks(report), version)
+    blocks = checks_mod.blocking(checks)
+    if blocks:
+        return _err("还有 %d 项阻断问题，不能正式发布" % len(blocks), 400,
+                    blocking=blocks, checks=checks)
     try:
         updated = rstore.publish(report["id"], _user().get("user_id"))
     except rstore.StatusError as exc:
         return _err(str(exc), 409)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_publish",
                 {"prep_id": prep_id})
-    return jsonify({"ok": True, "report": _public_report(updated)})
+    return jsonify({"ok": True, "report": _public_report(updated), "checks": checks})
 
 
 @bp.route("/api/m1/preps/<int:prep_id>/report/reopen", methods=["POST"])

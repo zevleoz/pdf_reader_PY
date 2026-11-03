@@ -446,8 +446,8 @@ def publish(report_id: int, user_id=None) -> Dict[str, Any]:
         report = sess.get(M1Report, int(report_id))
         if report is None:
             raise NotFound("报告不存在")
-        if report.status != "approved":
-            raise StatusError("只有审核通过的报告才能正式发布")
+        if report.status not in ("ai_draft", "needs_check", "reviewing", "approved"):
+            raise StatusError("当前状态不能正式发布")
         report.status = "published"
         report.published_at = datetime.utcnow()
         report.rev = int(report.rev or 1) + 1

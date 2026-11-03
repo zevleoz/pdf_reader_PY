@@ -45,15 +45,13 @@ def _set(doc, where):
 
 
 @pytest.mark.parametrize("where", ["portrait", "findings", "plan", "review"])
-def test_fake_quote_in_every_family_field_blocks(rdb, fake, where):
+def test_fake_quote_in_every_family_field_is_informational(rdb, fake, where):
     report, version = _clean(rdb, fake)
     assert "quote_unverified" not in _codes(report, version)
     version = _mutate(version, lambda v: _set(v["doc"], where))
-    # T8 §1：方案和回顾建议里的引号是建议用语，只提醒（review）；其余字段仍然阻断
-    level = "review" if where in ("plan", "review") else "block"
-    assert "quote_unverified" in _codes(report, version, level)
-    if level == "review":
-        assert "quote_unverified" not in _codes(report, version, "block")
+    # AI 质量提示只作信息展示，所有家庭字段都不再阻断发布
+    assert "quote_unverified" in _codes(report, version, "review")
+    assert "quote_unverified" not in _codes(report, version, "block")
 
 
 def test_real_quote_in_family_field_does_not_fail_verification(rdb, fake):
@@ -103,10 +101,11 @@ def _need_version(version, ev):
     return version
 
 
-def test_need_speaker_blocks_unverified_and_confirm_clears(rdb, fake):
+def test_need_speaker_is_informational_and_confirm_clears(rdb, fake):
     report, version = _clean(rdb, fake)
     bad = _need_version(version, _ev(version, "R1.1", quote_verified=False, status="待核实"))
-    assert "need_speaker" in _codes(report, bad, "block")
+    assert "need_speaker" in _codes(report, bad, "review")
+    assert "need_speaker" not in _codes(report, bad, "block")
     ok = _need_version(version, _ev(version, "R1.1", quote_verified=False, status="已确认"))
     assert "need_speaker" not in _codes(report, ok)
 
@@ -145,44 +144,44 @@ def _quote_checks(report, version):
     return [c for c in _checks(report, version) if c["code"].startswith("quote_")]
 
 
-def test_quote_all_discarded_blocks(rdb, fake):
+def test_quote_all_discarded_is_informational(rdb, fake):
     report, version = _clean(rdb, fake)
     v = _quote_version(version, [_ev(version, "R1.1", status="不采用")])
     c = _quote_checks(report, v)
-    assert [(x["level"], x["code"]) for x in c] == [("block", "quote_speaker")]
+    assert [(x["level"], x["code"]) for x in c] == [("review", "quote_speaker")]
     assert "不采用" in c[0]["message"]
 
 
-def test_quote_mentor_or_pending_speaker_blocks(rdb, fake):
+def test_quote_mentor_or_pending_speaker_is_informational(rdb, fake):
     report, version = _clean(rdb, fake)
     for speaker in ("导师", "待确认"):
         v = _quote_version(version, [_ev(version, "R1.1", speaker=speaker)])
         assert [(x["level"], x["code"]) for x in _quote_checks(report, v)] == \
-            [("block", "quote_speaker")]
+            [("review", "quote_speaker")]
     v = _quote_version(version, [_ev(version, "R1.1", speaker="学生")])
     assert _quote_checks(report, v) == []
 
 
-def test_quote_no_match_mentor_labelled_blocks(rdb, fake):
+def test_quote_no_match_mentor_labelled_is_informational(rdb, fake):
     report, version = _clean(rdb, fake)
     v = _quote_version(version, [], quote=Q_MENTOR)
     assert [(x["level"], x["code"]) for x in _quote_checks(report, v)] == \
-        [("block", "quote_speaker")]
+        [("review", "quote_speaker")]
 
 
-def test_quote_no_match_ai_blocks_edited_reviews(rdb, fake):
+def test_quote_no_match_ai_and_edited_are_informational(rdb, fake):
     report, version = _clean(rdb, fake)
     ai = _quote_checks(report, _quote_version(version, [], src="ai"))
-    assert [(x["level"], x["code"]) for x in ai] == [("block", "quote_no_evidence")]
+    assert [(x["level"], x["code"]) for x in ai] == [("review", "quote_no_evidence")]
     ed = _quote_checks(report, _quote_version(version, [], src="edited"))
     assert [(x["level"], x["code"]) for x in ed] == [("review", "quote_no_evidence")]
 
 
-def test_review_case_mentor_line_marked_student_blocks_and_clears(rdb, fake):
+def test_review_case_mentor_line_marked_student_is_informational(rdb, fake):
     fake.meeting_items = [_item(Q_MENTOR, "学生", "具体行为事件", ["R1.1"])]
     report, version = _clean(rdb, fake)
     v = _quote_version(version, version["evidence"], quote=Q_MENTOR)
-    assert "quote_speaker" in _codes(report, v, "block")
+    assert "quote_speaker" in _codes(report, v, "review")
     removed = _quote_version(version, version["evidence"], quote=Q_BODY)
     assert "quote_speaker" not in _codes(report, removed)
 

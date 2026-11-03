@@ -80,7 +80,7 @@
     bar.banner.hidden = banner.length === 0;
 
     bar.more.hidden = reviews.length === 0;
-    bar.more.textContent = '其他提示 ' + reviews.length + ' 条（不影响审核）';
+    bar.more.textContent = '其他提示 ' + reviews.length + ' 条（仅供参考）';
     bar.more.onclick = function () {
       var open = bar.banner.getAttribute('data-reviews') === '1';
       bar.banner.setAttribute('data-reviews', open ? '0' : '1');
@@ -97,7 +97,7 @@
 
   function showCurrent(scroll) {
     var total = targets.length;
-    bar.count.textContent = total ? ('还需核对 ' + total + ' 处') : '没有需要核对的地方';
+    bar.count.textContent = total ? ('报告还不完整：' + total + ' 处') : '没有必须补全的地方';
     bar.prev.disabled = !total;
     bar.next.disabled = !total;
     targets.forEach(function (node) { node.classList.remove('current'); });
@@ -107,11 +107,6 @@
     node.classList.add('current');
     bar.msg.textContent = '第 ' + (current + 1) + '/' + total + ' 处：' +
       node.__checks.map(function (c) { return c.message; }).join('；');
-    var flag = node.__checks.filter(function (c) { return c.code === 'fact_unsupported'; })[0];
-    if (flag) {
-      bar.ack.hidden = false;
-      bar.ack.onclick = function () { confirmFlag(flag.path); };
-    }
     if (scroll) node.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
@@ -161,10 +156,6 @@
       rows[index][node.getAttribute('data-plan-key')] = node.innerText.trim();
     });
     return Object.keys(rows).sort(function (a, b) { return a - b; }).map(function (k) { return rows[k]; });
-  }
-
-  function confirmFlag(path) {
-    send(data.api + '/confirm-flag', 'POST', { path: path });
   }
 
   document.querySelectorAll('[data-path]').forEach(function (node) {

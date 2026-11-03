@@ -24,8 +24,8 @@ import m1.jobs as m1_jobs
 import m1.store as store
 from app_utils import BASE_DIR
 from growth_talk.analysis import AnalysisError
-from m1 import (report_checks, report_jobs, report_kb, report_pipeline, report_store,
-                report_y4)
+from m1 import (report_checks, report_jobs, report_kb, report_pipeline, report_prompts,
+                report_store, report_y4)
 from test_m1_api import login_as
 from test_m1_store import m1db  # noqa: F401  临时库与虚构学生
 
@@ -55,9 +55,9 @@ Q_FAKE = "我每天晚上都会反复做噩梦"
 # ---------------------------------------------------------------------------
 # 假模型
 # ---------------------------------------------------------------------------
-def _item(quote, speaker, kind, codes, interp="示例解读", limits=""):
+def _item(quote, speaker, kind, codes, interp="示例解读", limits="", event_key=""):
     return {"quote": quote, "speaker": speaker, "type": kind, "ability_codes": codes,
-            "interpretation": interp, "limits": limits}
+            "interpretation": interp, "limits": limits, "event_key": event_key}
 
 
 class FakeModel:
@@ -83,6 +83,7 @@ class FakeModel:
             _item("只有无效编号", "学生", "主观感受", ["R9.9"]),
         ]
         self.overrides = {}
+        self.assessment_overrides = {}
         self.fail = None
         self.unsupported = ()
         self.profile_plan = [
@@ -97,6 +98,8 @@ class FakeModel:
             return {"items": copy.deepcopy(self.meeting_items)}
         if prompt.startswith("任务：从其他资料中提取证据条目"):
             return {"items": []}
+        if prompt.startswith("任务：判断一个维度的能力标签"):
+            return self._assess(prompt)
         if prompt.startswith("任务：整理一个维度的能力分析"):
             return self._dim(prompt)
         if prompt.startswith("任务：综合画像与阶段方案"):
@@ -124,43 +127,69 @@ class FakeModel:
         text = prompt.split("【文字】\n", 1)[1].split("\n【问题】", 1)[0].strip()
         return {"text": text}
 
+    @staticmethod
+    def _payload(prompt):
+        data = prompt.split("【能力与资料】\n", 1)[1]
+        return json.loads(data.split("\n\n【上次判断的问题】", 1)[0])
+
+    def _assess(self, prompt):
+        payload = self._payload(prompt)
+        rows = []
+        for ability in payload:
+            code = ability["code"]
+            rows.append({"code": code,
+                         "judgements": self._judgements(ability),
+                         "internal_note": "判断备注"})
+        return {"abilities": rows}
+
+    def _judgements(self, ability):
+        """默认候选：有可用证据的给带证据的判断，没有证据的写「信息不足」。"""
+        code = ability["code"]
+        eligible = ability["meeting_evidence"] + ability["first_touch_and_other"]
+        override = self.assessment_overrides.get(code)
+        if override is not None:
+            return copy.deepcopy(override(ability) if callable(override) else override)
+
+        def judge(tag, enum):
+            return {"tag": tag, "evidence_ids": [enum["id"]],
+                    "event_ids": [enum["event_id"]], "rationale": "示例判断理由"}
+
+        if code == "R1.1" and eligible:
+            return [judge("确认发展需求", eligible[0])]
+        if code == "R1.2" and eligible:
+            return [judge("确认发展需求", eligible[0])]
+        if code in ("R1.3", "R2.1") and eligible:
+            return [judge("积极资源", eligible[0])]
+        return [{"tag": "信息不足", "evidence_ids": [], "event_ids": [],
+                 "rationale": "没有可用证据"}]
+
     def _dim(self, prompt):
-        payload = json.loads(prompt.split("【能力与资料】\n", 1)[1])
+        payload = self._payload(prompt)
         rows = []
         for ability in payload:
             code = ability["code"]
             ids = [e["id"] for e in ability["meeting_evidence"]]
             row = {"code": code, "y4_selected": [], "other_clues": "",
                    "meeting": {"sentences": []},
-                   "tags": ["信息不足"], "evidence_ids": ids, "internal_note": "内部备注"}
+                   "evidence_ids": ids, "internal_note": "内部备注"}
             if code == "R1.1":
-                row.update(y4_selected=["013", "999"], tags=["确认发展需求"],
+                row.update(y4_selected=["013", "999"],
                            meeting={"sentences": [{
                                "text": "学生说“心跳很快，手心出汗”，整个下午都觉得很烦。",
                                "evidence_ids": ids[:1], "kind": "fact"}]})
             elif code == "R1.2":
-                row.update(tags=["确认发展需求"],
-                           meeting={"sentences": [{
-                               "text": "学生设想可以试试，是在老师提出建议之后。",
-                               "evidence_ids": ids[-1:], "kind": "fact"}]})
-            elif code == "R1.3":
-                row.update(tags=["积极资源"])
-            elif code == "R1.4":
-                row.update(tags=["积极资源"])
+                row.update(meeting={"sentences": [{
+                    "text": "学生设想可以试试，是在老师提出建议之后。",
+                    "evidence_ids": ids[-1:], "kind": "fact"}]})
             elif code == "R2.1":
-                row.update(y4_selected=[], tags=["积极资源", "信息不足"],
+                row.update(y4_selected=[],
                            meeting={"sentences": [{
                                "text": "学生选择独自待着，之后慢慢好一点。",
                                "evidence_ids": ids[:1], "kind": "fact"}]})
-            elif code == "R2.2":
-                row.update(tags=["乱写"])
             elif code == "R2.3":
-                row.update(tags=["可能存在"],
-                           meeting={"sentences": [{
-                               "text": "学生可能有时会走神。",
-                               "evidence_ids": [], "kind": "inference"}]})
-            elif code == "R2.5":
-                row.update(tags=["暂未发现"])
+                row.update(meeting={"sentences": [{
+                    "text": "学生可能有时会走神。",
+                    "evidence_ids": [], "kind": "inference"}]})
             row.update(self.overrides.get(code, {}))
             rows.append(row)
         return {"abilities": rows,
@@ -367,7 +396,7 @@ def test_end_to_end_generation(rdb, fake):
     version = report_store.get_version(version_id)
 
     doc = version["doc"]
-    assert report["status"] == "needs_check" and report["current_version_id"] == version_id
+    assert report["status"] == "ai_draft" and report["current_version_id"] == version_id
     assert version["doc"] == version["ai_doc"] and version["n"] == 1
     codes = [c for dim in doc["dims"].values() for c in dim["abilities"]]
     assert len(codes) == 18 and len(set(codes)) == 18
@@ -375,7 +404,8 @@ def test_end_to_end_generation(rdb, fake):
     assert doc["meta"]["student_name"] == "林晓雨" and doc["meta"]["y4_date"] == "2026-10-01"
     assert doc["meta"]["report_date"] == date.today().isoformat()
     assert doc["meta"]["meeting_date"] == ""          # 不认识的字段留空
-    assert doc["meta"]["evidence_sources"] == "Y4 测评、M1 First Meeting 逐字稿"
+    assert doc["meta"]["evidence_sources"] == "Y4 测评"
+    assert "M1 First Meeting 逐字稿" in version["manifest"]["sources"]
     # First Touch 步骤被跳过，不算资料缺口
     assert ("first_touch", "skipped") in steps and ("checks", "done") in steps
     assert [s for s, st in steps if st == "running"] == [k for k, _ in report_pipeline.STEP_DEFS]
@@ -393,13 +423,29 @@ def test_end_to_end_generation(rdb, fake):
     evidence = version["evidence"]
     assert evidence[0]["id"] == "e1"
     for item in evidence:
-        assert set(item) == {"id", "ability_codes", "source", "location", "speaker", "type",
-                             "quote", "quote_verified", "interpretation", "limits", "status"}
+        assert set(item) == {"id", "event_id", "ability_codes", "source", "location",
+                             "speaker", "type", "quote", "quote_verified",
+                             "interpretation", "limits", "status"}
     manifest = version["manifest"]
     assert manifest["template_file"] and manifest["kb_version"] and "adjustments" in manifest
     # 会前准备不受影响
     assert store.get_prep(rdb.prep_row["id"])["status"] == "draft"
     assert store.list_versions(rdb.prep_row["id"]) == []
+
+
+def test_meeting_schema_has_no_speaker_and_event_key_links_quotes():
+    assert '"speaker"' not in report_prompts.MEETING_PROMPT
+    assert '"event_key"' in report_prompts.MEETING_PROMPT
+    items = report_pipeline.assign_ids([
+        {"source": "M1", "event_key": "数学小测", "quote": "我上周没考好",
+         "location": "第 3 段"},
+        {"source": "M1", "event_key": "数学小测", "quote": "小测前我很紧张",
+         "location": "第 4 段"},
+        {"source": "M1", "quote": "另一件事", "location": "第 9 段"},
+    ])
+    assert items[0]["event_id"] == items[1]["event_id"]
+    assert items[0]["event_id"] != items[2]["event_id"]
+    assert "event_key" not in items[0]
 
 
 def test_meeting_items_verified_deduped_and_cleaned(rdb, fake):
@@ -417,7 +463,7 @@ def test_meeting_items_verified_deduped_and_cleaned(rdb, fake):
     # §11 规则 1：引文所在段落是导师的话，整条丢弃
     assert Q_MENTOR not in items
     fake_item = items[Q_FAKE]
-    assert fake_item["quote_verified"] is False and fake_item["status"] == "待核实"
+    assert fake_item["quote_verified"] is False and fake_item["status"] == "不采用"
     assert fake_item["location"] == ""
     # 已核验的在前，找不到的在后
     assert version["evidence"][-1]["quote"] == Q_FAKE
@@ -428,7 +474,8 @@ def test_only_m1_items_start_confirmed(monkeypatch):
         return {"items": [_item(Q_HELP, "学生", "其他观察", ["R3.5"])]}
     monkeypatch.setattr(report_pipeline, "call_model", model)
     text = "上次作业不会，我主动问了补习班的老师"
-    m1 = report_pipeline.extract_items(text, "%s\n%s", (), "M1", "逐字稿")
+    m1 = report_pipeline.extract_items(text, "%s\n%s", (), "M1", "逐字稿",
+                                       roles=lambda _quote: "学生")
     other = report_pipeline.extract_items(text, "%s\n%s", (), "OTHER", "补充问卷")
     ft = report_pipeline.extract_items(text, "%s\n%s", (), "FT", "First Touch 记录")
     assert m1[0]["quote_verified"] is True and m1[0]["speaker"] == "学生"
@@ -482,7 +529,8 @@ def test_other_materials_become_other_items(rdb, fake, monkeypatch):
     other = [e for e in version["evidence"] if e["source"] == "OTHER"]
     assert len(seen) == 4 and len(other) == 1      # 每个维度一次调用，结果合并成一条
     assert other[0]["quote_verified"] is True and other[0]["location"] == "其他资料：家长反馈"
-    assert version["doc"]["meta"]["evidence_sources"].endswith("其他补充资料")
+    assert version["doc"]["meta"]["evidence_sources"] == "Y4 测评"
+    assert version["manifest"]["sources"][-1] == "其他补充资料"
 
 
 # ---------------------------------------------------------------------------
@@ -505,9 +553,9 @@ def test_rules_fire_on_ai_output(rdb, fake):
     # 积极资源没有任何非 Y4 证据 → 信息不足；暂未发现没有会议证据 → 信息不足
     assert rows["R1.4"]["tags"] == ["信息不足"] and rows["R2.5"]["tags"] == ["信息不足"]
     assert rows["R1.3"]["tags"] == ["积极资源"]                # 有可用证据，保留
-    # 非法标签只留第一个有效标签；一个有效都没有则为空
+    # 无有效候选时中央规则回退为「信息不足」，不再留空
     assert rows["R2.1"]["tags"] == ["积极资源"]
-    assert rows["R2.2"]["tags"] == []
+    assert rows["R2.2"]["tags"] == ["信息不足"]
     # 固定说明
     assert rows["R3.1"]["meeting"]["text"] == "本次会议未获得相关信息。"
     assert rows["R3.1"]["other_clues"]["text"] == "暂无直接相关资料。"
@@ -517,21 +565,43 @@ def test_rules_fire_on_ai_output(rdb, fake):
     # 方案：无效能力被丢掉，最多 3 行
     assert [r["ability"] for r in version["doc"]["plan"]] == ["R1.1", "R2.1", "R3.5"]
     text = "\n".join(_messages(version))
-    for needle in ("R1.1：所选 Y4 指标 999", "R1.2：缺少发言人已确认", "R1.4：没有可用的非 Y4 证据",
-                   "R2.5：没有可用的会议证据", "R2.1：标签不合规", "R3.1：会议核实情况为空",
+    for needle in ("R1.1：所选 Y4 指标 999",
+                   "R1.2：「确认发展需求」缺少发言明确的会议具体行为证据，已降为「可能存在」",
+                   "R3.1：会议核实情况为空",
                    "方案中的能力编号无效", "阶段发展重点超过 3 项"):
         assert needle in text, needle
 
 
+def _judge(tag, enum):
+    return {"tag": tag, "evidence_ids": [enum["id"]], "event_ids": [enum["event_id"]],
+            "rationale": "测试判断理由"}
+
+
 def test_dual_tag_rules_keep_the_other_tag(rdb, fake):
-    fake.overrides = {"R1.1": {"tags": ["积极资源", "确认发展需求"]},
-                      "R1.4": {"tags": ["积极资源", "可能存在"]},
-                      "R1.2": {"tags": ["积极资源", "确认发展需求"]}}
+    # 给 R1.2 一条真实的具体行为事件，才能同时拿到积极资源
+    fake.meeting_items = fake.meeting_items + [
+        _item(Q_HELP, "学生", "具体行为事件", ["R1.2"])]
+    fake.assessment_overrides = {
+        # 同一事件不能同时证明资源和需求，只留下有证据的积极资源
+        "R1.1": lambda a: [_judge("积极资源", a["meeting_evidence"][0]),
+                           _judge("确认发展需求", a["meeting_evidence"][0])],
+        # 两个候选都没有可用证据 → 中央规则回退为信息不足
+        "R1.4": [{"tag": "积极资源", "evidence_ids": ["e999"], "event_ids": ["evt-x"],
+                  "rationale": "测试判断理由"},
+                 {"tag": "可能存在", "evidence_ids": ["e999"], "event_ids": ["evt-x"],
+                  "rationale": "测试判断理由"}],
+        # 积极资源 + 主观感受的确认发展需求 → 降级为可能存在，两个事件都保留
+        "R1.2": lambda a: [
+            _judge("积极资源", next(e for e in a["meeting_evidence"]
+                                    if e["type"] == "具体行为事件")),
+            _judge("确认发展需求", next(e for e in a["meeting_evidence"]
+                                       if e["type"] == "主观感受"))],
+    }
     _r, version = generate(rdb)
     rows = {c: r for d in version["doc"]["dims"].values() for c, r in d["abilities"].items()}
-    assert rows["R1.1"]["tags"] == ["积极资源", "确认发展需求"]    # 证据齐全，原样保留
-    assert rows["R1.4"]["tags"] == ["可能存在"]                   # 去掉没有证据的积极资源
-    assert rows["R1.2"]["tags"] == ["积极资源", "可能存在"]       # 确认发展需求降级
+    assert rows["R1.1"]["tags"] == ["积极资源"]
+    assert rows["R1.4"]["tags"] == ["信息不足"]
+    assert rows["R1.2"]["tags"] == ["积极资源", "可能存在"]
 
 
 def test_ai_omitting_an_ability_leaves_it_blank_and_flagged(rdb, fake, monkeypatch):
@@ -543,8 +613,8 @@ def test_ai_omitting_an_ability_leaves_it_blank_and_flagged(rdb, fake, monkeypat
         return result
     monkeypatch.setattr(fake, "_dim", drop)
     _r, version = generate(rdb)
-    assert version["doc"]["dims"]["R4"]["abilities"]["R4.3"]["tags"] == []
-    assert any("R4.3：AI 没有返回" in m for m in _messages(version))
+    assert version["doc"]["dims"]["R4"]["abilities"]["R4.3"]["tags"] == ["信息不足"]
+    assert any("R4.3：AI 没有返回这项能力的写作" in m for m in _messages(version))
 
 
 def test_failed_model_call_surfaces(rdb, fake):
@@ -630,11 +700,29 @@ def test_load_fixture_loads_an_ai_draft(rdb, fake, tmp_path):
     assert report_store.get_report(prep["id"])["status"] in ("ai_draft", "needs_check")
 
 
+def test_load_fixture_with_review_diagnostics_is_ai_draft(rdb, fake, tmp_path):
+    _r, version = generate(rdb)
+    doc = copy.deepcopy(version["doc"])
+    doc["review_advice"]["text"] = "见证据 e12。"
+    evidence = copy.deepcopy(version["evidence"])
+    evidence[0]["status"] = "待核实"
+    path = tmp_path / "doc.json"
+    path.write_text(json.dumps({"doc": doc, "evidence": evidence,
+                                "y4_ratings": version["y4_ratings"]}, ensure_ascii=False),
+                    encoding="utf-8")
+    prep = rdb.prep(rdb.other_student_id, rdb.bob_id)
+    version_id = report_jobs.load_fixture(prep["id"], str(path))
+    loaded = report_store.get_version(version_id)
+    assert report_store.get_report(prep["id"])["status"] == "ai_draft"
+    assert any(c["level"] == "review" for c in loaded["checks"])
+    assert any(e["status"] == "待核实" for e in loaded["evidence"])
+
+
 # ---------------------------------------------------------------------------
 # 质量检查
 # ---------------------------------------------------------------------------
 def _clean(rdb, fake):
-    """生成后把唯一的阻断问题（R2.2 没有标签）改好，得到一份没有阻断项的报告。"""
+    """生成后补齐会议日期，得到一份没有阻断项的报告。"""
     report, version = generate(rdb)
     doc = copy.deepcopy(version["doc"])
     doc["dims"]["R2"]["abilities"]["R2.2"]["tags"] = ["信息不足"]
@@ -648,11 +736,10 @@ def _codes(report, version, level=None):
             if level in (None, c["level"])}
 
 
-def test_generation_blocks_only_on_the_real_problem(rdb, fake):
+def test_generation_has_no_empty_tag_block(rdb, fake):
+    # 中央规则保证每项能力都有合法标签，生成后不再出现 no_tag 阻断
     report, version = generate(rdb)
-    blocks = [c for c in version["checks"] if c["level"] == "block"]
-    assert {c["code"] for c in blocks} == {"no_tag"}
-    assert blocks[0]["path"] == ["dims", "R2", "abilities", "R2.2", "tags"]
+    assert [c for c in version["checks"] if c["level"] == "block"] == []
 
 
 def test_clean_report_has_no_blocking_checks(rdb, fake):
@@ -676,6 +763,9 @@ BLOCK_CASES = {
     "tag_invalid": lambda v: _row(v, "R1.1").update(tags=["信息不足", "积极资源"]),
     "no_tag": lambda v: _row(v, "R1.1").update(tags=[]),
     "field_empty": lambda v: v["doc"]["portrait"]["R1"].update(text=""),
+}
+
+INFORMATIONAL_CASES = {
     "quote_unverified": lambda v: _row(v, "R1.1")["meeting"].update(text="他说“根本没有说过的话”。"),
     "quote_speaker": lambda v: (
         v["evidence"].append({"id": "e99", "ability_codes": ["R2.1"], "source": "M1",
@@ -686,6 +776,7 @@ BLOCK_CASES = {
     "need_speaker": lambda v: [e.update(speaker="待确认") for e in v["evidence"]
                                if "R1.1" in e["ability_codes"]],
     "old_model": lambda v: v["doc"]["review_advice"].update(text="沿用 E4 的做法。"),
+    "family_evidence_id": lambda v: v["doc"]["review_advice"].update(text="见证据 e12。"),
 }
 
 
@@ -696,6 +787,17 @@ def test_block_check_fires_and_clears(rdb, fake, code):
     bad = _mutate(good, BLOCK_CASES[code])
     assert code in _codes(report, bad, "block")
     assert code not in _codes(report, good)           # 改回去就消失
+
+
+@pytest.mark.parametrize("code", sorted(INFORMATIONAL_CASES))
+def test_informational_check_fires_without_blocking(rdb, fake, code):
+    report, good = _clean(rdb, fake)
+    assert code not in _codes(report, good)
+    bad = _mutate(good, INFORMATIONAL_CASES[code])
+    hits = [c for c in report_checks.run_checks(report, bad, first_touch_text="")
+            if c["code"] == code]
+    assert hits and all(c["level"] == "review" for c in hits)
+    assert code not in _codes(report, bad, "block")
 
 
 def test_placeholder_blocks_in_any_field(rdb, fake):
@@ -716,11 +818,12 @@ def test_old_model_code_outside_the_18(rdb, fake):
     assert "old_model" not in _codes(report, ok)
 
 
-def test_no_transcript_and_unacked_safety_block(rdb, fake):
+def test_no_transcript_blocks_and_unacked_safety_is_informational(rdb, fake):
     report, good = _clean(rdb, fake)
     assert "no_transcript" in _codes(dict(report, transcript_text=""), good, "block")
     unsafe = dict(report, safety=[{"text": "x", "source_ref": "y"}], safety_ack_at=None)
-    assert "safety_unacked" in _codes(unsafe, good, "block")
+    assert "safety_unacked" in _codes(unsafe, good, "review")
+    assert "safety_unacked" not in _codes(unsafe, good, "block")
     acked = dict(unsafe, safety_ack_at="2026-11-01T00:00:00")
     assert "safety_unacked" not in _codes(acked, good)
 
@@ -791,7 +894,7 @@ def test_fake_quote_is_flagged_and_real_quote_passes(rdb, fake):
     real = _mutate(good, lambda v: _row(v, "R1.1")["meeting"].update(text="他说“%s”。" % Q_BODY))
     assert "quote_unverified" not in _codes(report, real)
     fake_text = _mutate(good, lambda v: _row(v, "R1.1")["meeting"].update(text="他说“%s”。" % Q_FAKE))
-    assert "quote_unverified" in _codes(report, fake_text, "block")
+    assert "quote_unverified" in _codes(report, fake_text, "review")
     # 引号里是标签名不算引文
     tagged = _mutate(good, lambda v: _row(v, "R1.1")["meeting"].update(text="判断为“可能存在”。"))
     assert "quote_unverified" not in _codes(report, tagged)
@@ -808,11 +911,6 @@ def doc_put(client, rdb, rev, changes):
     return client.put(url(rdb, "/doc"), json={"rev": rev, "changes": changes})
 
 
-def fix_tag(client, rdb, rev):
-    return doc_put(client, rdb, rev, [{"path": ["dims", "R2", "abilities", "R2.2", "tags"],
-                                       "value": ["信息不足"]}])
-
-
 def generated_via_api(client, rdb, fake, inline_jobs):
     admin_login(client, rdb)
     res = client.post(url(rdb, "/transcript"), json={"text": TRANSCRIPT})
@@ -824,23 +922,16 @@ def generated_via_api(client, rdb, fake, inline_jobs):
 
 def test_status_path(client, rdb, fake, inline_jobs):
     payload = generated_via_api(client, rdb, fake, inline_jobs)
-    assert payload["report"]["status"] == "needs_check" and payload["report"]["label"] == "待核实"
-    # 有阻断问题时不能审核通过，并带回阻断项
-    res = client.post(url(rdb, "/approve"))
-    assert res.status_code == 400 and res.get_json()["blocking"][0]["code"] == "no_tag"
-    res = fix_tag(client, rdb, payload["report"]["rev"])
-    assert res.status_code == 200 and res.get_json()["status"] == "reviewing"
-    assert not [c for c in res.get_json()["checks"] if c["level"] == "block"]
-    assert client.post(url(rdb, "/publish")).status_code == 409        # 还没审核通过
+    assert payload["report"]["status"] == "ai_draft" and payload["report"]["label"] == "AI 草稿"
+    # AI 诊断不阻断审核；审核通过后仍可编辑
     res = client.post(url(rdb, "/approve"))
     assert res.status_code == 200 and res.get_json()["report"]["status"] == "approved"
     assert res.get_json()["report"]["approved_by"] == rdb.admin_id
-    # 审核通过后保存 → 回到审核中
+    # 审核通过后保存 → 回到审核中；从审核中可直接最终发布，无需再次审核
     rev = client.get(url(rdb)).get_json()["report"]["rev"]
     res = doc_put(client, rdb, rev, [{"path": ["review_advice"], "value": "改一下回顾建议。"}])
     assert res.status_code == 200 and res.get_json()["status"] == "reviewing"
     assert client.get(url(rdb)).get_json()["report"]["approved_by"] is None
-    assert client.post(url(rdb, "/approve")).status_code == 200
     res = client.post(url(rdb, "/publish"))
     assert res.status_code == 200 and res.get_json()["report"]["status"] == "published"
     # 正式发布后保存被拒；重新打开后可改
@@ -966,7 +1057,7 @@ def test_generate_with_edits_needs_confirmation(client, rdb, fake, inline_jobs):
     after = client.get(url(rdb)).get_json()
     assert len(after["versions"]) == len(versions_before) + 1
     assert after["doc"]["review_advice"]["text"] == "回顾时注意学生是否愿意说出自己的感受。"
-    assert after["report"]["status"] == "needs_check" and after["has_edits"] is False
+    assert after["report"]["status"] == "ai_draft" and after["has_edits"] is False
     old = report_store.get_version(versions_before[-1]["id"])
     assert old["doc"]["review_advice"]["text"] == "我改过了"      # 旧版本还在
 
@@ -1023,7 +1114,7 @@ def test_get_report_payload_shape(client, rdb, fake, inline_jobs):
     assert payload["inputs"]["y4"]["complete"] is True
     assert payload["mapped"]["R1.1"] == ["013", "012", "056", "019"]
     assert payload["fixed"]["tags"][0]["key"] == "积极资源"
-    assert {r["code"] for r in payload["appendix"]} == {"R1.1", "R1.2", "R2.3"}
+    assert {r["code"] for r in payload["appendix"]} == {"R1.1", "R1.2"}   # 无证据的能力已固定为信息不足
     assert payload["report"]["safety"] == [] and payload["report"]["transcript_length"] > 100
 
 
@@ -1040,7 +1131,7 @@ def test_report_statuses(client, rdb, fake, inline_jobs):
     generated_via_api(client, rdb, fake, inline_jobs)
     other = rdb.prep(rdb.other_student_id, rdb.bob_id)
     data = client.get("/api/m1/report-statuses").get_json()["statuses"]
-    assert data[str(rdb.prep_row["id"])] == {"status": "needs_check", "label": "待核实"}
+    assert data[str(rdb.prep_row["id"])] == {"status": "ai_draft", "label": "AI 草稿"}
     assert data[str(other["id"])] == {"status": "draft", "label": "待生成"}
     login_as(client, rdb.alice_id, "advisor", "Alice")
     scoped = client.get("/api/m1/report-statuses").get_json()["statuses"]

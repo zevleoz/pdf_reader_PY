@@ -15,7 +15,7 @@ import ai_writing
 import growth_talk_store as _gt
 from app_utils import BASE_DIR
 from growth_talk.analysis import AnalysisError
-from m1 import report_checks, report_kb, report_pipeline, report_prompts
+from m1 import report_assessment, report_checks, report_kb, report_pipeline, report_prompts
 from test_m1_report_core import (Q_BODY, Q_HELP, Q_HIDE, Q_MENTOR, TRANSCRIPT,  # noqa: F401
                                  _codes, _item, _mutate, client, fake, generate,
                                  inline_jobs, rdb, url)
@@ -30,9 +30,9 @@ CLOSING = "。！？!?…：:；;”\"」』）)"
 # ---------------------------------------------------------------------------
 def _ev(quote, code="R1.1", speaker="学生", kind="具体行为事件", status="已确认",
         verified=True, source="M1", eid="e1"):
-    return {"id": eid, "ability_codes": [code], "source": source, "location": "",
-            "speaker": speaker, "type": kind, "quote": quote, "quote_verified": verified,
-            "interpretation": "", "limits": "", "status": status}
+    return {"id": eid, "event_id": "evt-" + eid, "ability_codes": [code], "source": source,
+            "location": "", "speaker": speaker, "type": kind, "quote": quote,
+            "quote_verified": verified, "interpretation": "", "limits": "", "status": status}
 
 
 def _mini(text="", code="R1.1", dim="R1", tags=None, ratings=None):
@@ -60,8 +60,8 @@ def _family_texts(doc):
 
 
 def _dim_payload_codes(prompt):
-    payload = json.loads(prompt.split("【能力与资料】\n", 1)[1])
-    return [row["code"] for row in payload]
+    data = prompt.split("【能力与资料】\n", 1)[1].split("\n\n【上次判断的问题】", 1)[0]
+    return [row["code"] for row in json.loads(data)]
 
 
 def _brief_codes(prompt):
@@ -70,13 +70,13 @@ def _brief_codes(prompt):
 
 
 # ---------------------------------------------------------------------------
-# §1 单引号里的编造原话（blocker）
+# §1 单引号里的编造原话（信息性诊断）
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("left,right", [("‘", "’"), ("『", "』")])
-def test_made_up_quote_in_single_marks_blocks(left, right):
+def test_made_up_quote_in_single_marks_is_informational(left, right):
     version = _mini("学生说%s根本没有说过的话%s。" % (left, right))
     hit = _got(version, "quote_unverified")
-    assert hit and hit[0]["level"] == "block"
+    assert hit and hit[0]["level"] == "review"
 
 
 def test_real_quote_in_single_marks_passes():
@@ -91,12 +91,12 @@ def test_family_style_requires_double_quotes_only():
 
 
 # ---------------------------------------------------------------------------
-# §2 家庭版里的证据编号（blocker）
+# §2 家庭版里的证据编号（信息性诊断）
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("text", ["e4中提到的行为。", "见证据 e12。", "e4。"])
-def test_evidence_ids_in_family_text_block(text):
+def test_evidence_ids_in_family_text_are_informational(text):
     hit = _got(_mini(text), "family_evidence_id")
-    assert hit and hit[0]["level"] == "block"
+    assert hit and hit[0]["level"] == "review"
     assert hit[0]["path"] == ["dims", "R1", "abilities", "R1.1", "meeting"]
 
 
@@ -133,7 +133,8 @@ class BriefModel:
 def test_each_dimension_asked_once_and_codes_merged(monkeypatch):
     model = BriefModel()
     monkeypatch.setattr(report_pipeline, "call_model", model)
-    items = report_pipeline.extract_items(TRANSCRIPT, "%s\n%s", (), "M1", "逐字稿")
+    items = report_pipeline.extract_items(TRANSCRIPT, "%s\n%s", (), "M1", "逐字稿",
+                                          roles=lambda _quote: "学生")
     assert len(model.calls) == 4
     seen = set()
     for prompt in model.calls:
@@ -167,12 +168,17 @@ class OmitModel:
     def __call__(self, prompt):
         self.calls.append(prompt)
         codes = _dim_payload_codes(prompt)
-        self.payloads.append(codes)
+        task = ("assess" if prompt.startswith("任务：判断一个维度的能力标签") else "dim")
+        self.payloads.append((task, codes))
         follow_up = codes == self.omit
         keep = [c for c in codes if c not in self.omit or (follow_up and self.obey_follow_up)]
+        if task == "assess":
+            return {"abilities": [{
+                "code": c, "internal_note": "",
+                "judgements": [{"tag": "信息不足", "evidence_ids": [], "event_ids": [],
+                                "rationale": "没有可用证据"}]} for c in keep]}
         return {"abilities": [{"code": c, "y4_selected": [], "other_clues": "",
-                              "meeting": {"sentences": []}, "tags": ["信息不足"],
-                              "evidence_ids": []} for c in keep],
+                              "meeting": {"sentences": []}, "evidence_ids": []} for c in keep],
                 "core_finding": {"sentences": []}, "context_notes": {"sentences": []}}
 
 
@@ -180,22 +186,20 @@ def test_missing_abilities_get_one_follow_up(monkeypatch):
     model = OmitModel(["R1.3", "R1.4"])
     monkeypatch.setattr(report_pipeline, "call_model", model)
     dims = report_pipeline.step_dims(report_pipeline.step_mapping({}), [], [])
-    r1 = [codes for codes in model.payloads if codes and codes[0][1] == "1"]
+    r1 = [codes for task, codes in model.payloads
+          if task == "assess" and codes and codes[0][1] == "1"]
     assert len(r1) == 2 and r1[1] == ["R1.3", "R1.4"]
     assert dims["R1"]["abilities"]["R1.3"]["tags"] == ["信息不足"]
     assert dims["R1"]["abilities"]["R1.4"]["tags"] == ["信息不足"]
 
 
-def test_still_missing_abilities_stay_empty_and_no_tag_stands(monkeypatch):
+def test_still_missing_abilities_get_legal_fallback(monkeypatch):
     model = OmitModel(["R1.3", "R1.4"], obey_follow_up=False)
     monkeypatch.setattr(report_pipeline, "call_model", model)
     dims = report_pipeline.step_dims(report_pipeline.step_mapping({}), [], [])
-    assert dims["R1"]["abilities"]["R1.3"]["tags"] == []
-    assert dims["R1"]["abilities"]["R1.4"]["tags"] == []
-    version = {"doc": {"dims": dims}, "evidence": [], "manifest": {}}
-    hit = _got(version, "no_tag")
-    assert any(c["path"] == ["dims", "R1", "abilities", "R1.3", "tags"] for c in hit)
-    assert all(c["level"] == "block" for c in hit)
+    assert dims["R1"]["abilities"]["R1.3"]["tags"] == ["信息不足"]
+    assert dims["R1"]["abilities"]["R1.4"]["tags"] == ["信息不足"]
+    assert _got({"doc": {"dims": dims}, "evidence": [], "manifest": {}}, "no_tag") == []
 
 
 # ---------------------------------------------------------------------------
@@ -211,11 +215,11 @@ def test_dim_payload_only_passes_supported_items():
     rows = report_pipeline._dim_payload("R1", report_pipeline.step_mapping({}), evidence)
     row = next(r for r in rows if r["code"] == "R1.1")
     assert [e["id"] for e in row["meeting_evidence"]] == ["e1"]
-    assert set(row["meeting_evidence"][0]) == {"id", "speaker", "type", "quote",
+    assert set(row["meeting_evidence"][0]) == {"id", "event_id", "speaker", "type", "quote",
                                                "interpretation", "limits"}
     assert [e["id"] for e in row["first_touch_and_other"]] == ["e4"]
     assert set(row["first_touch_and_other"][0]) == {
-        "id", "speaker", "type", "quote", "interpretation", "limits", "source"}
+        "id", "event_id", "speaker", "type", "quote", "interpretation", "limits", "source"}
     assert "quote_verified" not in json.dumps(rows, ensure_ascii=False)
     assert "status" not in json.dumps(rows, ensure_ascii=False)
 
@@ -266,9 +270,9 @@ def test_double_tag_needs_two_supported_items():
     assert _got(two, "double_tag_evidence") == []
 
 
-def test_dim_prompt_tag_rules():
-    assert "双标签要求两个不同情境、各有证据；同一事件不能同时支持两个标签。" in \
-        report_prompts.DIM_PROMPT
+def test_assess_prompt_owns_tag_rules():
+    assert "双标签要求两个不同事件、各有证据；同一 event_id 不能同时支持两个标签。" in \
+        report_prompts.ASSESS_PROMPT
     assert "积极资源和发展需求都要写进 meeting，并说明分别出现在什么情境。" in \
         report_prompts.DIM_PROMPT
 
@@ -288,7 +292,7 @@ def test_profile_prompt_plan_rules():
 def test_one_char_evidence_quote_does_not_mask_mentor_sentence():
     version = _version(_mini("老师问过“%s”。" % Q_MENTOR), [_ev("你")])
     hit = _got(version, "quote_speaker")
-    assert hit and hit[0]["level"] == "block"
+    assert hit and hit[0]["level"] == "review"
     assert _got(version, "quote_no_evidence") == []
 
 
@@ -311,7 +315,7 @@ def test_appendix_starts_on_a_new_page():
 # ---------------------------------------------------------------------------
 # §10 写作标准与事实核对
 # ---------------------------------------------------------------------------
-def test_fact_unsupported_blocks_and_edit_clears(rdb, fake):
+def test_fact_unsupported_is_informational_and_edit_clears(rdb, fake):
     fake.unsupported = ("下课",)
     fake.overrides = {"R1.1": {"meeting": {"sentences": [
         {"text": "学生下课后在教室待着。", "evidence_ids": ["e1"], "kind": "fact"}]}}}
@@ -319,7 +323,7 @@ def test_fact_unsupported_blocks_and_edit_clears(rdb, fake):
     assert version["doc"]["guard"]["status"] == "checked"
     path = ["dims", "R1", "abilities", "R1.1", "meeting"]
     hit = [c for c in version["checks"] if c["code"] == "fact_unsupported"]
-    assert len(hit) == 1 and hit[0]["level"] == "block" and hit[0]["path"] == path
+    assert len(hit) == 1 and hit[0]["level"] == "review" and hit[0]["path"] == path
     assert "下课" in hit[0]["message"]
     edited = _mutate(version, lambda v: v["doc"]["dims"]["R1"]["abilities"]["R1.1"]
                      ["meeting"].update(src="edited"))
@@ -345,7 +349,7 @@ def test_fact_sentence_without_evidence_is_dropped():
     assert empty["text"] == report_checks.NO_MEETING_TEXT
 
 
-def test_guard_failure_blocks_and_is_not_silent(rdb, fake, monkeypatch):
+def test_guard_failure_is_informational_and_not_silent(rdb, fake, monkeypatch):
     original = fake.__call__
 
     def no_check(prompt):
@@ -357,7 +361,7 @@ def test_guard_failure_blocks_and_is_not_silent(rdb, fake, monkeypatch):
     report, version = generate(rdb)
     assert version["doc"]["guard"]["status"] in ("partial", "skipped")
     hit = [c for c in version["checks"] if c["code"] == "fact_unchecked"]
-    assert hit and hit[0]["level"] == "block"
+    assert hit and hit[0]["level"] == "review"
     assert hit[0]["message"] == "部分内容未完成事实核对，请人工核对。"
 
 
@@ -436,19 +440,13 @@ def test_m1_evidence_rules_on_a_short_transcript(monkeypatch):
 
 
 def test_hypothetical_evidence_cannot_confirm_needs_or_resources():
-    mapping = report_pipeline.step_mapping({})
     evidence = [_ev("我会先深呼吸", kind="假设性回应")]
-    path = ["dims", "R1", "abilities", "R1.1"]
-
-    row = report_pipeline._blank_row()
-    row["tags"] = ["确认发展需求"]
-    report_pipeline.enforce_ability("R1.1", row, evidence, mapping, [], path)
-    assert row["tags"] == ["可能存在"]
-
-    row = report_pipeline._blank_row()
-    row["tags"] = ["积极资源"]
-    report_pipeline.enforce_ability("R1.1", row, evidence, mapping, [], path)
-    assert row["tags"] == ["信息不足"]
+    need = {"judgements": [{"tag": "确认发展需求", "evidence_ids": ["e1"],
+                            "event_ids": ["evt-e1"], "rationale": "示例理由"}]}
+    assert report_assessment.resolve_assessment(need, evidence, "R1.1")["tags"] == ["可能存在"]
+    resource = {"judgements": [{"tag": "积极资源", "evidence_ids": ["e1"],
+                                "event_ids": ["evt-e1"], "rationale": "示例理由"}]}
+    assert report_assessment.resolve_assessment(resource, evidence, "R1.1")["tags"] == ["信息不足"]
 
 
 class ChunkModel:
@@ -484,7 +482,7 @@ def test_every_chunk_failing_stops_the_run(monkeypatch):
 def test_chunk_failed_check_message():
     version = {"doc": {}, "evidence": [], "manifest": {"chunk_failed": [2]}}
     hit = _got(version, "chunk_failed")
-    assert hit == [{"level": "block", "code": "chunk_failed",
+    assert hit == [{"level": "review", "code": "chunk_failed",
                     "message": "逐字稿第 2 段未能读取，请查看原文或重新生成。", "path": []}]
 
 

@@ -42,6 +42,11 @@ class DimStub:
     def __call__(self, prompt):
         self.prompts.append(prompt)
         payload = json.loads(prompt.split("【能力与资料】\n", 1)[1])
+        if prompt.startswith("任务：判断一个维度的能力标签"):
+            return {"abilities": [{
+                "code": ability["code"], "internal_note": "",
+                "judgements": [{"tag": "信息不足", "evidence_ids": [], "event_ids": [],
+                                "rationale": "没有可用证据"}]} for ability in payload]}
         rows = []
         for ability in payload:
             meeting = {"sentences": []}
@@ -50,7 +55,7 @@ class DimStub:
                                           "kind": "fact"}]}
             rows.append({"code": ability["code"], "y4_selected": [],
                          "other_clues": "First Touch：模型自己写的。补充问卷：也是。",
-                         "meeting": meeting, "tags": ["信息不足"], "evidence_ids": self.ids,
+                         "meeting": meeting, "evidence_ids": self.ids,
                          "internal_note": ""})
         return {"abilities": rows, "core_finding": {"sentences": []},
                 "context_notes": {"sentences": []}}
@@ -194,11 +199,12 @@ def test_proposals_are_not_checked_as_facts():
 
 
 # 8. 证据提取 -----------------------------------------------------------------------
-def _extract(monkeypatch, items):
+def _extract(monkeypatch, items, roles=None):
     def model(prompt):
         return {"items": [dict(i) for i in items]}
     monkeypatch.setattr(report_pipeline, "call_model", model)
-    return report_pipeline.extract_items(FIRST_MEETING, "%s\n%s", (), "M1", "逐字稿")
+    return report_pipeline.extract_items(FIRST_MEETING, "%s\n%s", (), "M1", "逐字稿",
+                                         roles=roles)
 
 
 def test_ellipsis_in_the_transcript_itself_is_verified(monkeypatch):
@@ -240,8 +246,10 @@ def test_overlapping_quotes_become_one_item_with_both_code_sets(monkeypatch):
 def test_overlap_is_not_merged_across_speakers(monkeypatch):
     long = _line(56).split("学生：", 1)[1]
     short = "我有时候会把担心的事情写在便利贴上"
+    # 发言人由逐字稿段首决定，不再看提取模型给的 speaker
     out = _extract(monkeypatch, [_item(long, "学生", "具体行为事件", ["R1.1"]),
-                                 _item(short, "家长", "具体行为事件", ["R2.1"])])
+                                 _item(short, "家长", "具体行为事件", ["R2.1"])],
+                   roles=lambda quote: "学生" if quote == long else "导师")
     assert len(out) == 2
 
 
@@ -295,9 +303,9 @@ def test_parent_quote_backed_by_verified_evidence_is_not_blocked(rdb, fake):
     assert not [c for c in checks if c["code"] == "quote_unverified"]
 
 
-def test_parent_quote_without_evidence_still_blocks(rdb, fake):
+def test_parent_quote_without_evidence_is_informational(rdb, fake):
     checks = _run_quote_checks(rdb, fake, lambda v: _set_clues(v, False))
-    assert [c for c in checks if c["code"] == "quote_unverified" and c["level"] == "block"]
+    assert [c for c in checks if c["code"] == "quote_unverified" and c["level"] == "review"]
 
 
 def test_quoted_suggestion_in_the_plan_is_a_review_not_a_block(rdb, fake):

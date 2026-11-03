@@ -123,11 +123,167 @@ def test_bad_ai_roles_become_unsure():
     assert all(t["role"] == "待确认" for t in turns)
 
 
-def test_label_majority_fills_unsure():
+def test_apply_edits_resets_speech_act_on_label_edit():
+    turns = [
+        {"n": 1, "label": "发言人1", "time": "", "text": "最近怎么样？", "role": "导师",
+         "speech_act": "mentor_question", "src": "ai"},
+        {"n": 2, "label": "发言人2", "time": "", "text": "还好。", "role": "导师",
+         "speech_act": "mentor_question", "src": "ai"},
+    ]
+    speakers.apply_edits(turns, {"发言人1": "学生", "发言人2": "学生"}, {})
+    assert [t["role"] for t in turns] == ["学生", "学生"]
+    assert all(t["speech_act"] == "unclear" for t in turns)
+    assert all(t["src"] == "edited" for t in turns)
+
+
+def test_apply_edits_recomputes_speech_act_on_turn_edit():
+    turns = [
+        {"n": 1, "label": "", "time": "", "text": "最近怎么样？", "role": "学生",
+         "speech_act": "student_experience", "src": "ai"},
+        {"n": 2, "label": "", "time": "", "text": "还好。", "role": "导师",
+         "speech_act": "mentor_question", "src": "ai"},
+    ]
+    speakers.apply_edits(turns, {}, {1: "导师", 2: "学生"})
+    assert turns[0]["role"] == "导师" and turns[0]["speech_act"] == "mentor_question"
+    assert turns[1]["role"] == "学生" and turns[1]["speech_act"] == "unclear"
+
+
+def test_reconcile_prompt_contains_all_unlabelled_text():
+    text = "\n".join(["我觉得很累。", "你可以先说说上周。", "上周小测没考好。"])
+    prompts = []
+
+    def ask(prompt):
+        prompts.append(prompt)
+        if prompt.startswith(speakers.TASK_SPEAKERS):
+            rows = json.loads(prompt.split("【段落】\n", 1)[1])
+            acts = {1: ("学生", "student_emotion_or_thought"),
+                    2: ("导师", "mentor_guidance"),
+                    3: ("学生", "student_experience")}
+            return {"turns": [{"n": row["n"], "role": acts[row["n"]][0],
+                               "speech_act": acts[row["n"]][1]}
+                              for row in rows if not row.get("context")]}
+        return {"turns": []}
+
+    result = speakers.identify(text, ask)
+    reconcile = [p for p in prompts if p.startswith(speakers.TASK_RECONCILE)]
+    assert reconcile, "无标签逐字稿也应执行全场复核"
+    for turn in result["turns"]:
+        assert turn["text"] in reconcile[0]
+
+
+def test_unlabelled_student_thought_and_mentor_guidance():
+    text = "我觉得自己很没用。\n你可以先说说上周的事。"
+
+    def ask(prompt):
+        rows = json.loads(prompt.split("【段落】\n", 1)[1])
+        acts = {1: ("学生", "student_emotion_or_thought"),
+                2: ("导师", "mentor_guidance")}
+        return {"turns": [{"n": row["n"], "role": acts[row["n"]][0],
+                           "speech_act": acts[row["n"]][1]}
+                          for row in rows if not row.get("context")]}
+
+    result = speakers.identify(text, ask)
+    assert result["status"] == "done"
+    assert [(t["role"], t["speech_act"]) for t in result["turns"]] == [
+        ("学生", "student_emotion_or_thought"), ("导师", "mentor_guidance")]
+
+
+def test_window_has_following_context_and_full_text(monkeypatch):
+    monkeypatch.setattr(speakers, "WINDOW_TURNS", 1)
+    long_text = "乙" * 400
+    text = "\n".join(["第一段。", "第二段。", long_text, "第四段。", "第五段。"])
+    prompts = []
+
+    def ask(prompt):
+        prompts.append(prompt)
+        rows = json.loads(prompt.split("【段落】\n", 1)[1])
+        return {"turns": [{"n": row["n"], "role": "学生",
+                           "speech_act": "student_experience"}
+                          for row in rows if not row.get("context")]}
+
+    result = speakers.identify(text, ask)
+    rows = json.loads(prompts[0].split("【段落】\n", 1)[1])
+    assert {r["n"] for r in rows if r.get("context") and r["n"] > 1} == {2, 3, 4, 5}
+    assert long_text in prompts[0]                       # 400 字全文，没有 300 字截断
+    assert "".join(t["text"] for t in result["turns"]) == "第一段。第二段。" + long_text \
+        + "第四段。第五段。"
+
+
+def test_single_long_sentence_is_not_truncated():
+    text = "甲" * 500
+
+    def ask(prompt):
+        rows = json.loads(prompt.split("【段落】\n", 1)[1])
+        return {"turns": [{"n": row["n"], "role": "学生",
+                           "speech_act": "student_experience"}
+                          for row in rows if not row.get("context")]}
+
+    result = speakers.identify(text, ask)
+    assert "".join(t["text"] for t in result["turns"]) == text
+
+
+def test_ai_cannot_override_rule_or_context_turns():
+    text = "\n".join([
+        "[00:00:05] 导师：我们先看看上周的情况。",
+        "[00:00:10] 导师：有什么想聊的吗？",
+        "[00:00:15] 导师：慢慢说。",
+        "[00:00:20] 发言人1：上周数学小测没考好。",
+        "[00:00:25] 发言人1：我一个人趴着。",
+        "[00:00:30] 发言人1：后来好一点。",
+    ])
+
+    def ask(prompt):
+        rows = json.loads(prompt.split("【段落】\n", 1)[1])
+        turns = [{"n": row["n"], "role": "学生", "speech_act": "student_experience"}
+                 for row in rows if not row.get("context")]
+        turns.append({"n": 1, "role": "学生", "speech_act": "student_experience"})
+        return {"turns": turns}
+
+    result = speakers.identify(text, ask)
+    turns = result["turns"]
+    assert len(turns) == 6                               # 不新增、不重复段
+    assert [t["role"] for t in turns[:3]] == ["导师", "导师", "导师"]
+    assert turns[1]["speech_act"] == "mentor_question"
+    assert [t["role"] for t in turns[3:]] == ["学生", "学生", "学生"]
+
+
+def test_reconcile_corrects_only_target_turns():
+    turns = [
+        {"n": 1, "label": "导师", "time": "", "text": "最近怎么样？", "role": "导师",
+         "speech_act": "mentor_question", "src": "rule"},
+        {"n": 2, "label": "发言人1", "time": "", "text": "还行。", "role": "待确认",
+         "speech_act": "unclear", "src": "ai"},
+    ]
+
+    def ask(prompt):
+        assert prompt.startswith(speakers.TASK_RECONCILE)
+        return {"turns": [{"n": 1, "role": "学生", "speech_act": "student_experience"},
+                          {"n": 2, "role": "学生", "speech_act": "student_experience"}]}
+
+    assert speakers._reconcile_roles(turns, ask) == 1
+    assert turns[0]["role"] == "导师" and turns[0]["src"] == "rule"
+    assert turns[1]["role"] == "学生" and turns[1]["speech_act"] == "student_experience"
+
+
+def test_prompt_text_preserves_marked_text_contract():
+    turns = [
+        {"n": 1, "label": "", "time": "00:00:10", "text": "今天很开心", "role": "导师",
+         "speech_act": "mentor_question", "src": "rule"},
+        {"n": 2, "label": "", "time": "", "text": "今天很开心吗", "role": "学生",
+         "speech_act": "student_emotion_or_thought", "src": "rule"},
+    ]
+    assert speakers.marked_text(turns) == ("[00:00:10] 导师：今天很开心\n"
+                                           "学生：今天很开心吗")
+    assert speakers.prompt_text(turns) == (
+        "[00:00:10] 导师[mentor_question]：今天很开心\n"
+        "学生[student_emotion_or_thought]：今天很开心吗")
+
+
+def test_label_majority_does_not_fill_unsure():
     turns = [{"label": "发言人1", "role": "导师", "src": "ai"} for _ in range(4)]
     turns.append({"label": "发言人1", "role": "待确认", "src": "ai"})
     assert speakers.label_roles(turns) == {"发言人1": "导师"}
-    assert turns[-1]["role"] == "导师" and turns[-1]["src"] == "label"
+    assert turns[-1]["role"] == "待确认" and turns[-1]["src"] == "ai"
 
     split = ([{"label": "发言人2", "role": "导师", "src": "ai"} for _ in range(3)]
              + [{"label": "发言人2", "role": "学生", "src": "ai"} for _ in range(2)])
@@ -135,17 +291,20 @@ def test_label_majority_fills_unsure():
     assert [t["role"] for t in split] == ["导师", "导师", "导师", "学生", "学生"]
 
 
-def test_ai_total_failure_is_error(rdb, monkeypatch):
+def test_ai_total_failure_degrades_to_unsure(rdb, monkeypatch):
     def boom(prompt):
         raise RuntimeError("AI 不可用")
 
     result = speakers.identify(HEADER_TEXT, boom)
-    assert result["status"] == "error"
+    assert result["status"] == "done"
+    assert all(t["role"] == "待确认" and t["speech_act"] == "unclear"
+               for t in result["turns"])
+    assert "待确认" in result["message"] and "继续生成" in result["message"]
 
     ask = _speaker_model(calls=[])
 
     def failing(prompt):
-        if prompt.startswith(speakers.TASK_SPEAKERS):
+        if prompt.startswith((speakers.TASK_SPEAKERS, speakers.TASK_RECONCILE)):
             raise RuntimeError("AI 不可用")
         return ask(prompt)
 

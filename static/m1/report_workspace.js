@@ -72,7 +72,6 @@
     statusLabel: document.getElementById('r4StatusLabel'),
     print: document.getElementById('r4Print'),
     evidence: document.getElementById('r4Evidence'),
-    approve: document.getElementById('r4Approve'),
     publish: document.getElementById('r4Publish'),
     reopen: document.getElementById('r4Reopen'),
     publishedNote: document.getElementById('r4PublishedNote'),
@@ -91,7 +90,6 @@
     steps: document.getElementById('r4Steps'),
     safety: document.getElementById('r4Safety'),
     safetyItems: document.getElementById('r4SafetyItems'),
-    safetyAck: document.getElementById('r4SafetyAck'),
     checks: document.getElementById('r4Checks'),
     checksMoreWrap: document.getElementById('r4ChecksMoreWrap'),
     checksMoreLabel: document.getElementById('r4ChecksMoreLabel'),
@@ -588,16 +586,10 @@
     var item = el('div', 'r4-checkitem');
     var row = el('button', 'r4-check ' + (check.level === 'block' ? 'block' : 'review'));
     row.type = 'button';
-    row.appendChild(el('span', 'r4-checklevel', check.level === 'block' ? '阻断' : '复核'));
+    row.appendChild(el('span', 'r4-checklevel', check.level === 'block' ? '阻断' : '提示'));
     row.appendChild(el('span', '', check.message || ''));
     row.addEventListener('click', function () { scrollToPath(check.path); });
     item.appendChild(row);
-    if (check.code === 'fact_unsupported' && check.path && check.path.length) {
-      var ack = el('button', 'r4-check review', '我已核对这条，确认保留');
-      ack.type = 'button';
-      ack.addEventListener('click', function () { confirmFlag(check.path); });
-      item.appendChild(ack);
-    }
     return item;
   }
 
@@ -614,23 +606,6 @@
     refs.checksMoreLabel.textContent = '其他提示（' + reviews.length + '）';
   }
 
-  function confirmFlag(path) {
-    var rev = (state.report || {}).rev;
-    api(docUrl('/confirm-flag'), jsonOptions('POST', { rev: rev, path: path })).then(function (body) {
-      state.report.rev = body.rev;
-      state.report.status = body.status;
-      state.report.label = STATUS_LABELS[body.status] || body.status;
-      state.checks = body.checks || [];
-      state.appendix = body.appendix || [];
-      state.has_edits = true;
-      applyStatus();
-      renderTodo();
-      toast('已确认这条内容。', 'ok');
-    }).catch(function (error) {
-      toast(error.message, 'error');
-    });
-  }
-
   function renderTodo() {
     var report = state.report || {};
     var safety = report.safety || [];
@@ -642,9 +617,6 @@
       if (item.source_ref) row.appendChild(el('span', 'sub', ' · ' + item.source_ref));
       refs.safetyItems.appendChild(row);
     });
-    var acked = !!report.safety_ack_at;
-    refs.safetyAck.disabled = acked;
-    refs.safetyAck.textContent = acked ? '已确认' : '已知悉并人工核实';
     renderChecks();
   }
 
@@ -808,9 +780,8 @@
     var status = state.report && state.report.status;
     if (!state.doc) node.textContent = '还没有生成报告。';
     else if (status === 'published') node.textContent = '已正式发布。';
-    else if (status === 'approved') node.textContent = '已审核通过，可以导出正式版，或正式发布。';
-    else if (blocks) node.textContent = '还有 ' + blocks + ' 项必须处理，处理后才能审核通过。现在导出的是草稿。';
-    else node.textContent = '可以导出，也可以审核通过。';
+    else if (blocks) node.textContent = '报告还不完整（' + blocks + ' 项），补全后才能正式发布。现在导出的是草稿。';
+    else node.textContent = '可以导出草稿，也可以直接正式发布。';
   }
 
   /* ------------------------------------------------------------------ */
@@ -1342,12 +1313,13 @@
     var locked = status === 'published';
     show(refs.print, hasVersion && ['ai_draft', 'needs_check', 'reviewing', 'approved', 'published'].indexOf(status) !== -1);
     show(refs.evidence, hasVersion && status !== 'draft' && status !== 'generating');
-    show(refs.approve, ['ai_draft', 'needs_check', 'reviewing'].indexOf(status) !== -1);
-    show(refs.publish, status === 'approved');
+    show(refs.publish, hasVersion && ['ai_draft', 'needs_check', 'reviewing', 'approved'].indexOf(status) !== -1);
+    refs.publish.disabled = (state.checks || []).some(function (c) { return c.level === 'block'; });
     show(refs.reopen, status === 'approved' || status === 'published');
 
     setEditable(locked);
     renderGenerateState();
+    renderExportState();
   }
 
   /* ------------------------------------------------------------------ */
@@ -1399,28 +1371,6 @@
     generate(false);
   });
 
-  refs.approve.addEventListener('click', function () {
-    var blocks = (state.checks || []).filter(function (check) { return check.level === 'block'; });
-    if (blocks.length) {
-      refs.checks.scrollIntoView({ block: 'center' });
-      return;
-    }
-    api(docUrl('/approve'), { method: 'POST' }).then(function (body) {
-      state.report = body.report;
-      state.checks = body.checks || [];
-      applyStatus();
-      renderTodo();
-      setSaved(SAVE_OK);
-    }).catch(function (error) {
-      if (error.status === 400 && error.body && error.body.blocking) {
-        state.checks = error.body.checks || state.checks;
-        renderTodo();
-        refs.checks.scrollIntoView({ block: 'center' });
-      }
-      toast(error.message, 'error');
-    });
-  });
-
   refs.publish.addEventListener('click', function () {
     if (!window.confirm('确认正式发布？')) return;
     api(docUrl('/publish'), { method: 'POST' }).then(function (body) {
@@ -1438,14 +1388,6 @@
       applyStatus();
       setSaved(SAVE_OK);
       load();
-    }).catch(function (error) {
-      toast(error.message, 'error');
-    });
-  });
-
-  refs.safetyAck.addEventListener('click', function () {
-    api(docUrl('/safety-ack'), { method: 'POST' }).then(function () {
-      return load();
     }).catch(function (error) {
       toast(error.message, 'error');
     });
