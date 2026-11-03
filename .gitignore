@@ -52,3 +52,7 @@ api_demo_client/
 !.env.example
 
 backups/
+# 本地草稿与旧工具文件，不进仓库（2026-11 清理）
+tmp_pages/
+probe/
+output_test/

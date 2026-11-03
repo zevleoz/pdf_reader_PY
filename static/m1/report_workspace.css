@@ -192,3 +192,29 @@
   .r4-review .r4-k { padding-top: 0; }
   .r4-review .r4-cover { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* M1R-P3：步骤条、折叠、发言人 */
+.r4-stepnav { display: flex; gap: 8px; margin: 0 0 16px; }
+.r4-stepnav button { flex: 1; padding: 10px 12px; border: 1px solid var(--line, #d9dde3);
+  background: var(--surface, #fff); border-radius: 8px; font: inherit; cursor: pointer; color: inherit; }
+.r4-stepnav button[aria-current="step"] { border-color: #0B3FD6; color: #0B3FD6; font-weight: 600; }
+.r4-fold > summary { cursor: pointer; display: flex; align-items: baseline; gap: 10px; list-style: none; }
+.r4-fold > summary::-webkit-details-marker { display: none; }
+.r4-fold > summary h2 { margin: 0; }
+.r4-spk-row { display: flex; gap: 10px; align-items: baseline; padding: 6px 0;
+  border-bottom: 1px solid var(--line, #eef0f3); }
+.r4-spk-row select { flex: none; }
+.r4-spk-n { flex: none; width: 3em; color: #6b7280; font-variant-numeric: tabular-nums; }
+.r4-spk-text { flex: 1; min-width: 0; }
+.r4-spk-turns { max-height: 420px; overflow: auto; margin-top: 8px; }
+.r4-spk-filter { display: inline-flex; gap: 6px; align-items: center; margin-top: 10px; }
+.r4-next { display: flex; justify-content: flex-end; margin-top: 16px; }
+.r4-export-state { font-weight: 600; margin: 0 0 6px; }
+@media (max-width: 640px) {
+  .r4-stepnav button { padding: 8px 6px; font-size: 14px; }
+  .r4-spk-row { flex-wrap: wrap; }
+}
+
+/* M1R-P6：可编辑预览 */
+.r4-preview { display: block; width: 100%; height: calc(100vh - 220px); min-height: 520px;
+  border: 1px solid var(--line, #d9dde3); border-radius: 8px; background: #fff; }

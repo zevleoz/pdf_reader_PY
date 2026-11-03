@@ -22,7 +22,8 @@ from growth_talk.analysis import AnalysisError, call_model
 
 import m1.sources as sources
 import m1.store as store
-from m1 import report_checks, report_kb, report_prompts, report_store, report_y4
+from m1 import report_checks, report_display, report_kb, report_prompts, report_store, report_y4
+from m1 import speakers
 from m1 import y4_evidence
 from m1.kb import load_kb
 from m1.prompts import SAFETY_CHECK_PROMPT, SAFETY_KEYWORDS
@@ -31,6 +32,7 @@ log = logging.getLogger(__name__)
 
 STEP_DEFS = (
     ("check", "资料检查"),
+    ("speakers", "发言人识别"),
     ("y4", "Y4 标准化"),
     ("mapping", "R4 Mapping"),
     ("first_touch", "First Touch 分析"),
@@ -340,11 +342,12 @@ def _merge_overlaps(merged: Dict[str, Dict[str, Any]]) -> None:
 
 
 _SPEAKER_LABEL_RE = re.compile(
-    r"^\W*(?:\d{1,2}:\d{2}(?::\d{2})?\W*)?(?:学生|导师|老师|家长|妈妈|爸爸)\s*[：:]\s*")
+    r"^\W*(?:\d{1,2}:\d{2}(?::\d{2})?\W*)?(?:学生|导师|老师|家长|妈妈|爸爸|其他|待确认)\s*[：:]\s*")
 
 
 def extract_items(text: str, template: str, template_args: tuple, source: str,
-                  label: str, failures: Optional[List[int]] = None) -> List[Dict[str, Any]]:
+                  label: str, failures: Optional[List[int]] = None,
+                  roles: Optional[Callable[[str], str]] = None) -> List[Dict[str, Any]]:
     """一份资料 → 已核验、去重的证据条目（还没有 id）。
 
     每个资料块、每个维度各调用一次；同一引文跨块、跨维度合并。
@@ -408,6 +411,8 @@ def extract_items(text: str, template: str, template_args: tuple, source: str,
         raise failed[next(iter(failed))]
     out = []
     for item in merged.values():
+        if roles is not None and source == "M1":
+            item["speaker"] = roles(item["quote"])
         where = index.locate(item["quote"])
         quote = item["quote"]
         item["quote_verified"] = (where is not None
@@ -499,9 +504,10 @@ def step_safety(transcript: str) -> List[Dict[str, str]]:
 # 会议分析
 # ---------------------------------------------------------------------------
 def step_meeting(transcript: str,
-                 failures: Optional[List[int]] = None) -> List[Dict[str, Any]]:
+                 failures: Optional[List[int]] = None,
+                 roles=None) -> List[Dict[str, Any]]:
     return extract_items(transcript, report_prompts.MEETING_PROMPT, (), "M1", "逐字稿",
-                         failures=failures)
+                         failures=failures, roles=roles)
 
 
 def assign_ids(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -689,6 +695,38 @@ def _cut_judgements(field: Dict[str, Any], code: str, path: list,
         field["text"] = "".join(row["text"] for row in field["sentences"])
 
 
+_CAP_SPLIT_RE = re.compile(r"(?<=[。！？!?])")
+
+
+def _cap_field(field: Dict[str, Any], limit: int, label: str, path: list,
+               adjustments: List[Dict[str, Any]]) -> None:
+    """超过上限时保留前面完整的句子、删去后面的句子；不改任何一句的文字（M1R D6）。"""
+    text = field.get("text") or ""
+    if len(text) <= limit:
+        return
+    rows = field.get("sentences") if isinstance(field.get("sentences"), list) else None
+    if rows:
+        pieces = [row.get("text") or "" for row in rows]
+    else:
+        rows = None
+        pieces = [p for p in _CAP_SPLIT_RE.split(text) if p.strip()]
+    keep, total = 0, 0
+    for piece in pieces:
+        if keep and total + len(piece) > limit:
+            break
+        keep += 1
+        total += len(piece)
+    if rows is not None:
+        field["sentences"] = rows[:keep]
+    field["text"] = "".join(pieces[:keep])
+    if keep < len(pieces):
+        adjustments.append({"message": "%s：超过 %d 字，已删去后面的句子" % (label, limit),
+                            "path": path})
+    if len(field["text"]) > limit:
+        adjustments.append({"message": "%s：第一句已超过 %d 字，请导师精简" % (label, limit),
+                            "path": path})
+
+
 def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
     dims = {d["id"]: d for d in report_kb.fixed()["dims"]}
     abilities = report_kb.ability_map()
@@ -729,14 +767,19 @@ def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
                                     "path": path})
             else:
                 row["y4_selected"] = [c for c in raw.get("y4_selected") or [] if isinstance(c, str)]
-                row["other_clues"] = _field(_clues_text(evidence, code), "code")
+                row["other_clues"] = _field(report_display.sources_line(evidence, code), "code")
                 row["meeting"] = _sentences(raw.get("meeting"), _valid_ids(evidence, code),
                                             path + ["meeting"], adjustments, code)
                 _cut_judgements(row["meeting"], code, path + ["meeting"], adjustments)
                 row["tags"] = [t for t in raw.get("tags") or [] if isinstance(t, str)]
                 row["evidence_ids"] = [i for i in raw.get("evidence_ids") or [] if isinstance(i, str)]
                 row["internal_note"] = _clean(raw.get("internal_note"))
+                limit = (report_checks.LIMITS["meeting_two_tags"] if len(row["tags"]) == 2
+                         else report_checks.LIMITS["meeting"])
+                _cap_field(row["meeting"], limit, "%s 首次会议核实情况" % code,
+                           path + ["meeting"], adjustments)
             enforce_ability(code, row, evidence, mapping, adjustments, path)
+            row["y4_selected"] = row["y4_selected"][:report_checks.Y4_MAX]
             abilities_out[code] = row
         out[dim_id] = {
             "core_finding": _sentences(result.get("core_finding"), _valid_ids(evidence),
@@ -746,6 +789,10 @@ def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
                                         path_prefix + ["context_notes"], adjustments, dim_id),
             "abilities": abilities_out,
         }
+        _cap_field(out[dim_id]["core_finding"], report_checks.LIMITS["core_finding"],
+                   "%s 本维度当前核心发现" % dim_id, path_prefix + ["core_finding"], adjustments)
+        _cap_field(out[dim_id]["context_notes"], report_checks.LIMITS["context_notes"],
+                   "%s 情境差异与后续观察" % dim_id, path_prefix + ["context_notes"], adjustments)
     return {d: out[d] for d in dims}
 
 
@@ -778,7 +825,7 @@ def step_profile(dims: Dict[str, Any], ratings, adjustments) -> Dict[str, Any]:
     if len(plan) > 3:
         adjustments.append({"message": "阶段发展重点超过 3 项，已保留前 3 项", "path": ["plan"]})
         plan = plan[:3]
-    return {
+    out = {
         "portrait": {d: _field(_clean(portrait_raw.get(d))) for d in report_kb.dim_ids()},
         "findings": {k: {s: _field(_clean((findings_raw.get(k) or {}).get(s)
                                           if isinstance(findings_raw.get(k), dict) else ""))
@@ -787,6 +834,21 @@ def step_profile(dims: Dict[str, Any], ratings, adjustments) -> Dict[str, Any]:
         "plan": plan,
         "review_advice": _field(_clean(result.get("review_advice"))),
     }
+    limits = report_checks.LIMITS
+    for dim_id, field in out["portrait"].items():
+        _cap_field(field, limits["portrait"], "%s 当前核心观察" % dim_id,
+                   ["portrait", dim_id], adjustments)
+    for kind, pair in out["findings"].items():
+        for part in ("finding", "meaning"):
+            _cap_field(pair[part], limits[part], "关键发展发现 %s·%s" % (kind, part),
+                       ["findings", kind, part], adjustments)
+    for i, row in enumerate(out["plan"]):
+        for cell in ("goal", "mentor", "family", "evidence"):
+            _cap_field(row[cell], limits["plan_cell"], "方案第 %d 项 %s" % (i + 1, cell),
+                       ["plan", i, cell], adjustments)
+    _cap_field(out["review_advice"], limits["review_advice"], "阶段回顾建议",
+               ["review_advice"], adjustments)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1099,19 +1161,23 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None,
         return result
 
     ctx = run("check", lambda: step_check(prep, report))
+    analysis = run("speakers", lambda: speakers.for_generation(report, _ask, actor_id))
+    transcript = (speakers.marked_text(analysis["turns"]) if analysis
+                  else report["transcript_text"])
+    roles = speakers.role_lookup(analysis["turns"]) if analysis else None
     ratings = run("y4", lambda: step_y4(ctx["values"]))
     mapping = run("mapping", lambda: step_mapping(ratings))
     other_items = run("first_touch", lambda: step_first_touch(ctx)) or []
-    safety = run("safety", lambda: step_safety(report["transcript_text"]))
+    safety = run("safety", lambda: step_safety(transcript))
     chunk_failed: List[int] = []
-    meeting_items = run("meeting", lambda: step_meeting(report["transcript_text"],
-                                                        chunk_failed))
+    meeting_items = run("meeting", lambda: step_meeting(transcript, chunk_failed,
+                                                       roles=roles))
     evidence = assign_ids(meeting_items + other_items)
 
     adjustments: List[Dict[str, Any]] = []
     guard: Dict[str, Any] = {"status": "checked", "flags": []}
     gender = _student_gender(prep["student_id"])
-    index = report_checks.TextIndex(report["transcript_text"])
+    index = report_checks.TextIndex(transcript)
     held: Dict[str, Any] = {}
 
     def dims_step():
@@ -1140,8 +1206,8 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None,
     def finish():
         version = {"doc": doc, "evidence": evidence, "y4_ratings": ratings,
                    "manifest": manifest}
-        shown = dict(report, safety=safety, safety_ack_at=None)
-        return report_checks.run_checks(shown, version,
+        shown = dict(report, transcript_text=transcript, safety=safety, safety_ack_at=None)
+        return report_checks.run_checks(shown, report_display.display_version(version),
                                         first_touch_text=ctx["first_touch_text"])
 
     checks = run("checks", finish)
