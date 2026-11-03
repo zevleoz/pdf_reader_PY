@@ -50,3 +50,5 @@ api_demo_client/
 *.env
 .env.*
 !.env.example
+
+backups/
