@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BootProvider } from "@/lib/boot";
 import AppShell from "@/shell/AppShell";
 import Kit from "@/pages/Kit";
+import Students from "@/pages/Students";
 import NotFound from "@/pages/NotFound";
 
 export default function App() {
@@ -12,7 +13,8 @@ export default function App() {
         <BootProvider>
           <Routes>
             <Route element={<AppShell />}>
-              <Route index element={<Navigate to="/kit" replace />} />
+              <Route index element={<Navigate to="/students" replace />} />
+              <Route path="students" element={<Students />} />
               <Route path="kit" element={<Kit />} />
               <Route path="*" element={<NotFound />} />
             </Route>
