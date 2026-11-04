@@ -396,7 +396,7 @@ ROLE_LABELS = {"admin": "管理员", "advisor": "顾问", "viewer": "只读"}
 # 所有已登录角色可见，显式声明时按角色过滤（过滤后无可见项的分组整组隐藏）。
 ADMIN_NAV = [
     {"key": "workspace", "title": "工作台", "links": [
-        {"key": "workspace", "label": "工作台", "href": "/workspace", "icon": "grid"},
+        {"key": "workspace", "label": "工作台", "href": "/app/workbench", "icon": "grid"},
     ]},
     {"key": "students", "title": "学生", "links": [
         {"key": "students", "label": "学生档案", "href": "/app/students", "icon": "users"},
@@ -416,6 +416,7 @@ ADMIN_NAV = [
         {"key": "insights.six-am", "label": "6AM 启动模型", "href": "/insights/six-am", "icon": "target"},
     ]},
     {"key": "tools", "title": "工具", "links": [
+        {"key": "tools.tasks", "label": "问卷任务", "href": "/app/questionnaires", "icon": "clipboard"},
         {"key": "tools.bank", "label": "问卷题库", "href": "/questionnaires/bank",
          "icon": "book", "roles": ("admin", "advisor")},
         {"key": "tools.bookings", "label": "预约管理", "href": "/tools/bookings", "icon": "calendar",
