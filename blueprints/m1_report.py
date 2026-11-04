@@ -12,6 +12,7 @@ from pathlib import Path
 from flask import Blueprint, abort, jsonify, request, session
 
 import app_utils
+import db as _db
 import m1.report_checks as checks_mod
 import m1.report_kb as kb
 import m1.report_store as rstore
@@ -490,6 +491,28 @@ def api_report_doc(prep_id: int):
     rev = _rev(body)
     if rev is None:
         return _err("缺少 rev")
+    report, version = _state(prep)
+    if report is None:
+        report = rstore.get_or_create_report(prep["id"], _user().get("user_id"))
+    if report and not version:
+        updates = {}
+        changes = body.get("changes")
+        for change in changes if isinstance(changes, list) else []:
+            path = change.get("path") if isinstance(change, dict) else None
+            value = change.get("value") if isinstance(change, dict) else None
+            if path in (["meta", "grade"], ["meta", "school"]) and isinstance(value, str):
+                updates[path[1]] = value.strip()
+            else:
+                updates = {}
+                break
+        if updates:
+            if rev != report["rev"]:
+                return _err("报告已在别处更新，请刷新后重试", 409, rev=report["rev"])
+            _db.update_student(prep["student_id"], **updates)
+            store.audit(_user().get("user_id"), prep["student_id"], "m1.report_meta",
+                        {"prep_id": prep_id, "fields": sorted(updates)})
+            return jsonify({"ok": True, "rev": report["rev"], "status": report["status"],
+                            "checks": [], "appendix": [], "impacts": []})
     report, version, error = _need_report(prep)
     if error:
         return error

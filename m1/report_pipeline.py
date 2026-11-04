@@ -166,6 +166,11 @@ def step_check(prep: Dict[str, Any], report: Dict[str, Any], today: Optional[dat
         "report_date": (today or date.today()).isoformat(),
         "evidence_sources": "Y4 测评",
     }
+    previous = report_store.current_version(report["id"])
+    previous_meta = (previous.get("doc") or {}).get("meta") if previous else {}
+    for key in ("grade", "school"):
+        if _clean((previous_meta or {}).get(key)):
+            meta[key] = _clean(previous_meta[key])
     return {
         "meta": meta,
         "values": y4_evidence._values(y4_report),

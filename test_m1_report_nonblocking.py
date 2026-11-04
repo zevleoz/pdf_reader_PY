@@ -160,3 +160,35 @@ def test_cover_y4_source_and_internal_manifest(rdb, fake):
     _report, version = generate(rdb)
     assert version["doc"]["meta"]["evidence_sources"] == "Y4 测评"
     assert "M1 First Meeting 逐字稿" in version["manifest"]["sources"]
+
+
+def test_regeneration_keeps_saved_grade_and_school(client, rdb, fake, inline_jobs):
+    admin_login(client, rdb)
+    _report, version = generate(rdb)
+    rev = report_store.get_report(rdb.prep_row["id"])["rev"]
+    res = doc_put(client, rdb, rev, [
+        {"path": ["meta", "grade"], "value": "高一"},
+        {"path": ["meta", "school"], "value": "新示例学校"},
+    ])
+    assert res.status_code == 200, res.get_json()
+    _report, regenerated = generate(rdb)
+    assert regenerated["doc"]["meta"]["grade"] == "高一"
+    assert regenerated["doc"]["meta"]["school"] == "新示例学校"
+
+
+def test_initial_cover_grade_and_school_saved_before_first_generation(client, rdb, fake, inline_jobs):
+    import db as _db
+
+    admin_login(client, rdb)
+    res = doc_put(client, rdb, 1, [
+        {"path": ["meta", "grade"], "value": "初三"},
+        {"path": ["meta", "school"], "value": "首次生成前学校"},
+    ])
+    assert res.status_code == 200, res.get_json()
+    with Session(rdb.engine) as sess:
+        student = sess.get(_db.Student, rdb.student_id)
+        assert student.grade == "初三"
+        assert student.school == "首次生成前学校"
+    _report, version = generate(rdb)
+    assert version["doc"]["meta"]["grade"] == "初三"
+    assert version["doc"]["meta"]["school"] == "首次生成前学校"
