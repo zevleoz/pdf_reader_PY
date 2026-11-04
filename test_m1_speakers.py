@@ -171,6 +171,35 @@ def test_reconcile_prompt_contains_all_unlabelled_text():
         assert turn["text"] in reconcile[0]
 
 
+def test_reconcile_prompt_contains_all_labelled_ai_text():
+    turns = []
+    for number in range(1, 13):
+        turns.append({"n": number, "label": "发言人1" if number % 2 else "发言人2",
+                      "time": "", "text": "需要复核的第 %d 段原文" % number,
+                      "role": "学生", "speech_act": "student_experience", "src": "ai"})
+    prompts = []
+
+    def ask(prompt):
+        prompts.append(prompt)
+        return {"turns": []}
+
+    speakers._reconcile_roles(turns, ask)
+    assert prompts
+    for turn in turns:
+        assert turn["text"] in prompts[0]
+
+
+def test_speaker_algorithm_change_invalidates_cache(monkeypatch):
+    text = "一段虚构会议原文"
+    row = {"status": "done", "transcript_hash": speakers.transcript_hash(text)}
+    report = {"transcript_text": text}
+    assert speakers.is_current(row, report)
+    assert hasattr(speakers, "SPEAKER_ALGORITHM_VERSION")
+    monkeypatch.setattr(speakers, "SPEAKER_ALGORITHM_VERSION",
+                        speakers.SPEAKER_ALGORITHM_VERSION + "-test")
+    assert not speakers.is_current(row, report)
+
+
 def test_unlabelled_student_thought_and_mentor_guidance():
     text = "我觉得自己很没用。\n你可以先说说上周的事。"
 
