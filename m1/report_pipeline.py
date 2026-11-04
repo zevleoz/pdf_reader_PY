@@ -599,15 +599,26 @@ def _assessment_payload(dim_id: str, evidence,
     return rows
 
 
-def _valid_ids(evidence, code: Optional[str] = None) -> set:
-    return {e["id"] for e in (report_checks.items_for(evidence, code) if code else evidence)
+def _valid_ids(evidence, code: Optional[str] = None) -> Dict[str, str]:
+    """可用证据 id → 发言人；``_sentences`` 用它核对“学生自己的判断”。"""
+    return {e["id"]: e.get("speaker") or ""
+            for e in (report_checks.items_for(evidence, code) if code else evidence)
             if report_checks.supports_judgement(e)}
+
+
+_STUDENT_SELF_RE = re.compile(
+    r"学生(?:认为|自认|自认为|意识到|觉得|将[^。]{0,30}?视为|把[^。]{0,30}?看作)")
 
 
 def _sentences(raw, valid_ids, path: list, adjustments: List[Dict[str, Any]],
                label: str, empty: str = "") -> Dict[str, Any]:
-    """按句收下 AI 的文字（S2-P6 §10）：事实句必须有可用证据，推断句要留有余地。"""
+    """按句收下 AI 的文字（S2-P6 §10）：事实句必须有可用证据，推断句要留有余地。
+
+    事实句写成“学生认为/自认/意识到/觉得”时，证据里必须至少有一条是学生本人说的；
+    导师或待确认发言人的评价不能改写成学生的自我判断（M1R-P9）。
+    """
     kept = []
+    speakers = valid_ids if isinstance(valid_ids, dict) else {}
     rows = raw.get("sentences") if isinstance(raw, dict) else None
     for item in rows or []:
         if not isinstance(item, dict):
@@ -629,6 +640,11 @@ def _sentences(raw, valid_ids, path: list, adjustments: List[Dict[str, Any]],
             if not valid:
                 adjustments.append({"message": "%s：事实句没有有效证据，已删除" % label,
                                     "path": path})
+                continue
+            if _STUDENT_SELF_RE.search(text) and not any(
+                    speakers.get(i) == "学生" for i in valid):
+                adjustments.append({"message": "%s：事实句把导师或待确认的话写成学生自我判断，"
+                                    "已删除" % label, "path": path})
                 continue
             ids = valid
         kept.append({"text": text, "evidence_ids": ids, "kind": kind})

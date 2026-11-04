@@ -150,12 +150,59 @@
 
   function planValue() {
     var rows = {};
-    document.querySelectorAll('[data-plan-index]').forEach(function (node) {
+    document.querySelectorAll('[data-plan-key]').forEach(function (node) {
       var index = node.getAttribute('data-plan-index');
-      rows[index] = rows[index] || { ability: node.getAttribute('data-plan-ability') };
+      rows[index] = rows[index] || {};
       rows[index][node.getAttribute('data-plan-key')] = node.innerText.trim();
     });
+    document.querySelectorAll('[data-plan-ability-select]').forEach(function (node) {
+      var index = node.getAttribute('data-plan-index');
+      rows[index] = rows[index] || {};
+      rows[index].ability = node.value;
+    });
     return Object.keys(rows).sort(function (a, b) { return a - b; }).map(function (k) { return rows[k]; });
+  }
+
+  function savePlan(plan) {
+    return send(data.api + '/doc', 'PUT',
+                { changes: [{ path: ['plan'], value: plan || planValue() }] });
+  }
+
+  function reloadAfter(json) {
+    if (json) window.location.reload();
+  }
+
+  document.querySelectorAll('[data-plan-ability-select]').forEach(function (node) {
+    node.addEventListener('change', function () {
+      var index = node.getAttribute('data-plan-index');
+      document.querySelectorAll('[data-plan-key][data-plan-index="' + index + '"]').forEach(
+        function (cell) { cell.setAttribute('data-plan-ability', node.value); });
+      savePlan().then(reloadAfter);
+    });
+  });
+
+  document.querySelectorAll('.plan-del').forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (button.disabled) return;
+      var plan = planValue();
+      plan.splice(Number(button.getAttribute('data-plan-index')), 1);
+      savePlan(plan).then(reloadAfter);
+    });
+  });
+
+  var addButton = document.getElementById('planAdd');
+  if (addButton) {
+    addButton.addEventListener('click', function () {
+      if (addButton.disabled) return;
+      addButton.disabled = true;
+      var active = document.activeElement;
+      if (active && active.hasAttribute && active.hasAttribute('data-path')) active.blur();
+      var plan = planValue();
+      plan.push({ ability: 'R1.1', goal: '', mentor: '', family: '', evidence: '' });
+      savePlan(plan).then(function (json) {
+        if (json) window.location.reload(); else addButton.disabled = false;
+      });
+    });
   }
 
   document.querySelectorAll('[data-path]').forEach(function (node) {
@@ -165,7 +212,7 @@
       if (text === node.__before) return;
       node.__before = text;
       if (node.hasAttribute('data-plan-index')) {
-        send(data.api + '/doc', 'PUT', { changes: [{ path: ['plan'], value: planValue() }] });
+        savePlan();
       } else {
         send(data.api + '/doc', 'PUT', { changes: [{ path: pathOf(node), value: text }] });
       }
