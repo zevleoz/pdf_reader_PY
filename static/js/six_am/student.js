@@ -4,6 +4,13 @@
 
   var SA = window.SA;
   var state = { data: null, report: null, dim: null, drawer: false };
+  var REVIEW_DIMS = ['A1', 'A2', 'A3', 'A4', 'A5'];
+  var VERDICT_ZH = { agree: '同意', adjust: '调整状态', evidence: '证据不足，需追问' };
+  var rv = freshReview(null);
+
+  function freshReview(report) {
+    return { report: report, loaded: false, error: null, profileId: null, reviews: {}, drafts: {} };
+  }
 
   function profileOf() { return (state.data && state.data.profile) || {}; }
   function model() { return SA.model || {}; }
@@ -178,6 +185,135 @@
       '<button class="btn ghost" type="button" data-close-drawer>取消</button></div></aside>';
   }
 
+
+  /* ── 团队结论（导师评议，只追加） ───────────────────────── */
+  function canReview() {
+    var root = document.getElementById('sa2');
+    return !!root && root.getAttribute('data-can-review') === 'true';
+  }
+
+  function reviewDraft(dim) {
+    var d = rv.drafts[dim];
+    if (!d) {
+      var r = rv.reviews[dim] || {};
+      var levels = model().levels || SA.LEVELS;
+      d = rv.drafts[dim] = {
+        v: r.verdict || '',
+        to: r.adjusted_state || (levels[2] || levels[0] || ''),
+        note: r.note || ''
+      };
+    }
+    return d;
+  }
+
+  function reviewText(r) {
+    var h = '<p>' + SA.esc(VERDICT_ZH[r.verdict] || r.verdict) +
+      (r.verdict === 'adjust' && r.adjusted_state ? '为 ' + SA.esc(r.adjusted_state) : '') + '</p>';
+    if (r.note) h += '<p class="sub">理由：' + SA.esc(r.note) + '</p>';
+    var meta = [];
+    if (r.author) meta.push(SA.esc(r.author));
+    if (r.created_at) meta.push(SA.esc(String(r.created_at).slice(0, 10)));
+    if (meta.length) h += '<p class="sub">记录：' + meta.join(' · ') + '</p>';
+    return h;
+  }
+
+  function reviewRowHTML(dim, writable) {
+    var spec = dimSpec(dim) || { name: '' };
+    var level = ((profileOf().dims || {})[dim] || {}).level;
+    var r = rv.reviews[dim];
+    var h = '<div class="rvrow" data-rv-dim="' + dim + '"><div class="row"><b>' +
+      SA.esc(dim + ' ' + (spec.name || '')) + '</b>' + SA.chip(level) + '</div>';
+    h += r && r.verdict ? '<div class="rvlatest">' + reviewText(r) + '</div>'
+      : '<p class="sub">尚无团队结论。</p>';
+    if (writable) {
+      var d = reviewDraft(dim);
+      var levels = model().levels || SA.LEVELS;
+      h += '<div class="seg" role="group" aria-label="团队结论">' +
+        [['agree', '同意'], ['adjust', '调整状态'], ['evidence', '证据不足，需追问']].map(function (o) {
+          return '<button type="button" data-rv-dec="' + o[0] + '" aria-pressed="' +
+            (d.v === o[0]) + '">' + o[1] + '</button>';
+        }).join('') + '</div>';
+      if (d.v === 'adjust') {
+        h += '<div class="row"><label class="sub" for="rv-adj-' + dim + '">调整为</label>' +
+          '<select id="rv-adj-' + dim + '" data-rv-adj>' + levels.map(function (k) {
+            return '<option value="' + SA.esc(k) + '"' + (d.to === k ? ' selected' : '') + '>' +
+              SA.esc(k) + '</option>';
+          }).join('') + '</select></div>';
+      }
+      h += '<label class="sub" for="rv-note-' + dim + '">理由与跟进</label>' +
+        '<textarea id="rv-note-' + dim + '" data-rv-note>' + SA.esc(d.note) + '</textarea>' +
+        '<div class="row"><button class="btn primary" type="button" data-rv-save>保存结论</button>' +
+        '<span class="sub" data-rv-msg></span></div>';
+    }
+    return h + '</div>';
+  }
+
+  function reviewPanelHTML(el) {
+    var data = state.data;
+    if (!data || data.legacy || !data.profile_id) return '';
+    if (rv.report !== state.report) {
+      rv = freshReview(state.report);
+      fetchReviews(el);
+    }
+    if (rv.error) return '<section class="card pad rvpanel" data-rvpanel><h2>团队结论</h2>' +
+      '<p class="sub">' + SA.esc(rv.error) + '</p></section>';
+    if (!rv.loaded) return '<section class="card pad rvpanel" data-rvpanel><h2>团队结论</h2>' +
+      '<p class="sub">加载中…</p></section>';
+    if (String(rv.profileId) !== String(data.profile_id)) return '';  // 只评议最新档案
+    var writable = canReview();
+    return '<section class="card pad rvpanel" data-rvpanel><h2>团队结论</h2>' +
+      REVIEW_DIMS.map(function (dim) { return reviewRowHTML(dim, writable); }).join('') +
+      '</section>';
+  }
+
+  function repaintReview(el) {
+    var node = el.querySelector('[data-rvpanel]');
+    var h = reviewPanelHTML(el);
+    if (node && h) node.outerHTML = h;
+    else if (node) node.remove();
+    else if (h) render(el);
+  }
+
+  function fetchReviews(el) {
+    var report = state.report;
+    SA.api('/api/reports/' + encodeURIComponent(report) + '/six-am/reviews').then(function (res) {
+      if (rv.report !== report) return;
+      rv.loaded = true;
+      rv.profileId = res.profile_id;
+      rv.reviews = res.reviews || {};
+      repaintReview(el);
+    }).catch(function (err) {
+      if (rv.report !== report) return;
+      rv.error = err.message;
+      repaintReview(el);
+    });
+  }
+
+  function saveReview(el, btn) {
+    var row = btn.closest('[data-rv-dim]');
+    if (!row || !canReview()) return;
+    var dim = row.getAttribute('data-rv-dim');
+    var d = reviewDraft(dim);
+    if (!d.v) { SA.toast('请先选择团队结论', true); return; }
+    if (d.v === 'adjust' && !d.to) { SA.toast('请选择调整后的状态', true); return; }
+    var body = { profile_id: state.data.profile_id, dim: dim, verdict: d.v, note: d.note.trim() };
+    if (d.v === 'adjust') body.adjusted_state = d.to;
+    btn.disabled = true;
+    var msg = row.querySelector('[data-rv-msg]');
+    if (msg) msg.textContent = '保存中…';
+    SA.postJSON('/api/reports/' + encodeURIComponent(state.report) + '/six-am/reviews', body)
+      .then(function (res) {
+        rv.reviews[dim] = res.review;
+        delete rv.drafts[dim];
+        repaintReview(el);
+        SA.toast('已记录团队结论');
+      }).catch(function (err) {
+        btn.disabled = false;
+        if (msg) msg.textContent = '';
+        SA.toast(err.message || '保存失败', true);
+      });
+  }
+
   /* ── 渲染 ───────────────────────────────────────────────── */
   function render(el) {
     var writable = SA.canWrite();
@@ -193,7 +329,8 @@
     if (dim === 'A6') main = a6Panel();
     else main = '<section class="card mmcard">' +
       SA.mindmap.dim(model(), dim, { profile: profileOf(), writable: writable }) + '</section>';
-    el.innerHTML = headerHTML(writable) + flagsHTML() + dimsHTML() + main + drawerHTML();
+    el.innerHTML = headerHTML(writable) + flagsHTML() + dimsHTML() + main + reviewPanelHTML(el) +
+      drawerHTML();
   }
 
   function renderEmpty(el) {
@@ -213,6 +350,7 @@
   /* ── 取数 ───────────────────────────────────────────────── */
   function applyData(el, data) {
     state.data = data;
+    rv = freshReview(null);  // 档案可能已换版本：评议重新取
     if (!validDim(state.dim)) state.dim = firstDim(data);
     render(el);
   }
@@ -308,8 +446,19 @@
 
     el.addEventListener('click', function (e) {
       var target = e.target.closest('[data-dim],[data-generate],[data-retry],[data-open-ft],' +
-        '[data-close-drawer],[data-save-ft],[data-talk-save],[data-talk-clear],[data-talk-result]');
+        '[data-close-drawer],[data-save-ft],[data-talk-save],[data-talk-clear],[data-talk-result],' +
+        '[data-rv-dec],[data-rv-save]');
       if (!target) return;
+
+      if (target.hasAttribute('data-rv-dec')) {
+        var rrow = target.closest('[data-rv-dim]');
+        if (rrow && canReview()) {
+          reviewDraft(rrow.getAttribute('data-rv-dim')).v = target.getAttribute('data-rv-dec');
+          repaintReview(el);
+        }
+        return;
+      }
+      if (target.hasAttribute('data-rv-save')) { saveReview(el, target); return; }
 
       if (target.hasAttribute('data-dim')) {
         SA.go('student', { report: state.report, dim: target.getAttribute('data-dim') });
@@ -369,7 +518,19 @@
       }
     });
 
+    el.addEventListener('input', function (e) {
+      var note = e.target.closest('[data-rv-note]');
+      var rrow = note && note.closest('[data-rv-dim]');
+      if (rrow) reviewDraft(rrow.getAttribute('data-rv-dim')).note = note.value;
+    });
+
     el.addEventListener('change', function (e) {
+      var adj = e.target.closest('[data-rv-adj]');
+      if (adj) {
+        var arow = adj.closest('[data-rv-dim]');
+        if (arow) reviewDraft(arow.getAttribute('data-rv-dim')).to = adj.value;
+        return;
+      }
       var version = e.target.closest('[data-version]');
       if (version) load(el, version.value);
     });

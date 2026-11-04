@@ -10,8 +10,8 @@ from flask import (Blueprint, Response, jsonify, redirect, render_template, requ
                    session)
 
 import db as _db
-from app_utils import (admin_required, page_login_required, report_scoped,
-                       role_required)
+from app_utils import (admin_required, can_see_full, page_login_required,
+                       report_scoped, role_required)
 from ai_client import _dashscope_chat
 
 bp = Blueprint("insights", __name__)
@@ -428,6 +428,82 @@ def api_report_six_am_inputs(report_id):
         return jsonify({"ok": False, "error": "报告不存在"}), 404
     rec = _db.get_six_am_profile(prof.get("profile_id"))
     return jsonify({"ok": True, **_six_am_profile_payload(rec)})
+
+
+# ── 导师评议（只追加：不改模型判定、不新增档案版本）─────────────────
+_REVIEW_VERDICTS = ("agree", "adjust", "evidence")
+
+
+def _review_states() -> tuple:
+    """「调整状态」可选的状态：读自当前 6AM 模型（model_v06.json 的 levels），不写死。"""
+    return tuple(str(level) for level in (_six_am_load_model().get("levels") or []))
+
+
+@bp.route("/api/reports/<int:report_id>/six-am/reviews", methods=["GET"])
+@admin_required
+@report_scoped
+def api_report_six_am_reviews_get(report_id):
+    """该报告最新档案每个维度的最新一条评议（概要账号也可读）。"""
+    if _db.get_report_student_id(report_id) is None:
+        return jsonify({"ok": False, "error": "报告不存在"}), 404
+    latest = _db.get_latest_six_am_profile(report_id)
+    if not latest:
+        return jsonify({"ok": True, "profile_id": None, "version": None, "reviews": {}})
+    return jsonify({"ok": True, "profile_id": latest.get("id"),
+                    "version": latest.get("version"),
+                    "reviews": _db.latest_six_am_reviews(latest.get("id"))})
+
+
+@bp.route("/api/reports/<int:report_id>/six-am/reviews", methods=["POST"])
+@admin_required
+@report_scoped
+def api_report_six_am_reviews(report_id):
+    """记录导师评议（只追加：不改模型判定、不新增档案版本）。"""
+    import app_utils as _app_utils
+
+    if not can_see_full():
+        return jsonify({"ok": False, "error": "当前账号不能记录评议"}), 403
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求体必须是对象"}), 400
+    try:
+        profile_id = int(data.get("profile_id"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "缺少有效的档案 ID"}), 400
+    rec = _db.get_six_am_profile(profile_id)
+    if not rec or int(rec.get("report_id") or 0) != int(report_id):
+        return jsonify({"ok": False, "error": "档案不属于该报告"}), 400
+    dim = str(data.get("dim") or "").strip()
+    if dim not in _COHORT_DIMS:
+        return jsonify({"ok": False, "error": "维度必须是 A1–A5"}), 400
+    verdict = str(data.get("verdict") or "").strip()
+    if verdict not in _REVIEW_VERDICTS:
+        return jsonify({"ok": False, "error": "结论必须是 agree、adjust 或 evidence"}), 400
+    adjusted_state = data.get("adjusted_state")
+    if verdict == "adjust":
+        if adjusted_state not in _review_states():
+            return jsonify({"ok": False, "error": "调整为 X 时必须给出有效状态"}), 400
+    else:
+        adjusted_state = None
+    note = "" if data.get("note") is None else str(data.get("note"))
+    if len(note) > 500:
+        return jsonify({"ok": False, "error": "备注最多 500 字"}), 400
+    owner = "" if data.get("owner") is None else str(data.get("owner"))
+    if len(owner) > 50:
+        return jsonify({"ok": False, "error": "负责人最多 50 字"}), 400
+    due_date = "" if data.get("due_date") is None else str(data.get("due_date")).strip()
+    if due_date:
+        try:
+            _dt.datetime.strptime(due_date, "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"ok": False, "error": "截止日期格式必须是 YYYY-MM-DD"}), 400
+    user = _app_utils.current_user()
+    author = user.get("display_name") or str(user.get("user_id") or "")
+    review = _db.add_six_am_review(
+        profile_id=profile_id, report_id=int(report_id), dim=dim, verdict=verdict,
+        adjusted_state=adjusted_state, note=note, owner=owner,
+        due_date=due_date, author=author)
+    return jsonify({"ok": True, "review": review})
 
 
 # ── 概览（6AM v0.6）────────────────────────────────────────────

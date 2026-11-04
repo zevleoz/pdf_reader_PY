@@ -372,7 +372,6 @@ class RetiredRoutes(_ApiCase):
             ("post", "/api/six-am/rule-versions/1/publish"),
             ("post", "/api/six-am/sandbox"),
             ("post", "/api/reports/%d/six-am/preview" % rid),
-            ("post", "/api/reports/%d/six-am/reviews" % rid),
             ("post", "/api/reports/%d/six-am/action-overrides" % rid),
             ("post", "/api/reports/%d/six-am/answers" % rid),
             ("get", "/api/reports/%d/six-am/docx" % rid),
