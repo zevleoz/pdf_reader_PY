@@ -9,9 +9,9 @@ import json
 
 from sqlalchemy.orm import Session
 
-from m1 import report_checks, report_store
-from test_m1_report_core import (admin_login, generated_via_api, generate,  # noqa: F401
-                                 client, fake, inline_jobs, rdb, url)
+from m1 import report_checks, report_kb, report_store
+from test_m1_report_core import (admin_login, doc_put, generated_via_api,  # noqa: F401
+                                 generate, client, fake, inline_jobs, rdb, url)
 from test_m1_store import m1db  # noqa: F401
 
 UNSUPPORTED_SENTENCE = "学生下课后在教室待着。"
@@ -89,6 +89,71 @@ def test_structurally_incomplete_draft_still_cannot_publish(client, rdb, fake, i
     assert res.status_code == 400
     assert "阻断" in res.get_json()["error"]
     assert report_store.get_report(rdb.prep_row["id"])["status"] == "ai_draft"
+
+
+TAGS_PATH = ["dims", "R1", "abilities", "R1.1", "tags"]
+
+
+def test_manual_tags_ignore_ai_combination_rules(client, rdb, fake, inline_jobs):
+    payload = generated_via_api(client, rdb, fake, inline_jobs)
+    rev = payload["report"]["rev"]
+    combos = [
+        (["信息不足", "积极资源"], ["信息不足", "积极资源"]),
+        (["积极资源", "确认发展需求"], ["积极资源", "确认发展需求"]),
+        (["积极资源", "暂未发现"], ["积极资源", "暂未发现"]),
+        (report_kb.tag_names(), report_kb.tag_names()),
+        ([], []),
+        (["可能存在", "积极资源", "可能存在"], ["可能存在", "积极资源"]),
+    ]
+    for value, expected in combos:
+        res = doc_put(client, rdb, rev, [{"path": TAGS_PATH, "value": value}])
+        assert res.status_code == 200, (value, res.get_json())
+        body = res.get_json()
+        rev = body["rev"]
+        row = client.get(url(rdb)).get_json()["doc"]["dims"]["R1"]["abilities"]["R1.1"]
+        assert row["tags"] == expected and row["tags_src"] == "edited"
+        for code in ("no_tag", "tag_invalid", "need_speaker",
+                     "double_tag_evidence", "tag_evidence"):
+            hits = [c for c in body["checks"] if c["code"] == code
+                    and c["path"][:4] == TAGS_PATH[:4]]
+            assert not hits, (value, code, hits)
+
+
+def test_unchanged_manual_tags_become_edited(client, rdb, fake, inline_jobs):
+    generated_via_api(client, rdb, fake, inline_jobs)
+    report = report_store.get_report(rdb.prep_row["id"])
+    version = report_store.current_version(report["id"])
+    doc = copy.deepcopy(version["doc"])
+    row = doc["dims"]["R1"]["abilities"]["R1.1"]
+    row["tags"] = ["信息不足", "积极资源"]
+    row["tags_src"] = "ai"
+    report_store.add_version(
+        report["id"], y4_ratings=version["y4_ratings"], evidence=version["evidence"],
+        ai_doc=copy.deepcopy(doc), doc=doc, checks=[], manifest=version["manifest"],
+        status="ai_draft")
+
+    rev = client.get(url(rdb)).get_json()["report"]["rev"]
+    res = doc_put(client, rdb, rev, [{"path": TAGS_PATH, "value": ["信息不足", "积极资源"]}])
+    assert res.status_code == 200, res.get_json()
+    body = res.get_json()
+    saved = client.get(url(rdb)).get_json()["doc"]["dims"]["R1"]["abilities"]["R1.1"]
+    assert saved["tags"] == ["信息不足", "积极资源"] and saved["tags_src"] == "edited"
+    for code in ("no_tag", "tag_invalid", "need_speaker",
+                 "double_tag_evidence", "tag_evidence"):
+        hits = [c for c in body["checks"] if c["code"] == code
+                and c["path"][:4] == TAGS_PATH[:4]]
+        assert not hits, (code, hits)
+
+
+def test_ai_generated_tags_still_follow_protocol(rdb, fake):
+    _report, version = generate(rdb)
+    doc = copy.deepcopy(version["doc"])
+    row = doc["dims"]["R1"]["abilities"]["R1.1"]
+    row["tags"] = ["信息不足", "积极资源"]
+    row["tags_src"] = "ai"
+    checks = report_checks.run_checks(
+        {"transcript_text": "任意文本"}, dict(version, doc=doc))
+    assert any(c["code"] == "tag_invalid" for c in checks)
 
 
 def test_cover_y4_source_and_internal_manifest(rdb, fake):

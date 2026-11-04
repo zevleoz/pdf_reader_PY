@@ -309,6 +309,8 @@ def run_checks(report: Dict[str, Any], version: Optional[Dict[str, Any]], *,
             continue
         tags = row.get("tags")
         path = ["dims", info["dim"], "abilities", code, "tags"]
+        if row.get("tags_src") == "edited":
+            continue        # 人工选定的标签不参与 AI 协议校验
         if not tags:
             out.append(_check("block", "no_tag",
                               "%s %s：还没有综合判断标签" % (code, info["name"]), path))
@@ -428,6 +430,8 @@ def run_checks(report: Dict[str, Any], version: Optional[Dict[str, Any]], *,
 
     for dim_id, code, row in abilities_in(doc):
         tags = row.get("tags") or []
+        if row.get("tags_src") == "edited":
+            continue
         if "确认发展需求" in tags:
             used = [e for e in items_for(evidence, code, source="M1") if is_usable(e)]
             if used and not any(supports_judgement(e) and e.get("speaker") not in ("待确认", "导师")
@@ -476,6 +480,8 @@ def run_checks(report: Dict[str, Any], version: Optional[Dict[str, Any]], *,
     for dim_id, code, row in abilities_in(doc):
         tags = row.get("tags") or []
         apath = ["dims", dim_id, "abilities", code, "tags"]
+        if row.get("tags_src") == "edited":
+            continue
         sup = [e for e in items_for(evidence, code) if supports_judgement(e)]
         sup_m1 = [e for e in sup if e.get("source") == "M1"]
         positive = [e for e in sup if e.get("type") != "假设性回应"]

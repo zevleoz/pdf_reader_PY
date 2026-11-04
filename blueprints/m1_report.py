@@ -176,7 +176,9 @@ def page_report_print(prep_id: int):
         edit_data = {"api": "/api/m1/preps/%d/report" % prep["id"],
                      "rev": report["rev"],
                      "checks": _checks(report, version),
-                     "tags": [tag["key"] for tag in kb.fixed()["tags"]]}
+                     "tags": [tag["key"] for tag in kb.fixed()["tags"]],
+                     "abilities": [{"code": code, "name": info["name"], "dim": info["dim"]}
+                                   for code, info in kb.ability_map().items()]}
     return _render_page(
         "m1/report_print.html", prep=prep, prep_id=prep["id"], fixed=kb.fixed(), doc=doc,
         appendix=kb.appendix(doc), y4_lines=y4_lines(doc, shown.get("y4_ratings")),
@@ -407,13 +409,20 @@ def apply_changes(doc: dict, changes) -> tuple:
                     raise ChangeError("值必须是文字")
                 _set_field(row, key, value, edited)
             elif key == "tags":
-                if not isinstance(value, list) or kb.tags_problem(value):
-                    raise ChangeError("标签不符合协议 §7.3：%s" % (
-                        kb.tags_problem(value) if isinstance(value, list) else "必须是列表"))
-                if value != row.get("tags"):
+                # 人工标签只要求来自五种固定标签：不强制 AI 协议的组合与数量限制
+                names = kb.tag_names()
+                if not isinstance(value, list) or any(
+                        not _is_str(tag) or tag not in names for tag in value):
+                    raise ChangeError("标签必须是五种固定标签之一")
+                seen: list = []
+                for tag in value:
+                    if tag not in seen:
+                        seen.append(tag)
+                if seen != row.get("tags"):
                     tags_changed = True
-                    row["tags"] = list(value)
-                    row["tags_src"] = "edited"
+                    row["tags"] = seen
+                # 用户明确保存过一次，即使数值没变也按人工标签处理
+                row["tags_src"] = "edited"
             elif key == "y4_selected":
                 allowed = set(abilities[path[3]]["indicators"])
                 if not isinstance(value, list) or any(

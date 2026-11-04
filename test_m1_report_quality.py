@@ -486,6 +486,28 @@ def test_chunk_failed_check_message():
                     "message": "逐字稿第 2 段未能读取，请查看原文或重新生成。", "path": []}]
 
 
+def test_student_self_judgement_needs_a_student_speaker():
+    adjustments = []
+    raw = {"sentences": [
+        {"text": "学生认为自己重视朋友是优点", "evidence_ids": ["e1"], "kind": "fact"},
+        {"text": "学生觉得朋友比成绩重要", "evidence_ids": ["e1"], "kind": "fact"},
+        {"text": "学生将重视朋友视为自身优点", "evidence_ids": ["e1"], "kind": "fact"},
+        {"text": "学生把朋友陪伴看作优点", "evidence_ids": ["e1"], "kind": "fact"},
+        {"text": "学生周一去了学校", "evidence_ids": ["e1"], "kind": "fact"},
+    ]}
+    out = report_pipeline._sentences(raw, {"e1": "导师"}, ["dims", "R1"], adjustments, "R1")
+    assert out["text"] == "学生周一去了学校。"
+    assert [a["message"] for a in adjustments] == [
+        "R1：事实句把导师或待确认的话写成学生自我判断，已删除"] * 4
+
+    # 学生自己直接说的评价仍然保留
+    kept = report_pipeline._sentences(raw, {"e1": "学生"}, ["dims", "R1"], [], "R1")
+    assert "学生认为自己重视朋友是优点。" in kept["text"]
+    assert "学生觉得朋友比成绩重要。" in kept["text"]
+    assert "学生将重视朋友视为自身优点。" in kept["text"]
+    assert "学生把朋友陪伴看作优点。" in kept["text"]
+
+
 def test_readable_text():
     assert report_pipeline._readable("学生说可以试试，") == "学生说可以试试。"
     assert report_pipeline._readable("家里支持；") == "家里支持。"
@@ -498,6 +520,14 @@ def test_generated_family_fields_end_with_closing_punctuation(rdb, fake):
     _report, version = generate(rdb)
     for path, text in _family_texts(version["doc"]):
         assert text[-1] in CLOSING, (path, text)
+
+
+def test_report_prompts_keep_mentor_praise_as_other_observation():
+    for prompt in (report_prompts.MEETING_PROMPT, report_prompts.DIM_PROMPT):
+        assert "只有学生直接表达自己的想法时，才能写成学生的自我判断" in prompt
+        assert "导师或待确认发言人的评价只能作为他人观察" in prompt
+        assert ("不能改写成“学生认为”“学生自认”“学生意识到”“学生觉得”"
+                "“学生将……视为”“学生把……看作”") in prompt
 
 
 def test_dim_prompt_writing_lines():

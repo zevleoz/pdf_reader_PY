@@ -7,6 +7,7 @@ import {
   Settings,
   Users,
   Waypoints,
+  Workflow,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -20,6 +21,7 @@ export type RailModel = { main: RailItem[]; old: RailSection[]; other: RailItem[
 const MAIN: { label: string; icon: LucideIcon; key: string }[] = [
   { label: "工作台", icon: House, key: "workspace" },
   { label: "学生档案", icon: Users, key: "students" },
+  { label: "Profiling 流程", icon: Workflow, key: "flow" },
   { label: "预约", icon: CalendarDays, key: "tools.bookings" },
 ];
 

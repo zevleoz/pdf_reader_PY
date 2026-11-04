@@ -959,13 +959,17 @@ def test_put_doc_validation_rev_and_impacts(client, rdb, fake, inline_jobs):
         res = doc_put(client, rdb, rev, [{"path": path, "value": "x"}])
         assert res.status_code == 400, path
     for path, value in [
-            (["dims", "R1", "abilities", "R1.1", "tags"], ["信息不足", "积极资源"]),
             (["dims", "R1", "abilities", "R1.1", "tags"], ["不存在"]),
             (["dims", "R1", "abilities", "R1.1", "y4_selected"], ["060"]),
             (["dims", "R1", "core_finding"], 5),
             (["plan"], []), (["plan"], [{"ability": "R9.9"}] * 2),
             (["plan"], [{"ability": "R1.1"}] * 4)]:
         assert doc_put(client, rdb, rev, [{"path": path, "value": value}]).status_code == 400
+    # 人工标签只要求五种固定标签之内，不再受 AI 协议组合限制
+    res = doc_put(client, rdb, rev, [{"path": ["dims", "R1", "abilities", "R1.1", "tags"],
+                                     "value": ["信息不足", "积极资源"]}])
+    assert res.status_code == 200
+    rev = res.get_json()["rev"]
     assert doc_put(client, rdb, rev, []).status_code == 400
     # 一个坏的就整批不生效
     res = doc_put(client, rdb, rev, [{"path": ["review_advice"], "value": "好"},
@@ -1006,6 +1010,38 @@ def test_put_doc_validation_rev_and_impacts(client, rdb, fake, inline_jobs):
     saved = client.get(url(rdb)).get_json()["doc"]["plan"]
     assert len(saved) == 1 and saved[0]["goal"] == {"text": "新目标", "src": "edited"}
     assert saved[0]["mentor"]["src"] == "ai"        # 文字没变
+
+
+def test_plan_ability_change_add_and_delete(client, rdb, fake, inline_jobs):
+    payload = generated_via_api(client, rdb, fake, inline_jobs)
+    rev = payload["report"]["rev"]
+    plan = copy.deepcopy(payload["doc"]["plan"])
+    assert len(plan) == 3
+
+    # 修改第一项的发展重点能力
+    changed = copy.deepcopy(plan[0])
+    changed["ability"] = "R4.1"
+    res = doc_put(client, rdb, rev, [{"path": ["plan"], "value": [changed] + plan[1:]}])
+    assert res.status_code == 200 and res.get_json()["rev"] == rev + 1
+    rev += 1
+    assert client.get(url(rdb)).get_json()["doc"]["plan"][0]["ability"] == "R4.1"
+
+    # 删除一项
+    current = client.get(url(rdb)).get_json()["doc"]["plan"]
+    res = doc_put(client, rdb, rev, [{"path": ["plan"], "value": current[1:]}])
+    assert res.status_code == 200 and res.get_json()["rev"] == rev + 1
+    rev += 1
+    assert len(client.get(url(rdb)).get_json()["doc"]["plan"]) == 2
+
+    # 新增第三项
+    current = client.get(url(rdb)).get_json()["doc"]["plan"]
+    added = {"ability": "R1.1", "goal": "新的目标", "mentor": "导师每周看一次记录",
+             "family": "家长在家提醒记录", "evidence": "两周记录与一次复盘"}
+    res = doc_put(client, rdb, rev, [{"path": ["plan"], "value": current + [added]}])
+    assert res.status_code == 200 and res.get_json()["rev"] == rev + 1
+    saved = client.get(url(rdb)).get_json()["doc"]["plan"]
+    assert len(saved) == 3 and saved[2]["ability"] == "R1.1"
+    assert saved[2]["goal"] == {"text": "新的目标", "src": "edited"}
 
 
 def test_put_evidence(client, rdb, fake, inline_jobs):
