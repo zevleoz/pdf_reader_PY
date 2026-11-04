@@ -303,12 +303,12 @@ def test_short_family_quote_inside_evidence_quote_still_matches():
 
 
 # ---------------------------------------------------------------------------
-# §9 附录另起一页
+# §9 v3 附录可接在方案后，不强制另起一页
 # ---------------------------------------------------------------------------
-def test_appendix_starts_on_a_new_page():
+def test_appendix_follows_plan_without_forced_new_page():
     css = (BASE_DIR / "static" / "m1" / "report_print.css").read_text("utf-8")
     rules = [m.group(1) for m in re.finditer(r"\.appendix\s*\{([^}]*)\}", css)]
-    assert rules and any("break-before: page" in body for body in rules)
+    assert rules and all("break-before: page" not in body for body in rules)
     assert ".draftmark::after" in css
 
 

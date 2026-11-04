@@ -283,7 +283,6 @@
     </div>
 
     <div class="dim-head">
-      <span class="dim-chip" style="background:{{ dim.chip }};">{{ dim.section }}</span>
       <span class="dim-name">{{ dim.en }}<span class="zh">｜ {{ dim.zh }}</span></span>
       <span class="dim-rule"></span>
     </div>
@@ -474,15 +473,7 @@
     </div>
     {% endif %}
 
-    <div class="sub-head">
-      <span class="sub-num">5.2</span>
-      <span class="sub-title">{{ fixed.plan.review_title }}</span>
-      <span class="sub-rule"></span>
-    </div>
-    <div class="review-box">
-      <h4>{{ fixed.plan.review_box_title }}</h4>
-      <p{{ ed(["review_advice"]) }}>{{ doc.review_advice.text }}</p>
-    </div>
+    <p class="plan-initial-note">{{ fixed.plan.initial_note }}</p>
   </section>
 
   {# ===== 附录 ===== #}

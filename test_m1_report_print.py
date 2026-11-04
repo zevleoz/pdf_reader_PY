@@ -99,6 +99,23 @@ def test_no_ai_placeholder_left(app):
     assert "[ai填入]" not in html
 
 
+def test_v3_fixed_template_text(app):
+    assert FIXED["template_file"] == "首次情绪力分析报告模板_修改版_v3.pdf"
+    assert FIXED["how_to_read"]["steps"][1][2] == "回顾经历与应对方式"
+    assert FIXED["analysis"]["columns"][0] == "情绪力能力"
+    assert FIXED["plan"]["table_title"] == "阶段成长与支持初步方案"
+    html = _render(app)
+    assert FIXED["plan"]["initial_note"] in html
+
+
+def test_v3_removes_review_block_and_dimension_number_chips(app):
+    html = _render(app)
+    assert FIXED["plan"]["review_title"] not in html
+    assert FIXED["plan"]["review_box_title"] not in html
+    assert FIXTURE["review_advice"]["text"] not in html
+    assert 'class="dim-chip"' not in html
+
+
 # ---------------------------------------------------------------------------
 # 3. 每个标签都带固定配色
 # ---------------------------------------------------------------------------

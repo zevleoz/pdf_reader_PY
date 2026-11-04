@@ -1,5 +1,5 @@
 {
- "template_file": "首次情绪力分析报告模板.pdf",
+ "template_file": "首次情绪力分析报告模板_修改版_v3.pdf",
  "page": {
   "header_left": "R4 · EMOTIONAL DEVELOPMENT",
   "footer_left": "R4 · EMOTIONAL DEVELOPMENT",
@@ -48,7 +48,7 @@
    [
     "02",
     "会议核实",
-    "学生经历与家长观察"
+    "回顾经历与应对方式"
    ],
    [
     "03",
@@ -113,7 +113,7 @@
   "title_en": "R4 Development Analysis",
   "title_zh": "四维发展分析",
   "columns": [
-   "R4 能力",
+   "情绪力能力",
    "能力说明",
    "Y4 与其他线索",
    "首次会议核实情况",
@@ -296,7 +296,8 @@
   "title_en": "Development Plan & Support",
   "title_zh": "阶段成长与支持方案",
   "intro": "根据 R4 综合分析，优先聚焦 1–3项值得支持的发展重点。",
-  "table_title": "阶段成长与支持方案",
+  "table_title": "阶段成长与支持初步方案",
+  "initial_note": "本方案为初步支持建议，具体课程安排将根据学生实际情况调整，以导师实际授课内容为准。",
   "columns": [
    "R4 发展重点",
    "阶段目标",

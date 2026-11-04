@@ -340,16 +340,6 @@ body.m1-report {
   break-inside: avoid;
   break-after: avoid;
 }
-.dim-chip {
-  flex: 0 0 auto;
-  min-width: 34pt;
-  text-align: center;
-  padding: 4pt 7pt;
-  border-radius: 4pt;
-  color: #FFFFFF;
-  font: 700 9pt/1.2 var(--sans);
-  letter-spacing: 0.3pt;
-}
 .dim-name {
   font: 700 16pt/1.2 var(--sans);
   color: #263149;
@@ -548,19 +538,14 @@ body.m1-report {
 .plan-table td.ability-cell { white-space: normal; }
 .plan-table .ability-code { display: block; font: 700 9pt/1.35 var(--sans); color: #26354B; }
 .plan-table .ability-name { display: block; margin-top: 3pt; font: 8.4pt/1.5 var(--sans); color: #283A50; }
-.review-box {
-  margin-top: 4pt;
-  padding: 11pt 13pt 12pt;
-  background: #F9F3F8;
-  border-left: 3pt solid #BA8CAC;
-  border-radius: 2pt;
-  break-inside: avoid;
+.plan-initial-note {
+  margin: 12pt 0 0;
+  font: 8.2pt/1.65 var(--sans);
+  color: var(--muted);
 }
-.review-box h4 { margin: 0 0 6pt; font: 700 8.8pt/1.4 var(--sans); color: #91648A; }
-.review-box p { margin: 0; font: 8.4pt/1.65 var(--sans); color: var(--body); white-space: pre-wrap; }
 
 /* ---------- 附录 ---------- */
-.appendix { margin-top: 22pt; break-before: page; }
+.appendix { margin-top: 22pt; }
 .appendix .appendix-rule {
   border-top: 0.6pt solid #D7C1D1;
   margin-bottom: 16pt;
