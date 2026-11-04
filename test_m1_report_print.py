@@ -116,6 +116,13 @@ def test_v3_removes_review_block_and_dimension_number_chips(app):
     assert 'class="dim-chip"' not in html
 
 
+def test_v3_cover_intro_is_horizontally_centered():
+    css = (BASE_DIR / "static" / "m1" / "report_print.css").read_text("utf-8")
+    block = css.split(".cover .intro {", 1)[1].split("}", 1)[0]
+    assert "margin: 46pt auto 0;" in block
+    assert "text-align" not in block
+
+
 # ---------------------------------------------------------------------------
 # 3. 每个标签都带固定配色
 # ---------------------------------------------------------------------------

@@ -149,7 +149,7 @@ body.m1-report {
   letter-spacing: 2pt;
 }
 .cover .intro {
-  margin: 46pt 0 0;
+  margin: 46pt auto 0;
   max-width: 372pt;
   font: 8.8pt/2 var(--sans);
   color: var(--body);
