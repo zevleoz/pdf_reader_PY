@@ -92,6 +92,7 @@
   <span class="sub">{{ status_label }}</span>
   <span class="sp"></span>
   <button type="button" id="printClose">关闭</button>
+  {% if prep %}<a id="printEdit" href="/m1/preps/{{ prep.id }}/report/print?edit=1">修改文字</a>{% endif %}
   <button type="button" class="pri" id="printGo">下载 PDF</button>
 </div>
 {% endif %}
@@ -107,6 +108,8 @@
   <button type="button" id="editPrev">上一处</button>
   <button type="button" class="pri" id="editNext">下一处</button>
   <button type="button" class="link" id="editMore" hidden></button>
+  <button type="button" class="pri" id="editExport"
+    data-export-url="/m1/preps/{{ prep.id }}/report/print?print=1">完成并导出 PDF</button>
 </div>
 <div class="edit-banner" id="editBanner" hidden></div>
 <script type="application/json" id="editData">{{ edit_data|tojson }}</script>
