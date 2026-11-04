@@ -10,7 +10,7 @@ import re
 
 import m1.report_store as report_store
 from app_utils import BASE_DIR
-from m1 import report_display
+from m1 import report_display, report_kb
 from test_m1_report_screen import SAMPLE, _login, _seed_report, client, m1db  # noqa: F401
 
 EDIT_JS = BASE_DIR / "static" / "m1" / "report_edit.js"
@@ -184,6 +184,52 @@ def test_edit_js_export_contract():
     assert "var pending = queue" in js
     assert "if (json === null)" in js
     assert "window.location.href = exportBtn.getAttribute('data-export-url')" in js
+
+
+def _edit_data(html):
+    node = re.search(r'<script type="application/json" id="editData">(.*?)</script>', html, re.S)
+    assert node
+    return json.loads(node.group(1))
+
+
+def test_edit_plan_rows_can_change_add_and_remove(client, m1db):  # noqa: F811
+    prep = _seed_report(m1db)
+    _login(client, m1db.admin_id, "admin")
+    html = client.get(f"/m1/preps/{prep['id']}/report/print?edit=1").get_data(as_text=True)
+
+    assert html.count('class="plan-ability"') == 3
+    assert html.count('class="plan-del"') == 3
+    assert "disabled" in _tag(html, "planAdd")
+    for tag in re.findall(r'<button[^>]*class="plan-del"[^>]*>', html):
+        assert "disabled" not in tag
+    data = _edit_data(html)
+    codes = [item["code"] for item in data["abilities"]]
+    assert set(codes) == set(report_kb.ability_map())
+    assert all(set(item) == {"code", "name", "dim"} for item in data["abilities"])
+
+
+def test_edit_plan_single_row_cannot_be_deleted(client, m1db):  # noqa: F811
+    doc = copy.deepcopy(FIXTURE)
+    doc["plan"] = doc["plan"][:1]
+    prep = _seed_custom(m1db, doc)
+    _login(client, m1db.admin_id, "admin")
+    html = client.get(f"/m1/preps/{prep['id']}/report/print?edit=1").get_data(as_text=True)
+
+    assert 'class="plan-ability"' in html
+    assert "disabled" not in _tag(html, "planAdd")
+    delete = re.search(r'<button[^>]*class="plan-del"[^>]*>', html)
+    assert delete and "disabled" in delete.group(0)
+
+
+def test_edit_js_plan_contract():
+    js = EDIT_JS.read_text(encoding="utf-8")
+    for text in ("function savePlan", "function planValue", "planAdd",
+                 "plan-del", "data-plan-ability-select"):
+        assert text in js, text
+    assert js.count("savePlan") >= 4
+    assert "innerHTML" not in js
+    # 导出仍等待串行队列里的最后一次保存
+    assert "var pending = queue" in js
 
 
 def test_checks_follow_display(client, m1db):  # noqa: F811

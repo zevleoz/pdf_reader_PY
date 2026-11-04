@@ -8,7 +8,7 @@ from sqlalchemy import inspect
 
 import m1.report_store as report_store
 import m1.speakers as speakers
-from m1 import report_pipeline
+from m1 import report_checks, report_pipeline
 from test_m1_report_core import (FakeModel, _item, admin_login, advisor_login,  # noqa: F401
                                  client, make_report, rdb, url)
 from test_m1_store import m1db  # noqa: F401  临时库与虚构学生（rdb 依赖它）
@@ -198,6 +198,41 @@ def test_speaker_algorithm_change_invalidates_cache(monkeypatch):
     monkeypatch.setattr(speakers, "SPEAKER_ALGORITHM_VERSION",
                         speakers.SPEAKER_ALGORITHM_VERSION + "-test")
     assert not speakers.is_current(row, report)
+
+
+def test_speaker_prompts_separate_mentor_reflection_from_self_evaluation():
+    for prompt in (speakers.SPEAKER_PROMPT, speakers.RECONCILE_PROMPT):
+        assert "导师常常对学生作出评价、总结优点、复述特点" in prompt
+        assert "这类内容属于 mentor_reflection" in prompt
+        assert "不能只凭“觉得”“认为”等词判断角色" in prompt
+
+
+PRAISE_LINE = "我觉得重视朋友是一个很好的优点"
+
+
+def test_mentor_praise_never_becomes_student_self_judgement(rdb, monkeypatch):
+    transcript = "\n".join([
+        "[00:00:10] 导师：%s。" % PRAISE_LINE,
+        "[00:00:20] 学生：我上周和同学一起去打球。",
+        "[00:00:30] 学生：放学后我们一起坐公交回家。",
+    ])
+    ask = _speaker_model()
+    ask.model.meeting_items = [
+        _item(PRAISE_LINE, "学生", "自我评价", ["R1.1"]),
+        _item("我上周和同学一起去打球", "学生", "具体行为事件", ["R1.1"]),
+    ]
+    ask.model.overrides = {"R1.1": {"meeting": {"sentences": [
+        {"text": "学生认为自己重视朋友是优点。", "evidence_ids": ["e1"], "kind": "fact"}]}}}
+    monkeypatch.setattr(report_pipeline, "call_model", ask)
+
+    report = make_report(rdb, transcript=transcript)
+    report_pipeline.generate(rdb.prep_row["id"], actor_id=rdb.alice_id)
+    version = report_store.current_version(report["id"])
+    praise = [e for e in version["evidence"] if e["quote"] == PRAISE_LINE]
+    assert praise and all(e["speaker"] != "学生" for e in praise)
+    texts = [text for _path, text in report_checks.family_fields(version["doc"])]
+    assert not any("学生认为" in text or "学生自认" in text or "学生觉得" in text
+                   for text in texts)
 
 
 def test_unlabelled_student_thought_and_mentor_guidance():

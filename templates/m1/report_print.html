@@ -446,8 +446,19 @@
         {% for row in doc.plan %}
         <tr>
           <td class="ability-cell">
+            {% if editing %}
+            <select class="plan-ability" data-plan-index="{{ loop.index0 }}" data-plan-ability-select
+                    aria-label="发展重点能力">
+              {% for item in edit_data.abilities %}
+              <option value="{{ item.code }}"{% if item.code == row.ability %} selected{% endif %}>{{ item.code }} {{ item.name }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" class="plan-del" data-plan-index="{{ loop.index0 }}"
+                    aria-label="删除这一项"{% if doc.plan|length <= 1 %} disabled{% endif %}>删除</button>
+            {% else %}
             <span class="ability-code">{{ row.ability }}</span>
             <span class="ability-name">{{ ability_names.get(row.ability, '') }}</span>
+            {% endif %}
           </td>
           <td{{ ed(["plan", loop.index0, "goal"]) }}{% if editing %} data-plan-index="{{ loop.index0 }}" data-plan-key="goal" data-plan-ability="{{ row.ability }}"{% endif %}>{{ row.goal.text }}</td>
           <td{{ ed(["plan", loop.index0, "mentor"]) }}{% if editing %} data-plan-index="{{ loop.index0 }}" data-plan-key="mentor" data-plan-ability="{{ row.ability }}"{% endif %}>{{ row.mentor.text }}</td>
@@ -457,6 +468,11 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if editing %}
+    <div class="plan-tools">
+      <button type="button" id="planAdd"{% if doc.plan|length >= 3 %} disabled{% endif %}>新增发展重点</button>
+    </div>
+    {% endif %}
 
     <div class="sub-head">
       <span class="sub-num">5.2</span>
@@ -551,7 +567,14 @@
     background: #fff; padding: 2px 8px; cursor: pointer; }
   .tag-pop { margin-top: 6px; padding: 6px; border: 1px solid #c9ced6; border-radius: 6px; background: #fff; }
   .tag-pop label { display: block; font-size: 12px; }
-  @media print { .edit-bar, .edit-banner, .tag-edit, .tag-pop { display: none !important; }
+  .plan-ability { font: 12px/1.4 system-ui, sans-serif; max-width: 100%; margin-bottom: 4px; }
+  .plan-del, .plan-tools button { font: 12px/1.4 system-ui, sans-serif; padding: 2px 8px;
+    border: 1px solid #c9ced6; border-radius: 6px; background: #fff; cursor: pointer; }
+  .plan-del { display: block; color: #b42318; }
+  .plan-del:disabled, .plan-tools button:disabled { color: #98a2b3; cursor: default; }
+  .plan-tools { margin-top: 8px; }
+  @media print { .edit-bar, .edit-banner, .tag-edit, .tag-pop, .plan-ability, .plan-del,
+    .plan-tools { display: none !important; }
     .needs-check, [data-path] { outline: none !important; background: none !important; box-shadow: none !important; } }
 </style>
 <script type="application/json" id="editCsrf">{{ csrf_token()|tojson }}</script>

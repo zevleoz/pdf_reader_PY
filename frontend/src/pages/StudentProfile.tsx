@@ -10,6 +10,7 @@ import { ApiError, errorText, getJSON, postJSON, putJSON } from "@/lib/api";
 import { trackLine, type Progress } from "@/lib/progress";
 import { useTab } from "@/lib/useTab";
 import { cn } from "@/lib/utils";
+import { recordRecent } from "@/lib/recent";
 import PageHeader from "@/shell/PageHeader";
 
 import { EmptyPanel, ProfileCtx, ResourceCache, type Notify, type OpenFlag, type PageData } from "./profile/common";
@@ -201,6 +202,11 @@ export default function StudentProfile() {
       cancelled = true;
     };
   }, [code, reload]);
+
+  const recentName = state.status === "ready" ? state.data.student.name : "";
+  React.useEffect(() => {
+    if (recentName) recordRecent(code, recentName);
+  }, [code, recentName]);
 
   const refreshProgress = React.useCallback(async () => {
     try {

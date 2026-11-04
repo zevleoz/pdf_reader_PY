@@ -21,7 +21,7 @@ ROLES = ("学生", "导师", "家长", "其他", "待确认")
 UNSURE = "待确认"
 TASK_SPEAKERS = "任务：判断逐字稿每段的发言人"
 TASK_RECONCILE = "任务：复核整场逐字稿的发言人"
-SPEAKER_ALGORITHM_VERSION = "2026-11-04-full-context-v2"
+SPEAKER_ALGORITHM_VERSION = "2026-11-04-full-context-v3"
 SPEECH_ACTS = (
     "student_experience", "student_emotion_or_thought",
     "mentor_question", "mentor_reflection", "mentor_guidance",
@@ -55,6 +55,8 @@ SPEAKER_PROMPT = TASK_SPEAKERS + """
 - 看上下文：一个问题后面的回答，一般是另一个人说的。
 - 称呼“老师”的，通常是学生或家长；直接称呼学生名字的，通常是导师或家长。
 - 家长会用第三人称谈论学生，例如“孩子在家……”。
+- 导师常常对学生作出评价、总结优点、复述特点，例如“重视朋友是一个很好的优点”；这类内容属于 mentor_reflection，不是学生自我评价。
+- 结合问答上下文判断：导师的话即使出现“觉得”“认为”，也不是学生在说自己的想法，不能只凭“觉得”“认为”等词判断角色。
 - label 只是转写软件给的标签，只作提示，不要只凭标签判断。
 - role 已经填好的段落和 context 为 true 的段落只作参考，不用返回。
 - 拿不准就写“待确认”，不要猜。
@@ -79,6 +81,7 @@ RECONCILE_PROMPT = TASK_RECONCILE + """
 请复核整场对话的一致性，只修正判断错误的段：
 - 结合整场的前后文，检查同一个人的发言是否前后一致，以及角色与 speech_act 是否相符。
 - target 为 true 的段可以修正；target 为 false 的段由规则确定或导师已修改，即使返回也会被忽略。
+- 导师常常对学生作出评价、总结优点、复述特点，这类内容属于 mentor_reflection，不是学生自我评价；不能只凭“觉得”“认为”等词判断角色，要结合问答上下文。
 - 只使用给出的段号，不新增段，不重复段。
 - 拿不准就保留原判断，不要猜。
 

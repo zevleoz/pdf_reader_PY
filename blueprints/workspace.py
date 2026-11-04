@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, render_template, session
 
@@ -351,4 +352,195 @@ def api_profiling_student_y4(code):
         "items": [{"code": it.get("code", ""), "label": it.get("label", ""),
                    "value": it.get("raw_value"), "dimension": it.get("dimension", ""),
                    "eval": it.get("eval_value") or ""} for it in items],
+    })
+
+
+# ---------------------------------------------------------------------------
+# S4-C6a：工作台待处理队列（只读；规则复用 profiling_stages，不调用任何 AI）
+# ---------------------------------------------------------------------------
+_UPCOMING_LIMIT = 5
+
+
+def _wb_six_am_reviewed(student_ids):
+    """{student_id: reviewed|None}：最新报告的最新 6AM 档案里，A1–A5 中最新团队结论为
+    agree/adjust 的个数；没有档案则为 None。按块 IN 查询，与学生数无关。"""
+    import db as _db
+    import profiling_stages as ps
+    from sqlalchemy import select
+
+    out = {}
+    report_of = {}
+    dim_ids = ps.six_am_dimension_ids()
+    with _db.Session(_db.engine) as sess:
+        for part in ps._chunks(sorted(student_ids)):
+            latest = {}
+            for sid, rid in sess.execute(
+                    select(_db.Report.student_id, _db.Report.id)
+                    .where(_db.Report.student_id.in_(part))
+                    .order_by(_db.Report.student_id.asc(), _db.Report.report_date.desc(),
+                              _db.Report.id.desc())).all():
+                latest.setdefault(sid, rid)
+            report_of.update(latest)
+            owner = {rid: sid for sid, rid in latest.items()}
+            if not owner:
+                continue
+            best = {}
+            for pid, rid in sess.execute(
+                    select(_db.SixAmProfile.id, _db.SixAmProfile.report_id)
+                    .where(_db.SixAmProfile.report_id.in_(list(owner)))
+                    .order_by(_db.SixAmProfile.report_id.asc(),
+                              _db.SixAmProfile.version.desc(),
+                              _db.SixAmProfile.id.desc())).all():
+                best.setdefault(rid, pid)
+            profile_owner = {pid: owner[rid] for rid, pid in best.items()}
+            latest_rev = {}
+            if profile_owner:
+                for pid, dim, verdict in sess.execute(
+                        select(_db.SixAmReview.profile_id, _db.SixAmReview.dim,
+                               _db.SixAmReview.verdict)
+                        .where(_db.SixAmReview.profile_id.in_(list(profile_owner)))
+                        .order_by(_db.SixAmReview.id.desc())).all():
+                    latest_rev.setdefault((pid, dim), (verdict or "").strip())
+            for pid, sid in profile_owner.items():
+                out[sid] = sum(1 for d in dim_ids
+                               if latest_rev.get((pid, d)) in ps.REVIEWED_VERDICTS)
+    return {sid: out.get(sid) for sid in student_ids}, report_of
+
+
+def _wb_first_touch_updated(student_ids):
+    """{student_id: 未归档 copilot 会话的最晚更新时间 iso | None}。"""
+    import db as _db
+    import growth_talk_store as _gt
+    import profiling_stages as ps
+    from sqlalchemy import func, select
+
+    out = {}
+    with _db.Session(_db.engine) as sess:
+        for part in ps._chunks(sorted(student_ids)):
+            for sid, at in sess.execute(
+                    select(_gt.CopilotSession.student_id, func.max(_gt.CopilotSession.updated_at))
+                    .where(_gt.CopilotSession.student_id.in_(part),
+                           _gt.CopilotSession.status != "ARCHIVED")
+                    .group_by(_gt.CopilotSession.student_id)).all():
+                out[sid] = at.isoformat() if at else None
+    return out
+
+
+def _wb_upcoming(scope):
+    import db as _db
+    from sqlalchemy import select
+
+    now = datetime.now(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
+    stmt = (select(_db.Booking, _db.Student.student_code)
+            .outerjoin(_db.Student, _db.Booking.student_id == _db.Student.id)
+            .where(_db.Booking.status == "pending",
+                   _db.Booking.appointment_time >= now)
+            .order_by(_db.Booking.appointment_time.asc(), _db.Booking.id.asc())
+            .limit(_UPCOMING_LIMIT))
+    if scope is not None:
+        stmt = stmt.where(_db.Booking.advisor_name == scope)
+    with _db.Session(_db.engine) as sess:
+        return [{"booking_id": b.id, "student_name": b.student_name,
+                 "student_code": code or None,
+                 "appointment_time": b.appointment_time.isoformat(),
+                 "advisor_name": b.advisor_name or ""}
+                for b, code in sess.execute(stmt).all()]
+
+
+@bp.route("/api/profiling/workbench")
+@login_required
+def api_profiling_workbench():
+    """S4-C6a：工作台数据（阶段计数、待处理队列、接下来的预约、生成作业）。"""
+    from flask import jsonify
+    from sqlalchemy import select
+    import db as _db
+    import profiling_stages as ps
+    import questionnaire_store as _qs
+    from app_utils import can_see_full
+
+    scope = _advisor_scope()
+    full = can_see_full()
+    can_write = session.get("role") != "viewer"
+
+    stmt = visible_student_filter(select(
+        _db.Student.id, _db.Student.student_code, _db.Student.name, _db.Student.created_at))
+    with _db.Session(_db.engine) as sess:
+        rows = sess.execute(stmt).all()
+    students = {r.id: {"id": r.id, "code": r.student_code or "", "name": r.name or "",
+                       "created_at": r.created_at} for r in rows}
+    facts = ps.load_facts(students)
+    prog = {sid: ps.build_progress(f) for sid, f in facts.items()}
+
+    counts = {k: 0 for k in ("booking", "y4_report", "interpretation", "six_am", "done")}
+    for p in prog.values():
+        counts[ps._stage_bucket(p)] += 1
+
+    def who(sid):
+        s = students[sid]
+        return {"id": s["id"], "code": s["code"], "name": s["name"]}
+
+    def newest_first(sids):
+        def key(sid):
+            at = ps._parse_dt(ps.updated_at_of(prog[sid], students[sid]["created_at"]))
+            return (at or datetime.min, sid)
+        return sorted(sids, key=key, reverse=True)
+
+    queue = []
+
+    # flag：只给完整权限账号
+    if full:
+        for f in _qs.list_open_flags(advisor_name=scope):
+            if f.get("student_id") not in students:
+                continue
+            queue.append({
+                "kind": "flag", "student": who(f["student_id"]),
+                "assignment_id": f["assignment_id"],
+                "questionnaire_title": f.get("questionnaire_title") or "",
+                "flags": [{"label": x.get("label") or "", "answer": x.get("answer") or ""}
+                          for x in (f.get("flags") or [])],
+                "submitted_at": f.get("submitted_at"),
+            })
+
+    # confirm：待确认任务按学生分组，最早创建的组在前（不含 reason）
+    groups = {}
+    for a in _qs.list_assignments("pending", advisor_name=scope, limit=100000):
+        if a["student_id"] not in students:
+            continue
+        g = groups.setdefault(a["student_id"], {"assignments": [], "created_at": None})
+        g["assignments"].append({"id": a["id"], "questionnaire_title": a["questionnaire_title"],
+                                 "source": a["source"]})
+        if a["created_at"] and (g["created_at"] is None or a["created_at"] < g["created_at"]):
+            g["created_at"] = a["created_at"]
+    for sid, g in sorted(groups.items(), key=lambda kv: (kv[1]["created_at"] or "", kv[0])):
+        g["assignments"].sort(key=lambda x: x["id"])
+        queue.append({"kind": "confirm", "student": who(sid), **g})
+
+    # six_am：下一步是 6AM
+    six_ids = newest_first([sid for sid, p in prog.items()
+                            if p["next"] and p["next"]["key"] == "six_am"])
+    reviewed, report_of = _wb_six_am_reviewed(six_ids) if six_ids else ({}, {})
+    for sid in six_ids:
+        queue.append({"kind": "six_am", "student": who(sid),
+                      "report_id": report_of.get(sid), "reviewed": reviewed.get(sid)})
+
+    # first_touch：已开始、未确认
+    ft_ids = newest_first([sid for sid, f in facts.items()
+                           if f.get("ft_started") and not f.get("ft_confirmed")])
+    ft_at = _wb_first_touch_updated(ft_ids) if ft_ids else {}
+    for sid in ft_ids:
+        queue.append({"kind": "first_touch", "student": who(sid),
+                      "updated_at": ft_at.get(sid)})
+
+    # booking：下一步是预约
+    for sid in newest_first([sid for sid, p in prog.items()
+                             if p["next"] and p["next"]["key"] == "booking"]):
+        queue.append({"kind": "booking", "student": who(sid)})
+
+    return jsonify({
+        "ok": True,
+        "permissions": {"can_write": can_write, "full": full},
+        "counts": counts,
+        "queue": queue,
+        "upcoming": _wb_upcoming(scope),
+        "job": _generation_job() if session.get("role") != "viewer" else None,
     })
