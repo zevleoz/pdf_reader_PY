@@ -7,14 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, errorText, getJSON, postJSON, putJSON } from "@/lib/api";
-import { stageState, type Progress } from "@/lib/progress";
+import { trackLine, type Progress } from "@/lib/progress";
 import { useTab } from "@/lib/useTab";
 import { cn } from "@/lib/utils";
 import PageHeader from "@/shell/PageHeader";
 
-import { ProfileCtx, ResourceCache, type Notify, type OpenFlag, type PageData } from "./profile/common";
+import { EmptyPanel, ProfileCtx, ResourceCache, type Notify, type OpenFlag, type PageData } from "./profile/common";
 import FilesTab from "./profile/FilesTab";
 import FirstTouchTab from "./profile/FirstTouchTab";
+import { NextBox } from "./profile/NextStep";
 import OverviewTab from "./profile/OverviewTab";
 import QuestionnaireTab from "./profile/QuestionnaireTab";
 import SixAmTab from "./profile/SixAmTab";
@@ -38,7 +39,7 @@ type LoadState =
 
 /* ------------------------------------------------------------ 顾问 / 学校 行内编辑 */
 function MetaField({
-  label,
+  prefix,
   field,
   value,
   editLabel,
@@ -48,7 +49,7 @@ function MetaField({
   onSaved,
   notify,
 }: {
-  label: string;
+  prefix?: string;
   field: "advisor_name" | "school";
   value: string;
   editLabel: string;
@@ -80,12 +81,12 @@ function MetaField({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5 text-sm">
-      <span className="shrink-0 text-mute">{label}</span>
+    <span className="inline-flex min-w-0 items-center gap-1">
+      {prefix ? <span>{prefix}</span> : null}
       {editing ? (
         <Input
           autoFocus
-          className="h-8 w-40 rounded-none"
+          className="h-7 w-40 rounded-none text-sm"
           value={draft}
           placeholder={placeholder}
           onChange={(e) => setDraft(e.target.value)}
@@ -102,13 +103,13 @@ function MetaField({
         />
       ) : (
         <>
-          <span className={cn("min-w-0 truncate", !value && "text-mute")}>{value || "未填写"}</span>
+          <span className="min-w-0 break-words">{value || "未填写"}</span>
           {canWrite ? (
             <button
               type="button"
               title={editLabel}
               aria-label={editLabel}
-              className="inline-flex h-6 w-6 shrink-0 items-center justify-center border border-line text-mute hover:bg-sunk"
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-mute hover:bg-sunk hover:text-ink"
               onClick={() => {
                 setDraft(value || "");
                 setEditing(true);
@@ -119,91 +120,30 @@ function MetaField({
           ) : null}
         </>
       )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------ 下一步 */
-const NEXT_BUTTON: Record<string, { label: string; href: (id: number) => string }> = {
-  booking: { label: "去预约", href: () => "/booking" },
-  y4_report: { label: "去生成报告", href: () => "/generate" },
-  interpretation: { label: "去写会议纪要", href: (id) => "/tools/transcript?student_id=" + id },
-};
-
-function NextStep({
-  data,
-  onSixAm,
-}: {
-  data: PageData;
-  onSixAm: () => void;
-}) {
-  const { progress, permissions, student, six_am } = data;
-  let body: React.ReactNode;
-  if (progress.done) {
-    const at = (progress.stages.find((s) => s.key === "six_am") || { at: null }).at;
-    body = (
-      <p className="text-base font-bold">
-        Profiling 已完成
-        {at ? <span className="ml-2 font-mono text-sm font-normal">{at.slice(0, 10)}</span> : null}
-      </p>
-    );
-  } else {
-    const next = progress.next;
-    let action: React.ReactNode = null;
-    if (next && permissions.can_write) {
-      if (next.key === "six_am") {
-        action = six_am ? (
-          <Button onClick={onSixAm}>记录 6AM 团队结论</Button>
-        ) : (
-          <>
-            <span className="text-sm">6AM 档案尚未生成</span>
-            <Button variant="outline" asChild>
-              <a href="/insights/six-am">打开 6AM</a>
-            </Button>
-          </>
-        );
-      } else if (NEXT_BUTTON[next.key]) {
-        const b = NEXT_BUTTON[next.key];
-        action = (
-          <Button asChild>
-            <a href={b.href(student.id)}>{b.label}</a>
-          </Button>
-        );
-      }
-    }
-    body = (
-      <div className="flex flex-wrap items-center gap-3">
-        <p className="text-base font-bold">下一步：{next ? next.label : progress.label}</p>
-        {action}
-      </div>
-    );
-  }
-  return (
-    <div className={cn("mb-4 border px-4 py-3", progress.done ? "border-rule" : "border-attention bg-tint")}>{body}</div>
+    </span>
   );
 }
 
 /* ------------------------------------------------------------ 六步进度 */
 function Tracker({ progress }: { progress: Progress }) {
+  const currentKey = progress.done || !progress.next ? null : progress.next.key;
   return (
-    <ol className="mb-6 grid grid-cols-2 border-t-2 border-rule sm:grid-cols-3 lg:grid-cols-6">
-      {progress.stages.map((s) => (
-        <li key={s.key} className="min-w-0 border-b border-line py-3 pr-3">
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className={cn(
-                "h-3 w-3 shrink-0",
-                s.state === "done" && "bg-ink",
-                s.state === "todo" && (s.required ? "border border-ink" : "border border-line"),
-                s.state === "not_used" && "bg-sunk",
-              )}
-            />
-            <span className={cn("min-w-0 truncate text-sm", s.required ? "font-bold" : "font-medium")}>{s.label}</span>
-          </div>
-          <div className="mt-1 pl-5 text-xs text-mute">{stageState(s)}</div>
-        </li>
-      ))}
+    <ol className="grid auto-cols-[104px] grid-flow-col overflow-x-auto md:grid-flow-row md:auto-cols-auto md:grid-cols-6 md:overflow-visible">
+      {progress.stages.map((s) => {
+        const current = s.key === currentKey;
+        return (
+          <li
+            key={s.key}
+            className={cn(
+              "min-w-0 border-t-[5px] px-2.5 pb-2 pt-[9px]",
+              s.state === "done" ? "border-ink" : current ? "border-hl" : "border-line",
+            )}
+          >
+            <b className={cn("block text-[13.5px] font-bold leading-tight", current && "text-hl")}>{s.label}</b>
+            <small className="block text-[12.5px] leading-snug text-mute">{trackLine(s, current)}</small>
+          </li>
+        );
+      })}
     </ol>
   );
 }
@@ -218,6 +158,9 @@ export default function StudentProfile() {
   const [visited, setVisited] = React.useState<string[]>([tab]);
   const [notice, setNotice] = React.useState<{ text: string; kind: "ok" | "error" } | null>(null);
   const cache = React.useMemo(() => new ResourceCache(), [code]);
+  const [y4Dim, setY4Dim] = React.useState("");
+  const listRef = React.useRef<HTMLDivElement | null>(null);
+  const [ink, setInk] = React.useState<{ left: number; width: number }>({ left: 0, width: 0 });
 
   const noticeTimer = React.useRef<number | undefined>(undefined);
   const notify: Notify = React.useCallback((text, kind = "ok") => {
@@ -231,6 +174,18 @@ export default function StudentProfile() {
   React.useEffect(() => {
     setVisited((v) => (v.includes(tab) ? v : [...v, tab]));
   }, [tab]);
+
+  // 标签下的滑动条：量当前标签的位置（标签文字、窗口宽度变化时重新量）
+  const flagCountKey = state.status === "ready" ? state.data.questionnaire_flags.length : -1;
+  React.useLayoutEffect(() => {
+    const measure = () => {
+      const el = listRef.current?.querySelector<HTMLElement>('[data-state="active"]');
+      if (el) setInk({ left: el.offsetLeft, width: el.offsetWidth });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [tab, state.status, flagCountKey]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -300,16 +255,10 @@ export default function StudentProfile() {
   const setStudent = (patch: Partial<typeof student>) =>
     setState((s) => (s.status === "ready" ? { status: "ready", data: { ...s.data, student: { ...s.data.student, ...patch } } } : s));
 
-  const sub = [
-    student.code,
-    student.grade || "未填年级",
-    student.gender || null,
-    student.birthday ? "生日 " + student.birthday : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const openFlags = permissions.full ? data.questionnaire_flags : [];
+  const flagCount = openFlags.reduce((n, f) => n + (f.flags || []).length, 0);
 
-  async function reviewFlag(f: OpenFlag) {
+  const reviewFlag = async (f: OpenFlag) => {
     try {
       const d = await postJSON<{ ok: boolean }>("/api/questionnaires/assignments/" + f.assignment_id + "/flag-review");
       if (!d.ok) throw new Error("操作失败");
@@ -322,147 +271,161 @@ export default function StudentProfile() {
           : s,
       );
       notify("已标记跟进", "ok");
-      cache.invalidate("profile", "questionnaires");
+      cache.invalidate("questionnaires");
     } catch (e) {
       notify(errorText(e), "error");
     }
+  };
+
+  const subParts: React.ReactNode[] = [
+    <span key="code" className="font-mono">
+      {student.code}
+    </span>,
+    <span key="grade">{student.grade || "未填年级"}</span>,
+    <MetaField
+      key="school"
+      field="school"
+      value={student.school}
+      editLabel="编辑学校"
+      placeholder="学校"
+      studentId={student.id}
+      canWrite={permissions.can_write}
+      onSaved={(v) => setStudent({ school: v })}
+      notify={notify}
+    />,
+    <MetaField
+      key="advisor"
+      prefix="顾问 "
+      field="advisor_name"
+      value={student.advisor_name}
+      editLabel="编辑顾问"
+      placeholder="顾问姓名"
+      studentId={student.id}
+      canWrite={permissions.can_write}
+      onSaved={(v) => setStudent({ advisor_name: v })}
+      notify={notify}
+    />,
+  ];
+  if (permissions.full && flagCount > 0) {
+    subParts.push(
+      <b key="flag" className="font-bold text-attention">
+        安全提醒
+      </b>,
+    );
   }
+  const contact = permissions.full
+    ? [
+        student.gender || null,
+        student.birthday ? "生日 " + student.birthday : null,
+        student.email ? "邮箱：" + student.email : null,
+        student.phone ? "电话：" + student.phone : null,
+      ].filter(Boolean)
+    : [];
+  const linkClass = "text-mute underline-offset-2 hover:underline";
 
   return (
-    <ProfileCtx.Provider value={{ data, code, cache, notify, setTab, refreshProgress, refreshPage }}>
+    <ProfileCtx.Provider value={{ data, code, cache, notify, setTab, refreshProgress, refreshPage, y4Dim, setY4Dim, reviewFlag }}>
       <div>
-        <Link to="/students" className="mb-3 inline-block text-sm text-mute hover:underline">
+        <Link to="/students" className="mb-3 inline-block text-sm text-mute hover:underline md:hidden">
           ← 学生档案
         </Link>
 
-        <PageHeader
-          title={student.name}
-          sub={sub}
-          actions={
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" asChild>
-                <a href={"/students/" + encodeURIComponent(student.code)}>旧版档案</a>
-              </Button>
-              {permissions.m1_access ? (
-                <Button variant="outline" asChild>
-                  <a href={"/m1?student=" + student.id}>M1</a>
-                </Button>
-              ) : null}
-              {permissions.is_admin ? (
-                <Button variant="outline" asChild>
-                  <a href={"/first-touch/archive/" + student.id}>First Touch 归档</a>
-                </Button>
-              ) : null}
-            </div>
-          }
-        />
+        <PageHeader title={student.name} actions={<div className="hidden md:block"><NextBox data={data} onSixAm={() => setTab("six_am")} /></div>} />
 
-        <div className="mb-4 flex flex-wrap gap-x-6 gap-y-2">
-          <MetaField
-            label="顾问："
-            field="advisor_name"
-            value={student.advisor_name}
-            editLabel="编辑顾问"
-            placeholder="顾问姓名"
-            studentId={student.id}
-            canWrite={permissions.can_write}
-            onSaved={(v) => setStudent({ advisor_name: v })}
-            notify={notify}
-          />
-          <MetaField
-            label="学校："
-            field="school"
-            value={student.school}
-            editLabel="编辑学校"
-            placeholder="学校"
-            studentId={student.id}
-            canWrite={permissions.can_write}
-            onSaved={(v) => setStudent({ school: v })}
-            notify={notify}
-          />
-          {permissions.full ? (
-            <>
-              <div className="flex min-w-0 gap-1.5 text-sm">
-                <span className="shrink-0 text-mute">邮箱：</span>
-                <span className={cn("min-w-0 break-all", !student.email && "text-mute")}>{student.email || "未填写"}</span>
-              </div>
-              <div className="flex min-w-0 gap-1.5 text-sm">
-                <span className="shrink-0 text-mute">电话：</span>
-                <span className={cn("min-w-0 font-mono", !student.phone && "text-mute")}>{student.phone || "未填写"}</span>
-              </div>
-            </>
-          ) : null}
+        <div className="-mt-3 mb-4 text-sm">
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-mute">
+            {subParts.map((part, i) => (
+              <React.Fragment key={i}>
+                {i > 0 ? <span aria-hidden="true">·</span> : null}
+                {part}
+              </React.Fragment>
+            ))}
+          </p>
+          {contact.length > 0 ? <p className="mt-1 break-all text-mute">{contact.join(" · ")}</p> : null}
+          <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+            <a className={linkClass} href={"/students/" + encodeURIComponent(student.code)}>
+              旧版档案
+            </a>
+            {permissions.m1_access ? (
+              <a className={linkClass} href={"/m1?student=" + student.id}>
+                M1
+              </a>
+            ) : null}
+            {permissions.is_admin ? (
+              <a className={linkClass} href={"/first-touch/archive/" + student.id}>
+                First Touch 归档
+              </a>
+            ) : null}
+          </p>
         </div>
 
-        {data.questionnaire_flags.map((f) => (
-          <div key={f.assignment_id} className="mb-3 flex flex-wrap items-center gap-3 border border-attention bg-tint px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <div className="font-bold text-attention">需优先关注：{f.questionnaire_title}</div>
-              {(f.flags || []).map((x) => (
-                <div key={x.id} className="mt-0.5 text-sm">
-                  {x.label}：选择「{x.answer}」
-                </div>
-              ))}
-            </div>
-            {permissions.can_write ? (
-              <Button variant="outline" size="sm" onClick={() => reviewFlag(f)}>
-                标记已跟进
-              </Button>
-            ) : null}
-          </div>
-        ))}
+        <div className="mb-4 md:hidden">
+          <NextBox data={data} onSixAm={() => setTab("six_am")} phone />
+        </div>
 
-        <NextStep data={data} onSixAm={() => setTab("six_am")} />
         <Tracker progress={data.progress} />
 
         <Tabs value={tab} onValueChange={setTab}>
-          <div className="overflow-x-auto">
-            <TabsList className="w-max min-w-full">
-              {TABS.map((t) => (
-                <TabsTrigger key={t.key} value={t.key}>
-                  {t.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
+          <TabsList
+            ref={listRef}
+            className="relative mb-[18px] mt-[18px] flex h-auto w-full gap-5 overflow-x-auto"
+          >
+            {TABS.map((t) => (
+              <TabsTrigger
+                key={t.key}
+                value={t.key}
+                className="h-auto px-px py-[9px] text-sm font-medium data-[state=active]:border-transparent data-[state=active]:font-bold"
+              >
+                {t.label}
+                {t.key === "questionnaires" && flagCount > 0 ? <b className="ml-1 font-bold text-attention">{flagCount}</b> : null}
+              </TabsTrigger>
+            ))}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 h-[3px] bg-hl transition-[left,width] duration-200 ease-out"
+              style={{ left: ink.left, width: ink.width }}
+            />
+          </TabsList>
           {visited.includes("overview") ? (
-            <TabsContent value="overview" forceMount className="data-[state=inactive]:hidden">
+            <TabsContent value="overview" forceMount className="mt-0 data-[state=inactive]:hidden">
               <OverviewTab />
             </TabsContent>
           ) : null}
           {visited.includes("y4") ? (
-            <TabsContent value="y4" forceMount className="data-[state=inactive]:hidden">
+            <TabsContent value="y4" forceMount className="mt-0 data-[state=inactive]:hidden">
               <Y4Tab />
             </TabsContent>
           ) : null}
           {visited.includes("questionnaires") ? (
-            <TabsContent value="questionnaires" forceMount className="data-[state=inactive]:hidden">
+            <TabsContent value="questionnaires" forceMount className="mt-0 data-[state=inactive]:hidden">
               <QuestionnaireTab />
             </TabsContent>
           ) : null}
           {visited.includes("six_am") ? (
-            <TabsContent value="six_am" forceMount className="data-[state=inactive]:hidden">
+            <TabsContent value="six_am" forceMount className="mt-0 data-[state=inactive]:hidden">
               <SixAmTab />
             </TabsContent>
           ) : null}
           {visited.includes("first_touch") ? (
-            <TabsContent value="first_touch" forceMount className="data-[state=inactive]:hidden">
+            <TabsContent value="first_touch" forceMount className="mt-0 data-[state=inactive]:hidden">
               <FirstTouchTab />
             </TabsContent>
           ) : null}
           {visited.includes("m1") ? (
-            <TabsContent value="m1" forceMount className="data-[state=inactive]:hidden">
-              {permissions.m1_access ? (
-                <Button asChild>
-                  <a href={"/m1?student=" + student.id}>打开 M1</a>
-                </Button>
-              ) : (
-                <p className="py-8 text-mute">当前账号未开通 M1</p>
-              )}
+            <TabsContent value="m1" forceMount className="mt-0 data-[state=inactive]:hidden">
+              <EmptyPanel title="M1 在单独的平台里">
+                {permissions.m1_access ? (
+                  <Button asChild>
+                    <a href={"/m1?student=" + student.id}>打开 M1</a>
+                  </Button>
+                ) : (
+                  <span>当前账号未开通 M1</span>
+                )}
+              </EmptyPanel>
             </TabsContent>
           ) : null}
           {visited.includes("files") ? (
-            <TabsContent value="files" forceMount className="data-[state=inactive]:hidden">
+            <TabsContent value="files" forceMount className="mt-0 data-[state=inactive]:hidden">
               <FilesTab />
             </TabsContent>
           ) : null}

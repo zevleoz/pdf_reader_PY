@@ -25,3 +25,14 @@ export function stageState(stage: Stage): string {
 export function stageTitle(stage: Stage): string {
   return stage.label + "：" + stageState(stage);
 }
+
+/** 档案页六步条下面那一行小字（不带天数）。current = 当前下一步所在阶段。 */
+export function trackLine(stage: Stage, current: boolean): string {
+  if (stage.state === "done") {
+    return "已完成" + (stage.at ? " " + stage.at.slice(0, 10) : "");
+  }
+  if (current) return "进行中";
+  if (!stage.required && stage.state === "todo") return "进行中";
+  if (stage.state === "not_used") return "可选，未开始";
+  return "未开始";
+}

@@ -2122,18 +2122,61 @@ def get_indicator_distributions() -> Dict[str, Any]:
     return result
 
 
-def get_student_profiles() -> List[Dict[str, Any]]:
-    """每个学生的四维健康度侧写,用于个体对比。"""
-    from collections import defaultdict
-    try:
-        from evaluation_rules import (
-            dimension_of, derive_evaluation, _find_norm,
-            _to_number, _code_int, build_evaluation_view,
-        )
-    except Exception:
-        return []
+def report_dimension_health(items: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """一份报告 schema_124 的四维健康度:{维度: {healthy, weak_count, total}}。
+
+    get_student_profiles 与学生档案页共用同一份计算(healthy = 非偏弱指标占比)。
+    """
+    from evaluation_rules import (
+        dimension_of, derive_evaluation, _find_norm,
+        _code_int, build_evaluation_view,
+    )
 
     weak_evals = {"偏低", "明显偏低", "严重偏低", "需关注", "需特殊关注"}
+
+    # 用 build_evaluation_view 拿到含规则推导 + 档位 fallback 的 eval_value
+    eval_items, _ = build_evaluation_view(items)
+    eval_map: Dict[str, str] = {}
+    for ei in eval_items:
+        c = str(ei.get("code", ""))
+        if c and ei.get("eval_value"):
+            eval_map[c] = ei["eval_value"]
+
+    dim_stats = {d: {"weak": 0, "total": 0} for d in _DIMS}
+    for item in items:
+        code = str(item.get("code", ""))
+        if not code:
+            continue
+        dim = dimension_of(item)
+        if dim not in _DIMS:
+            continue
+        # 优先用 build_evaluation_view 的结果（含档位 fallback）
+        ev = eval_map.get(code)
+        if not ev:
+            norm = _find_norm(items, _code_int(code))
+            ev, _ = derive_evaluation(code, item.get("label", ""), item.get("value"), norm)
+        dim_stats[dim]["total"] += 1
+        if ev and ev in weak_evals:
+            dim_stats[dim]["weak"] += 1
+
+    dims = {}
+    for d in _DIMS:
+        ds = dim_stats[d]
+        healthy = round((1 - ds["weak"] / ds["total"]) * 100, 1) if ds["total"] else 100.0
+        dims[d] = {
+            "healthy": healthy,
+            "weak_count": ds["weak"],
+            "total": ds["total"],
+        }
+    return dims
+
+
+def get_student_profiles() -> List[Dict[str, Any]]:
+    """每个学生的四维健康度侧写,用于个体对比。"""
+    try:
+        import evaluation_rules  # noqa: F401  (不可用时与原行为一致:返回空)
+    except Exception:
+        return []
 
     with Session(engine) as sess:
         report_rows = sess.execute(
@@ -2149,44 +2192,12 @@ def get_student_profiles() -> List[Dict[str, Any]]:
             items = data.get("schema_124") or []
             student_obj = data.get("student") or {}
 
-            # 用 build_evaluation_view 拿到含规则推导 + 档位 fallback 的 eval_value
-            eval_items, _ = build_evaluation_view(items)
-            eval_map: Dict[str, str] = {}
-            for ei in eval_items:
-                c = str(ei.get("code", ""))
-                if c and ei.get("eval_value"):
-                    eval_map[c] = ei["eval_value"]
-
-            dim_stats = {d: {"weak": 0, "total": 0} for d in _DIMS}
-            for item in items:
-                code = str(item.get("code", ""))
-                if not code:
-                    continue
-                dim = dimension_of(item)
-                if dim not in _DIMS:
-                    continue
-                # 优先用 build_evaluation_view 的结果（含档位 fallback）
-                ev = eval_map.get(code)
-                if not ev:
-                    norm = _find_norm(items, _code_int(code))
-                    ev, _ = derive_evaluation(code, item.get("label", ""), item.get("value"), norm)
-                dim_stats[dim]["total"] += 1
-                if ev and ev in weak_evals:
-                    dim_stats[dim]["weak"] += 1
-
-            dims = {}
+            dims = report_dimension_health(items)
             health_sum = 0
             health_count = 0
             for d in _DIMS:
-                ds = dim_stats[d]
-                healthy = round((1 - ds["weak"] / ds["total"]) * 100, 1) if ds["total"] else 100.0
-                dims[d] = {
-                    "healthy": healthy,
-                    "weak_count": ds["weak"],
-                    "total": ds["total"],
-                }
-                if ds["total"] > 0:
-                    health_sum += healthy
+                if dims[d]["total"] > 0:
+                    health_sum += dims[d]["healthy"]
                     health_count += 1
 
             overall = round(health_sum / health_count, 1) if health_count else 0

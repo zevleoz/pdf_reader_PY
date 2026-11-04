@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-import { dtShort, fmtFTTime, Section, Tag, useProfile } from "./common";
+import { Chip, dtShort, EmptyPanel, fmtFTTime, Tag, type ChipTone, useProfile } from "./common";
 
 const MARKS = ["①", "②", "③"];
 
@@ -12,16 +12,16 @@ export default function FirstTouchTab() {
   const status = ft.status || "not_started";
 
   let label = "未开始";
-  let tone: "strong" | "soft" | "alert" | "plain" = "plain";
+  let tone: ChipTone = "sn";
   if (status === "completed") {
     label = "已完成" + (ft.reports && ft.reports.length ? " · v" + ft.reports[0].version : "");
-    tone = "strong";
+    tone = "s0";
   } else if (status === "in_progress") {
     label = "进行中 · " + MARKS[ft.step || 0];
-    tone = "soft";
+    tone = "sn";
   } else if (status === "needs_y4") {
     label = "需先完成 Y4";
-    tone = "alert";
+    tone = "s2";
   }
 
   let sub = "已完成 Y4，可以直接开始首次会谈。";
@@ -34,10 +34,10 @@ export default function FirstTouchTab() {
     if (!ft.canStart) {
       action = (
         <>
-          <Button variant="outline" size="sm" disabled>
+          <Button variant="outline" disabled>
             需先完成 Y4
           </Button>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" asChild>
             <a href="/generate">去生成 Y4</a>
           </Button>
         </>
@@ -48,7 +48,7 @@ export default function FirstTouchTab() {
         text = canWrite && !ft.sessionId ? "开始 First Touch" : "查看 First Touch";
       }
       action = (
-        <Button size="sm" asChild>
+        <Button asChild>
           <a href={"/first-touch/students/" + data.student.id}>{text}</a>
         </Button>
       );
@@ -56,18 +56,19 @@ export default function FirstTouchTab() {
   }
 
   return (
-    <Section
-      title="First Touch"
-      sub={sub}
-      right={
-        <>
-          <Tag tone={tone}>{label}</Tag>
-          {action}
-        </>
-      }
-    >
+    <div>
+      <EmptyPanel
+        title={
+          <>
+            First Touch <Chip tone={tone} className="ml-1 align-middle">{label}</Chip>
+          </>
+        }
+        line={sub}
+      >
+        {action ? <div className="flex flex-wrap justify-center gap-2">{action}</div> : null}
+      </EmptyPanel>
       {ft.restricted ? (
-        <p className="py-3 font-mono text-sm">
+        <p className="py-3 text-center font-mono text-sm">
           {ft.updatedAt ? "更新 " + dtShort(ft.updatedAt) : ""}
           {ft.confirmedAt ? " · 报告确认 " + dtShort(ft.confirmedAt) : ""}
         </p>
@@ -135,6 +136,6 @@ export default function FirstTouchTab() {
           </div>
         </div>
       )}
-    </Section>
+    </div>
   );
 }

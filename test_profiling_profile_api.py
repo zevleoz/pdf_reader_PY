@@ -2,6 +2,7 @@
 """S4-C5a：GET /api/profiling/students/<code>（学生档案页主数据；临时库，不触碰 data/y4_students.db）。"""
 from __future__ import annotations
 
+import json
 from datetime import date
 
 import app_utils
@@ -112,3 +113,100 @@ def test_spa_route_serves_page(env):
     r = admin(env).get(f"/app/students/{code_of(sid)}")
     assert r.status_code == 200
     assert '<div id="root">' in r.get_data(as_text=True)
+
+
+# ── S4-C5b：GET /api/profiling/students/<code>/y4 ────────────────────────
+Y4_ITEMS = [
+    {"code": "002", "label": "认知能力百分位", "value": "90", "source_pdf": "a"},
+    {"code": "003", "label": "认知能力-空间能力百分位", "value": "40", "source_pdf": "a"},
+    {"code": "011", "label": "情绪稳定性-自尊得分", "value": "3", "source_pdf": "a"},
+    {"code": "012", "label": "情绪稳定性-抑郁愉快得分", "value": "12", "source_pdf": "a"},
+    {"code": "013", "label": "情绪稳定性-焦虑安详得分", "value": "8", "source_pdf": "a"},
+    {"code": "041", "label": "体质健康-BMI", "value": "22", "source_pdf": "b"},
+    {"code": "080", "label": "职业兴趣-研究型得分", "value": "7", "source_pdf": "c"},
+    {"code": "095", "label": "职业价值观-美的追求得分", "value": "5", "source_pdf": "c"},
+]
+
+
+def mk_y4_report(sid, when, name="虚构甲", items=None):
+    data = {"student": {"name": name}, "schema_124": Y4_ITEMS if items is None else items}
+    return _db.add_report(sid, when, "x.pdf", json.dumps(data, ensure_ascii=False))
+
+
+def fetch_y4(c, sid):
+    return c.get(f"/api/profiling/students/{code_of(sid)}/y4")
+
+
+def test_y4_signed_out_gets_401(env):
+    sid = mk_student("未登录")
+    assert env.app.test_client().get(f"/api/profiling/students/{code_of(sid)}/y4").status_code == 401
+
+
+def test_y4_scope_and_404s(env):
+    mine = mk_student("我的", advisor="Mine")
+    other = mk_student("别人的", advisor="Other")
+    c = client(env, env.mine, "advisor", "Mine")
+    assert fetch_y4(c, mine).status_code == 200
+    r = fetch_y4(c, other)
+    assert r.status_code == 404 and r.get_json() == {"ok": False, "error": "学生不存在"}
+    r = c.get("/api/profiling/students/Y4-9999/y4")
+    assert r.status_code == 404 and r.get_json() == {"ok": False, "error": "学生不存在"}
+    assert fetch_y4(admin(env), other).status_code == 200
+
+
+def test_y4_without_report_is_empty(env):
+    sid = mk_student("没报告")
+    body = fetch_y4(admin(env), sid).get_json()
+    assert body == {"ok": True, "report": None, "dims": [], "signals": None, "items": []}
+
+
+def test_y4_dims_signals_and_items(env):
+    sid = mk_student("虚构甲")
+    mk_y4_report(sid, date(2026, 9, 1), items=[])        # 更早的空报告
+    rid = mk_y4_report(sid, date(2026, 10, 2))
+    c = admin(env)
+    body = fetch_y4(c, sid).get_json()
+    assert body["ok"] is True
+    assert body["report"] == {"id": rid, "report_date": "2026-10-02"}
+
+    assert [d["name"] for d in body["dims"]] == ["心力", "精力", "学习力", "生涯力"]
+    assert all(set(d) == {"name", "healthy", "weak_count", "total"} for d in body["dims"])
+    mine = [p for p in _db.get_student_profiles()
+            if p["student_name"] == "虚构甲" and p["report_date"] == "2026-10-02"]
+    assert len(mine) == 1
+    for d in body["dims"]:
+        assert {k: d[k] for k in ("healthy", "weak_count", "total")} == mine[0]["dimensions"][d["name"]]
+    assert next(d for d in body["dims"] if d["name"] == "心力")["weak_count"] == 2
+
+    lists = c.get(f"/api/reports/{rid}/y4-signals").get_json()["result"]["lists"]
+    assert set(body["signals"]) == {"强干预", "弱干预", "强潜能", "弱潜能"}
+    assert set(lists) == set(body["signals"])
+    for name in body["signals"]:
+        assert body["signals"][name] == len(lists[name])
+
+    by_code = {it["code"]: it for it in body["items"]}
+    assert "095" not in by_code                      # 隐藏的原始职业价值观得分
+    assert set(by_code["011"]) == {"code", "label", "value", "dimension", "eval"}
+    assert by_code["011"]["eval"] == "需特殊关注" and by_code["011"]["dimension"] == "心力"
+    assert by_code["011"]["value"] == "3"
+
+
+def test_get_student_profiles_output_unchanged(world):
+    sid = mk_student("基线甲")
+    mk_y4_report(sid, date(2026, 10, 2), name="基线甲")
+    _db.add_report(sid, date(2026, 9, 1), "x.pdf", "{}")
+    # 期望值取自重构前（HEAD 的 db.get_student_profiles）在同一份虚构数据上的输出
+    zero = {"healthy": 100.0, "total": 0, "weak_count": 0}
+    assert _db.get_student_profiles() == [
+        {"student_name": "基线甲", "grade": "", "school": "示例中学", "gender": "",
+         "report_date": "2026-10-02",
+         "dimensions": {"心力": {"healthy": 33.3, "total": 3, "weak_count": 2},
+                        "精力": {"healthy": 100.0, "total": 1, "weak_count": 0},
+                        "学习力": {"healthy": 50.0, "total": 2, "weak_count": 1},
+                        "生涯力": {"healthy": 100.0, "total": 2, "weak_count": 0}},
+         "overall_health": 70.8, "is_healthiest": True, "is_needs_attention": False},
+        {"student_name": "基线甲", "grade": "", "school": "示例中学", "gender": "",
+         "report_date": "2026-09-01",
+         "dimensions": {"心力": zero, "精力": zero, "学习力": zero, "生涯力": zero},
+         "overall_health": 0, "is_healthiest": False, "is_needs_attention": True},
+    ]
