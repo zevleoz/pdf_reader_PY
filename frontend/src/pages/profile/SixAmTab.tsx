@@ -6,13 +6,14 @@ import { errorText, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 import {
+  Chip,
   DIMS,
   Empty,
   fieldClass,
+  levelTone,
   Loading,
   LoadError,
   Section,
-  Tag,
   useProfile,
   useResource,
   VERDICT_ZH,
@@ -114,7 +115,7 @@ function ReviewRow({ dim, model, level, review, onSaved }: {
     <div className="border-t border-line py-4" data-dim={dim}>
       <div className="flex flex-wrap items-center gap-2">
         <b>{dim + " " + dimName(model, dim)}</b>
-        <Tag tone="soft">{level || "—"}</Tag>
+        <Chip tone={levelTone(level, model.levels)}>{level || "—"}</Chip>
       </div>
       {t ? (
         <div className="mt-2 text-sm">
@@ -228,12 +229,22 @@ export default function SixAmTab() {
 
   return (
     <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {DIMS.map((dim) => (
+          <span key={dim} className="inline-flex h-7 items-center gap-1.5 border border-rule px-2.5 text-[12.5px] font-semibold">
+            {dim + " " + dimName(model, dim)}
+            <Chip tone={levelTone(dimsData[dim]?.level, model.levels)} className="h-[18px]">
+              {dimsData[dim]?.level || "—"}
+            </Chip>
+          </span>
+        ))}
+      </div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <p className="text-sm">
           版本 v{six.version} · 报告 {data.latest_report?.report_date || "—"}
         </p>
-        <Button variant="outline" asChild>
-          <a href={viewHref}>打开 6AM 档案（思维导图）</a>
+        <Button asChild>
+          <a href={viewHref}>打开 6AM 思维导图</a>
         </Button>
       </div>
       <Section title="团队结论">

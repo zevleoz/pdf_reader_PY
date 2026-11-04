@@ -107,6 +107,16 @@ export type SixAmProfileRow = {
   profile: { schema?: string; dims?: Record<string, { level?: string }> };
 };
 
+export type Y4Dim = { name: string; healthy: number; weak_count: number; total: number };
+export type Y4Item = { code: string; label: string; value: unknown; dimension: string; eval: string };
+export type Y4Data = {
+  ok: boolean;
+  report: { id: number; report_date: string | null } | null;
+  dims: Y4Dim[];
+  signals: Record<string, number> | null;
+  items: Y4Item[];
+};
+
 export const DIMS = ["A1", "A2", "A3", "A4", "A5"];
 export const VERDICT_ZH: Record<string, string> = {
   agree: "同意",
@@ -242,6 +252,11 @@ export type ProfileCtxValue = {
   setTab: (tab: string) => void;
   refreshProgress: () => Promise<void>;
   refreshPage: () => Promise<void>;
+  /** Y4 画像 tab 当前筛选的维度（空 = 全部）；概览的维度卡点击后设置并切到 y4。 */
+  y4Dim: string;
+  setY4Dim: (dim: string) => void;
+  /** 标记问卷安全提醒已跟进（页头标记、问卷 tab 横幅共用）。 */
+  reviewFlag: (f: OpenFlag) => Promise<void>;
 };
 
 export const ProfileCtx = React.createContext<ProfileCtxValue | null>(null);
@@ -309,19 +324,95 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section className={cn("mb-6 border-t-2 border-rule", className)}>
+    <section className={cn("mb-[22px] border-t-2 border-rule pt-[9px]", className)}>
       {title || right ? (
-        <div className="flex flex-wrap items-start justify-between gap-3 py-3">
-          <div className="min-w-0">
-            {title ? <h2 className="text-base font-bold">{title}</h2> : null}
-            {sub ? <div className="mt-0.5 text-xs text-mute">{sub}</div> : null}
-          </div>
-          {right ? <div className="flex flex-wrap items-center gap-2">{right}</div> : null}
+        <div className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+          {title ? <h2 className="text-sm font-bold">{title}</h2> : null}
+          {sub ? <small className="text-[12.5px] font-normal text-mute">{sub}</small> : null}
+          {right ? <div className="ml-auto flex flex-wrap items-center gap-1.5">{right}</div> : null}
         </div>
       ) : null}
       {children}
     </section>
   );
+}
+
+/* ---- 状态小块（原型 .st / s0–s3 / sn） ---- */
+export type ChipTone = "s0" | "s1" | "s2" | "s3" | "sn";
+const CHIP_CLASS: Record<ChipTone, string> = {
+  s0: "bg-s0-bg text-s0",
+  s1: "bg-s1-bg text-s1",
+  s2: "bg-s2-bg text-s2",
+  s3: "bg-s3-bg text-s3",
+  sn: "bg-sunk text-ink-2",
+};
+
+export function Chip({ tone = "sn", children, className }: { tone?: ChipTone; children: React.ReactNode; className?: string }) {
+  return (
+    <span className={cn("inline-flex h-[22px] items-center whitespace-nowrap px-2 text-[12.5px] font-semibold", CHIP_CLASS[tone], className)}>
+      {children}
+    </span>
+  );
+}
+
+/** Y4 有效评价用语 -> 色调。「高」「不低」不上色（不一定是好事）。 */
+export function evalTone(word: string): ChipTone {
+  if (word === "严重偏低" || word === "需特殊关注") return "s3";
+  if (word === "明显偏低" || word === "需关注") return "s2";
+  if (word === "偏低") return "s1";
+  if (word === "较好" || word === "相对健康") return "s0";
+  return "sn";
+}
+
+export const WEAK_EVALS = ["偏低", "明显偏低", "严重偏低", "需关注", "需特殊关注"];
+
+const SIX_AM_LEVELS = ["稳固", "关注", "风险", "阻塞"];
+const SIX_AM_TONES: ChipTone[] = ["s0", "s1", "s2", "s3"];
+
+/** 6AM 档位 -> 色调：模型的 levels 恰好是这四个时按位置对应，否则一律 sn。 */
+export function levelTone(level: string | undefined, levels: string[] | undefined): ChipTone {
+  if (!level || !levels || levels.length !== 4 || levels.some((l, i) => l !== SIX_AM_LEVELS[i])) return "sn";
+  const i = levels.indexOf(level);
+  return i < 0 ? "sn" : SIX_AM_TONES[i];
+}
+
+/** 居中的空态面板（原型 .panel > .empty）：粗标题、一行说明、按钮。 */
+export function EmptyPanel({ title, line, children }: { title: React.ReactNode; line?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className="px-4 py-11 text-center text-mute">
+      <b className="mb-1 block text-base text-ink">{title}</b>
+      {line}
+      {children ? <div className="mt-3">{children}</div> : null}
+    </div>
+  );
+}
+
+/** 把一个 fetch 响应保存为文件（文件名取 Content-Disposition 的 filename*）。 */
+export async function saveResponse(resp: Response, fallbackName: string): Promise<void> {
+  const blob = await resp.blob();
+  let filename = fallbackName;
+  const disp = resp.headers.get("Content-Disposition") || "";
+  const star = disp.match(/filename\*=UTF-8''([^;\n]+)/i);
+  if (star) {
+    try {
+      filename = decodeURIComponent(star[1]);
+    } catch {
+      // 保留默认文件名
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+export function useY4Data(): Resource<Y4Data> {
+  const { code } = useProfile();
+  return useResource<Y4Data>("y4data", "/api/profiling/students/" + encodeURIComponent(code) + "/y4");
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
