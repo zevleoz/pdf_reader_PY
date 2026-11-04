@@ -100,10 +100,10 @@ def appendix(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def tags_problem(tags: Any) -> str:
-    """协议 §7.3：标签是否合法；合法返回空串，否则返回原因。
+    """标签是否合法；合法返回空串，否则返回原因。
 
-    只执行协议写明的限制：必须是五种标签之一，最多两个，不重复，
-    「信息不足」不与其他标签并列，「暂未发现」不与「确认发展需求」并列。
+    必须是五种标签之一，最多两个，不重复；「信息不足」不与其他标签并列，
+    「暂未发现」不与「确认发展需求」并列，「积极资源」不与「确认发展需求」并列。
     """
     if not isinstance(tags, list):
         return "标签必须是列表"
@@ -120,6 +120,8 @@ def tags_problem(tags: Any) -> str:
             return "「信息不足」不与其他判断并列"
         if "暂未发现" in tags and "确认发展需求" in tags:
             return "「暂未发现」不与「确认发展需求」并列"
-        if set(tags) not in ({"积极资源", "确认发展需求"}, {"积极资源", "可能存在"}):
-            return "双标签只允许「积极资源 + 确认发展需求」或「积极资源 + 可能存在」"
+        if "积极资源" in tags and "确认发展需求" in tags:
+            return "「积极资源」不与「确认发展需求」并列"
+        if set(tags) != {"积极资源", "可能存在"}:
+            return "双标签只允许「积极资源 + 可能存在」"
     return ""

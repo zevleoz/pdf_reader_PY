@@ -126,7 +126,7 @@ class _LongMeetingModel(FakeModel):
         def judge(tag, view):
             return {"tag": tag, "evidence_ids": [view["id"]],
                     "event_ids": [view["event_id"]], "rationale": "示例判断理由"}
-        return [judge("积极资源", views[0]), judge("确认发展需求", views[1])]
+        return [judge("积极资源", views[0]), judge("可能存在", views[1])]
 
     def _dim(self, prompt):
         out = super()._dim(prompt)

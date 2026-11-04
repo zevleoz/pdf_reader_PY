@@ -64,6 +64,24 @@ def test_double_tag_same_event_keeps_only_supported_resource():
     assert any("同一事件" in message for message in result["diagnostics"])
 
 
+def test_resource_and_confirmed_need_are_mutually_exclusive():
+    evidence = [_evidence("e1", "evt-1"), _evidence("e2", "evt-2")]
+    raw = {"judgements": [_judge("积极资源", "e1", "evt-1"),
+                          _judge("确认发展需求", "e2", "evt-2")]}
+    assert any("积极资源" in error and "确认发展需求" in error
+               for error in report_assessment.assessment_errors(raw, evidence, "R1.1"))
+    result = report_assessment.resolve_assessment(raw, evidence, "R1.1")
+    assert result["tags"] == ["积极资源"]
+    assert any("不与「确认发展需求」并列" in message
+               for message in result["diagnostics"])
+
+
+def test_assessment_prompt_disallows_resource_and_confirmed_need():
+    prompt = report_prompts.ASSESS_PROMPT
+    assert "积极资源不能与确认发展需求并列" in prompt
+    assert "只允许“积极资源 + 确认发展需求”" not in prompt
+
+
 def test_information_insufficient_never_combines():
     evidence = [_evidence("e1", "evt-1")]
     raw = {"judgements": [_judge("信息不足", "e1", "evt-1"), _judge("积极资源", "e1", "evt-1")]}

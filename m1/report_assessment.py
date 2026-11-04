@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 from m1 import report_checks, report_kb
 
 TAGS = ("积极资源", "确认发展需求", "可能存在", "暂未发现", "信息不足")
-PAIRS = ({"积极资源", "确认发展需求"}, {"积极资源", "可能存在"})
+PAIRS = ({"积极资源", "可能存在"},)
 _PRIORITY = ("积极资源", "确认发展需求", "可能存在", "暂未发现")
 
 
@@ -175,6 +175,9 @@ def resolve_assessment(raw: Any, evidence, code: str) -> Dict[str, Any]:
         for tag in ("确认发展需求", "可能存在"):
             candidate = candidates.get(tag)
             if candidate is None:
+                continue
+            if tag == "确认发展需求":
+                diagnostics.append("「积极资源」不与「确认发展需求」并列，已只保留「积极资源」")
                 continue
             if not candidate["events"].isdisjoint(resource["events"]):
                 diagnostics.append("同一事件同时支持两个标签，已只保留「积极资源」")

@@ -332,7 +332,7 @@ def test_appendix_selects_tags_once_in_code_order():
         return {"tags": list(tags)}
     doc = {"dims": {
         "R2": {"abilities": {"R2.2": row("可能存在"), "R2.1": row("积极资源")}},
-        "R1": {"abilities": {"R1.2": row("积极资源", "确认发展需求"), "R1.1": row("信息不足")}},
+        "R1": {"abilities": {"R1.2": row("积极资源", "可能存在"), "R1.1": row("信息不足")}},
     }}
     result = report_kb.appendix(doc)
     assert [r["code"] for r in result] == ["R1.2", "R2.2"]
@@ -347,12 +347,12 @@ def test_missing_scene_shows_placeholder_text(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("tags,ok", [
-    ([], True), (["积极资源"], True), (["积极资源", "确认发展需求"], True),
+    ([], True), (["积极资源"], True), (["积极资源", "确认发展需求"], False),
     (["积极资源", "可能存在"], True), (["信息不足", "积极资源"], False),
     (["暂未发现", "确认发展需求"], False), (["积极资源", "积极资源"], False),
     (["积极资源", "可能存在", "暂未发现"], False), (["随便"], False), ("积极资源", False),
     (["暂未发现", "可能存在"], False), (["确认发展需求", "可能存在"], False),
-    (["积极资源", "暂未发现"], False), (["积极资源", "确认发展需求"], True),
+    (["积极资源", "暂未发现"], False), (["积极资源", "确认发展需求"], False),
     (["积极资源", "可能存在"], True)])
 def test_tags_problem(tags, ok):
     assert (report_kb.tags_problem(tags) == "") is ok
