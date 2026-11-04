@@ -36,6 +36,8 @@ STAGES = [
      "color": "var(--faint)"},
     {"key": "reported", "label": "报告已生成", "badge": "badge-ok",
      "color": "var(--ok)"},
+    {"key": "not_started", "label": "未测评", "badge": "badge-neutral",
+     "color": "var(--faint)"},
     {"key": "ready", "label": "已就绪", "badge": "badge-neutral",
      "color": "var(--faint)"},
 ]
@@ -44,6 +46,8 @@ STAGE_KEYS = [s["key"] for s in STAGES]
 # 生命周期进度视图的阶段顺序（学生 360° 顶部 stepper 专用）。
 # ``minutes`` 为可选进度节点：没有纪要时不阻塞问卷；Six A.M. 不在其中占位。
 PROGRESS_STAGES = [
+    {"key": "not_started", "label": "未测评", "badge": "badge-neutral",
+     "color": "var(--faint)"},
     {"key": "booked", "label": "预约待测评", "badge": "badge-neutral",
      "color": "var(--faint)"},
     {"key": "report", "label": "生成报告", "badge": "badge-brand",
@@ -112,6 +116,10 @@ def _select_progress_stage(facts: dict, now: datetime) -> dict:
     latest_assignment = facts.get("latest_assignment")
     completed_at = facts.get("completed_booking_at")
 
+    # 0. 没有任何预约、没有报告 → 未测评（S4-C4：不再让「什么都没有」的学生显示预约待测评）
+    if (not completed_at and not report and not facts.get("pending_booking_at")
+            and not latest_assignment):
+        return {"stage": "not_started", "since": facts.get("student_created_at")}
     # 1. 没有任何已完成预约 / 报告 → 仍在预约待测评
     if not completed_at and not report:
         return {"stage": "booked",
@@ -170,6 +178,10 @@ def _select_workbench_stage(facts: dict, now: datetime) -> dict:
     if report:
         return {"stage": "reported",
                 "since": report.get("report_date") or report.get("created_at")}
+    if not latest_assignment and not facts.get("has_booking"):
+        # 没有预约（任何时间的非取消预约）、没有报告、没有问卷任务 → 未测评（S4-C4）。
+        # 只有旧预约（超出 30 天窗口）等其余情形仍为 ready，不变。
+        return {"stage": "not_started", "since": facts.get("student_created_at")}
     return {"stage": "ready", "since": facts.get("student_created_at")}
 
 
@@ -333,6 +345,10 @@ def compute_stages(advisor_name=None) -> dict:
                        _db.Booking.status == status_value)
                 .group_by(_db.Booking.student_id)).all())
 
+        booked_ever = {sid for (sid,) in sess.execute(
+            select(_db.Booking.student_id)
+            .where(_db.Booking.student_id.isnot(None), _db.Booking.status != "cancelled")
+            .distinct()).all()}
         pending_booking = _booking_map("pending")
         completed_booking = _booking_map("completed")
 
@@ -351,6 +367,7 @@ def compute_stages(advisor_name=None) -> dict:
             "student_created_at": created_at,
             "pending_booking_at": pending_booking.get(sid),
             "completed_booking_at": completed_booking.get(sid),
+            "has_booking": sid in booked_ever,
             "latest_report": latest_report.get(sid),
             "latest_report_minutes_at": None,
             "pending_assignment_at": pending_min.get(sid),

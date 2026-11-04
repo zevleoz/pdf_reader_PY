@@ -230,3 +230,125 @@ def api_profiling_student_progress(code):
     if not st or (scope is not None and (st.get("advisor_name") or "") != scope):
         return jsonify({"ok": False, "error": "学生不存在"}), 404
     return jsonify({"ok": True, "progress": ps.progress_for_student(st["id"])})
+
+
+@bp.route("/api/profiling/students/<code>")
+@login_required
+def api_profiling_student(code):
+    """S4-C5a：学生档案页的主数据（同一接口返回头部、权限与进度；各 tab 另行取数）。"""
+    from flask import jsonify
+    from sqlalchemy import select
+    import db as _db
+    import profiling_stages as ps
+    from app_utils import account_policy, can_see_full
+    from blueprints.students import _first_touch_context, _questionnaire_flags
+
+    st = _db.get_student_by_code(code)
+    scope = _advisor_scope()
+    if not st or (scope is not None and (st.get("advisor_name") or "") != scope):
+        return jsonify({"ok": False, "error": "学生不存在"}), 404
+
+    full = can_see_full()
+    role = session.get("role")
+    can_write = role != "viewer"
+    policy = account_policy()
+
+    with _db.Session(_db.engine) as sess:
+        latest = sess.execute(
+            select(_db.Report.id, _db.Report.report_date)
+            .where(_db.Report.student_id == st["id"])
+            .order_by(_db.Report.report_date.desc(), _db.Report.id.desc())
+            .limit(1)).first()
+    latest_report = None
+    six_am = None
+    if latest:
+        latest_report = {
+            "id": latest[0],
+            "report_date": latest[1].isoformat() if latest[1] else None,
+        }
+        prof = _db.get_latest_six_am_profile(latest[0])
+        if prof:
+            six_am = {"report_id": latest[0], "profile_id": prof["id"],
+                      "version": prof["version"]}
+
+    return jsonify({
+        "ok": True,
+        "student": {
+            "id": st["id"], "code": st.get("student_code"), "name": st.get("name"),
+            "grade": st.get("grade"), "gender": st.get("gender"),
+            "birthday": st.get("birthday"), "school": st.get("school"),
+            "advisor_name": st.get("advisor_name"),
+            "email": (st.get("email") or "") if full else "",
+            "phone": (st.get("phone") or "") if full else "",
+        },
+        "permissions": {
+            "can_write": can_write,
+            "is_admin": role == "admin",
+            "full": full,
+            "can_review": bool(can_write and full),
+            "m1_access": bool(policy.get("m1_access")),
+        },
+        "progress": ps.progress_for_student(st["id"]),
+        "latest_report": latest_report,
+        "six_am": six_am,
+        "first_touch": _first_touch_context(st["id"], restricted=not full),
+        "questionnaire_flags": _questionnaire_flags(st["id"]) if full else [],
+    })
+
+
+@bp.route("/api/profiling/students/<code>/y4")
+@login_required
+def api_profiling_student_y4(code):
+    """S4-C5b：学生档案页的 Y4 数据（四维健康度、研判四名单计数、有效评价指标）。
+
+    只读规则代码（db.report_dimension_health / ai_client._build_qualification_view /
+    y4_questions.evaluate_y4_questions），不调用任何 AI 模型。
+    """
+    from flask import jsonify
+    from sqlalchemy import select
+    import db as _db
+    import evaluation_rules as _er
+    import y4_questions as _y4q
+    from ai_client import _build_qualification_view
+
+    st = _db.get_student_by_code(code)
+    scope = _advisor_scope()
+    if not st or (scope is not None and (st.get("advisor_name") or "") != scope):
+        return jsonify({"ok": False, "error": "学生不存在"}), 404
+
+    with _db.Session(_db.engine) as sess:
+        latest = sess.execute(
+            select(_db.Report.id, _db.Report.report_date)
+            .where(_db.Report.student_id == st["id"])
+            .order_by(_db.Report.report_date.desc(), _db.Report.id.desc())
+            .limit(1)).first()
+    if not latest:
+        return jsonify({"ok": True, "report": None, "dims": [], "signals": None, "items": []})
+
+    record = _db.get_report_raw(latest[0])
+    raw = (record or {}).get("raw") or {}
+    all_items = raw.get("schema_124") or []
+
+    health = _db.report_dimension_health(all_items)
+    dims = [{"name": d, **health[d]} for d in _db._DIMS]
+
+    schema_items = [it for it in all_items if not _er.is_hidden_raw(it)]
+    items, _summary, _done, _opts = _build_qualification_view(schema_items)
+    result = _y4q.evaluate_y4_questions(items, raw.get("student", {}) or {})
+    lists = result.get("lists") or {}
+    signals = {
+        "强干预": len(lists.get(_y4q.LIST_STRONG_I) or []),
+        "弱干预": len(lists.get(_y4q.LIST_WEAK_I) or []),
+        "强潜能": len(lists.get(_y4q.LIST_STRONG_P) or []),
+        "弱潜能": len(lists.get(_y4q.LIST_WEAK_P) or []),
+    }
+    return jsonify({
+        "ok": True,
+        "report": {"id": latest[0],
+                   "report_date": latest[1].isoformat() if latest[1] else None},
+        "dims": dims,
+        "signals": signals,
+        "items": [{"code": it.get("code", ""), "label": it.get("label", ""),
+                   "value": it.get("raw_value"), "dimension": it.get("dimension", ""),
+                   "eval": it.get("eval_value") or ""} for it in items],
+    })

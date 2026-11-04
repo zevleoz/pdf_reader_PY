@@ -25,7 +25,7 @@ def _platform_cards() -> list:
         "key": "profiling",
         "title": "学生 Profiling",
         "desc": "预约、Y4 报告、解读会、补充问卷、First Touch、6AM",
-        "href": "/students" if session.get("role") == "viewer" else "/workspace",
+        "href": "/app/students" if session.get("role") == "viewer" else "/workspace",
         "blank": False,
     }]
     if app_utils.can_use_m1():

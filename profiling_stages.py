@@ -5,7 +5,7 @@
 
 阶段顺序与规则
 --------------
-预约 → Y4 报告 → 解读会 → 补充问卷（可选）→ First Touch（可选）→ 6AM（必需，最后一步）。
+预约（未取消的预约，或已有 Y4 报告）→ Y4 报告 → 解读会 → 补充问卷（可选）→ First Touch（可选）→ 6AM（必需，最后一步）。
 
 - 下一步 = 按顺序第一个**必需**且未完成的阶段；必需阶段全部完成 = 已完成（无下一步）。
 - 可选阶段只报告自己的状态（done / todo / not_used），不成为下一步，也不阻塞「已完成」。
@@ -32,10 +32,13 @@ import questionnaire_store as _qs
 # ---------------------------------------------------------------------------
 # 6AM「完成」的定义——负责人 2026-11-03 裁定「6AM finishes = 导师已评议」，默认 "reviewed"；
 # 保留另一种取值，由这个常量决定：
-#   "reviewed" ：该最新档案的每个 6AM 维度都有一条 verdict 非空的评议（默认）
+#   "reviewed" ：该最新档案的每个 6AM 维度，最新一条评议的结论都是 agree 或 adjust（默认）；
+#                evidence（证据不足，需追问）不算已评议（S4-C4，负责人 2026-11-04）
 #   "profile"  ：最新报告已有 6AM 档案（报告后自动生成，界面叫「已更新」）
 # ---------------------------------------------------------------------------
 SIX_AM_DONE = "reviewed"
+
+REVIEWED_VERDICTS = ("agree", "adjust")
 
 # key, label, required —— 标签沿用 LATER-STAGES.md 的追踪器标签
 STAGE_DEFS = (
@@ -97,7 +100,9 @@ def build_progress(facts: dict) -> dict:
     ft_done = bool(facts.get("ft_confirmed"))
 
     raw = {
-        "booking": (bool(facts.get("has_booking")), facts.get("booking_at")),
+        # D6（负责人 2026-11-04）：有 Y4 报告即视为 Profiling 已开始，预约算完成。
+        "booking": ((True, facts.get("booking_at")) if facts.get("has_booking")
+                    else (bool(facts.get("has_report")), facts.get("report_at"))),
         "y4_report": (bool(facts.get("has_report")), facts.get("report_at")),
         "interpretation": (facts.get("minutes_at") is not None, facts.get("minutes_at")),
         "questionnaires": (q_assigned > 0 and bool(facts.get("q_all_submitted")),
@@ -214,7 +219,7 @@ def load_facts(student_ids: Iterable[int]) -> Dict[int, dict]:
                     profile_owner[pid] = sid
 
                 if SIX_AM_DONE == "reviewed" and profile_owner:
-                    # 评议：每维度取最新一条（id 降序）；verdict 非空才算
+                    # 评议：每维度取最新一条（id 降序）；结论为 agree/adjust 才算
                     latest_rev: Dict[tuple, tuple] = {}
                     for pid, dim, verdict, created in sess.execute(
                             select(_db.SixAmReview.profile_id, _db.SixAmReview.dim,
@@ -224,7 +229,8 @@ def load_facts(student_ids: Iterable[int]) -> Dict[int, dict]:
                         latest_rev.setdefault((pid, dim), (verdict, created))
                     for pid, sid in profile_owner.items():
                         got = [latest_rev.get((pid, d)) for d in dim_ids]
-                        if dim_ids and all(g and (g[0] or "").strip() for g in got):
+                        if dim_ids and all(g and (g[0] or "").strip() in REVIEWED_VERDICTS
+                                           for g in got):
                             facts[sid].update(
                                 six_am_reviewed=True,
                                 six_am_reviewed_at=max(g[1] for g in got if g[1]) if any(

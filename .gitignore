@@ -58,3 +58,6 @@ backups/
 tmp_pages/
 probe/
 output_test/
+
+# 新前端的页面目录要进仓库（根目录 pages/ 规则的例外）
+!frontend/src/pages/

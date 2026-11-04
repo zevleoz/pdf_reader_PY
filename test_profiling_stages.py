@@ -130,6 +130,42 @@ def test_booked_only_next_is_report():
     assert p["next"]["key"] == "y4_report" and p["label"] == "Y4 报告"
 
 
+def test_report_without_booking_counts_booking_done_and_next_is_interpretation():
+    p = ps.build_progress({"has_report": True, "report_at": T0})
+    assert state_of(p, "booking") == "done"
+    assert p["next"] == {"key": "interpretation", "label": "解读会"}
+    assert next(s for s in p["stages"] if s["key"] == "booking")["at"] == T0.isoformat()
+
+
+def test_booking_time_wins_over_report_time_when_both_exist():
+    later = T0 + timedelta(days=3)
+    p = ps.build_progress({"has_booking": True, "booking_at": T0,
+                           "has_report": True, "report_at": later})
+    assert next(s for s in p["stages"] if s["key"] == "booking")["at"] == T0.isoformat()
+
+
+def test_report_without_booking_through_the_database(world):
+    sid = mk_student()
+    rid = mk_report(sid, created=T0)
+    p = ps.progress_for_student(sid)
+    assert state_of(p, "booking") == "done" and p["next"]["key"] == "interpretation"
+    mk_minutes(sid, rid)
+    assert ps.progress_for_student(sid)["next"]["key"] == "six_am"
+
+
+def test_cancelled_booking_plus_report_still_starts_profiling(world):
+    sid = mk_student()
+    mk_booking(sid, status="cancelled")
+    mk_report(sid, created=T0)
+    assert state_of(ps.progress_for_student(sid), "booking") == "done"
+
+
+def test_student_with_nothing_through_the_database_next_is_booking(world):
+    sid = mk_student()
+    p = ps.progress_for_student(sid)
+    assert p["next"] == {"key": "booking", "label": "预约"} and state_of(p, "booking") == "todo"
+
+
 def test_report_next_is_interpretation():
     p = ps.build_progress({"has_booking": True, "has_report": True, "report_at": T0})
     assert p["next"]["key"] == "interpretation"
@@ -270,6 +306,38 @@ def test_six_am_reviewed_only_counts_latest_profile_version(world, monkeypatch):
     assert ps.progress_for_student(sid)["done"] is False
 
 
+def _reviewed_world(verdict_by_dim):
+    sid = mk_student()
+    mk_booking(sid)
+    rid = mk_report(sid)
+    mk_minutes(sid, rid)
+    pid = mk_profile(sid, rid)
+    for d, v in verdict_by_dim.items():
+        mk_review(pid, rid, d, verdict=v)
+    return sid, rid, pid
+
+
+def test_reviewed_rule_agree_and_adjust_count_evidence_does_not(world, monkeypatch):
+    monkeypatch.setattr(ps, "SIX_AM_DONE", "reviewed")
+    dims = ps.six_am_dimension_ids()
+    verdicts = {d: ("adjust" if i % 2 else "agree") for i, d in enumerate(dims)}
+    sid, rid, pid = _reviewed_world(verdicts)
+    assert ps.progress_for_student(sid)["done"] is True
+    # 最新一条变成 evidence：该维度不再算已评议
+    mk_review(pid, rid, dims[0], verdict="evidence")
+    p = ps.progress_for_student(sid)
+    assert p["done"] is False and p["next"]["key"] == "six_am"
+    # 再追加 agree：恢复
+    mk_review(pid, rid, dims[0], verdict="agree")
+    assert ps.progress_for_student(sid)["done"] is True
+
+
+def test_reviewed_rule_all_evidence_is_not_reviewed(world, monkeypatch):
+    monkeypatch.setattr(ps, "SIX_AM_DONE", "reviewed")
+    sid, _rid, _pid = _reviewed_world({d: "evidence" for d in ps.six_am_dimension_ids()})
+    assert ps.progress_for_student(sid)["done"] is False
+
+
 # ── 4. 取消的预约 ─────────────────────────────────────────────────────
 def test_cancelled_booking_does_not_count(world):
     sid = mk_student()
@@ -330,4 +398,5 @@ def test_batch_matches_single(world):
     assert batch[a] == ps.progress_for_student(a)
     assert batch[b] == ps.progress_for_student(b)
     assert batch[a]["next"]["key"] == "y4_report"
-    assert batch[b]["next"]["key"] == "booking"  # 有报告但没有预约：按规则下一步是预约
+    # D6（2026-11-04）：有报告即已开始，没有预约也不再是下一步；没有纪要则下一步是解读会
+    assert batch[b]["next"]["key"] == "interpretation"

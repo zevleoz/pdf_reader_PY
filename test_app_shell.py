@@ -205,6 +205,42 @@ def test_app_shell_mounts_page_once():
     assert text.count("<main") == 1
 
 
+def test_app_students_route_serves_page(app, world):
+    """S4-P1：学生档案页 /app/students 由单页入口返回。"""
+    resp = _client(app, world.admin_id, "admin").get("/app/students")
+    assert resp.status_code == 200
+    assert '<div id="root">' in resp.get_data(as_text=True)
+
+
+def test_old_students_list_still_reachable(app, world):
+    """S4-GL1：新页面接管后，旧版学生列表 /students 仍可访问。"""
+    resp = _client(app, world.admin_id, "admin").get("/students")
+    assert resp.status_code == 200
+
+
+def test_app_build_has_students_page_strings():
+    """S4-P1：构建产物带着学生档案的接口与文案。"""
+    assets = REPO_ROOT / "static" / "app" / "assets"
+    js_files = sorted(assets.glob("*.js"))
+    assert js_files, f"no .js build output under {assets}"
+    text = "".join(p.read_text(encoding="utf-8") for p in js_files)
+    for needle in ("/api/profiling/students", "旧版学生档案", "可选，未使用"):
+        assert needle in text, f"{needle} not found in built JS"
+
+
+def test_frontend_pages_present_and_not_ignored():
+    """S4-P1：Stage 3 的页面文件进仓库，不再被根目录 pages/ 规则忽略。"""
+    for name in ("Kit.tsx", "NotFound.tsx"):
+        assert (REPO_ROOT / "frontend" / "src" / "pages" / name).is_file(), f"{name} missing"
+    if not (REPO_ROOT / ".git").exists():
+        pytest.skip("no .git here")
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", "frontend/src/pages/Kit.tsx"],
+        cwd=REPO_ROOT,
+    )
+    assert result.returncode != 0
+
+
 def test_app_close_labels_are_chinese():
     """S3-P3b：关闭按钮的无障碍文案为中文。"""
     ui = REPO_ROOT / "frontend" / "src" / "components" / "ui"
