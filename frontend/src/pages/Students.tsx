@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,17 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getJSON } from "@/lib/api";
 import { useBoot } from "@/lib/boot";
+import { stageTitle, type Progress } from "@/lib/progress";
 import { cn } from "@/lib/utils";
 import PageHeader from "@/shell/PageHeader";
 
-type Stage = {
-  key: string;
-  label: string;
-  required: boolean;
-  state: "done" | "todo" | "not_used";
-  at: string | null;
-};
-type Progress = { stages: Stage[]; next: { key: string; label: string } | null; done: boolean; label: string };
 type Row = {
   code: string;
   name: string;
@@ -44,14 +37,6 @@ const CHIPS: { key: string; label: string }[] = [
   { key: "six_am", label: "6AM" },
   { key: "done", label: "已完成" },
 ];
-
-function stageTitle(stage: Stage): string {
-  if (stage.state === "done") {
-    return stage.label + "：已完成" + (stage.at ? " " + stage.at.slice(0, 10) : "");
-  }
-  if (stage.state === "not_used") return stage.label + "：可选，未使用";
-  return stage.label + (stage.required ? "：未完成" : "：可选，未完成");
-}
 
 function StageBar({ progress }: { progress: Progress }) {
   return (
@@ -218,12 +203,12 @@ export default function Students() {
                 : data.rows.map((row) => (
                     <TableRow key={row.code}>
                       <TableCell>
-                        <a
-                          href={"/students/" + encodeURIComponent(row.code)}
+                        <Link
+                          to={"/students/" + encodeURIComponent(row.code)}
                           className="font-semibold hover:underline"
                         >
                           {row.name || "—"}
-                        </a>
+                        </Link>
                         <div className="font-mono text-xs text-mute">{row.code}</div>
                       </TableCell>
                       <TableCell>{row.school || "—"}</TableCell>

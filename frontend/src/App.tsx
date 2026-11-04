@@ -4,6 +4,7 @@ import { BootProvider } from "@/lib/boot";
 import AppShell from "@/shell/AppShell";
 import Kit from "@/pages/Kit";
 import Students from "@/pages/Students";
+import StudentProfile from "@/pages/StudentProfile";
 import NotFound from "@/pages/NotFound";
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route index element={<Navigate to="/students" replace />} />
               <Route path="students" element={<Students />} />
+              <Route path="students/:code" element={<StudentProfile />} />
               <Route path="kit" element={<Kit />} />
               <Route path="*" element={<NotFound />} />
             </Route>
