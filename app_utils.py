@@ -400,6 +400,7 @@ ADMIN_NAV = [
     ]},
     {"key": "students", "title": "学生", "links": [
         {"key": "students", "label": "学生档案", "href": "/app/students", "icon": "users"},
+        {"key": "flow", "label": "Profiling 流程", "href": "/app/flow", "icon": "clipboard"},
     ]},
     {"key": "first_touch", "title": "First Touch", "links": [
         {"key": "first_touch", "label": "学生列表", "href": "/first-touch", "icon": "target"},
