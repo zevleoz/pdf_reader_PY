@@ -126,7 +126,7 @@ def test_viewer_goes_straight_to_students(app, world):
 def test_advisor_without_m1_goes_straight_to_workspace(app, world):
     resp = _client(app, world.no_m1_id, "advisor", "Mine").get("/platforms")
     assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/workspace")
+    assert resp.headers["Location"].endswith("/app/workbench")
 
 
 # ── 6. E4 只随环境变量出现 ─────────────────────────────────────

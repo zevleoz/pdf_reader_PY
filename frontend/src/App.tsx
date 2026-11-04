@@ -17,7 +17,7 @@ export default function App() {
         <BootProvider>
           <Routes>
             <Route element={<AppShell />}>
-              <Route index element={<Navigate to="/students" replace />} />
+              <Route index element={<Navigate to="/workbench" replace />} />
               <Route path="students" element={<Students />} />
               <Route path="questionnaires" element={<Questionnaires />} />
               <Route path="students/:code" element={<StudentProfile />} />
