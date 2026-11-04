@@ -42,7 +42,7 @@ body.m1-report {
 .print-bar b { font-weight: 600; }
 .print-bar .sub { color: #6C7A8C; font-size: 12px; }
 .print-bar .sp { flex: 1 1 auto; }
-.print-bar button {
+.print-bar button, .print-bar a {
   font: 12px/1.4 var(--sans);
   color: #26354B;
   background: #FFFFFF;
@@ -50,6 +50,7 @@ body.m1-report {
   border-radius: 4px;
   padding: 5px 12px;
   cursor: pointer;
+  text-decoration: none;
 }
 .print-bar button.pri { color: #FFFFFF; background: #2F6B57; border-color: #2F6B57; }
 

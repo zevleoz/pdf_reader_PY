@@ -160,6 +160,32 @@ def test_print_edit_mode(client, m1db):  # noqa: F811
 # ---------------------------------------------------------------------------
 # 检查与第②步界面
 # ---------------------------------------------------------------------------
+def test_print_edit_export_controls(client, m1db):  # noqa: F811
+    prep = _seed_report(m1db)
+    _login(client, m1db.admin_id, "admin")
+    url = f"/m1/preps/{prep['id']}/report/print"
+    base = client.get(url).get_data(as_text=True)
+    edit = client.get(url + "?edit=1").get_data(as_text=True)
+
+    print_edit = _tag(base, "printEdit")
+    assert f'href="{url}?edit=1"' in print_edit
+    assert "修改文字" in base.split(print_edit, 1)[1].split("</a>", 1)[0]
+
+    export = _tag(edit, "editExport")
+    assert f'data-export-url="{url}?print=1"' in export
+    assert "完成并导出 PDF" in edit.split(export, 1)[1].split("</button>", 1)[0]
+
+
+def test_edit_js_export_contract():
+    js = EDIT_JS.read_text(encoding="utf-8")
+    assert "getElementById('editExport')" in js
+    assert "document.activeElement" in js
+    assert "active.blur()" in js
+    assert "var pending = queue" in js
+    assert "if (json === null)" in js
+    assert "window.location.href = exportBtn.getAttribute('data-export-url')" in js
+
+
 def test_checks_follow_display(client, m1db):  # noqa: F811
     doc = copy.deepcopy(FIXTURE)
     path = ["dims", "R1", "abilities", "R1.1", "other_clues"]
