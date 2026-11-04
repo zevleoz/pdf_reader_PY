@@ -21,6 +21,7 @@ ROLES = ("学生", "导师", "家长", "其他", "待确认")
 UNSURE = "待确认"
 TASK_SPEAKERS = "任务：判断逐字稿每段的发言人"
 TASK_RECONCILE = "任务：复核整场逐字稿的发言人"
+SPEAKER_ALGORITHM_VERSION = "2026-11-04-full-context-v2"
 SPEECH_ACTS = (
     "student_experience", "student_emotion_or_thought",
     "mentor_question", "mentor_reflection", "mentor_guidance",
@@ -97,7 +98,8 @@ mentor_reflection / mentor_guidance / parent_observation / other / unclear。
 
 
 def transcript_hash(text: str) -> str:
-    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+    payload = SPEAKER_ALGORITHM_VERSION + "\0" + (text or "")
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _clean_time(value: Optional[str]) -> str:
@@ -260,38 +262,9 @@ def assign_roles(turns: List[Dict[str, Any]], ask: Callable[[str], Dict[str, Any
 
 
 def _reconcile_context(turns: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """冲突、匿名标签和待确认段的原文上下文；只取必要段落，不做截断。"""
-    reconcilable = [i for i, turn in enumerate(turns)
-                    if turn.get("src") not in ("rule", "edited")]
-    if not any(turn["label"] for turn in turns):          # 无标签：整场原文都可复核
-        return [{"n": turns[i]["n"], "text": turns[i]["text"]} for i in reconcilable]
-    conflicts = {}
-    for turn in turns:
-        if turn["label"] and turn["role"] and turn["role"] != UNSURE:
-            conflicts.setdefault(turn["label"], set()).add(turn["role"])
-    conflict_labels = {label for label, roles in conflicts.items() if len(roles) > 1}
-    picked: List[int] = []
-    seen = set()
-
-    def add(index):
-        if index not in seen:
-            seen.add(index)
-            picked.append(index)
-
-    for i, turn in enumerate(turns):
-        if turn.get("src") in ("rule", "edited"):
-            continue
-        if turn["role"] == UNSURE or (turn["label"] and turn["label"] in conflict_labels):
-            add(i)
-    anonymous: Dict[str, List[int]] = {}
-    for i, turn in enumerate(turns):
-        if turn["label"] and turn.get("src") not in ("rule", "edited") \
-                and not _label_role(turn["label"], "", ""):
-            anonymous.setdefault(turn["label"], []).append(i)
-    for indexes in anonymous.values():
-        for i in indexes[:CONTEXT_TURNS]:
-            add(i)
-    return [{"n": turns[i]["n"], "text": turns[i]["text"]} for i in picked]
+    """所有可复核段的完整原文；规则或导师确认的段落不在复核时改写。"""
+    return [{"n": turn["n"], "text": turn["text"]} for turn in turns
+            if turn.get("src") not in ("rule", "edited")]
 
 
 def _reconcile_roles(turns: List[Dict[str, Any]], ask: Callable[[str], Dict[str, Any]],

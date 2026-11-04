@@ -285,3 +285,14 @@
   .sa2 details.mm-more { max-width: 100%; }
   .sa2 .talk { width: 100%; max-width: 320px; }
 }
+
+/* ── 团队结论（导师评议） ── */
+.sa2 .rvpanel { display: flex; flex-direction: column; gap: 14px; }
+.sa2 .rvrow { display: flex; flex-direction: column; gap: 7px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.sa2 .rvrow:first-of-type { padding-top: 0; border-top: 0; }
+.sa2 .rvlatest { display: flex; flex-direction: column; gap: 2px; }
+.sa2 .rvrow .seg { display: flex; gap: 4px; flex-wrap: wrap; }
+.sa2 .rvrow .seg button { text-align: center; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 3px 12px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.sa2 .rvrow .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.sa2 .rvrow select, .sa2 .rvrow textarea { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 4px 7px; font-size: 12.5px; }
+.sa2 .rvrow textarea { width: 100%; min-height: 56px; resize: vertical; }

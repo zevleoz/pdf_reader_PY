@@ -27,7 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 JS_DIR = REPO_ROOT / "static" / "js" / "six_am"
 NEW_JS = ("common.js", "mindmap.js", "overview.js", "student.js", "rules.js")
 OLD_JS = ("profile.js", "review.js", "board.js")
-ASSET_VERSION = "20261101"
+ASSET_VERSION = "20261104"
 
 _PROBE = r'''
 import json

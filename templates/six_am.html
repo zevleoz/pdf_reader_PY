@@ -4,12 +4,13 @@
 {% block page_title %}6AM 启动模型{% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="/css/six_am.css?v=20261101">
+<link rel="stylesheet" href="/css/six_am.css?v=20261104">
 {% endblock %}
 
 {% block content %}
 <div class="sa2" id="sa2"
      data-can-write="{{ 'false' if current_role == 'viewer' else 'true' }}"
+     data-can-review="{{ 'true' if current_role != 'viewer' and policy.detail_level == 'full' else 'false' }}"
      data-is-admin="{{ 'true' if current_role == 'admin' else 'false' }}">
   <nav class="views" id="sa2-tabs" role="tablist" aria-label="6AM 视图">
     <button role="tab" type="button" id="sa2-tab-overview" data-view="overview" aria-selected="true">学生总览</button>
@@ -24,9 +25,9 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/js/six_am/common.js?v=20261101" defer></script>
-<script src="/js/six_am/mindmap.js?v=20261101" defer></script>
-<script src="/js/six_am/overview.js?v=20261101" defer></script>
-<script src="/js/six_am/student.js?v=20261101" defer></script>
-<script src="/js/six_am/rules.js?v=20261101" defer></script>
+<script src="/js/six_am/common.js?v=20261104" defer></script>
+<script src="/js/six_am/mindmap.js?v=20261104" defer></script>
+<script src="/js/six_am/overview.js?v=20261104" defer></script>
+<script src="/js/six_am/student.js?v=20261104" defer></script>
+<script src="/js/six_am/rules.js?v=20261104" defer></script>
 {% endblock %}

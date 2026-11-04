@@ -207,6 +207,26 @@
     });
   });
 
+  var exportBtn = document.getElementById('editExport');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', function () {
+      if (exportBtn.disabled) return;
+      exportBtn.disabled = true;
+      var active = document.activeElement;
+      if (active && active.hasAttribute && active.hasAttribute('data-path')) active.blur();
+      var pending = queue;
+      pending.then(function (json) {
+        if (json === null) {
+          exportBtn.disabled = false;
+          return;
+        }
+        window.location.href = exportBtn.getAttribute('data-export-url');
+      }, function () {
+        exportBtn.disabled = false;
+      });
+    });
+  }
+
   bar.prev.addEventListener('click', function () { step(-1); });
   bar.next.addEventListener('click', function () { step(1); });
   render();

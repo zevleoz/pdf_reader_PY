@@ -121,8 +121,10 @@ def test_workbench_submitted_assignment_beats_reported():
 
 
 @pytest.mark.parametrize("facts_kwargs,expected", [
-    # 无预约无报告 → booked
-    ({}, "booked"),
+    # 无预约无报告无问卷 → not_started（S4-C4，原为 booked）
+    ({}, "not_started"),
+    # 无预约无报告但已有问卷任务 → 仍为 booked（其余情形不变）
+    ({"latest_assignment": _assignment("sent", confirmed_at=datetime(2026, 10, 13))}, "booked"),
     # pending 预约 → booked
     ({"pending_booking_at": datetime(2026, 10, 5)}, "booked"),
     # completed 预约但无报告 → 生命周期 report
@@ -141,7 +143,7 @@ def test_workbench_submitted_assignment_beats_reported():
     ({"latest_report": _report(),
       "latest_assignment": _assignment("sent", confirmed_at=datetime(2026, 10, 13))},
      "awaiting_student"),
-], ids=["empty", "pending-booking", "completed-booking", "no-minutes-no-task",
+], ids=["empty", "assignment-only", "pending-booking", "completed-booking", "no-minutes-no-task",
         "with-minutes-no-task", "expired", "rejected", "sent"])
 def test_progress_stage_matrix(facts_kwargs, expected):
     assert pipeline._select_progress_stage(_facts(**facts_kwargs), NOW)["stage"] == expected
@@ -162,16 +164,26 @@ def test_progress_since_for_booked_uses_booking_time():
     ({"pending_booking_at": datetime(2026, 10, 5)}, "booked"),
     ({"completed_booking_at": datetime(2026, 10, 15)}, "awaiting_report"),
     ({"latest_report": _report()}, "reported"),
-    ({}, "ready"),
-], ids=["pending", "sent", "submitted", "booking", "completed-booking", "report", "none"])
+    ({}, "not_started"),
+    # 只有已过期/被驳回的问卷任务（无预约无报告）→ 仍为 ready，不属于「什么都没有」
+    ({"latest_assignment": _assignment("expired")}, "ready"),
+], ids=["pending", "sent", "submitted", "booking", "completed-booking", "report", "none",
+        "expired-assignment-only"])
 def test_workbench_stage_matrix(facts_kwargs, expected):
     assert pipeline._select_workbench_stage(_facts(**facts_kwargs), NOW)["stage"] == expected
 
 
 def test_stages_metadata_contains_lifecycle_and_workbench_keys():
     assert pipeline.PROGRESS_STAGE_KEYS == [
-        "booked", "report", "minutes", "pending_approval", "awaiting_student", "ready"]
+        "not_started", "booked", "report", "minutes", "pending_approval",
+        "awaiting_student", "ready"]
     assert "awaiting_report" in pipeline.STAGE_KEYS
+    assert "not_started" in pipeline.STAGE_KEYS
+    assert pipeline.STAGE_KEYS[-1] == "ready"
+    for meta in (pipeline.progress_stage_meta("not_started"), pipeline.stage_meta("not_started")):
+        booked = pipeline.stage_meta("booked")
+        assert meta["label"] == "未测评"
+        assert (meta["badge"], meta["color"]) == (booked["badge"], booked["color"])
     assert pipeline.progress_stage_meta("minutes").get("optional") is True
     assert pipeline.progress_stage_meta("not-a-stage")["key"] == "ready"
 
@@ -212,7 +224,7 @@ def test_compute_progress_six_am_is_none_without_report():
     _stub_minutes(report_id=9)
     result = pipeline.compute_progress(1)
     assert result["six_am"] is None
-    assert result["stage"] == "booked"
+    assert result["stage"] == "not_started"  # S4-C4：无预约无报告（原为 booked）
 
 
 # ─── Task 5：列表阶段栏兼容 awaiting_report ────────────────────
