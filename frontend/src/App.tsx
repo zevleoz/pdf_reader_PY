@@ -7,6 +7,7 @@ import Students from "@/pages/Students";
 import Questionnaires from "@/pages/Questionnaires";
 import StudentProfile from "@/pages/StudentProfile";
 import Flow from "@/pages/Flow";
+import Workbench from "@/pages/Workbench";
 import NotFound from "@/pages/NotFound";
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
               <Route path="questionnaires" element={<Questionnaires />} />
               <Route path="students/:code" element={<StudentProfile />} />
               <Route path="flow" element={<Flow />} />
+              <Route path="workbench" element={<Workbench />} />
               <Route path="kit" element={<Kit />} />
               <Route path="*" element={<NotFound />} />
             </Route>
