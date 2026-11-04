@@ -120,7 +120,7 @@ def test_admin_sees_profiling_and_m1(app, world):
 def test_viewer_goes_straight_to_students(app, world):
     resp = _client(app, world.viewer_id, "viewer").get("/platforms")
     assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/students")
+    assert resp.headers["Location"].endswith("/app/students")
 
 
 def test_advisor_without_m1_goes_straight_to_workspace(app, world):

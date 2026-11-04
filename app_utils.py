@@ -399,7 +399,7 @@ ADMIN_NAV = [
         {"key": "workspace", "label": "工作台", "href": "/workspace", "icon": "grid"},
     ]},
     {"key": "students", "title": "学生", "links": [
-        {"key": "students", "label": "学生档案", "href": "/students", "icon": "users"},
+        {"key": "students", "label": "学生档案", "href": "/app/students", "icon": "users"},
     ]},
     {"key": "first_touch", "title": "First Touch", "links": [
         {"key": "first_touch", "label": "学生列表", "href": "/first-touch", "icon": "target"},

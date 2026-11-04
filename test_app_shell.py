@@ -212,6 +212,12 @@ def test_app_students_route_serves_page(app, world):
     assert '<div id="root">' in resp.get_data(as_text=True)
 
 
+def test_old_students_list_still_reachable(app, world):
+    """S4-GL1：新页面接管后，旧版学生列表 /students 仍可访问。"""
+    resp = _client(app, world.admin_id, "admin").get("/students")
+    assert resp.status_code == 200
+
+
 def test_app_build_has_students_page_strings():
     """S4-P1：构建产物带着学生档案的接口与文案。"""
     assets = REPO_ROOT / "static" / "app" / "assets"
