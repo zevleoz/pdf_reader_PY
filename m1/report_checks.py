@@ -373,7 +373,7 @@ def run_checks(report: Dict[str, Any], version: Optional[Dict[str, Any]], *,
 
     # --- block: 逐字稿与引文 ----------------------------------------------
     if not transcript.strip():
-        out.append(_check("block", "no_transcript", "没有 M1 会议逐字稿"))
+        out.append(_check("block", "no_transcript", "没有心有灵析会议逐字稿"))
     ft_text = _first_touch_text(report) if first_touch_text is None else first_touch_text
     transcript_index = TextIndex(transcript)
     ft_index = TextIndex(ft_text)

@@ -1,0 +1,25 @@
+{% extends "m1/_layout.html" %}
+{% block title %}{{ prep.student_name }} · 心有灵析{% endblock %}
+
+{% block crumbs %}
+<div class="cr"><a href="/m1">会议</a><span>/</span><b>{{ prep.student_name }}</b></div>
+{% endblock %}
+
+{% block content %}
+<div id="m1Student" data-prep-id="{{ prep.id }}">
+  <div class="ph" id="m1Ph"></div>
+  <div class="track k5" id="m1Track"></div>
+  <div class="cols2" style="margin-top:26px">
+    <section class="tc" id="m1PrepCard"></section>
+    <section class="tc" id="m1ReportCard"></section>
+  </div>
+  <div class="cols2" style="margin-top:30px">
+    <section id="m1Meeting"></section>
+    <section id="m1Activity"></section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/m1/assets/m1_student.js" defer></script>
+{% endblock %}

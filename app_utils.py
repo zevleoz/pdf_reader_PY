@@ -446,7 +446,7 @@ def _other_platform_links() -> List[dict]:
     """其他平台：M1 需账号有权限（无请求上下文时不显示），E4 需配置 E4_URL。"""
     links = []
     if has_request_context() and can_use_m1():
-        links.append({"key": "m1", "label": "M1", "href": "/m1", "icon": "target"})
+        links.append({"key": "m1", "label": "心有灵析", "href": "/m1", "icon": "target"})
     e4_url = os.environ.get("E4_URL", "").strip()
     if e4_url:
         links.append({"key": "e4", "label": "E4", "href": e4_url, "icon": "file", "blank": True})

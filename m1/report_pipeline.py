@@ -136,13 +136,13 @@ def step_check(prep: Dict[str, Any], report: Dict[str, Any], today: Optional[dat
     from growth_talk import y4_snapshot
 
     if not (report.get("transcript_text") or "").strip():
-        raise ReportError("还没有 M1 会议逐字稿，请先粘贴或上传逐字稿")
+        raise ReportError("还没有心有灵析会议逐字稿，请先粘贴或上传逐字稿")
     y4_report = y4_snapshot.latest_complete_y4(prep["student_id"])
     if y4_report is None:
         raise ReportError("该学生还没有完整的 Y4 测评，无法生成报告")
 
     auto = sources.auto_sources(prep["student_id"])
-    uploads = store.list_sources(prep["id"])
+    uploads = store.list_sources(prep["id"], part="report")
     first_touch = auto.get("first_touch") or {}
     y4_date = getattr(y4_report, "report_date", None)
     y4_date = y4_date.isoformat() if hasattr(y4_date, "isoformat") else _clean(str(y4_date or ""))
@@ -150,7 +150,7 @@ def step_check(prep: Dict[str, Any], report: Dict[str, Any], today: Optional[dat
     meeting_date = (_clean(prep.get("meeting_date"))
                     or sources.suggested_meeting_date(transcript))
 
-    labels = ["Y4 测评", "M1 First Meeting 逐字稿"]
+    labels = ["Y4 测评", "心有灵析 First Meeting 逐字稿"]
     if first_touch.get("present") and _clean(first_touch.get("text")):
         labels.append("First Touch")
     if any(q.get("status") == "已完成" for q in auto.get("questionnaires") or []):

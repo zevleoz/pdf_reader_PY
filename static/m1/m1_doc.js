@@ -235,7 +235,7 @@
     strong(info, '基本信息：');
     text(info, [meta.student, meta.grade, meta.school].filter(Boolean).join(' · '));
     text(info, ' · 会议日期 ' + (meta.meeting_date || '未安排'));
-    text(info, ' · M1 Mentor ' + (meta.mentor || '未指定'));
+    text(info, ' · 心有灵析 Mentor ' + (meta.mentor || '未指定'));
     text(info, ' · 预计会议时长 ' + meta.duration + ' 分钟');
     text(info, ' · 参会人员 ' + (meta.people.length ? meta.people.join('、') : '未填写'));
     root.appendChild(info);
@@ -491,7 +491,7 @@
     root.classList.toggle('draftmark', data.status !== 'final');
 
     root.appendChild(h('div', 'icon', '🧭')).setAttribute('aria-hidden', 'true');
-    root.appendChild(h('div', 'title', 'M1 FM会前准备 · ' + (meta.student || '')));
+    root.appendChild(h('div', 'title', '心有灵析 FM会前准备 · ' + (meta.student || '')));
 
     partOne(root, data, meta, opts);
     partTwo(root, data, opts);
@@ -499,7 +499,7 @@
     appendix(root, data, opts);
 
     var foot = h('div', 'foot');
-    foot.appendChild(h('span', '', 'M1 FM会前准备框架 · ' + (meta.student || '')));
+    foot.appendChild(h('span', '', '心有灵析 FM会前准备框架 · ' + (meta.student || '')));
     var stamp = 'AI 初稿 ' + (fmtDT(version.ai_generated_at) || '—');
     if (data.status === 'final' && version.reviewed_at) {
       stamp += ' · 导师审核 ' + fmtDT(version.reviewed_at);

@@ -32,21 +32,22 @@ def test_step_nav(client, m1db):  # noqa: F811
     _, html = _page(client, m1db)
     assert 'id="r4StepNav"' in html
     nav = html.split('id="r4StepNav"', 1)[1].split("</nav>", 1)[0]
-    for label in ("① 资料", "② 核对", "③ 导出"):
+    for label in ("① 逐字稿", "② 核对并发布"):
         assert label in nav
+    assert 'data-step="sources"' in nav
+    assert 'data-step="review"' in nav
 
 
 def test_sections_tagged(client, m1db):  # noqa: F811
     _, html = _page(client, m1db)
-    for element_id, step in (
-        ("r4Sources", "sources"),
-        ("r4Cover", "sources"),
-        ("r4GenerateCard", "sources"),
-        ("r4Speakers", "review"),
-        ("r4PreviewCard", "review"),
-        ("r4Export", "export"),
-    ):
-        assert 'data-step="%s"' % step in _tag(html, element_id)
+    sources = html.split('id="r4StepSources"', 1)[1].split('id="r4StepReview"', 1)[0]
+    review = html.split('id="r4StepReview"', 1)[1].split('id="r4Legacy"', 1)[0]
+    for element_id in ("r4Sources", "r4Cover", "r4GenerateCard"):
+        assert 'id="%s"' % element_id in sources, element_id
+    for element_id in ("r4Export", "r4NeedCard", "r4Speakers", "r4Preview"):
+        assert 'id="%s"' % element_id in review, element_id
+    for wrapper, step in (("r4StepSources", "sources"), ("r4StepReview", "review")):
+        assert 'data-step="%s"' % step in _tag(html, wrapper)
     for element_id in ("r4Todo", "r4Content"):
         assert "data-step=" not in _tag(html, element_id)
 

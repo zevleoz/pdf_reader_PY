@@ -28,7 +28,7 @@ const TABS: { key: string; label: string }[] = [
   { key: "questionnaires", label: "问卷" },
   { key: "six_am", label: "6AM" },
   { key: "first_touch", label: "First Touch" },
-  { key: "m1", label: "M1" },
+  { key: "m1", label: "心有灵析" },
   { key: "files", label: "文件" },
 ];
 const TAB_KEYS = TABS.map((t) => t.key);
@@ -354,7 +354,7 @@ export default function StudentProfile() {
             </a>
             {permissions.m1_access ? (
               <a className={linkClass} href={"/m1?student=" + student.id}>
-                M1
+                心有灵析
               </a>
             ) : null}
             {permissions.is_admin ? (
@@ -419,13 +419,13 @@ export default function StudentProfile() {
           ) : null}
           {visited.includes("m1") ? (
             <TabsContent value="m1" forceMount className="mt-0 data-[state=inactive]:hidden">
-              <EmptyPanel title="M1 在单独的平台里">
+              <EmptyPanel title="心有灵析在单独的平台里">
                 {permissions.m1_access ? (
                   <Button asChild>
-                    <a href={"/m1?student=" + student.id}>打开 M1</a>
+                    <a href={"/m1?student=" + student.id}>打开心有灵析</a>
                   </Button>
                 ) : (
-                  <span>当前账号未开通 M1</span>
+                  <span>当前账号未开通心有灵析</span>
                 )}
               </EmptyPanel>
             </TabsContent>

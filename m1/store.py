@@ -27,7 +27,9 @@ Base = _db.Base
 
 STATUSES = ("draft", "generating", "review", "final")
 KINDS = ("ai_draft", "edit", "final")
-SOURCE_CATEGORIES = ("parent", "case_review", "other", "first_touch_extra")
+PREP_CATEGORIES = ("parent", "case_review", "other", "first_touch_extra")
+REPORT_CATEGORIES = ("report_other",)
+SOURCE_CATEGORIES = PREP_CATEGORIES + REPORT_CATEGORIES
 SOURCE_STATUSES = ("ok", "partial", "unreadable")
 DURATIONS = (60, 75, 90)
 
@@ -406,10 +408,27 @@ def add_source(prep_id: int, *, category: str, label: str = "", filename: str = 
         return data
 
 
-def list_sources(prep_id: int) -> List[Dict[str, Any]]:
+_SOURCE_PARTS = {
+    "prep": PREP_CATEGORIES,
+    "report": REPORT_CATEGORIES,
+    "all": SOURCE_CATEGORIES,
+}
+
+
+def source_part(category: str) -> str:
+    """资料类别所属的文档：``prep`` 或 ``report``。"""
+    return "report" if category in REPORT_CATEGORIES else "prep"
+
+
+def list_sources(prep_id: int, part: str = "prep") -> List[Dict[str, Any]]:
+    """按所属文档返回资料：``prep`` 只给会前准备，``report`` 只给会后报告。"""
+    categories = _SOURCE_PARTS.get(part)
+    if categories is None:
+        raise ValueError("未知资料部分：%s" % part)
     with Session(_engine()) as sess:
         rows = sess.execute(
-            select(M1Source).where(M1Source.prep_id == int(prep_id))
+            select(M1Source).where(M1Source.prep_id == int(prep_id),
+                                   M1Source.category.in_(categories))
             .order_by(M1Source.id)
         ).scalars().all()
         return [_source_row(row) for row in rows]
@@ -430,6 +449,8 @@ def update_source(source_id: int, *, category: Optional[str] = None,
         if category is not None:
             if category not in SOURCE_CATEGORIES:
                 raise ValueError("未知资料类别：%s" % category)
+            if source_part(category) != source_part(row.category):
+                raise ValueError("不能把资料移到另一份文档")
             row.category = category
         if detected_date is not None:
             row.detected_date = str(detected_date or "").strip()[:20]
@@ -581,7 +602,7 @@ def _safety_flags(doc: dict) -> list:
 
 
 def finalize_prep(prep_id: int, user_id=None) -> Dict[str, Any]:
-    """把当前 edit 草稿固化为 ``final`` 版本；安全提示未确认时拒绝。"""
+    """把当前 edit 草稿固化为 ``final`` 版本；安全提示只提示，不拦截。"""
     with Session(_engine()) as sess:
         prep = sess.get(M1Prep, int(prep_id))
         if not prep:
@@ -593,9 +614,6 @@ def finalize_prep(prep_id: int, user_id=None) -> Dict[str, Any]:
         ).scalars().first()
         if edit is None or not _loads(edit.doc, None):
             raise FinalizeBlocked("尚无 AI 初稿，不能定稿")
-        doc = _loads(edit.doc, {}) or {}
-        if _safety_flags(doc) and not prep.safety_ack_at:
-            raise FinalizeBlocked("存在安全提示，需先确认后才可定稿")
         if prep.status == "final":
             raise FinalizeBlocked("该会前准备已定稿")
         row = M1Version(
@@ -775,3 +793,51 @@ def audit(user_id, student_id, action: str, details=None) -> None:
             details=_dumps(details or {}),
         ))
         sess.commit()
+
+
+ACTIVITY_TEXT = {
+    "m1.create": ("添加到心有灵析", False),
+    "m1.generate_done": ("会前准备 AI 初稿已生成", True),
+    "m1.final": ("定稿会前准备", False),
+    "m1.reopen": ("重新打开会前准备", False),
+    "m1.report_transcript": ("上传逐字稿", False),
+    "m1.report_generate_done": ("会后报告已生成", True),
+    "m1.report_publish": ("正式发布会后报告", False),
+    "m1.report_reopen": ("重新打开会后报告", False),
+}
+
+
+def list_activity(prep_id: int, student_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+    """该 prep 的操作记录，最新的在前，最多 ``limit`` 条。"""
+    with Session(_engine()) as sess:
+        rows = sess.execute(
+            select(_gt.AuditLog).where(
+                _gt.AuditLog.student_id == int(student_id),
+                _gt.AuditLog.action.in_(tuple(ACTIVITY_TEXT)))
+            .order_by(_gt.AuditLog.created_at.desc(), _gt.AuditLog.id.desc())
+        ).scalars().all()
+        names = {}
+        out = []
+        for row in rows:
+            if len(out) >= int(limit):
+                break
+            details = _loads(row.details, {}) or {}
+            if not isinstance(details, dict):
+                continue
+            try:
+                if int(details.get("prep_id")) != int(prep_id):
+                    continue
+            except (TypeError, ValueError):
+                continue
+            text, auto = ACTIVITY_TEXT[row.action]
+            actor = ""
+            if not auto and row.actor_id is not None:
+                actor_id = int(row.actor_id)
+                if actor_id not in names:
+                    user = sess.get(_db.User, actor_id)
+                    names[actor_id] = ((user.display_name or user.advisor_name or "")
+                                       if user else "")
+                actor = names[actor_id]
+            out.append({"at": _iso(row.created_at), "actor": actor,
+                        "text": text, "auto": auto})
+        return out

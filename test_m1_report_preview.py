@@ -248,12 +248,12 @@ def test_workspace_preview_markup(client, m1db):  # noqa: F811
     _login(client, m1db.admin_id, "admin")
     html = client.get(f"/m1/preps/{prep['id']}/report").get_data(as_text=True)
 
-    assert 'data-step="review"' in _tag(html, "r4PreviewCard")
-    assert 'id="r4Preview"' in html
-    assert 'id="r4Regenerate"' in html
+    review = html.split('id="r4StepReview"', 1)[1].split('id="r4Legacy"', 1)[0]
+    assert 'data-step="review"' in _tag(html, "r4StepReview")
+    assert 'id="r4Preview"' in review
+    assert 'id="r4Regenerate"' in review
     assert re.search(r'<div id="r4Legacy" hidden>', html)
-    card = html.split('id="r4PreviewCard"', 1)[1].split("</section>", 1)[0]
-    assert 'id="r4Safety"' in card
+    assert 'id="r4Safety"' in review
 
 
 def test_edit_js_contract():

@@ -32,7 +32,7 @@ def _platform_cards() -> list:
         labels = "、".join(part["label"] for part in M1_PARTS if part["enabled"])
         cards.append({
             "key": "m1",
-            "title": "M1",
+            "title": "心有灵析",
             "desc": f"First Meeting：{labels}",
             "href": "/m1",
             "blank": False,

@@ -405,7 +405,7 @@ def test_end_to_end_generation(rdb, fake):
     assert doc["meta"]["report_date"] == date.today().isoformat()
     assert doc["meta"]["meeting_date"] == ""          # 不认识的字段留空
     assert doc["meta"]["evidence_sources"] == "Y4 测评"
-    assert "M1 First Meeting 逐字稿" in version["manifest"]["sources"]
+    assert "心有灵析 First Meeting 逐字稿" in version["manifest"]["sources"]
     # First Touch 步骤被跳过，不算资料缺口
     assert ("first_touch", "skipped") in steps and ("checks", "done") in steps
     assert [s for s, st in steps if st == "running"] == [k for k, _ in report_pipeline.STEP_DEFS]
@@ -514,7 +514,7 @@ def test_no_y4_is_a_clear_error(rdb, fake):
 
 def test_other_materials_become_other_items(rdb, fake, monkeypatch):
     sources_text = "家长反馈：晓雨最近遇到困难会主动找老师请教，也会跟妈妈说。"
-    store.add_source(rdb.prep_row["id"], category="parent", label="家长反馈",
+    store.add_source(rdb.prep_row["id"], category="report_other", label="家长反馈",
                      text=sources_text, status="ok")
     seen = []
     original = fake.__call__
@@ -1146,7 +1146,7 @@ def test_get_report_payload_shape(client, rdb, fake, inline_jobs):
     payload = generated_via_api(client, rdb, fake, inline_jobs)
     assert set(payload) >= {"ok", "report", "inputs", "doc", "evidence", "ratings", "mapped",
                             "checks", "appendix", "fixed", "has_edits"}
-    assert set(payload["inputs"]) == {"y4", "first_touch", "others"}
+    assert set(payload["inputs"]) == {"y4", "first_touch", "questionnaires", "others"}
     assert payload["inputs"]["y4"]["complete"] is True
     assert payload["mapped"]["R1.1"] == ["013", "012", "056", "019"]
     assert payload["fixed"]["tags"][0]["key"] == "积极资源"

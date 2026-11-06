@@ -159,7 +159,7 @@ def test_ai_generated_tags_still_follow_protocol(rdb, fake):
 def test_cover_y4_source_and_internal_manifest(rdb, fake):
     _report, version = generate(rdb)
     assert version["doc"]["meta"]["evidence_sources"] == "Y4 测评"
-    assert "M1 First Meeting 逐字稿" in version["manifest"]["sources"]
+    assert "心有灵析 First Meeting 逐字稿" in version["manifest"]["sources"]
 
 
 def test_regeneration_keeps_saved_grade_and_school(client, rdb, fake, inline_jobs):

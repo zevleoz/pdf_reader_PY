@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 import db as _db
 import growth_talk_store as _gt
+import m1.report_store as report_store
 import m1.sources as sources
 import m1.store as store
 import questionnaire_store as qs
@@ -100,6 +101,7 @@ def m1db(tmp_path, monkeypatch):
         qs.ResponseDraft.__table__,
     ]
     _db.Base.metadata.create_all(engine, tables=tables)
+    report_store.ensure_tables(engine)  # 列表页要读 m1_reports
     monkeypatch.setattr(_db, "engine", engine)
     monkeypatch.setattr(qs, "engine", engine)
     monkeypatch.setattr(sources, "UPLOAD_ROOT", tmp_path / "m1_uploads")
@@ -317,19 +319,16 @@ def test_rev_conflict_returns_server_doc(m1db):
     assert error.value.doc["_block"]["text"] == "第二版"
 
 
-def test_finalize_blocked_until_safety_ack(m1db):
+def test_finalize_allowed_without_safety_ack(m1db):
     prep = m1db.prep()
     saved = store.save_doc(prep["id"], prep["rev"],
                            _doc(safety=[{"text": "说过不想活了", "source_ref": "m1_source:1"}]))
-    with pytest.raises(store.FinalizeBlocked):
-        store.finalize_prep(prep["id"], m1db.alice_id)
-    assert store.get_prep(prep["id"])["status"] == "draft"
 
-    store.ack_safety(prep["id"], m1db.alice_id)
     final = store.finalize_prep(prep["id"], m1db.alice_id)
     assert final["kind"] == "final"
     assert final["reviewed_at"]
     assert store.get_prep(prep["id"])["status"] == "final"
+    assert store.get_prep(prep["id"])["safety_ack_at"] is None
     assert saved["rev"] == prep["rev"] + 1
 
 

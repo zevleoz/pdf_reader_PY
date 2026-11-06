@@ -1,65 +1,57 @@
-{% extends "layouts/admin_v2.html" %}
-{% block title %}M1{% endblock %}
-{% block page_title %}M1{% endblock %}
-{% block body_attrs %}class="m1-platform"{% endblock %}
-{% block crumb_up %}凭远 APP·ARK{% endblock %}
-
-{% block brand %}
-<a class="side-brand" href="/m1">
-  <img src="/branding/logo_red.png" alt="凭远教育盾徽">
-  <span class="txt">
-    <div class="name">M1</div>
-    <div class="sub">凭远 APP·ARK</div>
-  </span>
-</a>
-{% endblock %}
-
-{% block head_extra %}
-<link rel="stylesheet" href="/m1/assets/m1.css">
-{% endblock %}
+{% extends "m1/_layout.html" %}
+{% block title %}心有灵析{% endblock %}
 
 {% block content %}
-<div class="m1" id="m1Home" data-student-id="{{ student_id if student_id else '' }}">
-  <div class="m1-main">
-    <div class="page-h">
-      <div style="min-width:0">
-        <h1>M1</h1>
-        <div class="sub">每位学生的 First Meeting。会前准备在这里生成、修改和下载。</div>
-      </div>
-      <span class="sp"></span>
-      <button type="button" class="btn pri lg" id="newPrep">＋ 新建 M1</button>
+<div id="m1Home" data-student-id="{{ student_id or '' }}" data-me-name="{{ current_display_name }}">
+  <div class="head">
+    <div>
+      <h1 id="m1Count">心有灵析<span>0</span></h1>
+      <p class="sub">每位学生的 First Meeting。会前准备和会后报告分开做，各有各的资料和状态。</p>
     </div>
-
-    <section class="surface">
-      <div class="head"><h2>我的学生</h2><span class="sub">按会议日期排序</span></div>
-      <div class="scroll-x">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>学生</th><th>M1 会议日期</th><th>M1 Mentor</th>
-              <th>会前准备</th><th>会后报告</th><th>最近更新</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="prepRows">
-            <tr><td colspan="7" class="sub">加载中…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="surface">
-      <div class="empty-cta">
-        <div>
-          <b>也可以从学生 360° 档案进入</b>
-          <div class="sub">档案页顶部有「M1」按钮，点开直接进入这位学生的准备。</div>
-        </div>
-        <span class="pill info">只有 Y4 已完成的学生可以开始</span>
-      </div>
-    </section>
+    <div class="acts">
+      <button class="btn p" type="button" id="addStudent"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>添加学生</button>
+    </div>
   </div>
-</div>
 
-<div class="m1" id="m1ModalHost"></div>
+  <div class="tool">
+    <div class="vw" role="tablist" style="margin:0;border:0;flex:1;min-width:0">
+      <button class="on" type="button" data-view="all">全部<em>0</em></button>
+      <button type="button" data-view="prep">会前待办<em>0</em></button>
+      <button type="button" data-view="report">会后待办<em>0</em></button>
+      <button type="button" data-view="done">已完成<em>0</em></button>
+    </div>
+    <div class="seg" role="group" aria-label="添加人">
+      <button class="on" type="button" data-who="mine" aria-pressed="true">我添加的</button>
+      <button type="button" data-who="all" aria-pressed="false">全部</button>
+    </div>
+    <label class="fld" style="width:220px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="m1Search" placeholder="搜索姓名或 Y4 编号" aria-label="搜索"></label>
+  </div>
+
+  <div class="panel list" id="m1List"></div>
+</div>
+{% endblock %}
+
+{% block overlay %}
+<div class="pal dlg" id="addDlg" role="dialog" aria-modal="true" aria-labelledby="addDlgH" hidden><div>
+  <div class="dh"><b id="addDlgH">添加学生</b><button class="x" type="button" id="addDlgX" aria-label="关闭">×</button></div>
+  <div class="db">
+    <section data-pane="pick">
+      <label class="fld"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="addSearch" placeholder="搜索姓名或 Y4 编号" aria-label="搜索学生"></label>
+      <div class="pick" id="pick" style="margin-top:8px"></div>
+      <p class="hint" style="margin:8px 0 0">只有 Y4 已完成、还不在心有灵析里的学生可以添加。</p>
+    </section>
+    <h3 class="h2" style="margin:4px 0 0">First Meeting</h3>
+    <div class="fm">
+      <label>会议日期<input class="inp" id="addDate" type="date"></label>
+      <label>预计时长<div class="seg" id="addDuration"><button class="on" type="button" data-d="60" aria-pressed="true">60 分钟</button><button type="button" data-d="75" aria-pressed="false">75</button><button type="button" data-d="90" aria-pressed="false">90</button></div></label>
+      <div class="w hint">心有灵析 Mentor：{{ current_display_name or '未命名用户' }}</div>
+    </div>
+  </div>
+  <div class="df"><span class="hint">日期以后也能改</span>
+    <button class="btn" type="button" id="addCancel">取消</button>
+    <button class="btn p" type="button" id="addGo" disabled>添加并打开</button>
+  </div>
+</div></div>
 {% endblock %}
 
 {% block scripts %}
