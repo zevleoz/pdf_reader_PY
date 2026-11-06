@@ -49,10 +49,12 @@ INFORMATIONAL_CHECK_CODES = {
 }
 
 # M1R D1：家长版各栏字数上限（含标点）
-LIMITS = {"meeting": 60, "meeting_two_tags": 80, "core_finding": 80, "context_notes": 50,
-          "portrait": 60, "finding": 40, "meaning": 40, "plan_cell": 40, "review_advice": 60}
+# 由黄金样本实测最大长度上浮 10%、再向上取整到 10 字得到（私有 limits.json）；
+# review_advice 没有黄金对照，保留原值。
+LIMITS = {"meeting": 160, "meeting_two_tags": 160, "core_finding": 180, "context_notes": 100,
+          "portrait": 80, "finding": 60, "meaning": 60, "plan_cell": 70, "review_advice": 60}
 Y4_MAX = 3
-TOTAL_MAX = 3000
+TOTAL_MAX = 3900
 _FINDING_NAMES = {"resources": "关键发展资源", "needs": "关键发展需求", "open": "仍待观察"}
 _FINDING_PARTS = {"finding": "发现", "meaning": "发展意义"}
 _PLAN_CELLS = {"goal": "阶段目标", "mentor": "导师支持方式", "family": "家庭支持方式",

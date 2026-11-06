@@ -10,7 +10,7 @@ import re
 
 import m1.report_store as report_store
 from app_utils import BASE_DIR
-from m1 import report_display, report_kb
+from m1 import report_checks, report_display, report_kb
 from test_m1_report_screen import SAMPLE, _login, _seed_report, client, m1db  # noqa: F401
 
 EDIT_JS = BASE_DIR / "static" / "m1" / "report_edit.js"
@@ -83,7 +83,8 @@ def test_sources_line_skips_meeting_and_unsupported():
 
 
 def test_display_caps_ai_not_edited():
-    a, b, c = _sentence(30, "一"), _sentence(30, "二"), _sentence(30, "三")
+    half = report_checks.LIMITS["meeting"] // 2
+    a, b, c = _sentence(half, "一"), _sentence(half, "二"), _sentence(half, "三")
     doc = _doc(a + b + c)
     before = copy.deepcopy(doc)
     shown = report_display.display_doc(doc, [])
@@ -107,7 +108,8 @@ def test_display_keeps_edited_clues():
 
 
 def test_display_drops_flag_on_cut_sentence():
-    a, b, c = _sentence(30, "一"), _sentence(30, "二"), _sentence(30, "三")
+    half = report_checks.LIMITS["meeting"] // 2
+    a, b, c = _sentence(half, "一"), _sentence(half, "二"), _sentence(half, "三")
     path = ["dims", "R1", "abilities", "R1.1", "meeting"]
     doc = _doc(a + b + c)
     doc["guard"] = {"flags": [{"sentence": a, "path": path},

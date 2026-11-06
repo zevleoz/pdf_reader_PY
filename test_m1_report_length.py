@@ -110,7 +110,7 @@ def test_long_clue_uses_first_sentence():
 # §4.4 会议核实情况的双标签上限
 # ---------------------------------------------------------------------------
 class _LongMeetingModel(FakeModel):
-    """R1.1 双标签、R1.2 单标签，两者都拿到同一段 75 字的会议文字。"""
+    """R1.1 双标签恰好到新上限，R1.2 单标签整句超出一个。"""
 
     def __init__(self):
         super().__init__()
@@ -132,10 +132,13 @@ class _LongMeetingModel(FakeModel):
         out = super()._dim(prompt)
         payload = json.loads(prompt.split("【能力与资料】\n", 1)[1])
         ids = {row["code"]: [e["id"] for e in row["meeting_evidence"]] for row in payload}
-        sentences = [_sentence(25, t) for t in ("一", "二", "三")]
         for row in out["abilities"]:
             code = row["code"]
-            if code not in ("R1.1", "R1.2"):
+            if code == "R1.1":
+                sentences = [_sentence(80, "甲"), _sentence(80, "乙")]
+            elif code == "R1.2":
+                sentences = [_sentence(60, t) for t in ("一", "二", "三")]
+            else:
                 continue
             row["meeting"] = {"sentences": [
                 {"text": text, "evidence_ids": ids.get(code, [])[:1], "kind": "fact"}
@@ -148,10 +151,31 @@ def test_meeting_limit_two_tags(rdb, monkeypatch):
     monkeypatch.setattr(report_pipeline, "call_model", model)
     _report, version = generate(rdb)
     rows = version["doc"]["dims"]["R1"]["abilities"]
-    assert len(rows["R1.1"]["meeting"]["text"]) == 75
-    assert len(rows["R1.2"]["meeting"]["text"]) == 50
-    assert any("R1.2 首次会议核实情况：超过 60 字" in item["message"]
+    assert len(rows["R1.1"]["meeting"]["text"]) == 160
+    assert len(rows["R1.2"]["meeting"]["text"]) == 120
+    assert any("R1.2 首次会议核实情况：超过 160 字" in item["message"]
                for item in version["manifest"]["adjustments"])
+
+
+def test_v3_lengths_keep_sentences_and_nonblocking():
+    limit = report_checks.LIMITS["meeting"]
+    pieces = [_sentence(80, "一"), _sentence(80, "二"), _sentence(80, "三")]
+    field = {"text": "".join(pieces), "src": "ai"}
+    adjustments = []
+    report_pipeline._cap_field(field, limit, "R1.1 首次会议核实情况",
+                               ["dims", "R1", "abilities", "R1.1", "meeting"], adjustments)
+    assert field["text"] == "".join(pieces[:2])
+    assert field["text"].endswith("。")
+    assert [a["message"] for a in adjustments] == [
+        "R1.1 首次会议核实情况：超过 %d 字，已删去后面的句子" % limit]
+
+    doc = _doc_with_meeting(field["text"] + pieces[2] + pieces[2])
+    checks = report_checks.run_checks({"transcript_text": ""}, {"doc": doc},
+                                      first_touch_text="")
+    hits = [c for c in checks if c["code"] == "field_too_long"]
+    assert hits and all(c["level"] == "review" for c in hits)
+    assert not [c for c in report_checks.blocking(checks)
+                if c["code"] in ("field_too_long", "too_long")]
 
 
 # ---------------------------------------------------------------------------
@@ -183,18 +207,20 @@ def test_profile_fields_capped(rdb, monkeypatch):
 # ---------------------------------------------------------------------------
 def test_field_too_long_check():
     path = ["dims", "R1", "abilities", "R1.1", "meeting"]
-    hits = [c for c in _checks(_doc_with_meeting("字" * 60 + "。"), "field_too_long")
+    limit = report_checks.LIMITS["meeting"]
+    hits = [c for c in _checks(_doc_with_meeting("字" * limit + "。"), "field_too_long")
             if c["path"] == path]
     assert hits and hits[0]["level"] == "review"
-    assert not [c for c in _checks(_doc_with_meeting("字" * 59 + "。"), "field_too_long")
-                if c["path"] == path]
+    assert not [c for c in _checks(_doc_with_meeting("字" * (limit - 1) + "。"),
+                                   "field_too_long") if c["path"] == path]
 
 
 def test_total_too_long_check():
-    assert report_checks.ai_text_length(_doc_with_meeting("字" * 2999 + "。")) == 3000
-    assert not _checks(_doc_with_meeting("字" * 2999 + "。"), "too_long")
-    longer = _doc_with_meeting("字" * 3000 + "。")
-    assert report_checks.ai_text_length(longer) == 3001
+    limit = report_checks.TOTAL_MAX
+    assert report_checks.ai_text_length(_doc_with_meeting("字" * (limit - 1) + "。")) == limit
+    assert not _checks(_doc_with_meeting("字" * (limit - 1) + "。"), "too_long")
+    longer = _doc_with_meeting("字" * limit + "。")
+    assert report_checks.ai_text_length(longer) == limit + 1
     assert _checks(longer, "too_long")
 
 
@@ -202,9 +228,9 @@ def test_total_too_long_check():
 # §3 提示词
 # ---------------------------------------------------------------------------
 def test_prompts_carry_limits():
-    assert "合计不超过 60 字" in report_prompts.DIM_PROMPT
+    assert "建议合计不超过 160 字" in report_prompts.DIM_PROMPT
     assert "最多 3 个" in report_prompts.DIM_PROMPT
-    assert "不超过 40 字" in report_prompts.PROFILE_PROMPT
+    assert "不超过 70 字" in report_prompts.PROFILE_PROMPT
     assert "event_key" in report_prompts.MEETING_PROMPT
     assert "speaker" not in report_prompts.MEETING_PROMPT      # 发言人不再由提取模型判断
     assert "默认选 1–2 个最有代表性的事件" not in report_prompts.DIM_PROMPT
@@ -225,10 +251,15 @@ class _LongEverythingModel(_LongProfileModel):
         return out
 
 
-def test_full_generate_is_short(rdb, monkeypatch):
+def test_full_generate_respects_limits_and_total_is_informational(rdb, monkeypatch):
     model = _LongEverythingModel()
     monkeypatch.setattr(report_pipeline, "call_model", model)
     _report, version = generate(rdb)
     doc = version["doc"]
+    assert all(len(text) <= limit for _p, _n, text, limit
+               in report_checks.family_fields_with_limits(doc))
     total = report_checks.ai_text_length(doc)
-    assert total <= report_checks.TOTAL_MAX
+    assert total > report_checks.TOTAL_MAX
+    hits = [c for c in version["checks"] if c["code"] == "too_long"]
+    assert hits and all(c["level"] == "review" for c in hits)
+    assert not [c for c in report_checks.blocking(version["checks"]) if c["code"] == "too_long"]
