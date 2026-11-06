@@ -98,6 +98,8 @@ class FakeModel:
             return {"items": copy.deepcopy(self.meeting_items)}
         if prompt.startswith("任务：从其他资料中提取证据条目"):
             return {"items": []}
+        if prompt.startswith("任务：重新匹配会议证据与能力"):
+            return self._rerank(prompt)
         if prompt.startswith("任务：判断一个维度的能力标签"):
             return self._assess(prompt)
         if prompt.startswith("任务：整理一个维度的能力分析"):
@@ -131,6 +133,30 @@ class FakeModel:
     def _payload(prompt):
         data = prompt.split("【能力与资料】\n", 1)[1]
         return json.loads(data.split("\n\n【上次判断的问题】", 1)[0])
+
+    def _rerank(self, prompt):
+        """默认把抽取时的编号原样判为“直接”，保持既有测试的证据归属。"""
+        head, tail = prompt.split("【会议证据】\n", 1)
+        abilities = json.loads(head.split("【能力定义】\n", 1)[1])
+        evidence = json.loads(tail)
+        rows = []
+        for ability in abilities:
+            code = ability["code"]
+            items = [{"evidence_id": view["id"], "level": "直接", "reason": "示例理由"}
+                     for view in evidence if code in self._codes_for(view["quote"])][:3]
+            rows.append({"code": code, "items": items})
+        return {"abilities": rows}
+
+    def _codes_for(self, quote):
+        probe = report_checks.normalize(quote)
+        codes = []
+        for item in self.meeting_items:
+            other = report_checks.normalize(item["quote"])
+            if other and (other in probe or probe in other):
+                for code in item["ability_codes"]:
+                    if code not in codes:
+                        codes.append(code)
+        return codes
 
     def _assess(self, prompt):
         payload = self._payload(prompt)
