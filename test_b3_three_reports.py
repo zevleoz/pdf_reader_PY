@@ -217,6 +217,9 @@ def report_client(tmp_path, monkeypatch):
     engine.dispose()
 
 
+@pytest.mark.skipif(
+    not (Path(__file__).resolve().parent / "new_iteration" / "branding").is_dir(),
+    reason="new_iteration/branding is git-ignored; copy it in to run this check")
 def test_edited_value_reaches_the_pdf(report_client, monkeypatch):
     client, report_id, root = report_client
 
