@@ -991,7 +991,7 @@ html, body {
           <div class="num">{{ d.val }}<small> / 10.0</small></div>
           <div class="bar">
             <div class="fill" style="width:{{ d.pct }}%"></div>
-            <div class="avg-tick" style="left:{{ d.avg_pct }}%"></div>
+            {% if d.avg != "-" %}<div class="avg-tick" style="left:{{ d.avg_pct }}%"></div>{% endif %}
           </div>
           <div class="avg">同龄平均：{{ d.avg }}</div>
         </div>
@@ -1295,7 +1295,7 @@ html, body {
         </div>
         <div class="bar">
           <div class="fill" style="width:{{ it.pct }}%"></div>
-          <div class="avg-tick" style="left:{{ it.avg_pct }}%"></div>
+          {% if it.avg != "-" %}<div class="avg-tick" style="left:{{ it.avg_pct }}%"></div>{% endif %}
         </div>
         <div class="txt">{{ it.desc }}</div>
       </div>

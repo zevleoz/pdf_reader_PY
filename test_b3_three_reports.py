@@ -151,10 +151,9 @@ class TestThreeReports:
         assert "8.1" in eff and "同龄 -" in eff
         assert "7.1" in reg and "同龄 -" in reg
 
-        # 不断言：只记录 D2 关注的「平均线是否画在 0」。
-        eff_zero = 'class="avg-tick" style="left:0.0%"' in eff
-        reg_zero = 'class="avg-tick" style="left:0.0%"' in reg
-        print(f"[D2] 平均线画在 0：自我效能感={eff_zero} 学习自我调节={reg_zero}")
+        # D2（owner 2026-11-07）：均值为空时不画平均线；有均值的行照常画
+        assert "avg-tick" not in eff and "avg-tick" not in reg
+        assert 'class="avg-tick" style="left:74.0%"' in _lm_row(page, "深层动机")
 
 
 OLD_B3_FILES = sorted((Path.home() / "Downloads").glob("B3 核心学习能力_*.pdf"))
