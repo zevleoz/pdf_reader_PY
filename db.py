@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import json
+import math
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -749,6 +750,82 @@ def get_report_raw(report_id: int) -> Optional[Dict[str, Any]]:
             "interpretation": report.interpretation or "",
             "raw": raw,
         }
+
+
+def update_report_values(report_id: int, edits: Dict[str, str],
+                         editor: str) -> Dict[str, Any]:
+    """把手工修改写入报告快照（``data_json`` → ``schema_124[].value``）。
+
+    整批校验通过后才落库：未知编号、编号不允许编辑、数值项写了非数值，都会
+    拒绝整次调用且不做任何修改。空白会被去掉，``""`` 表示清空该值。
+    值没有变化的编号不写库、不追加修改记录。
+
+    返回 ``{"changed": [编号, ...]}``。
+    """
+    from data_points import POINT_META
+
+    if not isinstance(edits, dict):
+        raise ValueError("edits 必须是「编号 → 值」的对象")
+
+    with Session(engine) as sess:
+        report = sess.execute(
+            select(Report).where(Report.id == int(report_id))).scalar_one_or_none()
+        if report is None:
+            raise LookupError(f"报告 {report_id} 不存在")
+
+        try:
+            raw = json.loads(report.data_json) if report.data_json else {}
+        except Exception:
+            raw = {}
+        if not isinstance(raw, dict):
+            raw = {}
+        items = raw.get("schema_124") or []
+        by_code = {str(it.get("code", "")): it
+                   for it in items if isinstance(it, dict)}
+
+        cleaned: Dict[str, str] = {}
+        for code, value in edits.items():
+            code = str(code)
+            item = by_code.get(code)
+            if item is None:
+                raise ValueError(f"未知编号 {code}")
+            if not isinstance(value, str):
+                raise ValueError(f"编号 {code} 的值必须是字符串")
+            text = value.strip()
+            type_ = item.get("type") or POINT_META.get(code, {}).get("type")
+            if type_ == "number" and text != "":
+                try:
+                    num = float(text)
+                except ValueError:
+                    num = None
+                if num is None or not math.isfinite(num):
+                    raise ValueError(
+                        f"编号 {code} 需要数值，收到「{text}」")
+            cleaned[code] = text
+
+        edits_log = raw.get("edits")
+        if not isinstance(edits_log, list):
+            edits_log = []
+            raw["edits"] = edits_log
+        now = datetime.now().isoformat(timespec="seconds")
+
+        changed: List[str] = []
+        for code, text in cleaned.items():
+            item = by_code[code]
+            old = item.get("value")
+            old_text = "" if old is None else str(old)
+            if old_text == text:
+                continue
+            item["value"] = text
+            edits_log.append({"code": code, "old": old_text, "new": text,
+                              "by": editor, "at": now})
+            changed.append(code)
+
+        if changed:
+            report.data_json = json.dumps(raw, ensure_ascii=False)
+            sess.commit()
+
+    return {"changed": changed}
 
 
 def get_report_pdf_path(report_id: int) -> Optional[str]:

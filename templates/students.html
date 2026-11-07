@@ -178,6 +178,27 @@
   }
   .page-subtitle { font-size: 12.5px; color: var(--muted); margin: 6px 0 10px; }
 
+  /* 原始数据：可编辑的数值列（保持紧凑右对齐；有改动时浅黄底） */
+  .raw-val-input {
+    width: 88px; padding: 2px 6px;
+    text-align: right; font-size: 13px; font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink); background: transparent;
+    border: 1px solid transparent; border-radius: 4px;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .raw-val-input:hover { border-color: var(--line); }
+  .raw-val-input:focus {
+    outline: none; border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-ring);
+  }
+  .raw-val-input.changed { background: #FFF7D6; border-color: #EAD48A; }
+  .raw-edit-log { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+  .raw-edit-log h4 {
+    margin: 0 0 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+  }
+  .raw-edit-log ul { margin: 0; padding-left: 18px; line-height: 1.8; }
+
   /* 展开面板内的卡片 */
   .interp-card {
     background: var(--surface); border: 1px solid var(--line);
@@ -290,6 +311,8 @@
     let currentStudentId = null;
     let currentStudentName = '';
     let expandedStudentId = null;
+    // 原始数据编辑态：{reportId, originals: {编号: 原值}}；只读角色为 null
+    let rawEditState = null;
 
     let allStudents = [];
     let currentStatus = 'all';
@@ -301,6 +324,8 @@
       inbox: '{{ icon("inbox", 16) }}'
     };
     const PENCIL_ICON = '{{ icon("pencil", 12) }}';
+    // 原始数据是否可编辑：与「生成 PDF」一致，只读角色（viewer）看只读表格
+    const CAN_EDIT_RAW_VALUES = {{ 'false' if session.get('role') == 'viewer' else 'true' }};
 
     const STAGE_META = JSON.parse(
       (document.getElementById('stageRail') || {}).dataset?.meta || '[]');
@@ -646,7 +671,7 @@
       }
     }
 
-    async function showRawData(reportId) {
+    async function showRawData(reportId, savedMsg) {
       const resp = await fetch(`/api/reports/${reportId}/raw`);
       const data = await resp.json();
       const panelInner = getPanelInner();
@@ -654,15 +679,130 @@
       if (!data.ok) { alert(data.error || '加载失败'); return; }
       const schemaItems = (data.raw.schema_124 || []);
       const student = data.raw.student || {};
-      let html = `<h3>原始数据 — ${data.student_name || ''}（报告 #${data.report_id}）</h3>`;
-      html += `<p class="page-subtitle">学生：${student.name || '-'} ｜ 年级：${student.grade || '-'} ｜ 学校：${student.school || '-'} ｜ 测评日期：${student.test_date || '-'} ｜ 共 ${schemaItems.length} 个数据点</p>`;
+      const canEdit = CAN_EDIT_RAW_VALUES;
+      rawEditState = canEdit ? { reportId: reportId, originals: {} } : null;
+
+      let html = `<h3>原始数据 — ${escapeHtml(data.student_name || '')}（报告 #${data.report_id}）</h3>`;
+      html += `<p class="page-subtitle">学生：${escapeHtml(student.name || '-')} ｜ 年级：${escapeHtml(student.grade || '-')} ｜ 学校：${escapeHtml(student.school || '-')} ｜ 测评日期：${escapeHtml(student.test_date || '-')} ｜ 共 ${schemaItems.length} 个数据点</p>`;
       html += '<div style="max-height:480px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;"><table class="table"><thead><tr><th>编号</th><th>指标</th><th>数值</th><th>来源</th></tr></thead><tbody>';
       for (const it of schemaItems) {
-        html += `<tr><td>${it.code || '-'}</td><td>${it.label || '-'}</td><td><b>${it.value ?? '—'}</b></td><td>${it.source_pdf || '-'}</td></tr>`;
+        const code = String(it.code ?? '');
+        const label = escapeHtml(it.label || '-');
+        let valueCell;
+        if (canEdit) {
+          const val = it.value == null ? '' : String(it.value);
+          rawEditState.originals[code] = val;
+          valueCell = `<input class="raw-val-input" type="text" data-code="${escapeHtml(code)}" value="${escapeHtml(val)}" oninput="onRawValueInput(this)" aria-label="${label}">`;
+        } else {
+          valueCell = `<b>${it.value ?? '—'}</b>`;
+        }
+        html += `<tr><td>${escapeHtml(code || '-')}</td><td>${label}</td><td>${valueCell}</td><td>${escapeHtml(it.source_pdf || '-')}</td></tr>`;
       }
       html += '</tbody></table></div>';
-      html += `<div style="margin-top:12px;"><button class="btn btn-sm btn-sec" onclick="showReportsFromCache()">← 返回报告列表</button></div>`;
+
+      // 修改记录：最新的在前，最多 20 条
+      const log = Array.isArray(data.raw.edits) ? data.raw.edits.slice() : [];
+      if (log.length) {
+        const labels = {};
+        for (const it of schemaItems) labels[String(it.code ?? '')] = it.label || '';
+        log.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+        html += '<div class="raw-edit-log"><h4>修改记录</h4><ul>';
+        for (const e of log.slice(0, 20)) {
+          const oldTxt = (e.old == null || e.old === '') ? '（空）' : e.old;
+          const newTxt = (e.new == null || e.new === '') ? '（空）' : e.new;
+          html += `<li>${escapeHtml(String(e.code))} ${escapeHtml(labels[String(e.code)] || '')}：${escapeHtml(String(oldTxt))} → ${escapeHtml(String(newTxt))}（${escapeHtml(e.by || '-')}, ${escapeHtml(e.at ? y4FmtDT(e.at) : '-')}）</li>`;
+        }
+        html += '</ul></div>';
+      }
+
+      let actions = '<button class="btn btn-sm btn-sec" onclick="leaveRawData()">← 返回报告列表</button>';
+      if (canEdit) {
+        actions += ' <button class="btn btn-sm btn-primary" id="rawSaveBtn" onclick="saveRawValues(false)" disabled>保存修改</button>';
+        actions += ' <button class="btn btn-sm btn-sec" id="rawSavePdfBtn" onclick="saveRawValues(true)" disabled>保存并生成 PDF</button>';
+        actions += ' <span id="rawEditCount" style="font-size:12px;color:var(--muted);display:none">已修改 0 项</span>';
+        actions += ' <span id="rawSaveStatus" style="font-size:12px;color:var(--brand-deep)"></span>';
+      }
+      html += `<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">${actions}</div>`;
       panelInner.innerHTML = html;
+      if (canEdit && savedMsg) {
+        const st = document.getElementById('rawSaveStatus');
+        if (st) st.textContent = savedMsg;
+      }
+    }
+
+    // 收集当前改动（值与原快照不同才提交；空白由服务端 strip）
+    function collectRawEdits() {
+      const edits = {};
+      if (!rawEditState) return edits;
+      document.querySelectorAll('.raw-val-input').forEach(inp => {
+        const code = inp.dataset.code;
+        const orig = rawEditState.originals[code] ?? '';
+        if (inp.value !== orig) edits[code] = inp.value;
+      });
+      return edits;
+    }
+
+    function updateRawEditControls() {
+      const n = Object.keys(collectRawEdits()).length;
+      const saveBtn = document.getElementById('rawSaveBtn');
+      const pdfBtn = document.getElementById('rawSavePdfBtn');
+      if (saveBtn) saveBtn.disabled = n === 0;
+      if (pdfBtn) pdfBtn.disabled = n === 0;
+      const cnt = document.getElementById('rawEditCount');
+      if (cnt) {
+        cnt.textContent = '已修改 ' + n + ' 项';
+        cnt.style.display = n ? '' : 'none';
+      }
+    }
+
+    function onRawValueInput(input) {
+      if (!rawEditState) return;
+      const orig = rawEditState.originals[input.dataset.code] ?? '';
+      input.classList.toggle('changed', input.value !== orig);
+      const st = document.getElementById('rawSaveStatus');
+      if (st) st.textContent = '';
+      updateRawEditControls();
+    }
+
+    function leaveRawData() {
+      if (rawEditState && Object.keys(collectRawEdits()).length) {
+        if (!confirm('有未保存的修改，确定离开？')) return;
+      }
+      rawEditState = null;
+      showReportsFromCache();
+    }
+
+    async function saveRawValues(alsoPdf) {
+      if (!rawEditState) return;
+      const reportId = rawEditState.reportId;
+      const edits = collectRawEdits();
+      if (!Object.keys(edits).length) return;
+      const saveBtn = document.getElementById('rawSaveBtn');
+      const pdfBtn = document.getElementById('rawSavePdfBtn');
+      if (saveBtn) saveBtn.disabled = true;
+      if (pdfBtn) pdfBtn.disabled = true;
+      try {
+        const resp = await fetch(`/api/reports/${reportId}/values`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ edits })
+        });
+        let body = {};
+        try { body = await resp.json(); } catch (_) {}
+        if (!resp.ok || !body.ok) {
+          throw new Error(body.error || ('保存失败 (HTTP ' + resp.status + ')'));
+        }
+        // 重新从 /raw 读取，让表格显示已存的值
+        await showRawData(reportId, '已保存');
+        if (alsoPdf) {
+          const btn = document.getElementById('rawSavePdfBtn');
+          if (btn) await regeneratePdf(reportId, btn);
+          updateRawEditControls();   // regeneratePdf 会重新启用按钮；无改动时应保持禁用
+        }
+      } catch (err) {
+        alert(err.message || '保存失败');
+        updateRawEditControls();   // 保留用户输入
+      }
     }
 
     function renderMd(text) {

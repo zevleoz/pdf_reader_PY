@@ -1511,14 +1511,23 @@ _PER_SLOT_HEADER_TMPL = """你是一个严格按编号从 PDF 报告中抽取数
 """
 
 
-def _build_slot_prompt(slot: str) -> str:
+def _build_slot_prompt(slot: str, new_b3: bool = False) -> str:
     """构造只含指定 slot 数据项的 prompt。条目行从 _SCHEMA_PROMPT_USER_124
-    原样透传，保证与原 133 项 schema 逐字一致。"""
+    原样透传，保证与原 133 项 schema 逐字一致。
+
+    new_b3=True 且 slot=="B3" 时，把新版版式对应的条目行替换为
+    b3_gauge.NEW_LAYOUT_PROMPT_LINES 中的口径；顺序与条目数不变。
+    默认（旧版 B3 及其他 slot）输出与原来逐字一致。"""
     items = _SLOT_ITEMS.get(slot, [])
     if not items:
         raise ValueError(f"no items for slot {slot}")
     header = _PER_SLOT_HEADER_TMPL.format(n=len(items))
-    body = "\n".join(line for _code, line in items)
+    if slot == "B3" and new_b3:
+        import b3_gauge
+        lines = [b3_gauge.NEW_LAYOUT_PROMPT_LINES.get(code, line) for code, line in items]
+    else:
+        lines = [line for _code, line in items]
+    body = "\n".join(lines)
     return header + body + "\n"
 
 
@@ -1738,7 +1747,13 @@ def _render_pages_for_vision(max_per_pdf: int = 8,
                     must_pages.append(p)
                     break
         must_pages = sorted(set(must_pages))
-        
+
+        if slot == "B3":
+            # 新版 B3（2026-11）文本层是乱码，关键词全部落空 → 用固定数据页
+            import b3_gauge
+            if b3_gauge.is_new_b3(pdf):
+                must_pages = b3_gauge.vision_pages(pdf)
+
         if slot == "B6":
             # 初中版价值观在第12页，高中版在第15页
             from _vision_values_bar import find_values_page
@@ -1780,6 +1795,22 @@ def _render_pages_for_vision(max_per_pdf: int = 8,
         doc.close()
         print(f"  {pdf.name} slot={slot}: {len(picks)} 页 → PNG (must_pages={len(must_pages)})")
     return paths_by_slot
+
+
+def _apply_new_b3_gauges(pdfs: List[Path], results: Dict[str, Any]) -> None:
+    """新版 B3：同龄均值只画在半环图上（没有数字），从图形像素量出；
+    130/133 在新版没有对应常模平均数，置空防止模型编造。旧版 B3 不受影响。"""
+    import b3_gauge
+    for pdf in pdfs:
+        if _pdf_slot(pdf) != "B3" or not b3_gauge.is_new_b3(pdf):
+            continue
+        measured = b3_gauge.read_gauges(pdf)
+        updates, warnings = b3_gauge.reconcile(results, measured)
+        results.update(updates)
+        print(f"  [B3 新版] 图形量值 {measured}")
+        for w in warnings:
+            print(f"  [B3 新版] ⚠ {w}")
+        print(f"  [B3 新版] 130/133 在新版报告中没有常模平均数，已置空")
 
 
 def extract_124_points_with_vision() -> Dict[str, Any]:
@@ -1831,7 +1862,12 @@ def extract_124_points_with_vision() -> Dict[str, Any]:
             with open(p, "rb") as f:
                 b64_images.append(base64.b64encode(f.read()).decode("utf-8"))
 
-        prompt = _build_slot_prompt(slot)
+        new_b3 = False
+        if slot == "B3":
+            import b3_gauge
+            new_b3 = any(_pdf_slot(pdf) == "B3" and b3_gauge.is_new_b3(pdf)
+                         for pdf in pdfs)
+        prompt = _build_slot_prompt(slot, new_b3=new_b3)
         n_items = len(_SLOT_ITEMS[slot])
         print(f"  [视觉 API] slot={slot}: {len(b64_images)} 张图片, {n_items} 项 "
               f"(DashScope SDK / {VISION_MODEL_NAME})")
@@ -1854,6 +1890,9 @@ def extract_124_points_with_vision() -> Dict[str, Any]:
             all_results[code] = value
             added += 1
         print(f"  [视觉 API] slot={slot}: 成功读取 {added}/{n_items} 项（累计 {len(all_results)} 项）")
+
+        if slot == "B3":
+            _apply_new_b3_gauges(pdfs, all_results)
 
     dt_total = time.time() - t_total
     print(f"  视觉 API 总耗时 {dt_total:.0f}s；成功 {len(all_results)}/133 项；"

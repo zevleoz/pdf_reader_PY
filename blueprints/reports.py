@@ -987,6 +987,45 @@ def api_report_regenerate(report_id):
         f"attachment; filename*=UTF-8''{quote(download_name)}"
     resp.headers["X-V1-Filename"] = quote(v1_path.name)
     return resp
+@bp.route("/api/reports/<int:report_id>/values", methods=["POST"])
+@admin_required
+@report_scoped
+def api_report_values(report_id):
+    """手工修改报告快照中的数值（原始数据表「保存修改」）。
+
+    body: {"edits": {"068": "8.1", ...}}。未知编号 / 隐藏编号 / 数值项写了
+    非数值都会 400，且不做任何修改；保存后 生成 PDF（regenerate）即用新值。
+    """
+    record = _db.get_report_raw(report_id)
+    if not record:
+        return jsonify({"ok": False, "error": "报告不存在"}), 404
+
+    body = request.get_json(silent=True) or {}
+    edits = body.get("edits")
+    if not isinstance(edits, dict):
+        return jsonify({"ok": False, "error": "缺少 edits 对象"}), 400
+
+    # 095-109（职业价值观得分）不在 /raw 中展示，也不允许在这里改
+    hidden = {str(it.get("code", ""))
+              for it in ((record.get("raw") or {}).get("schema_124") or [])
+              if isinstance(it, dict) and _eval_rules.is_hidden_raw(it)}
+    for code in edits:
+        if str(code) in hidden:
+            return jsonify({"ok": False,
+                            "error": f"编号 {code} 不在可编辑的原始数据中"}), 400
+
+    user = app_utils.current_user()
+    editor = ((user.get("display_name") or user.get("advisor_name")
+               or "").strip() or "admin")
+    try:
+        result = _db.update_report_values(report_id, edits, editor)
+    except LookupError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "changed": result["changed"]})
+
+
 @bp.route("/api/reports/<int:report_id>/raw")
 @admin_required
 @report_scoped
