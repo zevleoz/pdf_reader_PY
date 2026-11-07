@@ -25,7 +25,7 @@ Written 2026-11-07. Owner's asks:
 
 | # | Topic | Decision |
 |---|---|---|
-| D1 | New B3 → legacy items | **学习策略执行与优化 score → 071 学习自我调节. 学习方法实践与提升 score → 068 自我效能感.** Applies to the new B3 only; the old B3 is read as before |
+| D1 | New B3 → own data points | **Revised 2026-11-07:** 学习方法实践与提升 → new **134**, 学习策略执行与优化 → new **135**, both shown under 学习方法与策略 with their own names. For the new B3, 068 自我效能感 / 071 学习自我调节 (and 130/133) stay blank, so 6AM / rules treat them as missing. The old B3 is read and printed as before |
 | D2 | Peer averages for those two (130, 133) | **Leave blank.** The new pages have no average. Nothing is invented; a value can be typed in through the editable dashboard |
 | D3 | Version detection | Automatic, per file, from the PDF itself (no user choice) |
 | D4 | Where editing lives | The 原始数据 table on the student page (`templates/students.html`, `showRawData`), which already lists every data point of a report. 生成 PDF already rebuilds from the stored snapshot (`/api/reports/<id>/regenerate`), so saving edits into that snapshot is all it needs |

@@ -135,26 +135,41 @@ class TestThreeReports:
             assert f">{title}<" not in html, f"不该出现 B4 页：{title}"
         assert "divider dv-sheng" not in html
 
-    def test_new_b3_values_and_blank_averages(self):
-        # 新版 B3：068/071 来自新板块，130/133 无同龄均值；其余常模仍由图表测出。
-        raw = _snapshot(values={"068": "8.1", "071": "7.1",
+    def test_new_b3_rows_have_their_own_labels(self):
+        # 新版 B3（owner 2026-11-07）：两个新分项存 134/135，用自己的名称，都放在
+        # 「学习方法与策略」下；新版没有的 068/071/130/133 为空，页面上不再出现。
+        raw = _snapshot(values={"068": "", "071": "", "130": "", "133": "",
+                                "134": "8.1", "135": "7.1",
                                 "128": "7.4", "129": "4.7",
-                                "131": "7.8", "132": "4.7",
-                                "130": "", "133": ""},
+                                "131": "7.8", "132": "4.7"},
                         blank=_codes("B6"))
         html, slots = _render(raw)
         assert slots == {"A2", "B3", "B4"}
 
         page = _page(html, "学习动机与策略")
-        eff = _lm_row(page, "自我效能感")
-        reg = _lm_row(page, "学习自我调节")
-        assert "8.1" in eff and "同龄 -" in eff
-        assert "7.1" in reg and "同龄 -" in reg
+        assert "自我效能感" not in page and "学习自我调节" not in page
+        practice = _lm_row(page, "学习方法实践与提升")
+        execution = _lm_row(page, "学习策略执行与优化")
+        assert "8.1" in practice and "同龄 -" in practice
+        assert "7.1" in execution and "同龄 -" in execution
+        methods_at = page.index(">学习方法与策略<")
+        assert page.index("学习方法实践与提升") > methods_at
+        assert page.index("学习策略执行与优化") > methods_at
+        assert page.count('<div class="lm-row">') == 6
 
-        # D2（owner 2026-11-07）：均值为空时不画平均线；有均值的行照常画
-        assert "avg-tick" not in eff and "avg-tick" not in reg
+        # D2：均值为空时不画平均线；有均值的行照常画
+        assert "avg-tick" not in practice and "avg-tick" not in execution
         assert 'class="avg-tick" style="left:74.0%"' in _lm_row(page, "深层动机")
 
+    def test_old_b3_layout_unchanged(self):
+        raw = _snapshot(values={"068": "6.2", "071": "5.5", "130": "8.1", "133": "6.3",
+                                "134": "", "135": ""},
+                        blank=_codes("B6"))
+        html, _slots = _render(raw)
+        page = _page(html, "学习动机与策略")
+        assert "6.2" in _lm_row(page, "自我效能感")
+        assert "5.5" in _lm_row(page, "学习自我调节")
+        assert "学习方法实践与提升" not in page and "学习策略执行与优化" not in page
 
 OLD_B3_FILES = sorted((Path.home() / "Downloads").glob("B3 核心学习能力_*.pdf"))
 NEW_B3_SAMPLE = os.environ.get("B3_NEW_SAMPLE", "").strip()
@@ -165,7 +180,9 @@ NEW_B3_SAMPLE = os.environ.get("B3_NEW_SAMPLE", "").strip()
 def test_old_b3_stays_on_old_path():
     for pdf in OLD_B3_FILES:
         assert b3_gauge.is_new_b3(pdf) is False, pdf.name
-    assert "学习方法实践与提升" not in extract._build_slot_prompt("B3")
+    old = extract._build_slot_prompt("B3")
+    assert "068 学习动机-自我效能感 number（B3）" in old
+    assert '134 学习方法与策略-学习方法实践与提升 number（B3，仅新版报告有此页；没有则输出 ""）' in old
 
 
 @pytest.mark.skipif(not NEW_B3_SAMPLE, reason="未设置 B3_NEW_SAMPLE")

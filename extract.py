@@ -1285,6 +1285,11 @@ SCHEMA_124: List[Dict[str, Any]] = [
      "source_pdf": "B3", "note": "学习方法与策略-学习表面方法与策略维度对应的同龄常模平均数，PDF中直接提供"},
     {"code": "133", "label": "学习方法与策略-学习自我调节常模平均数", "type": "number",
      "source_pdf": "B3", "note": "学习方法与策略-学习自我调节维度对应的同龄常模平均数，PDF中直接提供"},
+    # 15) 新版 B3（2026-11）新增分项——共 2 项；旧版 B3 没有，为空
+    {"code": "134", "label": "学习方法与策略-学习方法实践与提升", "type": "number",
+     "source_pdf": "B3", "note": "新版 B3「学习方法实践与提升」测评结果得分（满分 10）"},
+    {"code": "135", "label": "学习方法与策略-学习策略执行与优化", "type": "number",
+     "source_pdf": "B3", "note": "新版 B3「学习策略执行与优化」测评结果得分（满分 10）"},
 ]
 
 
@@ -1318,15 +1323,15 @@ def _attachment_tier(kind: str, score: float) -> str:
 # 新的视觉 API 主流程：一次 API call 喂多张代表页
 # ---------------------------------------------------------------------------
 _SCHEMA_PROMPT_USER_124 = """你是一个严格按编号从 PDF 报告中抽取数据的助手。
-以下是我需要你严格输出的 133 项数据点的编号和取值口径。
-输出形式固定为一个 JSON：顶层只有一个 key "data"，对应一个长度 133 的数组。
-数组里每一项为 {"code": "NNN", "value": <你的结果>}，NNN 是 001 到 133。
-必须从 001 开始顺序写到 133 一个都不能少。编号不能跳。
+以下是我需要你严格输出的 135 项数据点的编号和取值口径。
+输出形式固定为一个 JSON：顶层只有一个 key "data"，对应一个长度 135 的数组。
+数组里每一项为 {"code": "NNN", "value": <你的结果>}，NNN 是 001 到 135。
+必须从 001 开始顺序写到 135 一个都不能少。编号不能跳。
 编号顺序必须严格是我下面定义的顺序。
 每个 value 都必须按照我给的"类型约束"来输出：
   - number —— 纯数字（整数或小数均可）。不要写汉字。如果读不到写 ""。
   - string —— 文字值（档位/类型/名称/代码）。
-严格按照下面的 133 项定义的 type 字段来输出。不要写其他文字解释。
+严格按照下面的 135 项定义的 type 字段来输出。不要写其他文字解释。
 不要输出 code 和 value 之外的字段。
 不要在任何位置写你的分析或解释。
 不要用 null。不要用中文在 JSON 之外。
@@ -1464,6 +1469,8 @@ _SCHEMA_PROMPT_USER_124 = """你是一个严格按编号从 PDF 报告中抽取�
 131 学习方法与策略-学习深层方法与策略常模平均数 number（B3，PDF中直接提供的同龄常模均值）
 132 学习方法与策略-学习表面方法与策略常模平均数 number（B3，PDF中直接提供的同龄常模均值）
 133 学习方法与策略-学习自我调节常模平均数 number（B3，PDF中直接提供的同龄常模均值）
+134 学习方法与策略-学习方法实践与提升 number（B3，仅新版报告有此页；没有则输出 ""）
+135 学习方法与策略-学习策略执行与优化 number（B3，仅新版报告有此页；没有则输出 ""）
 """
 
 
@@ -1490,8 +1497,8 @@ def _parse_slot_items() -> Dict[str, List[Tuple[str, str]]]:
 
 
 _SLOT_ITEMS: Dict[str, List[Tuple[str, str]]] = _parse_slot_items()
-# 42 + 15 + 23 + 53 == 133
-assert sum(len(v) for v in _SLOT_ITEMS.values()) == 133, "slot 拆分数量不等于 133"
+# 42 + 17 + 23 + 53 == 135
+assert sum(len(v) for v in _SLOT_ITEMS.values()) == 135, "slot 拆分数量不等于 135"
 
 
 _PER_SLOT_HEADER_TMPL = """你是一个严格按编号从 PDF 报告中抽取数据的助手。
@@ -1799,7 +1806,7 @@ def _render_pages_for_vision(max_per_pdf: int = 8,
 
 def _apply_new_b3_gauges(pdfs: List[Path], results: Dict[str, Any]) -> None:
     """新版 B3：同龄均值只画在半环图上（没有数字），从图形像素量出；
-    130/133 在新版没有对应常模平均数，置空防止模型编造。旧版 B3 不受影响。"""
+    新版没有的 068/071/130/133 置空防止模型编造（新分项另存 134/135）。旧版 B3 不受影响。"""
     import b3_gauge
     for pdf in pdfs:
         if _pdf_slot(pdf) != "B3" or not b3_gauge.is_new_b3(pdf):
@@ -1810,7 +1817,8 @@ def _apply_new_b3_gauges(pdfs: List[Path], results: Dict[str, Any]) -> None:
         print(f"  [B3 新版] 图形量值 {measured}")
         for w in warnings:
             print(f"  [B3 新版] ⚠ {w}")
-        print(f"  [B3 新版] 130/133 在新版报告中没有常模平均数，已置空")
+        print(f"  [B3 新版] 新版没有自我效能感/学习自我调节（068/071/130/133 已置空）；"
+              f"学习方法实践与提升→134、学习策略执行与优化→135")
 
 
 def extract_124_points_with_vision() -> Dict[str, Any]:
@@ -1895,7 +1903,7 @@ def extract_124_points_with_vision() -> Dict[str, Any]:
             _apply_new_b3_gauges(pdfs, all_results)
 
     dt_total = time.time() - t_total
-    print(f"  视觉 API 总耗时 {dt_total:.0f}s；成功 {len(all_results)}/133 项；"
+    print(f"  视觉 API 总耗时 {dt_total:.0f}s；成功 {len(all_results)}/135 项；"
           f"失败 slots={failed_slots if failed_slots else '无'}")
 
     # 3) 全部失败才 raise —— 保持原有"视觉 API 不可用即报错"的契约；

@@ -18,8 +18,9 @@ def test_norms_taken_when_scores_agree():
     upd, warn = b3_gauge.reconcile(vision, MEASURED)
     assert upd["128"] == "6.4" and upd["129"] == "5.8"
     assert upd["131"] == "6.1" and upd["132"] == "5.2"
-    assert upd["068"] == "7.7" and upd["071"] == "6.6"
-    assert upd["130"] == "" and upd["133"] == ""
+    for code in ("068", "071", "130", "133"):   # 新版没有，模型编的也要清掉
+        assert upd[code] == ""
+    assert "134" not in upd and "135" not in upd   # 新分项保留视觉结果
     assert not warn
 
 
@@ -41,10 +42,11 @@ def test_prompt_new_b3():
     prompt = extract._build_slot_prompt("B3", new_b3=True)
     lines = [ln for ln in prompt.splitlines()
              if extract._SCHEMA_ITEM_LINE_RE.match(ln)]
-    assert len(lines) == 15
+    assert len(lines) == 17
     by_code = {ln[:3]: ln for ln in lines}
-    assert "学习方法实践与提升" in by_code["068"]
-    assert "学习策略执行与优化" in by_code["071"]
+    assert "学习方法实践与提升" in by_code["134"] and "得分 X/10" in by_code["134"]
+    assert "学习策略执行与优化" in by_code["135"] and "得分 X/10" in by_code["135"]
+    assert "一律输出" in by_code["068"] and "一律输出" in by_code["071"]
     for code, new_line in b3_gauge.NEW_LAYOUT_PROMPT_LINES.items():
         assert by_code[code] == new_line
 

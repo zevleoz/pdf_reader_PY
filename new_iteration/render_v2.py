@@ -72,8 +72,8 @@ def code_slot(code):
         return ""
     if 9 <= n <= 50:
         return "A2"   # 情绪稳定性 / 人格 / 依恋 / 体质健康
-    if 63 <= n <= 71 or 128 <= n <= 133:
-        return "B3"   # 执行功能 / 学习动机与策略
+    if 63 <= n <= 71 or 128 <= n <= 135:
+        return "B3"   # 执行功能 / 学习动机与策略（134-135 为新版 B3 新分项）
     if 72 <= n <= 124:
         return "B6"   # 职业兴趣 / 能力优势 / 职业价值观
     return "B4"       # 认知资源 001-008 / 自我概念 051-058 / 内驱力 059-062, 125-127
@@ -301,41 +301,43 @@ def build_context(student, d, slots=SLOTS):
     ]}
 
     # ---- P15 学习动机与策略 ----
+    def _lm_row(zh, en, vc, ac, desc):
+        avg = fnum(d[ac]) if ac else "-"
+        return {"zh": zh, "en": en,
+                "val": fnum(d[vc]), "avg": avg,
+                "pct": round(to_float(d[vc]) / 10 * 100, 1),
+                "avg_pct": round(to_float(d[ac]) / 10 * 100, 1) if ac else 0.0,
+                "desc": desc}
+
+    deep_mot = _lm_row("深层动机", "Deep Motivation", "066", "128",
+        "深层动机是对学习本身感兴趣，学习本身使个体感到满足和兴奋的内部动机。深层动机得分高的个体一般学习动力足，主动学习、不需要外部监督和督促。")
+    surf_mot = _lm_row("表面动机", "Surface Motivation", "067", "129",
+        "表面动机是对学习不感兴趣，为了通过考试、得到奖励或避免惩罚而学习的外部动机。表面动机难以维持长期学习，一旦外部奖励或惩罚退去，个体可能不再学习。")
+    deep_met = _lm_row("学习深层方法与策略", "Deep Methods and Strategies", "069", "131",
+        "学习深层方法与策略是为了深入理解知识本身而采取的学习方法和策略，是一种建立在理解和应用基础之上的深度学习。这种学习方法使学习记忆更牢、理解更深刻。")
+    surf_met = _lm_row("学习表面方法与策略", "Surface Methods and Strategies", "070", "132",
+        "学习表面方法与策略是为了记住某具体内容或为了某次考试通过而学习的方法与策略，这种方法策略可以在短期内看到效果，对长期发展非常不利。因为这种不求甚解的学习方法记得快，忘得也快。")
+
+    # 新版 B3（2026-11）：没有自我效能感 / 学习自我调节，改为两个新分项（134/135），
+    # 都放在「学习方法与策略」下（owner 2026-11-07）。旧版 B3 版式不变。
+    new_b3 = any(str(d.get(c) if d.get(c) is not None else "").strip() for c in ("134", "135"))
+    if new_b3:
+        mot_rows = [deep_mot, surf_mot]
+        met_rows = [deep_met, surf_met,
+                    _lm_row("学习方法实践与提升", "Learning Methods Practice", "134", None,
+                            "学习方法实践反映学生在获取、理解、巩固、迁移与检验知识的过程中，对具体学习方法的运用情况，如主动提取、深度加工、间隔复习、多样迁移与反馈校正。"),
+                    _lm_row("学习策略执行与优化", "Learning Strategy Execution", "135", None,
+                            "学习策略执行反映学生围绕学习目标，在计划、执行、监控与评估反馈等环节的自我管理情况，包括目标设定、任务推进、注意管理、过程调节与效果检验。")]
+    else:
+        mot_rows = [deep_mot, surf_mot,
+                    _lm_row("自我效能感", "Self-Efficacy", "068", "130",
+                            "自我效能感是个体对自己能否成功完成某事的主观判断。个体的自我效能感源于过往的成功经验以及对自己的准确的评估。")]
+        met_rows = [deep_met, surf_met,
+                    _lm_row("学习自我调节", "Self-Regulation", "071", "133",
+                            "学习自我调节是学习过程中遇到困难或挫折时采取的自我调节的方法。比如即使遇到了自己不喜欢的老师或科目，但为了取得好成绩也会进行自我调节、努力学习。")]
     ctx["motivation"] = {"groups": [
-        {"zh": "学习动机", "en": "Learning Motivation", "rows": [
-            {"zh": "深层动机", "en": "Deep Motivation",
-             "val": fnum(d["066"]), "avg": fnum(d["128"]),
-             "pct": round(to_float(d["066"]) / 10 * 100, 1),
-             "avg_pct": round(to_float(d["128"]) / 10 * 100, 1),
-             "desc": "深层动机是对学习本身感兴趣，学习本身使个体感到满足和兴奋的内部动机。深层动机得分高的个体一般学习动力足，主动学习、不需要外部监督和督促。"},
-            {"zh": "表面动机", "en": "Surface Motivation",
-             "val": fnum(d["067"]), "avg": fnum(d["129"]),
-             "pct": round(to_float(d["067"]) / 10 * 100, 1),
-             "avg_pct": round(to_float(d["129"]) / 10 * 100, 1),
-             "desc": "表面动机是对学习不感兴趣，为了通过考试、得到奖励或避免惩罚而学习的外部动机。表面动机难以维持长期学习，一旦外部奖励或惩罚退去，个体可能不再学习。"},
-            {"zh": "自我效能感", "en": "Self-Efficacy",
-             "val": fnum(d["068"]), "avg": fnum(d["130"]),
-             "pct": round(to_float(d["068"]) / 10 * 100, 1),
-             "avg_pct": round(to_float(d["130"]) / 10 * 100, 1),
-             "desc": "自我效能感是个体对自己能否成功完成某事的主观判断。个体的自我效能感源于过往的成功经验以及对自己的准确的评估。"},
-        ]},
-        {"zh": "学习方法与策略", "en": "Learning Methods", "rows": [
-            {"zh": "学习深层方法与策略", "en": "Deep Methods and Strategies",
-             "val": fnum(d["069"]), "avg": fnum(d["131"]),
-             "pct": round(to_float(d["069"]) / 10 * 100, 1),
-             "avg_pct": round(to_float(d["131"]) / 10 * 100, 1),
-             "desc": "学习深层方法与策略是为了深入理解知识本身而采取的学习方法和策略，是一种建立在理解和应用基础之上的深度学习。这种学习方法使学习记忆更牢、理解更深刻。"},
-            {"zh": "学习表面方法与策略", "en": "Surface Methods and Strategies",
-             "val": fnum(d["070"]), "avg": fnum(d["132"]),
-             "pct": round(to_float(d["070"]) / 10 * 100, 1),
-             "avg_pct": round(to_float(d["132"]) / 10 * 100, 1),
-             "desc": "学习表面方法与策略是为了记住某具体内容或为了某次考试通过而学习的方法与策略，这种方法策略可以在短期内看到效果，对长期发展非常不利。因为这种不求甚解的学习方法记得快，忘得也快。"},
-            {"zh": "学习自我调节", "en": "Self-Regulation",
-             "val": fnum(d["071"]), "avg": fnum(d["133"]),
-             "pct": round(to_float(d["071"]) / 10 * 100, 1),
-             "avg_pct": round(to_float(d["133"]) / 10 * 100, 1),
-             "desc": "学习自我调节是学习过程中遇到困难或挫折时采取的自我调节的方法。比如即使遇到了自己不喜欢的老师或科目，但为了取得好成绩也会进行自我调节、努力学习。"},
-        ]},
+        {"zh": "学习动机", "en": "Learning Motivation", "rows": mot_rows},
+        {"zh": "学习方法与策略", "en": "Learning Methods", "rows": met_rows},
     ]}
 
     # ---- P17 职业兴趣 ----
