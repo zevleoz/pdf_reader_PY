@@ -6,7 +6,7 @@ import { csrfToken } from "@/lib/boot";
 
 import { Empty, fmtDate, Gate, saveResponse, useProfile, useResource } from "./common";
 
-type FileRow = { id: number; report_date: string | null; created_at: string | null };
+type FileRow = { id: number; report_date: string | null; created_at: string | null; has_b3?: boolean };
 type Minute = { id: number; report_id?: number | null; created_at: string | null };
 type MinutesResp = { minutes: Minute[]; restricted?: boolean };
 
@@ -68,6 +68,24 @@ export default function FilesTab() {
     }
   }
 
+  async function generateY42(id: number) {
+    setBusy(true);
+    try {
+      const resp = await fetch("/api/reports/" + id + "/y4-2", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRF-Token": csrfToken() },
+      });
+      if (!resp.ok) throw new Error(await failMessage(resp, "生成失败"));
+      await saveResponse(resp, "凭远Y4-2学习力报告.pdf");
+      notify("Y4-2 已生成并下载", "ok");
+    } catch (err) {
+      notify(err instanceof Error && err.message ? err.message : "生成失败", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function downloadMinutes(minutesId: number) {
     try {
       const resp = await fetch("/api/transcript/docx", {
@@ -116,6 +134,15 @@ export default function FilesTab() {
             </Button>
           ) : null}
         </FileLine>
+        {r.has_b3 ? (
+          <FileLine name="Y4-2 学习力报告" type="PDF" date={date}>
+            {canWrite ? (
+              <Button size="sm" disabled={busy} onClick={() => generateY42(r.id)}>
+                下载
+              </Button>
+            ) : null}
+          </FileLine>
+        ) : null}
         <FileLine name="Y4 数据" type="JSON" date={date}>
           <Button variant="outline" size="sm" asChild>
             <a href={"/api/reports/" + r.id + "/raw?download=1"} download>

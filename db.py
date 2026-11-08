@@ -14,7 +14,7 @@ import json
 import math
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, Date, DateTime,
@@ -752,6 +752,57 @@ def get_report_raw(report_id: int) -> Optional[Dict[str, Any]]:
         }
 
 
+_B3D_STRING_CODES = ("motivation_type", "method_type")
+_B3D_LIST_KEYS = ("practice_dims", "practice_items", "exec_dims", "exec_items")
+
+
+def _parse_b3d_code(code: str) -> Tuple[str, Optional[int]]:
+    """``b3d.motivation_type`` → (键, None)；``b3d.exec_items.3`` → (键, 3)。"""
+    parts = code.split(".")
+    if len(parts) == 2 and parts[1] in _B3D_STRING_CODES:
+        return parts[1], None
+    if len(parts) == 3 and parts[1] in _B3D_LIST_KEYS and parts[2].isdigit():
+        return parts[1], int(parts[2])
+    raise ValueError(f"未知编号 {code}")
+
+
+def _check_b3d_edit(detail: Any, code: str, text: str) -> None:
+    key, idx = _parse_b3d_code(code)
+    if not isinstance(detail, dict):
+        raise ValueError(f"报告没有 B3 明细，不能修改 {code}")
+    if idx is None:
+        return
+    rows = detail.get(key)
+    if not isinstance(rows, list) or idx >= len(rows) or not isinstance(rows[idx], dict):
+        raise ValueError(f"未知编号 {code}")
+    if text != "":
+        try:
+            num = float(text)
+        except ValueError:
+            num = None
+        if num is None or not math.isfinite(num):
+            raise ValueError(f"编号 {code} 需要数值，收到「{text}」")
+
+
+def _apply_b3d_edit(detail: Dict[str, Any], code: str, text: str) -> Optional[str]:
+    """写入一条 b3d.* 修改；返回旧值文本，值没变返回 None。"""
+    key, idx = _parse_b3d_code(code)
+    if idx is None:
+        old = detail.get(key)
+        old_text = "" if old is None else str(old)
+        if old_text == text:
+            return None
+        detail[key] = text
+        return old_text
+    row = detail[key][idx]
+    old = row.get("score")
+    new = None if text == "" else float(text)
+    if old == new:
+        return None
+    row["score"] = new
+    return "" if old is None else f"{old:g}"
+
+
 def update_report_values(report_id: int, edits: Dict[str, str],
                          editor: str) -> Dict[str, Any]:
     """把手工修改写入报告快照（``data_json`` → ``schema_124[].value``）。
@@ -784,8 +835,15 @@ def update_report_values(report_id: int, edits: Dict[str, str],
                    for it in items if isinstance(it, dict)}
 
         cleaned: Dict[str, str] = {}
+        detail = raw.get("b3_detail")
         for code, value in edits.items():
             code = str(code)
+            if code.startswith("b3d."):
+                if not isinstance(value, str):
+                    raise ValueError(f"编号 {code} 的值必须是字符串")
+                _check_b3d_edit(detail, code, value.strip())
+                cleaned[code] = value.strip()
+                continue
             item = by_code.get(code)
             if item is None:
                 raise ValueError(f"未知编号 {code}")
@@ -811,15 +869,24 @@ def update_report_values(report_id: int, edits: Dict[str, str],
 
         changed: List[str] = []
         for code, text in cleaned.items():
-            item = by_code[code]
-            old = item.get("value")
-            old_text = "" if old is None else str(old)
-            if old_text == text:
-                continue
-            item["value"] = text
+            if code.startswith("b3d."):
+                old_text = _apply_b3d_edit(detail, code, text)
+                if old_text is None:
+                    continue
+            else:
+                item = by_code[code]
+                old = item.get("value")
+                old_text = "" if old is None else str(old)
+                if old_text == text:
+                    continue
+                item["value"] = text
             edits_log.append({"code": code, "old": old_text, "new": text,
                               "by": editor, "at": now})
             changed.append(code)
+
+        if any(c.startswith("b3d.") for c in changed):
+            import b3_detail
+            detail["checks"] = b3_detail.compute_checks(detail)
 
         if changed:
             report.data_json = json.dumps(raw, ensure_ascii=False)

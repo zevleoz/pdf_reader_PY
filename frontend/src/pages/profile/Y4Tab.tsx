@@ -12,7 +12,60 @@ const FALLBACK_DIMS = ["心力", "精力", "学习力", "生涯力"];
 
 type RawItem = { code: string; label?: string; value?: unknown; source_pdf?: string };
 type EditEntry = { code: string; old?: string; new?: string; by?: string; at?: string };
-type RawResp = { ok: boolean; error?: string; raw: { schema_124?: RawItem[]; edits?: EditEntry[] } };
+type B3Entry = { group?: string; stage?: string; dim?: string; name?: string; score?: number | null };
+type B3Detail = {
+  motivation_type?: string;
+  method_type?: string;
+  practice_dims?: B3Entry[];
+  practice_items?: B3Entry[];
+  exec_dims?: B3Entry[];
+  exec_items?: B3Entry[];
+  checks?: string[];
+};
+type RawResp = {
+  ok: boolean;
+  error?: string;
+  raw: { schema_124?: RawItem[]; edits?: EditEntry[]; b3_detail?: B3Detail; pdf_titles?: string[] };
+};
+type B3Row = { code: string; label: string };
+
+const B3_CODES = ["063", "064", "065", "066", "067", "068", "069", "070", "071", "134", "135"];
+const B3_LISTS: [string, string, string][] = [
+  ["practice_dims", "学习方法实践·维度", "group"],
+  ["practice_items", "学习方法实践·条目", "dim"],
+  ["exec_dims", "学习策略执行·维度", "stage"],
+  ["exec_items", "学习策略执行·做法", "stage"],
+];
+
+/** b3_detail → 可编辑行（code 同后端 b3d.*） */
+function b3Rows(b3: B3Detail | undefined): B3Row[] {
+  if (!b3) return [];
+  const rows: B3Row[] = [
+    { code: "b3d.motivation_type", label: "学习动机类型" },
+    { code: "b3d.method_type", label: "学习方法类型" },
+  ];
+  B3_LISTS.forEach(([key, title, grp]) => {
+    const list = ((b3 as Record<string, unknown>)[key] as B3Entry[] | undefined) || [];
+    list.forEach((e, i) => {
+      const g = (e as Record<string, unknown>)[grp];
+      rows.push({ code: "b3d." + key + "." + i, label: title + "：" + (g ? g + " / " : "") + (e.name || "") });
+    });
+  });
+  return rows;
+}
+
+function b3Initial(b3: B3Detail | undefined): Record<string, string> {
+  const o: Record<string, string> = {};
+  if (!b3) return o;
+  o["b3d.motivation_type"] = asText(b3.motivation_type);
+  o["b3d.method_type"] = asText(b3.method_type);
+  B3_LISTS.forEach(([key]) => {
+    (((b3 as Record<string, unknown>)[key] as B3Entry[] | undefined) || []).forEach((e, i) => {
+      o["b3d." + key + "." + i] = asText(e.score);
+    });
+  });
+  return o;
+}
 
 const asText = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 
@@ -24,7 +77,9 @@ function Y4Editor({ reportId, query, onClose }: { reportId: number; query: strin
   const [log, setLog] = React.useState<EditEntry[]>([]);
   const [orig, setOrig] = React.useState<Record<string, string>>({});
   const [draft, setDraft] = React.useState<Record<string, string>>({});
-  const [busy, setBusy] = React.useState<"" | "save" | "pdf">("");
+  const [busy, setBusy] = React.useState<"" | "save" | "pdf" | "y42">("");
+  const [b3, setB3] = React.useState<B3Detail | undefined>(undefined);
+  const [hasB3, setHasB3] = React.useState(false);
   const [loadError, setLoadError] = React.useState("");
 
   const load = React.useCallback(async () => {
@@ -34,6 +89,13 @@ function Y4Editor({ reportId, query, onClose }: { reportId: number; query: strin
       const list = (d.raw.schema_124 || []).map((it) => ({ ...it, code: String(it.code) }));
       const o: Record<string, string> = {};
       list.forEach((it) => (o[it.code] = asText(it.value)));
+      Object.assign(o, b3Initial(d.raw.b3_detail));
+      setB3(d.raw.b3_detail);
+      setHasB3(
+        !!d.raw.b3_detail ||
+          (d.raw.pdf_titles || []).includes("B3") ||
+          list.some((it) => B3_CODES.includes(it.code) && asText(it.value).trim() !== ""),
+      );
       setItems(list);
       setOrig(o);
       setDraft(o);
@@ -51,6 +113,8 @@ function Y4Editor({ reportId, query, onClose }: { reportId: number; query: strin
   const changed = Object.keys(draft).filter((c) => draft[c] !== orig[c]);
   const labels: Record<string, string> = {};
   (items || []).forEach((it) => (labels[it.code] = it.label || ""));
+  const detailRows = b3Rows(b3);
+  detailRows.forEach((r) => (labels[r.code] = r.label));
 
   function close() {
     if (changed.length && !window.confirm("有未保存的修改，确定离开？")) return;
@@ -76,24 +140,50 @@ function Y4Editor({ reportId, query, onClose }: { reportId: number; query: strin
     await saveResponse(resp, "凭远Y4评测报告.pdf");
   }
 
-  async function save(alsoPdf: boolean) {
-    if (!changed.length) return;
-    setBusy(alsoPdf ? "pdf" : "save");
+  async function downloadY42() {
+    const resp = await fetch("/api/reports/" + reportId + "/y4-2", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "X-CSRF-Token": csrfToken() },
+    });
+    if (!resp.ok) {
+      let msg = "生成失败 (HTTP " + resp.status + ")";
+      try {
+        const e = await resp.json();
+        if (e && e.error) msg = e.error;
+      } catch {
+        // 不是 JSON：保留状态码
+      }
+      throw new Error(msg);
+    }
+    await saveResponse(resp, "凭远Y4-2学习力报告.pdf");
+  }
+
+  async function save(mode: "save" | "pdf" | "y42") {
+    if (!changed.length && mode !== "y42") return;
+    setBusy(mode);
     try {
-      const edits: Record<string, string> = {};
-      changed.forEach((c) => (edits[c] = draft[c]));
-      const r = await postJSON<{ ok: boolean; error?: string; changed: string[] }>(
-        "/api/reports/" + reportId + "/values",
-        { edits },
-      );
-      if (!r.ok) throw new Error(r.error || "保存失败");
-      cache.invalidate("y4data");
-      await load();
-      if (alsoPdf) {
+      let n = 0;
+      if (changed.length) {
+        const edits: Record<string, string> = {};
+        changed.forEach((c) => (edits[c] = draft[c]));
+        const r = await postJSON<{ ok: boolean; error?: string; changed: string[] }>(
+          "/api/reports/" + reportId + "/values",
+          { edits },
+        );
+        if (!r.ok) throw new Error(r.error || "保存失败");
+        n = r.changed.length;
+        cache.invalidate("y4data");
+        await load();
+      }
+      if (mode === "pdf") {
         await downloadPdf();
         notify("已保存，PDF 已按新数值生成并下载", "ok");
+      } else if (mode === "y42") {
+        await downloadY42();
+        notify("Y4-2 已按当前数值生成并下载", "ok");
       } else {
-        notify("已保存 " + r.changed.length + " 项", "ok");
+        notify("已保存 " + n + " 项", "ok");
       }
     } catch (e) {
       notify(errorText(e, "保存失败"), "error");
@@ -121,12 +211,17 @@ function Y4Editor({ reportId, query, onClose }: { reportId: number; query: strin
           <Button variant="outline" size="sm" disabled={!!busy} onClick={close}>
             完成
           </Button>
-          <Button variant="outline" size="sm" disabled={!changed.length || !!busy} onClick={() => void save(false)}>
+          <Button variant="outline" size="sm" disabled={!changed.length || !!busy} onClick={() => void save("save")}>
             {busy === "save" ? "保存中…" : "保存修改"}
           </Button>
-          <Button size="sm" disabled={!changed.length || !!busy} onClick={() => void save(true)}>
+          <Button size="sm" disabled={!changed.length || !!busy} onClick={() => void save("pdf")}>
             {busy === "pdf" ? "生成中…" : "保存并生成 PDF"}
           </Button>
+          {hasB3 ? (
+            <Button size="sm" disabled={!!busy} onClick={() => void save("y42")}>
+              {busy === "y42" ? "生成中…" : "保存并生成 Y4-2"}
+            </Button>
+          ) : null}
         </span>
       </div>
       {rows.length === 0 ? (
@@ -158,6 +253,42 @@ function Y4Editor({ reportId, query, onClose }: { reportId: number; query: strin
           );
         })
       )}
+      {b3 ? (
+        <div className="mt-6">
+          <b className="mb-1 block text-ink">Y4-2 明细（B3）</b>
+          {(b3.checks || []).length ? (
+            <ul className="mb-2 list-disc space-y-0.5 border border-[#EAD48A] bg-[#FFF7D6] py-2 pl-7 pr-3 text-[12.5px]">
+              {(b3.checks || []).map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ul>
+          ) : null}
+          {detailRows
+            .filter((r) => !needle || r.label.toLowerCase().includes(needle))
+            .map((r) => {
+              const isChanged = draft[r.code] !== orig[r.code];
+              const isText = r.code === "b3d.motivation_type" || r.code === "b3d.method_type";
+              return (
+                <div
+                  key={r.code}
+                  className="grid grid-cols-[minmax(0,1fr)_110px] items-center gap-2.5 border-b border-line py-[5px]"
+                >
+                  <span className="min-w-0 break-words">{r.label}</span>
+                  <input
+                    aria-label={r.label + (isText ? "" : " 数值")}
+                    className={cn(
+                      "h-7 w-full border border-line bg-transparent px-2 font-semibold outline-none focus:border-ink",
+                      isText ? "text-left" : "text-right",
+                      isChanged && "border-[#EAD48A] bg-[#FFF7D6]",
+                    )}
+                    value={draft[r.code] ?? ""}
+                    onChange={(e) => setDraft((m) => ({ ...m, [r.code]: e.target.value }))}
+                  />
+                </div>
+              );
+            })}
+        </div>
+      ) : null}
       {log.length ? (
         <div className="mt-5 text-[12.5px] text-mute">
           <b className="mb-1 block text-ink">修改记录</b>

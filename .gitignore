@@ -9,6 +9,7 @@
 !m1/kb/*.json
 !fixtures/m1_doc_sample.json
 !fixtures/m1_report_doc_sample.json
+!fixtures/b3_detail_sample.json
 !static/m1/report_crest.png
 __pycache__/
 *.pyc

@@ -1,0 +1,348 @@
+<title>Y4-2 学习力报告方案</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a single reading column for the proposal, with A4 "paper" mock-ups in a wrapping grid. Paper stays white in both themes, like a printed page. */
+:root {
+  --bg: #F7F8F5; --fg: #1A1A1A; --body: #3F3F46; --muted: #6E7068; --line: #DCDFD6; --panel: #FFFFFF;
+  --accent: #4E9A1C; --accent-tint: #EEF6E6; --warn: #A40405; --warn-tint: #FBECEC;
+  --paper: #FFFFFF; --p-ink: #1A1A1A; --p-body: #3F3F46; --p-muted: #8C8C8C; --p-line: #E6E6E2; --p-desc: #F4F4F2;
+  --xue: #60B124; --xue-tint: #F7FBF4; --xue-card: #EFF7E9;
+  --t1: #5A9E5F; --t2: #5CA0B0; --t3: #F2B630; --t4: #F07C2C; --t5: #E0403A;
+  --f-display: "Noto Serif SC", "Songti SC", serif;
+  --f-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15170F; --fg: #ECEEE6; --body: #C9CCC0; --muted: #9A9D90; --line: #34382C; --panel: #1E2117;
+  --accent: #8BCB5A; --accent-tint: #243019; --warn: #F08A8A; --warn-tint: #3A1E1E; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15170F; --fg: #ECEEE6; --body: #C9CCC0; --muted: #9A9D90; --line: #34382C; --panel: #1E2117;
+  --accent: #8BCB5A; --accent-tint: #243019; --warn: #F08A8A; --warn-tint: #3A1E1E; color-scheme: dark }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+body { background: var(--bg); color: var(--body); font: 15px/1.7 var(--f-body); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 44px; }
+h1, h2, h3 { color: var(--fg); text-wrap: balance; margin: 0; }
+h1 { font: 700 34px/1.25 var(--f-display); }
+h2 { font: 700 22px/1.35 var(--f-display); }
+h3 { font-size: 15px; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+section { display: grid; gap: 16px; min-width: 0; }
+.lede { font-size: 16px; color: var(--body); }
+.note { border-left: 3px solid var(--warn); background: var(--warn-tint); padding: 14px 18px; display: grid; gap: 8px; }
+.note h3 { color: var(--warn); }
+.note ul, .plain ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); background: var(--panel); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: .04em; }
+td.num { font-family: var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag { display: inline-block; font-size: 11.5px; padding: 1px 7px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag.new { border-color: var(--accent); color: var(--accent); }
+.decisions { display: grid; gap: 10px; counter-reset: d; }
+.decision { background: var(--panel); border: 1px solid var(--line); padding: 12px 16px; display: grid; grid-template-columns: 44px minmax(0,1fr); gap: 4px 12px; }
+.decision b.k { font-family: var(--f-num); color: var(--accent); grid-row: span 2; }
+.decision .rec { font-size: 13.5px; color: var(--muted); }
+
+/* ---------- A4 mock-ups ---------- */
+.pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 26px; }
+.pagebox { display: grid; gap: 8px; min-width: 0; }
+.pagebox figcaption { font-size: 13px; color: var(--muted); }
+.pagebox figcaption b { color: var(--fg); }
+figure { margin: 0; }
+.paper { background: var(--paper); color: var(--p-body); aspect-ratio: 210/297; max-width: 100%; border: 1px solid var(--line); box-shadow: 0 1px 0 var(--line); padding: 7% 7% 5%; display: flex; flex-direction: column; gap: 9px; font-size: 9.5px; line-height: 1.5; overflow: hidden; }
+.ph { display: flex; justify-content: space-between; color: var(--xue); font-weight: 700; font-size: 8.5px; border-bottom: 1px solid var(--xue); padding-bottom: 4px; }
+.ph span:last-child { color: var(--p-ink); letter-spacing: .08em; }
+.pt { font-size: 19px; font-weight: 700; color: var(--p-ink); line-height: 1.2; }
+.pe { font-size: 7.5px; letter-spacing: .18em; color: var(--p-muted); text-transform: uppercase; margin-top: -6px; }
+.sub { font-weight: 700; color: var(--p-ink); font-size: 10.5px; }
+.sub small { font-weight: 400; font-size: 7px; letter-spacing: .14em; color: var(--p-muted); margin-left: 4px; }
+.card { border: 1px solid var(--p-line); border-radius: 6px; padding: 7px 9px; display: grid; gap: 4px; }
+.row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.big { font: 600 17px/1 var(--f-num); color: var(--p-ink); }
+.big small { font-size: 8px; color: var(--p-muted); font-weight: 400; }
+.tb { display: inline-block; font: 700 8px/1 var(--f-num); padding: 3px 5px; color: #fff; border-radius: 3px; }
+.tb.t1 { background: var(--t1); } .tb.t2 { background: var(--t2); } .tb.t3 { background: var(--t3); } .tb.t4 { background: var(--t4); } .tb.t5 { background: var(--t5); }
+.lbl { color: var(--p-muted); font-size: 8px; }
+.bands { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; position: relative; height: 9px; }
+.bands i { display: block; height: 100%; }
+.bands i:nth-child(1) { background: var(--t5); } .bands i:nth-child(2) { background: var(--t4); } .bands i:nth-child(3) { background: var(--t3); } .bands i:nth-child(4) { background: var(--t2); } .bands i:nth-child(5) { background: var(--t1); }
+.bands .mk { position: absolute; top: -4px; width: 2px; height: 17px; background: var(--p-ink); }
+.bandlbl { display: grid; grid-template-columns: repeat(5, 1fr); font-size: 6.5px; color: var(--p-muted); text-align: center; }
+.bar { height: 7px; background: var(--p-desc); border-radius: 4px; position: relative; }
+.bar b { position: absolute; inset: 0 auto 0 0; background: var(--xue); border-radius: 4px; }
+.bar .avg { position: absolute; top: -2px; width: 2px; height: 11px; background: #9A9AA2; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.quad { position: relative; aspect-ratio: 1; border-left: 1px solid var(--p-muted); border-bottom: 1px solid var(--p-muted); background:
+  linear-gradient(var(--p-line), var(--p-line)) 50% 0/1px 100% no-repeat, linear-gradient(var(--p-line), var(--p-line)) 0 50%/100% 1px no-repeat; }
+.quad .q { position: absolute; font-size: 7px; color: var(--p-muted); width: 50%; text-align: center; padding-top: 4px; }
+.quad .q.on { color: var(--xue); font-weight: 700; }
+.quad .dot { position: absolute; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%, 50%); }
+.quad .me { background: var(--xue); box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--xue); }
+.quad .peer { background: #fff; border: 1.5px solid #9A9AA2; }
+.axis { font-size: 6.5px; color: var(--p-muted); text-align: center; }
+.legend { display: flex; gap: 10px; font-size: 7px; color: var(--p-muted); align-items: center; }
+.legend i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; vertical-align: -1px; }
+.items { display: grid; gap: 2px; }
+.it { display: grid; grid-template-columns: 50px 1fr 26px; align-items: center; gap: 5px; font-size: 7.5px; }
+.cells { display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px; }
+.cells i { height: 6px; background: var(--p-desc); }
+.cells i.f5 { background: var(--t5); } .cells i.f4 { background: var(--t4); } .cells i.f3 { background: var(--t3); } .cells i.f2 { background: var(--t2); } .cells i.f1 { background: var(--t1); }
+.freq { font-size: 6.5px; text-align: right; color: var(--p-muted); white-space: nowrap; }
+.grp { font-size: 8px; font-weight: 700; color: var(--xue); margin-top: 3px; display: flex; justify-content: space-between; }
+.grp span { font-family: var(--f-num); color: var(--p-ink); }
+.pdca { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stage { border: 1px solid var(--p-line); border-radius: 6px; padding: 6px 7px; display: grid; gap: 3px; }
+.stage h4 { margin: 0; font-size: 9px; color: var(--p-ink); display: flex; justify-content: space-between; }
+.stage h4 em { font-style: normal; font-size: 7px; color: var(--p-muted); font-weight: 400; }
+.chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.chip { font-size: 7.5px; padding: 2px 5px; border-radius: 3px; background: var(--xue-card); color: var(--p-ink); }
+.chip.low { background: #FCEDE4; }
+.chip b { font-family: var(--f-num); font-weight: 600; margin-left: 2px; }
+.foot { margin-top: auto; font-size: 6.5px; color: var(--p-muted); border-top: 1px solid var(--p-line); padding-top: 4px; }
+.sample { color: #B4231F; font-weight: 700; }
+@media (max-width: 480px) { h1 { font-size: 27px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header style="display:grid;gap:12px">
+  <div class="eyebrow">方案 · 已确认 2026-11-08（P7 习惯清单暂存档不做；同龄均值点仅在数据里有均值时显示）</div>
+  <h1>Y4-2 学习力报告方案</h1>
+  <p class="lede">新版 B3 比旧版多了很多可用的数据：执行功能的五级分档、学习动机和学习方法的类型定位，以及两份新报告里 37 个具体学习方法的得分。这份方案提出一份独立的 <b>Y4-2</b> 报告，只用 B3 的数据，先不并入 Y4 主报告。下面依次是：样本数据的问题、可用的新数据、7 页版式草图、需要存的字段，以及需要你定的 6 件事。确认之前不改任何代码。</p>
+</header>
+
+<section class="note">
+  <h3>先说一个问题：这份样本的数据前后对不上</h3>
+  <ul>
+    <li><b>维度分和条目分不一致。</b>第 14 页「维度结果一览」给 主动提取 8.7、深度加工 8.5；但第 15 页这两个维度下的条目分平均只有约 3.3 和 5.0。第 16 页 进度追踪 6.0、策略优化 8.4，第 17 页对应条目平均约 3.3。</li>
+    <li><b>条目名称不一样。</b>第 14 页写 主动回忆｜自主探究｜整合输出，第 15 页是 主动回忆…主动探究；「多元学习」在第 15 页叫「多样学习」。</li>
+    <li><b>同一条目两个分数。</b>「错题分析」在第 17 页是 10 分，在第 15 页是 2.0 分。第 15 页的 错题分析 2.0 和第 17 页的 方法调整 2.0 都标着 ↑↑（高频使用），与分数矛盾。其余 34 个条目的箭头都和分数对得上。</li>
+  </ul>
+  <p>文件名是「报告样本」，很可能是填充数据。<b>开工前需要一份真实学生的新版 B3</b>，确认维度分是否等于条目平均、箭头是否只由分数决定。下面的草图用样本数字只是为了看版式。</p>
+</section>
+
+<section>
+  <div class="eyebrow">一 · 新数据</div>
+  <h2>新版 B3 里还没用上的数据</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>B3 页</th><th>内容</th><th>样本值</th><th class="num">数量</th><th>Y4 现在</th><th>读取方式</th></tr></thead>
+    <tbody>
+      <tr><td>3–8</td><td>执行功能 五级分档（T1 优势表现型 ≥90% … T5 重点支持型 &lt;20%）</td><td>抑制控制 87% T2 良好发展型；工作记忆 87% T2；认知灵活性 79% T2</td><td class="num">3</td><td><span class="tag">只有百分位</span></td><td>由百分位按 B3 的分档规则算出，不用另读</td></tr>
+      <tr><td>10</td><td>学习动机类型（内驱型 / 双高型 / 外驱型 / 低动机型）</td><td>双高型，得分 (8.4, 6.0)</td><td class="num">1</td><td><span class="tag new">新</span></td><td>视觉读印出的「当前类型」</td></tr>
+      <tr><td>12</td><td>学习方法类型（深度理解型 / 双高整合型 / 表层任务型 / 低策略型）</td><td>深度理解型，得分 (7.2, 3.6)</td><td class="num">1</td><td><span class="tag new">新</span></td><td>视觉读印出的「当前类型」</td></tr>
+      <tr><td>14, 16</td><td>两个新分项的五级频率（T1 高频使用 9–10 … T5 从未使用 1–2）</td><td>学习方法实践 8.1 T2 较常使用；学习策略执行 7.1 T2</td><td class="num">2</td><td><span class="tag">有分数（134/135）</span></td><td>由分数算出</td></tr>
+      <tr><td>14</td><td>学习方法实践 5 个维度分（主动提取、深度加工、间隔复习、多元学习、反馈校正）</td><td>8.7 / 8.5 / 7.5 / 8.0 / 7.3</td><td class="num">5</td><td><span class="tag new">新</span></td><td>视觉读印出的数字</td></tr>
+      <tr><td>16</td><td>学习策略执行 7 个子维度分，分属 计划 / 执行 / 检查 / 改进 四阶段</td><td>目标设定 6.0、计划执行 5.3、任务处理 7.0、注意力管理 8.7、进度追踪 6.0、策略优化 8.4、效果检验（样本空白）</td><td class="num">7</td><td><span class="tag new">新</span></td><td>视觉读印出的数字</td></tr>
+      <tr><td>15</td><td>学习方法实践 20 个具体方法的使用频率（0–10）</td><td>主动回忆 2.0、主动探究 8.0、分阶段复习 8.0 …</td><td class="num">20</td><td><span class="tag new">新</span></td><td>视觉读数字，再数色块校验（每格 1 分）</td></tr>
+      <tr><td>17</td><td>学习策略执行 17 个具体做法的使用频率（0–10）</td><td>灵活调整、任务清单、专注时段、隔离干扰 10；进度检查、方法调整 2.0 …</td><td class="num">17</td><td><span class="tag new">新</span></td><td>同上</td></tr>
+      <tr><td>4–16</td><td>B3 自带的解读文字（表现特点 / 可能表现 / 支持重点）和成长建议页</td><td>按分档固定的文字</td><td class="num">—</td><td><span class="tag">未用</span></td><td>见决定 D5</td></tr>
+    </tbody>
+  </table></div>
+  <p>合计要新存 <b>51 个数据点</b>（2 个类型 + 12 个维度分 + 37 个条目分）。五级分档和箭头都由分数按 B3 印在页上的规则算出，不另存，免得和分数矛盾。</p>
+</section>
+
+<section>
+  <div class="eyebrow">二 · 版式草图</div>
+  <h2>Y4-2 的 7 页</h2>
+  <p>沿用 Y4 v2 的版式：页眉、中文大标题加英文小字、圆角卡片、学习力的绿色。分档统一用 B3 的五色（红→绿），学生读一次图例就能看懂所有页。草图里的数字来自<span class="sample">样本</span>。</p>
+  <div class="pages">
+
+    <figure class="pagebox">
+      <div class="paper">
+        <div class="ph"><span>学习力 ｜ Y4-2</span><span>APP·ARK</span></div>
+        <div class="pt">学习力总览</div><div class="pe">Learning Snapshot</div>
+        <div class="sub">执行功能<small>EXECUTIVE FUNCTIONS</small></div>
+        <div class="grid3">
+          <div class="card"><span class="lbl">抑制控制</span><div class="row"><span class="big">87<small>%</small></span><span class="tb t2">T2</span></div></div>
+          <div class="card"><span class="lbl">工作记忆</span><div class="row"><span class="big">87<small>%</small></span><span class="tb t2">T2</span></div></div>
+          <div class="card"><span class="lbl">认知灵活性</span><div class="row"><span class="big">79<small>%</small></span><span class="tb t2">T2</span></div></div>
+        </div>
+        <div class="sub">类型定位<small>TYPE PROFILE</small></div>
+        <div class="grid2">
+          <div class="card"><span class="lbl">学习动机</span><b style="font-size:12px;color:var(--p-ink)">双高型</b><span class="lbl">深层 8.4 · 表面 6.0</span></div>
+          <div class="card"><span class="lbl">学习方法</span><b style="font-size:12px;color:var(--p-ink)">深度理解型</b><span class="lbl">深层 7.2 · 表面 3.6</span></div>
+        </div>
+        <div class="sub">方法与执行<small>PRACTICE &amp; EXECUTION</small></div>
+        <div class="grid2">
+          <div class="card"><span class="lbl">学习方法实践</span><div class="row"><span class="big">8.1<small>/10</small></span><span class="tb t2">较常使用</span></div></div>
+          <div class="card"><span class="lbl">学习策略执行</span><div class="row"><span class="big">7.1<small>/10</small></span><span class="tb t2">较常使用</span></div></div>
+        </div>
+        <div class="foot">一页看全：每个数字都带分档色，细节在后面各页。</div>
+      </div>
+      <figcaption><b>P1 总览</b> · 9 个核心结果放一页，家长先看这页。</figcaption>
+    </figure>
+
+    <figure class="pagebox">
+      <div class="paper">
+        <div class="ph"><span>学习力 ｜ Y4-2</span><span>APP·ARK</span></div>
+        <div class="pt">执行功能</div><div class="pe">Executive Functions</div>
+        <p style="font-size:8px;background:var(--p-desc);padding:6px 8px">执行功能是协调多个认知过程、达成目标的大脑高级功能，包括抑制控制、工作记忆和认知灵活性。</p>
+        <div class="card"><div class="row"><b style="color:var(--p-ink)">抑制控制</b><span><span class="big">87%</span> <span class="tb t2">T2 良好发展型</span></span></div>
+          <div class="bands"><i></i><i></i><i></i><i></i><i></i><span class="mk" style="left:87%"></span></div>
+          <div class="bandlbl"><span>T5 &lt;20%</span><span>T4 20–39</span><span>T3 40–69</span><span>T2 70–89</span><span>T1 ≥90</span></div></div>
+        <div class="card"><div class="row"><b style="color:var(--p-ink)">工作记忆</b><span><span class="big">87%</span> <span class="tb t2">T2 良好发展型</span></span></div>
+          <div class="bands"><i></i><i></i><i></i><i></i><i></i><span class="mk" style="left:87%"></span></div></div>
+        <div class="card"><div class="row"><b style="color:var(--p-ink)">认知灵活性</b><span><span class="big">79%</span> <span class="tb t2">T2 良好发展型</span></span></div>
+          <div class="bands"><i></i><i></i><i></i><i></i><i></i><span class="mk" style="left:79%"></span></div></div>
+        <div class="foot">新：B3 的五级分档名称（优势表现型…重点支持型）。Y4 主报告目前只有百分位。</div>
+      </div>
+      <figcaption><b>P2 执行功能</b> · 百分位放在五级色带上，一眼看出在哪一档。</figcaption>
+    </figure>
+
+    <figure class="pagebox">
+      <div class="paper">
+        <div class="ph"><span>学习力 ｜ Y4-2</span><span>APP·ARK</span></div>
+        <div class="pt">动机与方法类型</div><div class="pe">Type Profile</div>
+        <div class="grid2">
+          <div style="display:grid;gap:4px">
+            <div class="sub">学习动机</div>
+            <div class="quad">
+              <span class="q" style="left:0;top:0">内驱型</span><span class="q on" style="left:50%;top:0">双高型 ✓</span>
+              <span class="q" style="left:0;top:50%">低动机型</span><span class="q" style="left:50%;top:50%">外驱型</span>
+              <span class="dot peer" style="left:58%;bottom:64%"></span>
+              <span class="dot me" style="left:60%;bottom:84%"></span>
+            </div>
+            <div class="axis">横：表面动机 · 纵：深层动机</div>
+          </div>
+          <div style="display:grid;gap:4px">
+            <div class="sub">学习方法</div>
+            <div class="quad">
+              <span class="q on" style="left:0;top:0">深度理解型 ✓</span><span class="q" style="left:50%;top:0">双高整合型</span>
+              <span class="q" style="left:0;top:50%">低策略型</span><span class="q" style="left:50%;top:50%">表层任务型</span>
+              <span class="dot peer" style="left:52%;bottom:61%"></span>
+              <span class="dot me" style="left:36%;bottom:72%"></span>
+            </div>
+            <div class="axis">横：表面方法 · 纵：深层方法</div>
+          </div>
+        </div>
+        <div class="legend"><span><i style="background:var(--xue)"></i>本人</span><span><i style="background:#fff;border:1.5px solid #9A9AA2"></i>同龄均值</span></div>
+        <div class="card"><b style="color:var(--p-ink)">双高型</b><span>兴趣理解与成绩结果共同驱动，既想真正学懂，也重视考试表现与认可。</span></div>
+        <div class="card"><b style="color:var(--p-ink)">深度理解型</b><span>习惯通过理解、联系与建构意义学习，较少依赖机械记忆和考点取舍。</span></div>
+        <div class="foot">新：B3 的类型定位。我们另加一个「同龄均值」点（来自已测出的常模 128/129、131/132），B3 原图没有。类型说明文字取自 B3（见 D5）。</div>
+      </div>
+      <figcaption><b>P3 类型定位</b> · 两张四象限图，本人和同龄均值放在同一张图上对比。</figcaption>
+    </figure>
+
+    <figure class="pagebox">
+      <div class="paper">
+        <div class="ph"><span>学习力 ｜ Y4-2</span><span>APP·ARK</span></div>
+        <div class="pt">学习方法实践</div><div class="pe">Learning Methods Practice</div>
+        <div class="card"><div class="row"><span class="big">8.1<small>/10</small></span><span class="tb t2">T2 较常使用</span></div>
+          <div class="bands"><i></i><i></i><i></i><i></i><i></i><span class="mk" style="left:81%"></span></div>
+          <div class="bandlbl"><span>从未使用</span><span>较少使用</span><span>有时使用</span><span>较常使用</span><span>高频使用</span></div></div>
+        <div class="sub">五个维度<small>DIMENSIONS</small></div>
+        <div class="items" style="gap:6px">
+          <div class="it" style="grid-template-columns:52px 1fr 22px"><span>主动提取</span><div class="bar"><b style="width:87%"></b></div><span class="freq">8.7</span></div>
+          <div class="it" style="grid-template-columns:52px 1fr 22px"><span>深度加工</span><div class="bar"><b style="width:85%"></b></div><span class="freq">8.5</span></div>
+          <div class="it" style="grid-template-columns:52px 1fr 22px"><span>间隔复习</span><div class="bar"><b style="width:75%"></b></div><span class="freq">7.5</span></div>
+          <div class="it" style="grid-template-columns:52px 1fr 22px"><span>多元学习</span><div class="bar"><b style="width:80%"></b></div><span class="freq">8.0</span></div>
+          <div class="it" style="grid-template-columns:52px 1fr 22px"><span>反馈校正</span><div class="bar"><b style="width:73%"></b></div><span class="freq">7.3</span></div>
+        </div>
+        <div class="card" style="background:var(--xue-tint)"><span class="lbl">学习闭环</span><span>获取与理解 → 巩固与迁移 → 检验与改进</span></div>
+        <div class="foot">新：5 个维度分。这一页只用 B3 印出的数字。</div>
+      </div>
+      <figcaption><b>P4 学习方法实践</b> · 总分分档加 5 个维度。</figcaption>
+    </figure>
+
+    <figure class="pagebox">
+      <div class="paper">
+        <div class="ph"><span>学习力 ｜ Y4-2</span><span>APP·ARK</span></div>
+        <div class="pt">学习方法明细</div><div class="pe">20 Methods in Detail</div>
+        <div class="items">
+          <div class="grp">主动提取</div>
+          <div class="it"><span>主动回忆</span><div class="cells"><i class="f5"></i><i class="f5"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="freq">从未</span></div>
+          <div class="it"><span>自主尝试</span><div class="cells"><i class="f3"></i><i class="f3"></i><i class="f3"></i><i class="f3"></i><i class="f3"></i><i class="f3"></i><i></i><i></i><i></i><i></i></div><span class="freq">有时</span></div>
+          <div class="it"><span>回忆整理</span><div class="cells"><i class="f4"></i><i class="f4"></i><i class="f4"></i><i class="f4"></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="freq">较少</span></div>
+          <div class="it"><span>输出检验</span><div class="cells"><i class="f5"></i><i class="f5"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="freq">从未</span></div>
+          <div class="it"><span>主动求助</span><div class="cells"><i class="f5"></i><i class="f5"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="freq">从未</span></div>
+          <div class="it"><span>主动探究</span><div class="cells"><i class="f2"></i><i class="f2"></i><i class="f2"></i><i class="f2"></i><i class="f2"></i><i class="f2"></i><i class="f2"></i><i class="f2"></i><i></i><i></i></div><span class="freq">较常</span></div>
+          <div class="grp">深度加工</div>
+          <div class="it"><span>关联应用</span><div class="cells"><i class="f3"></i><i class="f3"></i><i class="f3"></i><i class="f3"></i><i class="f3"></i><i class="f3"></i><i></i><i></i><i></i><i></i></div><span class="freq">有时</span></div>
+          <div class="it"><span>原理理解</span><div class="cells"><i class="f4"></i><i class="f4"></i><i class="f4"></i><i class="f4"></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="freq">较少</span></div>
+          <div class="it"><span>结构梳理</span><div class="cells"><i class="f4"></i><i class="f4"></i><i class="f4"></i><i class="f4"></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="freq">较少</span></div>
+          <div class="it"><span>理解记忆</span><div class="cells"><i class="f3"></i><i class="f3"></i><i class="f3"></i><i class="f3"></i><i class="f3"></i><i class="f3"></i><i></i><i></i><i></i><i></i></div><span class="freq">有时</span></div>
+          <div class="grp">间隔复习 · 多样学习 · 反馈校正 <span style="font-weight:400;color:var(--p-muted)">（同样格式，共 10 条）</span></div>
+        </div>
+        <div class="foot">新：20 个方法的使用频率。10 格 = 10 分，颜色和右侧文字都由分数决定（不用 B3 印的箭头，见问题 3）。</div>
+      </div>
+      <figcaption><b>P5 方法明细</b> · B3 的 10 格条，按频率上色。约 1 页放下 20 条。</figcaption>
+    </figure>
+
+    <figure class="pagebox">
+      <div class="paper">
+        <div class="ph"><span>学习力 ｜ Y4-2</span><span>APP·ARK</span></div>
+        <div class="pt">学习策略执行</div><div class="pe">Plan · Do · Check · Act</div>
+        <div class="card"><div class="row"><span class="big">7.1<small>/10</small></span><span class="tb t2">T2 较常使用</span></div>
+          <div class="bands"><i></i><i></i><i></i><i></i><i></i><span class="mk" style="left:71%"></span></div></div>
+        <div class="pdca">
+          <div class="stage"><h4>① 目标与计划 <em>P</em></h4>
+            <div class="it" style="grid-template-columns:40px 1fr 16px"><span>目标设定</span><div class="bar"><b style="width:60%"></b></div><span class="freq">6.0</span></div>
+            <div class="it" style="grid-template-columns:40px 1fr 16px"><span>计划执行</span><div class="bar"><b style="width:53%"></b></div><span class="freq">5.3</span></div></div>
+          <div class="stage"><h4>② 过程管理 <em>D</em></h4>
+            <div class="it" style="grid-template-columns:40px 1fr 16px"><span>任务处理</span><div class="bar"><b style="width:70%"></b></div><span class="freq">7.0</span></div>
+            <div class="it" style="grid-template-columns:40px 1fr 16px"><span>注意力</span><div class="bar"><b style="width:87%"></b></div><span class="freq">8.7</span></div></div>
+          <div class="stage"><h4>④ 评估反馈 <em>A</em></h4>
+            <div class="it" style="grid-template-columns:40px 1fr 16px"><span>效果检验</span><div class="bar"></div><span class="freq">—</span></div></div>
+          <div class="stage"><h4>③ 监控调节 <em>C</em></h4>
+            <div class="it" style="grid-template-columns:40px 1fr 16px"><span>进度追踪</span><div class="bar"><b style="width:60%"></b></div><span class="freq">6.0</span></div>
+            <div class="it" style="grid-template-columns:40px 1fr 16px"><span>策略优化</span><div class="bar"><b style="width:84%"></b></div><span class="freq">8.4</span></div></div>
+        </div>
+        <div class="sub">17 个做法<small>DETAIL</small></div>
+        <div class="chips">
+          <span class="chip">灵活调整<b>10</b></span><span class="chip">任务清单<b>10</b></span><span class="chip">专注时段<b>10</b></span><span class="chip">隔离干扰<b>10</b></span>
+          <span class="chip low">制定计划<b>3.0</b></span><span class="chip low">进度检查<b>2.0</b></span><span class="chip low">资源协作<b>2.7</b></span><span class="chip low">…</span>
+        </div>
+        <div class="foot">新：四阶段闭环（顺时针排，④ 回到 ①）。17 个做法用 P5 同样的 10 格条，放在下一页或本页下半。</div>
+      </div>
+      <figcaption><b>P6 学习策略执行</b> · 计划→执行→检查→改进 四格，可能需要第 2 页放 17 个做法。</figcaption>
+    </figure>
+
+    <figure class="pagebox">
+      <div class="paper">
+        <div class="ph"><span>学习力 ｜ Y4-2</span><span>APP·ARK</span></div>
+        <div class="pt">习惯清单</div><div class="pe">Habits to Keep · Habits to Build</div>
+        <div class="card" style="background:var(--xue-tint)"><b style="color:var(--p-ink)">已经常用（8 分及以上）</b>
+          <div class="chips"><span class="chip">灵活调整<b>10</b></span><span class="chip">任务清单<b>10</b></span><span class="chip">专注时段<b>10</b></span><span class="chip">隔离干扰<b>10</b></span><span class="chip">主动探究<b>8</b></span><span class="chip">分阶段复习<b>8</b></span></div></div>
+        <div class="card"><b style="color:var(--p-ink)">很少使用（3 分及以下）</b>
+          <div class="chips"><span class="chip low">主动回忆<b>2</b></span><span class="chip low">输出检验<b>2</b></span><span class="chip low">主动求助<b>2</b></span><span class="chip low">定期回顾<b>2</b></span><span class="chip low">及时复习<b>2</b></span><span class="chip low">主动拓展<b>2</b></span><span class="chip low">进度检查<b>2</b></span><span class="chip low">…</span></div></div>
+        <div class="card"><b style="color:var(--p-ink)">每条的做法</b><span>主动回忆：学完后，合上书复述或写出课堂重点。</span><span>输出检验：通过讲出来或写出来检验自己的理解。</span><span class="lbl">（说明文字直接用 B3 表里的「具体方法与说明」）</span></div>
+        <div class="foot">规则选出，不用 AI：按分数排序，各取最多 6 条。门槛 8 分和 3 分待定（D4）。</div>
+      </div>
+      <figcaption><b>P7 习惯清单</b> · 从 37 条里挑出已经常用的和很少用的，给顾问和家长一张行动清单。</figcaption>
+    </figure>
+
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">三 · 存储与读取</div>
+  <h2>需要存什么，怎么读</h2>
+  <div class="plain"><ul>
+    <li><b>单独存，不进 Y4 的 135 项。</b>新增一个 <code>b3_detail</code> 数据块：2 个类型、12 个维度分、37 个条目分，每项都有名称和 B3 页码。Y4 主报告、6AM、评价规则都不读它，互不影响。</li>
+    <li><b>读取：</b>新版 B3 已有的视觉调用之外，再加一次调用读第 14–17 页（约多 4 张图、多一次 qwen-vl 费用）。条目分再用「数色块」校验，和半环图量常模的做法一样，对不上就在原始数据里标出来。</li>
+    <li><b>编辑：</b>这 51 项也出现在 Y4 画像的「编辑数值」里，改了再生成 Y4-2。</li>
+    <li><b>旧版 B3：</b>没有这些数据，Y4-2 只对新版 B3 开放。旧版学生在文件页看不到 Y4-2 按钮。</li>
+    <li><b>生成：</b>和 Y4 同一套渲染（HTML → Chrome 打印），单独模板 <code>report_y4_2.html</code>，在「文件」页多一行「Y4-2 学习力报告」。</li>
+  </ul></div>
+</section>
+
+<section>
+  <div class="eyebrow">四 · 需要你定</div>
+  <h2>6 个决定</h2>
+  <div class="decisions">
+    <div class="decision"><b class="k">D1</b><b style="color:var(--fg)">报告名称</b><span class="rec">我先用了「Y4-2」。对外名称（封面标题）请你定。</span></div>
+    <div class="decision"><b class="k">D2</b><b style="color:var(--fg)">要哪几页</b><span class="rec">建议：P1–P7 全要，P6 视条目多少分成两页，共 7–8 页。</span></div>
+    <div class="decision"><b class="k">D3</b><b style="color:var(--fg)">样本矛盾怎么处理</b><span class="rec">建议：先拿一份真实新版 B3 核对。维度分照 B3 印的显示，不自己平均；分档颜色和频率文字只由分数决定，忽略印出的箭头；两处数字对不上时在原始数据里标黄提示。</span></div>
+    <div class="decision"><b class="k">D4</b><b style="color:var(--fg)">习惯清单的门槛</b><span class="rec">建议：8 分及以上算「已经常用」，3 分及以下算「很少使用」，各最多 6 条。</span></div>
+    <div class="decision"><b class="k">D5</b><b style="color:var(--fg)">用不用 B3 自带的解读文字</b><span class="rec">建议：用。类型说明、每条方法的「具体方法与说明」都是 B3 原文，准确且不需要 AI 写；不加我们自己生成的文字。</span></div>
+    <div class="decision"><b class="k">D6</b><b style="color:var(--fg)">同龄均值点</b><span class="rec">建议：在 P3 四象限图上加同龄均值点（数据已经有）。B3 原图没有，这是 Y4-2 多出来的信息。</span></div>
+  </div>
+  <p>定下来之后，我按之前的方式写给 flash agent 的计划：读取（b3_detail）、页面模板、文件页入口、测试，分 3–4 份，可以并行。</p>
+</section>
+
+</div>

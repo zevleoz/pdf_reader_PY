@@ -1622,8 +1622,11 @@ def _call_vision_with_retry(slot: str,
                             b64_images: List[str],
                             prompt: str,
                             max_retries: int = 3,
-                            timeout: int = 300) -> Optional[Dict[str, Any]]:
-    """带指数退避的视觉 API 调用。返回含 "data" 的解析 dict，全部失败返回 None。
+                            timeout: int = 300,
+                            required_key: Optional[str] = "data"
+                            ) -> Optional[Dict[str, Any]]:
+    """带指数退避的视觉 API 调用。返回含 required_key（默认 "data"）的解析 dict，
+    全部失败返回 None；required_key=None 时只要求能解析出 JSON 对象。
 
     重试条件：API 异常返回 None、空内容、JSON 无法解析或缺少 "data" 键。
     """
@@ -1642,8 +1645,9 @@ def _call_vision_with_retry(slot: str,
             last_reason = "空内容"
             continue
         parsed = _extract_json_from_response(content)
-        if parsed is None or "data" not in parsed:
-            last_reason = "JSON 解析失败或缺少 data 键"
+        if (not isinstance(parsed, dict)
+                or (required_key is not None and required_key not in parsed)):
+            last_reason = f"JSON 解析失败或缺少 {required_key} 键"
             # 保存原始响应便于事后排查
             try:
                 (DATA_DIR / f"vision_raw_response_{slot}_attempt{attempt}.txt").write_text(
@@ -1821,6 +1825,43 @@ def _apply_new_b3_gauges(pdfs: List[Path], results: Dict[str, Any]) -> None:
               f"学习方法实践与提升→134、学习策略执行与优化→135")
 
 
+def _extract_b3_detail(pdfs: List[Path]) -> Optional[Dict[str, Any]]:
+    """新版 B3：再做一次视觉调用，读学习方法实践 / 学习策略执行明细（Y4-2 用）。
+    旧版 B3 或无 B3 返回 None；任何失败只记日志并返回 None，不影响整体生成。"""
+    try:
+        import b3_gauge
+        import b3_detail
+        pdf = next((p for p in pdfs
+                    if _pdf_slot(p) == "B3" and b3_gauge.is_new_b3(p)), None)
+        if pdf is None:
+            return None
+        pages = b3_detail.detail_pages(pdf)
+        if not pages:
+            return None
+        doc = fitz.open(str(pdf))
+        try:
+            b64_images: List[str] = []
+            for p in pages:
+                pix = doc[p - 1].get_pixmap(matrix=fitz.Matrix(3.0, 3.0), alpha=False)
+                b64_images.append(base64.b64encode(pix.tobytes("png")).decode("utf-8"))
+        finally:
+            doc.close()
+        print(f"  [B3 明细] 视觉调用：第 {pages} 页")
+        parsed = _call_vision_with_retry("B3detail", b64_images,
+                                         b3_detail.build_prompt(),
+                                         timeout=300, required_key=None)
+        if parsed is None:
+            print("  [B3 明细] 视觉调用失败，跳过（不影响生成）")
+            return None
+        detail = b3_detail.normalise(parsed)
+        for w in detail["checks"]:
+            print(f"  [B3 明细] ⚠ {w}")
+        return detail
+    except Exception as e:  # noqa: BLE001 — 明细失败不得拖垮生成
+        print(f"  [B3 明细] 读取失败，跳过: {type(e).__name__}: {e}")
+        return None
+
+
 def extract_124_points_with_vision() -> Dict[str, Any]:
     """返回：{code: value_str, ...}，其中 value_str 保留原始字符串，
     便于后续写入 USER_DATA 时做二次转换。
@@ -1958,9 +1999,11 @@ def main(force_skip_vision: bool = False) -> int:
     if force_skip_vision:
         vision_result: Dict[str, Any] = {"provider": "skipped"}
         code_values: Dict[str, Any] = {}
+        b3_detail_result: Optional[Dict[str, Any]] = None
     else:
         write_progress("vision_124", 20, "正在调用视觉 API 识别 124 项数据…")
         code_values = extract_124_points_with_vision()
+        b3_detail_result = _extract_b3_detail(pdfs)
         vision_result = {
             "provider": ("openai-compat" if OPENAI_KEY else "none"),
             "model": VISION_MODEL_NAME,
@@ -2871,6 +2914,8 @@ def main(force_skip_vision: bool = False) -> int:
         "sections": sections,
         "vision": vision_result,
     }
+    if b3_detail_result:
+        report["b3_detail"] = b3_detail_result
     out_file.write_text(json.dumps(report, ensure_ascii=False, indent=2),
                        encoding="utf-8")
 

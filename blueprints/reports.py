@@ -987,6 +987,46 @@ def api_report_regenerate(report_id):
         f"attachment; filename*=UTF-8''{quote(download_name)}"
     resp.headers["X-V1-Filename"] = quote(v1_path.name)
     return resp
+@bp.route("/api/reports/<int:report_id>/y4-2", methods=["POST"])
+@admin_required
+@report_scoped
+def api_report_y4_2(report_id):
+    """从 DB 快照生成 Y4-2 学习力报告 PDF（只用 B3 数据，不调 AI，不动 data/report_data.json）。"""
+    info = _db.get_report_raw(report_id)
+    if not info:
+        return jsonify({"ok": False, "error": "报告记录不存在"}), 404
+    raw = info.get("raw") or {}
+
+    new_iter = str(BASE_DIR / "new_iteration")
+    if new_iter not in sys.path:
+        sys.path.insert(0, new_iter)
+    import render_y4_2
+
+    if not render_y4_2.has_b3(raw):
+        return jsonify({"ok": False, "error": "该报告没有 B3 数据，无法生成 Y4-2"}), 400
+
+    student_name = ((raw.get("student") or {}).get("name")
+                    or info.get("student_name") or "").strip()
+    safe_name = student_name.replace("/", "_").replace("\\", "_").replace(" ", "") or "student"
+    download_name = f"凭远Y4-2学习力报告_{safe_name}.pdf"
+    out_path = OUTPUT_DIR / download_name
+    try:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        render_y4_2.render_pdf(raw, out_path)
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": f"Y4-2 生成失败: {exc}"}), 500
+    if not out_path.exists():
+        return jsonify({"ok": False, "error": "Y4-2 生成失败：未找到 PDF 文件"}), 500
+
+    resp = send_from_directory(str(OUTPUT_DIR), out_path.name, as_attachment=True,
+                               download_name=download_name, mimetype="application/pdf")
+    from urllib.parse import quote
+    resp.headers["Content-Disposition"] = \
+        f"attachment; filename*=UTF-8''{quote(download_name)}"
+    return resp
+
+
 @bp.route("/api/reports/<int:report_id>/values", methods=["POST"])
 @admin_required
 @report_scoped

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>凭远Y4-2学习力报告 · {{ student.name }}</title>
+<style>
+/* Y4-2 学习力报告：页面外壳、字体、页眉、学习力绿 与 report_v2.html 一致 */
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+    font-family: "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", Arial, sans-serif;
+    color: #1A1A1A; font-size: 10pt; line-height: 1.6;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+:root {
+    --ink: #1A1A1A; --body: #3F3F46; --muted: #8C8C8C; --desc-bg: #F4F4F2; --line: #E6E6E2;
+    --c-xue: #60B124; --c-xue-deep: #70B735; --c-xue-tint: #F7FBF4; --c-xue-card: #EFF7E9;
+}
+.page { width: 210mm; height: 297mm; page-break-after: always; position: relative; overflow: hidden; background: #FFF; }
+.page:last-child { page-break-after: auto; }
+
+.phead { display: flex; justify-content: space-between; align-items: flex-end; padding: 10mm 14mm 0 14mm; }
+.phead .crumb { font-size: 10.5pt; font-weight: 600; letter-spacing: 0.5px; padding-bottom: 2.5mm; color: var(--c-xue); }
+.phead .crumb .sep { font-weight: 400; opacity: 0.55; margin: 0 1.5mm; }
+.phead img { height: 8.5mm; display: block; }
+.phead-rule { height: 1px; margin: 0 14mm; background: var(--c-xue); }
+.pbody { padding: 8mm 14mm 0 14mm; }
+.ptitle { font-size: 25pt; font-weight: 700; letter-spacing: 1px; line-height: 1.2; }
+.ptitle small { font-size: 12pt; font-weight: 500; color: var(--muted); letter-spacing: 0.5px; margin-left: 2mm; }
+.ptitle-en { font-size: 8.5pt; color: #9A9A9A; letter-spacing: 2.5px; text-transform: uppercase; margin-top: 1.5mm; font-weight: 400; }
+.pfoot { position: absolute; left: 14mm; right: 14mm; bottom: 9mm; border-top: 1px solid var(--line); padding-top: 2mm;
+         font-size: 7.5pt; color: var(--muted); letter-spacing: 0.5px; }
+
+.who { margin-top: 5mm; display: flex; gap: 8mm; font-size: 10.5pt; color: var(--body); }
+.who b { color: var(--ink); font-size: 13pt; }
+.sub { margin-top: 7mm; font-size: 12pt; font-weight: 700; display: flex; align-items: baseline; gap: 2.5mm; }
+.sub small { font-size: 6.5pt; color: #A1A1AA; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 400; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-top: 3mm; }
+.grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4mm; margin-top: 3mm; }
+.card { background: #FFF; border: 1px solid var(--line); border-radius: 14px; padding: 4.5mm 5mm; }
+.card.g { background: var(--c-xue-card); border-color: #CFE5BE; }
+.card .lbl { font-size: 9pt; color: #6B6B6B; display: block; }
+.card .row { display: flex; align-items: center; justify-content: space-between; gap: 3mm; margin-top: 1.5mm; }
+.big { font-size: 26pt; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.big small { font-size: 10pt; font-weight: 500; color: #7A7A7A; margin-left: 0.5mm; }
+.tb { display: inline-block; color: #FFF; border-radius: 999px; padding: 0.8mm 3.2mm; font-size: 8.5pt; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
+.tb.t3 { color: #3A2C00; }
+.typename { font-size: 17pt; font-weight: 800; margin-top: 1.5mm; }
+.typesub { font-size: 9pt; color: #6B6B6B; margin-top: 1mm; }
+
+/* 五色分档条 */
+.bands { position: relative; display: flex; height: 3.2mm; margin-top: 4.5mm; border-radius: 999px; overflow: visible; }
+.bands i { display: block; height: 100%; }
+.bands i:first-child { border-radius: 999px 0 0 999px; }
+.bands i:last-of-type { border-radius: 0 999px 999px 0; }
+.bands .mk { position: absolute; top: 50%; width: 5mm; height: 5mm; border-radius: 50%; background: #FFF;
+             border: 1.2mm solid #1A1A1A; transform: translate(-50%, -50%); }
+.bandlbl { display: flex; margin-top: 1.8mm; font-size: 6.8pt; color: #6B6B6B; line-height: 1.3; }
+.bandlbl span { text-align: center; }
+.bandlbl em { display: block; font-style: normal; font-weight: 700; color: #3F3F46; }
+.efcard { margin-top: 5mm; padding: 6mm 7mm; }
+.efcard .head { display: flex; justify-content: space-between; align-items: center; }
+.efcard .nm { font-size: 14pt; font-weight: 700; }
+.efcard .val { display: flex; align-items: center; gap: 3mm; }
+
+/* 四象限 */
+.quadwrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 6mm; }
+.quadwrap.one { grid-template-columns: 1fr; max-width: 88mm; }
+.quadtitle { font-size: 12pt; font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; }
+.quadtitle span { font-size: 9pt; color: var(--c-xue); }
+.quad { position: relative; width: 100%; aspect-ratio: 1 / 1; margin-top: 2.5mm; border: 1px solid #D4D4CE; border-radius: 6px; overflow: hidden; background: #FBFBF9; }
+.quad::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #D4D4CE; }
+.quad::after { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #D4D4CE; }
+.quad .q { position: absolute; width: 50%; height: 50%; padding: 2.5mm 3mm; font-size: 9pt; font-weight: 600; color: #8C8C8C; }
+.quad .q.on { background: var(--c-xue-card); color: #2F6A0E; }
+.quad .q.tl { left: 0; top: 0; } .quad .q.tr { left: 50%; top: 0; }
+.quad .q.bl { left: 0; top: 50%; } .quad .q.br { left: 50%; top: 50%; }
+.dot { position: absolute; width: 4.2mm; height: 4.2mm; border-radius: 50%; transform: translate(-50%, 50%); z-index: 2; }
+.dot.me { background: var(--c-xue); border: 0.8mm solid #FFF; box-shadow: 0 0 0 0.5mm var(--c-xue); }
+.dot.peer { background: #FFF; border: 0.6mm solid #8A8A92; }
+.axis { margin-top: 2mm; font-size: 8pt; color: #6B6B6B; display: flex; justify-content: space-between; }
+.ticks { font-size: 6.5pt; color: #A1A1AA; }
+.legend { margin-top: 5mm; display: flex; gap: 6mm; font-size: 8.5pt; color: #3F3F46; }
+.legend i { display: inline-block; width: 3.2mm; height: 3.2mm; border-radius: 50%; margin-right: 1.5mm; vertical-align: -0.5mm; }
+.typedesc { margin-top: 3mm; background: var(--desc-bg); border-radius: 10px; padding: 3mm 4mm; font-size: 9pt; line-height: 1.7; color: #3F3F46; }
+.typedesc b { display: block; color: var(--ink); font-size: 10pt; }
+
+/* 维度条 / 明细条 */
+.dimgroup { margin-top: 5mm; }
+.dimgroup h4, .grp { font-size: 10.5pt; font-weight: 700; color: var(--c-xue); padding-bottom: 1mm; border-bottom: 1px solid var(--line); }
+.grp { margin-top: 3mm; height: 9mm; display: flex; align-items: flex-end; }
+.grp:first-child { margin-top: 0; }
+.dim { display: grid; grid-template-columns: 26mm 1fr 12mm; align-items: center; gap: 3mm; margin-top: 3mm; font-size: 10pt; }
+.dim .bar { height: 3.2mm; background: #EDEDEA; border-radius: 999px; overflow: hidden; }
+.dim .bar b { display: block; height: 100%; border-radius: 999px; }
+.dim .sc { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.loopnote { margin-top: 6mm; background: var(--c-xue-tint); border-radius: 10px; padding: 3.5mm 5mm; font-size: 9.5pt; }
+.loopnote span { color: #6B6B6B; margin-right: 3mm; }
+
+.items { margin-top: 4mm; }
+.it { display: grid; grid-template-columns: 24mm 1fr 50mm 25mm; align-items: center; gap: 3mm; padding: 1.2mm 0; font-size: 9.5pt; border-bottom: 1px dashed #ECECE8; }
+.it .nm { font-weight: 600; }
+.it .ds { font-size: 8pt; color: #6B6B6B; line-height: 1.4; }
+.cells { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.6mm; }
+.cells i { display: block; height: 3.6mm; background: #EDEDEA; border-radius: 1px; position: relative; overflow: hidden; }
+.cells i b { position: absolute; left: 0; top: 0; bottom: 0; }
+.it .fr { font-size: 8pt; font-weight: 700; text-align: right; white-space: nowrap; }
+.it .fr small { font-size: 7pt; font-weight: 500; color: var(--muted); margin-left: 1mm; }
+
+/* PDCA */
+.pdca { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-top: 5mm; }
+.stage { border: 1px solid var(--line); border-radius: 14px; padding: 3.5mm 4.5mm 4mm; background: #FFF; }
+.stage h4 { font-size: 10.5pt; font-weight: 700; display: flex; align-items: center; gap: 2mm; }
+.stage h4 .no { width: 5.5mm; height: 5.5mm; border-radius: 50%; background: var(--c-xue); color: #FFF; font-size: 8pt; display: inline-flex; align-items: center; justify-content: center; }
+.stage h4 em { margin-left: auto; font-style: normal; font-size: 9pt; color: var(--muted); letter-spacing: 1px; }
+.stage .dim { grid-template-columns: 22mm 1fr 9mm; margin-top: 2.2mm; font-size: 9pt; }
+</style>
+</head>
+<body>
+
+{% macro head() %}
+  <div class="phead">
+    <div class="crumb">学习力<span class="sep">|</span>Y4-2 学习力报告</div>
+    <img src="branding/logo_inline.png" alt="凭远APP·ARK">
+  </div>
+  <div class="phead-rule"></div>
+{% endmacro %}
+{% macro foot() %}<div class="pfoot">数据来源：B3 核心学习能力报告</div>{% endmacro %}
+
+{% macro bands(segs, left) %}
+  <div class="bands">
+    {% for s in segs %}<i style="width:{{ s.width }}%; background:{{ s.color }};"></i>{% endfor %}
+    <span class="mk" style="left:{{ left }}%;"></span>
+  </div>
+  <div class="bandlbl">
+    {% for s in segs %}<span style="width:{{ s.width }}%;"><em>{{ s.code }}</em>{{ s.label }}<br>{{ s.range }}</span>{% endfor %}
+  </div>
+{% endmacro %}
+
+{% macro itemlist(groups) %}
+  <div class="items">
+    {% for g in groups %}
+      {% if g.name %}<div class="grp">{{ g.name }}</div>{% endif %}
+      {% for it in g.rows %}
+      <div class="it">
+        <span class="nm">{{ it.name }}</span>
+        <span class="ds">{{ it.desc }}</span>
+        <div class="cells">{% for c in it.cells %}<i>{% if c > 0 %}<b style="width:{{ c }}%; background:{{ it.color }};"></b>{% endif %}</i>{% endfor %}</div>
+        <span class="fr" style="color:{{ it.color if it.word != '有时使用' else '#B8860B' }};">{{ it.txt }}<small>{{ it.word }}</small></span>
+      </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+{% endmacro %}
+
+{% if 'P1' in pages %}
+<!-- P1 总览 -->
+<div class="page">
+  {{ head() }}
+  <div class="pbody">
+    <div class="ptitle">学习力总览</div>
+    <div class="ptitle-en">Learning Snapshot</div>
+    <div class="who">
+      <span><b>{{ student.name }}</b></span>
+      {% if student.grade %}<span>{{ student.grade }}</span>{% endif %}
+      {% if student.test_date %}<span>测评日期 {{ student.test_date }}</span>{% endif %}
+    </div>
+
+    {% if ef %}
+    <div class="sub">执行功能<small>Executive Functions</small></div>
+    <div class="grid3">
+      {% for e in ef %}
+      <div class="card"><span class="lbl">{{ e.name }}</span>
+        <div class="row"><span class="big">{{ e.txt }}<small>%</small></span><span class="tb {{ e.tier|lower }}" style="background:{{ e.color }};">{{ e.tier }}</span></div>
+        <span class="typesub">{{ e.label }}</span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if motivation or method %}
+    <div class="sub">类型定位<small>Type Profile</small></div>
+    <div class="grid2">
+      {% if motivation %}<div class="card g"><span class="lbl">学习动机</span><div class="typename">{{ motivation.type }}</div>{% if motivation.sub %}<div class="typesub">{{ motivation.sub }}</div>{% endif %}</div>{% endif %}
+      {% if method %}<div class="card g"><span class="lbl">学习方法</span><div class="typename">{{ method.type }}</div>{% if method.sub %}<div class="typesub">{{ method.sub }}</div>{% endif %}</div>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if s134 or s135 %}
+    <div class="sub">方法与执行<small>Practice &amp; Execution</small></div>
+    <div class="grid2">
+      {% for s in [s134, s135] if s %}
+      <div class="card"><span class="lbl">{{ s.name }}</span>
+        <div class="row"><span class="big">{{ s.txt }}<small>/10</small></span><span class="tb {{ s.tier|lower }}" style="background:{{ s.color }};">{{ s.tier }} {{ s.label }}</span></div></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {{ foot() }}
+</div>
+{% endif %}
+
+{% if 'P2' in pages %}
+<!-- P2 执行功能 -->
+<div class="page">
+  {{ head() }}
+  <div class="pbody">
+    <div class="ptitle">执行功能</div>
+    <div class="ptitle-en">Executive Functions</div>
+    {% for e in ef %}
+    <div class="card efcard">
+      <div class="head"><span class="nm">{{ e.name }}</span>
+        <span class="val"><span class="big">{{ e.txt }}<small>%</small></span><span class="tb {{ e.tier|lower }}" style="background:{{ e.color }};">{{ e.tier }} {{ e.label }}</span></span></div>
+      {{ bands(ef_segments, e.left) }}
+    </div>
+    {% endfor %}
+  </div>
+  {{ foot() }}
+</div>
+{% endif %}
+
+{% if 'P3' in pages %}
+<!-- P3 类型定位 -->
+<div class="page">
+  {{ head() }}
+  <div class="pbody">
+    <div class="ptitle">动机与方法类型</div>
+    <div class="ptitle-en">Type Profile</div>
+    <div class="quadwrap{% if quads|length == 1 %} one{% endif %}">
+      {% for q in quads %}
+      <div>
+        <div class="quadtitle">{{ q.title }}<span>{{ q.type }}</span></div>
+        <div class="quad">
+          {% for c in q.cells %}<span class="q {{ c.pos }}{% if c.on %} on{% endif %}">{{ c.name }}{% if c.on %} ✓{% endif %}</span>{% endfor %}
+          {% if q.peer %}<span class="dot peer" style="left:{{ q.peer.left }}%; bottom:{{ q.peer.bottom }}%;"></span>{% endif %}
+          {% if q.me %}<span class="dot me" style="left:{{ q.me.left }}%; bottom:{{ q.me.bottom }}%;"></span>{% endif %}
+        </div>
+        <div class="axis"><span>横：{{ q.axis_x }}</span><span>纵：{{ q.axis_y }}</span></div>
+        <div class="axis ticks"><span>0 — 10</span><span>0 — 10</span></div>
+        {% if q.me %}<div class="axis"><span>本人 {{ q.axis_y }} {{ q.me.y }} · {{ q.axis_x }} {{ q.me.x }}</span></div>{% endif %}
+        {% if q.peer %}<div class="axis"><span>同龄均值 {{ q.axis_y }} {{ q.peer.y }} · {{ q.axis_x }} {{ q.peer.x }}</span></div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="legend"><span><i style="background:var(--c-xue);"></i>本人</span>{% if quads_peer %}<span><i style="background:#FFF; border:1.5px solid #8A8A92;"></i>同龄均值</span>{% endif %}</div>
+    {% for q in quads if q.desc %}
+    <div class="typedesc"><b>{{ q.type }}</b>{{ q.desc }}</div>
+    {% endfor %}
+  </div>
+  {{ foot() }}
+</div>
+{% endif %}
+
+{% if 'P4' in pages %}
+<!-- P4 学习方法实践 -->
+<div class="page">
+  {{ head() }}
+  <div class="pbody">
+    <div class="ptitle">学习方法实践</div>
+    <div class="ptitle-en">Learning Methods Practice</div>
+    {% if s134 %}
+    <div class="card" style="margin-top:6mm; padding:6mm 7mm;">
+      <div class="row" style="margin-top:0;"><span class="big">{{ s134.txt }}<small>/10</small></span><span class="tb {{ s134.tier|lower }}" style="background:{{ s134.color }};">{{ s134.tier }} {{ s134.label }}</span></div>
+      {{ bands(score_segments, s134.left) }}
+    </div>
+    {% endif %}
+    <div class="sub">维度<small>Dimensions</small></div>
+    {% for g in practice_groups %}
+    <div class="dimgroup">
+      {% if g.name %}<h4>{{ g.name }}</h4>{% endif %}
+      {% for d in g.dims %}
+      <div class="dim"><span>{{ d.name }}</span><div class="bar"><b style="width:{{ d.pct }}%; background:{{ d.color }};"></b></div><span class="sc">{{ d.txt }}</span></div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    {% if loop_text %}<div class="loopnote"><span>学习闭环</span>{{ loop_text }}</div>{% endif %}
+  </div>
+  {{ foot() }}
+</div>
+{% endif %}
+
+{% for pg in practice_pages %}
+<!-- P5 学习方法明细 -->
+<div class="page">
+  {{ head() }}
+  <div class="pbody">
+    <div class="ptitle">学习方法明细{% if not loop.first %}<small>（续）</small>{% endif %}</div>
+    <div class="ptitle-en">{{ p5_title_en }}</div>
+    {{ itemlist(pg) }}
+  </div>
+  {{ foot() }}
+</div>
+{% endfor %}
+
+{% if has_p6 %}
+<!-- P6 学习策略执行 -->
+<div class="page">
+  {{ head() }}
+  <div class="pbody">
+    <div class="ptitle">学习策略执行</div>
+    <div class="ptitle-en">Plan · Do · Check · Act</div>
+    {% if s135 %}
+    <div class="card" style="margin-top:6mm; padding:6mm 7mm;">
+      <div class="row" style="margin-top:0;"><span class="big">{{ s135.txt }}<small>/10</small></span><span class="tb {{ s135.tier|lower }}" style="background:{{ s135.color }};">{{ s135.tier }} {{ s135.label }}</span></div>
+      {{ bands(score_segments, s135.left) }}
+    </div>
+    {% endif %}
+    {% if stages %}
+    <div class="pdca">
+      {% for s in stages %}
+      <div class="stage">
+        <h4><span class="no">{{ s.no }}</span>{{ s.name }}{% if s.letter %}<em>{{ s.letter }}</em>{% endif %}</h4>
+        {% for d in s.dims %}
+        <div class="dim"><span>{{ d.name }}</span><div class="bar"><b style="width:{{ d.pct }}%; background:{{ d.color }};"></b></div><span class="sc">{{ d.txt }}</span></div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if exec_inline_groups %}{{ itemlist(exec_inline_groups) }}{% endif %}
+  </div>
+  {{ foot() }}
+</div>
+{% for pg in exec_pages %}
+<!-- P6b 做法明细 -->
+<div class="page">
+  {{ head() }}
+  <div class="pbody">
+    <div class="ptitle">学习策略明细{% if not loop.first %}<small>（续）</small>{% endif %}</div>
+    <div class="ptitle-en">{{ exec_title_en }}</div>
+    {{ itemlist(pg) }}
+  </div>
+  {{ foot() }}
+</div>
+{% endfor %}
+{% endif %}
+
+</body>
+</html>

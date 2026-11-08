@@ -15,6 +15,21 @@ from pipeline import PROGRESS_STAGES, compute_progress, progress_stage_meta
 bp = Blueprint("students", __name__)
 
 
+def _reports_with_b3(student_id):
+    """报告列表 + has_b3（与 Y4-2 路由同一规则）。"""
+    import sys
+    from app_utils import BASE_DIR
+    new_iter = str(BASE_DIR / "new_iteration")
+    if new_iter not in sys.path:
+        sys.path.insert(0, new_iter)
+    import render_y4_2
+    out = []
+    for r in _db.get_student_reports(student_id):
+        info = _db.get_report_raw(r["id"])
+        out.append({**r, "has_b3": render_y4_2.has_b3((info or {}).get("raw"))})
+    return out
+
+
 @bp.route("/students")
 @page_login_required
 def students_page():
@@ -91,8 +106,7 @@ def api_student_search():
 @admin_required
 @student_scoped
 def api_student_reports(student_id):
-    reports = _db.get_student_reports(student_id)
-    return jsonify({"ok": True, "reports": reports})
+    return jsonify({"ok": True, "reports": _reports_with_b3(student_id)})
 @bp.route("/api/students/<int:student_id>", methods=["PUT"])
 @admin_required
 @student_scoped
@@ -446,7 +460,7 @@ def api_student_reports_by_code(code):
     st, err = _scoped_student(code)
     if err:
         return jsonify({"ok": False, "error": err[0]}), err[1]
-    return jsonify({"ok": True, "reports": _db.get_student_reports(st["id"])})
+    return jsonify({"ok": True, "reports": _reports_with_b3(st["id"])})
 
 
 @bp.route("/students/<code>/api/questionnaires")
