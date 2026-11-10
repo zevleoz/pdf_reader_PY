@@ -12,6 +12,7 @@ from flask import Flask, session
 import app_utils
 from app_utils import BASE_DIR
 from test_m1_api import login_as
+from test_login_platforms import _client, app, world  # noqa: F401  真实入口 + 临时库
 from test_m1_report_core import fake, generate, rdb  # noqa: F401  虚构模型 + 生成夹具
 from test_m1_store import m1db  # noqa: F401  临时库 + 学生/用户/Y4 数据
 
@@ -103,3 +104,35 @@ def test_built_react_app_uses_the_new_name():
                  for p in sorted(ASSETS.glob("index-*.js")))
     assert "打开心有灵析" in js
     assert "打开 M1" not in js
+
+
+# ---------------------------------------------------------------------------
+# 6. 发给模型的提示词里没有旧名字
+# ---------------------------------------------------------------------------
+def _prompt_strings(module) -> dict:
+    return {name: value for name, value in vars(module).items()
+            if name.endswith("_PROMPT") and isinstance(value, str)}
+
+
+def test_prompts_sent_to_the_model_use_the_new_name():
+    from m1 import report_prompts, speakers
+    from m1 import prompts as prep_prompts
+
+    texts = {
+        "SOURCE_ITEMS_PROMPT": prep_prompts.SOURCE_ITEMS_PROMPT,
+        "SOURCE_SUMMARY_PROMPT": prep_prompts.SOURCE_SUMMARY_PROMPT,
+        "MEETING_PLAN_PROMPT": prep_prompts.MEETING_PLAN_PROMPT,
+    }
+    texts.update({"report_prompts." + k: v for k, v in _prompt_strings(report_prompts).items()})
+    texts.update({"speakers." + k: v for k, v in _prompt_strings(speakers).items()})
+    assert "M1" not in "".join(texts.values()), [
+        name for name, text in texts.items() if "M1" in text]
+
+
+# ---------------------------------------------------------------------------
+# 7. 选择平台卡片的图案不再写旧名字
+# ---------------------------------------------------------------------------
+def test_platform_card_artwork_has_no_old_name(app, world):  # noqa: F811
+    html = _client(app, world.admin_id, "admin").get("/platforms").get_data(as_text=True)
+    assert ">M1<" not in html
+    assert ">心有<" in html and ">灵析<" in html
