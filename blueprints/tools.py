@@ -671,43 +671,109 @@ def booking_page():
     return render_template("booking.html")
 
 
+# ---------------------------------------------------------------------------
+# Booking helpers (offices, slot rules)
+# ---------------------------------------------------------------------------
+SLOT_CAPACITY = 4  # Max students per time slot per office
+BOOKING_MAX_DAYS_AHEAD = 29  # today+1 .. today+29
+
+
+def _err(msg: str, code: int = 400):
+    return jsonify({"ok": False, "error": msg}), code
+
+
+def _resolve_location(raw, *, active_only: bool):
+    """Return (location_id, error_response). raw 为空 → 上海。"""
+    if raw in (None, ""):
+        return _db.get_default_location_id(), None
+    try:
+        loc_id = int(raw)
+    except (TypeError, ValueError):
+        return None, _err("办公室参数错误")
+    loc = _db.get_location(loc_id)
+    if not loc or (active_only and not loc["active"]):
+        return None, _err("办公室不存在", 404)
+    return loc_id, None
+
+
+def _date_window_error(d: date, *, allow_today: bool):
+    today = date.today()
+    first = today if allow_today else today + timedelta(days=1)
+    last = today + timedelta(days=BOOKING_MAX_DAYS_AHEAD)
+    if d < first or d > last:
+        if allow_today:
+            return _err("只能预约今天起 30 天内的时间")
+        return _err("需提前一天预约，且只能预约未来 30 天内的时间")
+    return None
+
+
+def _slot_error(location_id: int, appt):
+    """时段必须是标准时段、该办公室未关闭且未满。通过返回 None。"""
+    time_slot_str = appt.strftime("%H:%M")
+    if time_slot_str not in _db.TIME_SLOTS or appt.second or appt.microsecond:
+        return _err("时间不在可预约时段内")
+    booking_date = appt.date()
+    booked = _db.get_slot_booking_counts(booking_date, location_id).get(time_slot_str, 0)
+    if booked >= SLOT_CAPACITY:
+        return _err("该时段已满（" + str(booked) + "/" + str(SLOT_CAPACITY) + "），请选择其他时间", 409)
+    avail_map = {e["time_slot"]: e["is_available"]
+                 for e in _db.get_availability(booking_date, location_id)}
+    if not avail_map.get(time_slot_str, True):
+        return _err("该时段已关闭，请选择其他时间", 409)
+    return None
+
+
+def _slot_race_error(e):
+    if e.kind == "closed":
+        return _err("该时段已关闭，请选择其他时间", 409)
+    return _err("该时段已满（" + str(e.booked) + "/" + str(SLOT_CAPACITY) + "），请选择其他时间", 409)
+
+
+def _parse_appt(data):
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(str(data.get("appointment_time", ""))), None
+    except ValueError:
+        return None, _err("时间格式错误")
+
+
+@bp.route("/api/locations")
+def api_locations():
+    return jsonify({"ok": True, "locations": [
+        {"id": l["id"], "name": l["name"]} for l in _db.list_locations(active_only=True)]})
+
+
 @bp.route("/api/booking", methods=["POST"])
 def api_booking():
-    from datetime import datetime
-    data = request.get_json(force=True)
+    """公开预约：每次都新建学生（不按姓名匹配已有学生）。"""
+    data = request.get_json(force=True, silent=True) or {}
     name = (data.get("student_name") or "").strip()
     if not name:
-        return jsonify({"ok": False, "error": "学生姓名必填"}), 400
-    appt_time_str = data.get("appointment_time", "")
+        return _err("学生姓名必填")
+    appt_time, bad = _parse_appt(data)
+    if bad:
+        return bad
+    loc_id, bad = _resolve_location(data.get("location_id"), active_only=True)
+    if bad:
+        return bad
+    bad = _date_window_error(appt_time.date(), allow_today=False) or _slot_error(loc_id, appt_time)
+    if bad:
+        return bad
+    sp = data.get("single_parent", "false")
     try:
-        appt_time = datetime.fromisoformat(appt_time_str)
-    except ValueError:
-        return jsonify({"ok": False, "error": "时间格式错误"}), 400
-
-    # Check slot capacity
-    booking_date = appt_time.date()
-    time_slot_str = appt_time.strftime("%H:%M")
-    booking_counts = _db.get_slot_booking_counts(booking_date)
-    booked = booking_counts.get(time_slot_str, 0)
-    if booked >= SLOT_CAPACITY:
-        return jsonify({"ok": False, "error": "该时段已满（" + str(booked) + "/" + str(SLOT_CAPACITY) + "），请选择其他时间"}), 409
-
-    # Check admin hasn't closed this slot
-    avail_entries = _db.get_availability(booking_date)
-    avail_map = {e["time_slot"]: e["is_available"] for e in avail_entries}
-    is_open = avail_map.get(time_slot_str, True)
-    if not is_open:
-        return jsonify({"ok": False, "error": "该时段已关闭，请选择其他时间"}), 409
-
-    # Create student + booking in one transaction (auto-archive)
-    student_id, booking_id = _db.create_booking_with_student(
+        student_id, booking_id = _db.create_booking_with_student(
         student_name=name,
         appointment_time=appt_time,
         advisor_name=(data.get("advisor_name") or "").strip(),
         school=(data.get("school") or "").strip(),
-        single_parent=data.get("single_parent", "false"),
+        single_parent="true" if sp in (True, "true", "1", 1, "on") else "false",
         notes=data.get("notes", ""),
-    )
+        location_id=loc_id,
+        match_existing=False,
+        capacity=SLOT_CAPACITY,
+        )
+    except _db.SlotUnavailable as e:
+        return _slot_race_error(e)
     return jsonify({"ok": True, "booking_id": booking_id, "student_id": student_id})
 
 
@@ -753,12 +819,101 @@ def api_booking_cancel(booking_id):
 # ---------------------------------------------------------------------------
 # Availability management
 # ---------------------------------------------------------------------------
-SLOT_CAPACITY = 4  # Max students per time slot
+@bp.route("/api/bookings/week")
+@admin_required
+def api_bookings_week():
+    """某办公室一周 7 天 x 14 时段。顾问只看到自己学生的姓名，计数含全部。"""
+    from datetime import datetime
+    loc_id, bad = _resolve_location(request.args.get("loc"), active_only=False)
+    if bad:
+        return bad
+    start_str = request.args.get("start", "")
+    if start_str:
+        try:
+            start = date.fromisoformat(start_str)
+        except ValueError:
+            return _err("日期格式错误")
+    else:
+        today = date.today()
+        start = today - timedelta(days=today.weekday())
+    avail = _db.get_availability_range(start, start + timedelta(days=6), loc_id)
+    bookings = _db.get_week_bookings(loc_id, start)
+    scope = _advisor_scope()
+    now = datetime.now()
+    cells = []
+    for i in range(7):
+        d = start + timedelta(days=i)
+        open_map = {e["time_slot"]: e["is_available"] for e in avail.get(d.isoformat(), [])}
+        for t in _db.TIME_SLOTS:
+            here = [b for b in bookings
+                    if b["appointment_time"].date() == d and b["appointment_time"].strftime("%H:%M") == t]
+            visible = here if scope is None else [
+                b for b in here if scope and (b.get("advisor_name") or "") == scope]
+            slot_dt = datetime.combine(d, datetime.strptime(t, "%H:%M").time())
+            cells.append({
+                "date": d.isoformat(),
+                "time": t,
+                "closed": not open_map.get(t, True),
+                "past": slot_dt < now,
+                "count": len(here),
+                "bookings": [{"id": b["id"], "student_name": b["student_name"],
+                              "student_code": b["student_code"], "status": b["status"]}
+                             for b in visible],
+            })
+    loc = _db.get_location(loc_id)
+    return jsonify({"ok": True, "start": start.isoformat(), "capacity": SLOT_CAPACITY,
+                    "location": {"id": loc["id"], "name": loc["name"],
+                                 "updated_at": loc["updated_at"]},
+                    "slots": cells})
+
+
+@bp.route("/api/bookings/staff", methods=["POST"])
+@admin_required
+def api_booking_staff():
+    """员工代约：student_code 关联已有学生，或 new_name 新建学生。可约今天。"""
+    data = request.get_json(force=True, silent=True) or {}
+    loc_id, bad = _resolve_location(data.get("location_id"), active_only=False)
+    if bad:
+        return bad
+    appt_time, bad = _parse_appt(data)
+    if bad:
+        return bad
+    bad = _date_window_error(appt_time.date(), allow_today=True) or _slot_error(loc_id, appt_time)
+    if bad:
+        return bad
+    code = (data.get("student_code") or "").strip()
+    new_name = (data.get("new_name") or "").strip()
+    if bool(code) == bool(new_name):
+        return _err("请二选一：选择已有学生，或填写新学生姓名")
+    if code:
+        st = _db.get_student_by_code(code)
+        if not st:
+            return _err("找不到该学生", 404)
+        scope = _advisor_scope()
+        if scope is not None and (st.get("advisor_name") or "") != scope:
+            return _err("无权访问该学生", 403)
+        try:
+            booking_id = _db.add_booking(
+                student_name=st["name"], appointment_time=appt_time,
+                advisor_name=st.get("advisor_name") or "", school=st.get("school") or "",
+                single_parent=st.get("single_parent") or "false",
+                student_id=st["id"], location_id=loc_id, capacity=SLOT_CAPACITY)
+        except _db.SlotUnavailable as e:
+            return _slot_race_error(e)
+        return jsonify({"ok": True, "booking_id": booking_id})
+    try:
+        _sid, booking_id = _db.create_booking_with_student(
+            student_name=new_name, appointment_time=appt_time,
+            advisor_name=_advisor_scope() or "", location_id=loc_id,
+            match_existing=False, capacity=SLOT_CAPACITY)
+    except _db.SlotUnavailable as e:
+        return _slot_race_error(e)
+    return jsonify({"ok": True, "booking_id": booking_id})
 
 
 @bp.route("/api/availability")
 def api_get_availability():
-    """Get availability for a given date. Query param: date=YYYY-MM-DD
+    """Get availability for a given date. Query: date=YYYY-MM-DD, loc=<office id> (default 上海).
     Returns each slot with is_available, booked_count, and capacity.
     Default: all slots available. Admin can close slots. Full slots (4/4) are unavailable.
     """
@@ -769,8 +924,11 @@ def api_get_availability():
         date_val = date.fromisoformat(date_str)
     except ValueError:
         return jsonify({"ok": False, "error": "日期格式错误"}), 400
-    entries = _db.get_availability(date_val)
-    booking_counts = _db.get_slot_booking_counts(date_val)
+    loc_id, bad = _resolve_location(request.args.get("loc"), active_only=True)
+    if bad:
+        return bad
+    entries = _db.get_availability(date_val, loc_id)
+    booking_counts = _db.get_slot_booking_counts(date_val, loc_id)
     # Build full slot list: no record = available (admin closes slots manually)
     all_slots = []
     available_map = {e["time_slot"]: e["is_available"] for e in entries}
@@ -785,18 +943,22 @@ def api_get_availability():
             "booked_count": booked,
             "capacity": SLOT_CAPACITY,
         })
-    return jsonify({"ok": True, "date": date_str, "slots": all_slots})
+    return jsonify({"ok": True, "date": date_str, "location_id": loc_id, "slots": all_slots})
 
 
 @bp.route("/api/availability/month")
 def api_availability_month():
-    """Get availability + booking counts for next 30 days (for admin calendar management)."""
+    """Get availability + booking counts for next 30 days. Query: loc=<office id> (default 上海)."""
+    loc_id, bad = _resolve_location(request.args.get("loc"), active_only=True)
+    if bad:
+        return bad
     today = date.today()
-    end = today + timedelta(days=29)
-    range_data = _db.get_availability_range(today, end)
-    booking_counts = _db.get_booking_counts_range(today, end)
+    end = today + timedelta(days=BOOKING_MAX_DAYS_AHEAD)
+    range_data = _db.get_availability_range(today, end, loc_id)
+    booking_counts = _db.get_booking_counts_range(today, end, loc_id)
     return jsonify({
         "ok": True,
+        "location_id": loc_id,
         "start": today.isoformat(),
         "end": end.isoformat(),
         "data": range_data,
@@ -808,7 +970,8 @@ def api_availability_month():
 @role_required('admin')
 def api_set_availability():
     """Batch set availability for a date. Admin only.
-    Body: {"date": "YYYY-MM-DD", "slots": [{"time_slot": "09:00", "is_available": true}, ...]}
+    Body: {"date": "YYYY-MM-DD", "slots": [{"time_slot": "09:00", "is_available": true}, ...],
+           "location_id": optional, default 上海}
     """
     data = request.get_json(force=True)
     date_str = data.get("date", "")
@@ -819,8 +982,40 @@ def api_set_availability():
         date_val = date.fromisoformat(date_str)
     except ValueError:
         return jsonify({"ok": False, "error": "日期格式错误"}), 400
-    _db.batch_set_availability(date_val, slots)
+    loc_id, bad = _resolve_location(data.get("location_id"), active_only=False)
+    if bad:
+        return bad
+    _db.batch_set_availability(date_val, slots, loc_id)
     return jsonify({"ok": True})
+
+
+@bp.route("/api/availability/bulk", methods=["POST"])
+@role_required('admin')
+def api_availability_bulk():
+    """Body: {"location_id", "changes": [{"date","time","open"}]}。
+    有预约的时段不能关闭 → refused；其余生效。"""
+    data = request.get_json(force=True, silent=True) or {}
+    loc_id, bad = _resolve_location(data.get("location_id"), active_only=False)
+    if bad:
+        return bad
+    raw = data.get("changes")
+    if not isinstance(raw, list) or len(raw) > 1000:
+        return _err("参数错误")
+    changes = []
+    for ch in raw:
+        try:
+            d = date.fromisoformat(str(ch["date"]))
+            t = str(ch["time"])
+            want = ch["open"]
+        except (KeyError, TypeError, ValueError):
+            return _err("参数错误")
+        if t not in _db.TIME_SLOTS or not isinstance(want, bool):
+            return _err("参数错误")
+        changes.append({"date": d, "time": t, "open": want})
+    refused = _db.bulk_set_availability(loc_id, changes)
+    return jsonify({"ok": True, "refused": refused})
+
+
 @bp.route("/api/booking/<int:booking_id>", methods=["DELETE"])
 @admin_required
 def api_delete_booking(booking_id):

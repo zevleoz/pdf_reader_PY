@@ -420,7 +420,7 @@ ADMIN_NAV = [
         {"key": "tools.tasks", "label": "问卷任务", "href": "/app/questionnaires", "icon": "clipboard"},
         {"key": "tools.bank", "label": "问卷题库", "href": "/questionnaires/bank",
          "icon": "book", "roles": ("admin", "advisor")},
-        {"key": "tools.bookings", "label": "预约管理", "href": "/tools/bookings", "icon": "calendar",
+        {"key": "tools.bookings", "label": "预约管理", "href": "/app/booking", "icon": "calendar",
          "roles": ("admin", "advisor")},
         {"key": "tools.transcript", "label": "解读会纪要", "href": "/tools/transcript", "icon": "mic",
          "roles": ("admin", "advisor")},
