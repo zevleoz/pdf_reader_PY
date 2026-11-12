@@ -68,32 +68,42 @@
 
   var refs = {
     saved: document.getElementById('r4Saved'),
-    statusPill: document.getElementById('r4StatusPill'),
-    statusLabel: document.getElementById('r4StatusLabel'),
+    tag: document.getElementById('r4Tag'),
+    srcNote: document.getElementById('r4SrcNote'),
+    exportTitle: document.getElementById('r4ExportTitle'),
     print: document.getElementById('r4Print'),
     evidence: document.getElementById('r4Evidence'),
     publish: document.getElementById('r4Publish'),
     reopen: document.getElementById('r4Reopen'),
     publishedNote: document.getElementById('r4PublishedNote'),
-    y4Pill: document.getElementById('r4Y4Pill'),
-    y4Note: document.getElementById('r4Y4Note'),
-    ftPill: document.getElementById('r4FtPill'),
-    ftNote: document.getElementById('r4FtNote'),
+    transcriptDrop: document.getElementById('r4Drop'),
+    transcriptLine: document.getElementById('r4TranscriptLine'),
+    transcriptName: document.getElementById('r4TranscriptName'),
     transcriptMeta: document.getElementById('r4TranscriptMeta'),
+    transcriptReplace: document.getElementById('r4TranscriptReplace'),
     transcriptFile: document.getElementById('r4TranscriptFile'),
     transcriptText: document.getElementById('r4TranscriptText'),
+    pasteFold: document.getElementById('r4PasteFold'),
+    auto: document.getElementById('r4Auto'),
     others: document.getElementById('r4Others'),
+    otherDrop: document.getElementById('r4OtherDrop'),
+    otherFile: document.getElementById('r4OtherFile'),
     cover: document.getElementById('r4Cover'),
     metaStudent: document.getElementById('r4MetaStudent'),
     generate: document.getElementById('r4Generate'),
+    generateBody: document.getElementById('r4GenerateBody'),
     generateReason: document.getElementById('r4GenerateReason'),
+    genBox: document.getElementById('r4GenBox'),
+    genOpen: document.getElementById('r4GenOpen'),
+    meter: document.getElementById('r4Meter'),
     steps: document.getElementById('r4Steps'),
     safety: document.getElementById('r4Safety'),
     safetyItems: document.getElementById('r4SafetyItems'),
     checks: document.getElementById('r4Checks'),
-    checksMoreWrap: document.getElementById('r4ChecksMoreWrap'),
-    checksMoreLabel: document.getElementById('r4ChecksMoreLabel'),
     checksMore: document.getElementById('r4ChecksMore'),
+    needCount: document.getElementById('r4NeedCount'),
+    needText: document.getElementById('r4NeedText'),
+    tipCount: document.getElementById('r4TipCount'),
     tabs: document.getElementById('r4Tabs'),
     panels: document.getElementById('r4Panels')
   };
@@ -161,7 +171,7 @@
 
   function setSaved(message, isError) {
     refs.saved.textContent = message || '';
-    refs.saved.className = 'sub' + (isError ? ' r4-err' : '');
+    refs.saved.className = 'saved' + (isError ? ' r4-err' : '');
   }
 
   function show(node, visible) {
@@ -406,35 +416,84 @@
   /* ------------------------------------------------------------------ */
   /* 资料 / 封面                                                          */
   /* ------------------------------------------------------------------ */
+  function autoRow(label, how, stateClass, stateText) {
+    var row = el('div');
+    var name = el('span');
+    name.appendChild(document.createTextNode(label + ' '));
+    name.appendChild(el('span', 'hint', how));
+    row.appendChild(name);
+    row.appendChild(el('span', 'st ' + stateClass, stateText));
+    refs.auto.appendChild(row);
+  }
+
   function renderSources() {
     var inputs = state.inputs || {};
     var y4 = inputs.y4 || {};
-    setPill(refs.y4Pill, y4.complete ? 'ok' : 'warn', y4.complete ? '已读取' : '缺失');
-    refs.y4Note.textContent = y4.complete
-      ? (y4.date ? '测评日期 ' + y4.date : '')
-      : '未找到完整的 Y4 测评，暂不能生成。';
-
     var ft = inputs.first_touch || {};
-    setPill(refs.ftPill, ft.present ? 'ok' : '', ft.present ? '已读取' : '未提供（可选）');
-    refs.ftNote.textContent = ft.present ? (ft.date || '') : '';
+    var q = inputs.questionnaires || {};
+
+    refs.auto.textContent = '';
+    autoRow('Y4 Assessment', '平台自动读取',
+            y4.complete ? 's0' : 's2', y4.complete ? '已读取' : '未完成');
+    autoRow('First Touch Meeting', '平台自动读取',
+            ft.present ? 's0' : 'sn', ft.present ? '已读取' : '没有记录');
+    if (q.total > 0) {
+      autoRow('补充问卷', '平台自动读取',
+              q.done >= q.total ? 's0' : 's1', q.done + ' / ' + q.total);
+    }
 
     var report = state.report || {};
     var length = report.transcript_length || 0;
-    refs.transcriptMeta.textContent = length
-      ? ((report.transcript_filename || '已录入逐字稿') + ' · ' + length + ' 字')
-      : '未上传';
+    show(refs.transcriptDrop, !length);
+    show(refs.transcriptLine, !!length);
+    refs.transcriptName.textContent = report.transcript_filename || '粘贴的文字';
+    refs.transcriptMeta.textContent = length ? (length.toLocaleString('en-US') + ' 字') : '';
+    if (length && !report.transcript_filename && refs.pasteFold) refs.pasteFold.open = true;
+    refs.srcNote.textContent = length
+      ? 'First Meeting 逐字稿 · ' + length.toLocaleString('en-US') + ' 字'
+      : '上传后生成报告';
 
     refs.others.textContent = '';
     var others = inputs.others || [];
-    if (!others.length) {
-      refs.others.appendChild(el('span', 'sub', '没有其他资料。'));
-    }
     others.forEach(function (item) {
-      var row = el('div', 'r4-other');
-      row.appendChild(el('b', '', item.label || item.category || ''));
-      row.appendChild(el('span', 'sub', item.filename || ''));
+      var row = el('div', 'file');
+      var text = el('span');
+      text.appendChild(el('b', '', item.label || '其他资料'));
+      if (item.filename) text.appendChild(el('span', 'mu', ' ' + item.filename));
+      row.appendChild(text);
+      var remove = el('button', 'btn s g', '删除');
+      remove.type = 'button';
+      remove.addEventListener('click', function () { deleteOther(item); });
+      row.appendChild(remove);
       refs.others.appendChild(row);
     });
+  }
+
+  function deleteOther(item) {
+    if (!window.confirm('删除这份资料？')) return;
+    api('/api/m1/sources/' + item.id, { method: 'DELETE' }).then(function () {
+      toast('已删除');
+      return load();
+    }).catch(function (error) {
+      toast(error.message, 'error');
+    });
+  }
+
+  function uploadOther(file) {
+    if (!file) return;
+    var form = new FormData();
+    form.append('file', file);
+    form.append('category', 'report_other');
+    api('/api/m1/preps/' + prepId + '/sources', { method: 'POST', body: form })
+      .then(function () {
+        refs.otherFile.value = '';
+        toast('已上传');
+        return load();
+      })
+      .catch(function (error) {
+        refs.otherFile.value = '';
+        toast(error.message, 'error');
+      });
   }
 
   function renderCover() {
@@ -462,11 +521,11 @@
     var status = state.report.status;
     var missing = [];
     if (!((state.inputs.y4 || {}).complete)) missing.push('需要先读取 Y4 测评');
-    if (!(state.report.transcript_length > 0)) missing.push('需要先上传 M1 会议逐字稿');
+    if (!(state.report.transcript_length > 0)) missing.push('需要先上传心有灵析会议逐字稿');
     var locked = status === 'published';
     var generating = status === 'generating';
     refs.generate.disabled = locked || generating || missing.length > 0;
-    refs.generateReason.textContent = generating ? '正在生成。' : (locked ? '已正式发布。要重新生成，请先在「③ 导出」点「重新打开」。' : missing.join('；'));
+    refs.generateReason.textContent = generating ? '正在生成。' : (locked ? '已正式发布。要重新生成，请先在「② 核对并发布」点「重新打开」。' : missing.join('；'));
     var regen = document.getElementById('r4Regenerate');
     if (regen) {
       regen.disabled = refs.generate.disabled;
@@ -474,19 +533,39 @@
     }
   }
 
+  function showGenPanel() {
+    if (refs.generateBody) refs.generateBody.hidden = true;
+    show(refs.genBox, true);
+    show(refs.genOpen, false);
+  }
+
+  function hideGenPanel() {
+    if (refs.generateBody) refs.generateBody.hidden = false;
+    show(refs.genBox, false);
+    show(refs.genOpen, false);
+    refs.steps.textContent = '';
+    refs.meter.style.width = '0%';
+  }
+
   function renderSteps(steps, message) {
-    refs.steps.hidden = false;
     refs.steps.textContent = '';
     if (message) refs.steps.appendChild(el('div', 'sub', message));
-    (steps || []).forEach(function (step) {
-      var row = el('div', 'gen-row ' + (step.state === 'running' ? 'run' : (step.state === 'done' || step.state === 'skipped' ? 'ok' : '')));
-      row.appendChild(el('span', 'ic'));
+    var list = steps || [];
+    var done = 0;
+    list.forEach(function (step) {
+      var ok = step.state === 'done' || step.state === 'skipped';
+      if (ok) done += 1;
+      var row = el('div', step.state === 'running' ? 'on' : (ok ? 'ok' : ''));
+      row.appendChild(el('i'));
       var text = el('span');
-      text.appendChild(el('b', '', step.label || step.step || ''));
+      text.appendChild(document.createTextNode(step.label || step.step || ''));
       row.appendChild(text);
-      row.appendChild(el('span', 'sub', STEP_LABELS[step.state] || step.state || ''));
+      row.appendChild(el('span', 'mu', STEP_LABELS[step.state] || step.state || ''));
       refs.steps.appendChild(row);
     });
+    if (list.length) {
+      refs.meter.style.width = Math.round((done / list.length) * 100) + '%';
+    }
   }
 
   function stopPolling() {
@@ -505,10 +584,15 @@
         if (job.status === 'done') {
           stopPolling();
           try { localStorage.removeItem(jobKey); } catch (error) { /* 忽略 */ }
-          load().then(function () { showStep('review'); loadPreview(true); });
+          load().then(function () {
+            renderSteps(job.steps, '生成完成');
+            show(refs.genOpen, true);
+            toast('报告已生成');
+          });
         } else if (job.status === 'error') {
           stopPolling();
           try { localStorage.removeItem(jobKey); } catch (error) { /* 忽略 */ }
+          hideGenPanel();
           toast(job.message || '生成失败', 'error');
           load();
         }
@@ -533,10 +617,12 @@
     if (state.polling) return;
     var stored = '';
     try { stored = localStorage.getItem(jobKey) || ''; } catch (error) { stored = ''; }
+    showGenPanel();
     if (stored) {
       renderSteps([], '生成任务运行中');
       pollJob(stored);
     } else {
+      renderSteps([], '生成任务运行中');
       startStatusPoll();
     }
   }
@@ -565,6 +651,7 @@
         state.report.status = 'generating';
         state.report.label = STATUS_LABELS.generating;
         applyStatus();
+        showGenPanel();
         renderSteps([], '生成任务运行中');
         try { localStorage.setItem(jobKey, body.job_id); } catch (error) { /* 忽略 */ }
         pollJob(body.job_id);
@@ -575,6 +662,7 @@
           return;
         }
         toast(error.message, 'error');
+        hideGenPanel();
         load();
       });
   }
@@ -602,8 +690,16 @@
     if (!blocks.length) refs.checks.appendChild(emptyNote('没有必须处理的问题。'));
     blocks.forEach(function (check) { refs.checks.appendChild(checkItem(check)); });
     reviews.forEach(function (check) { refs.checksMore.appendChild(checkItem(check)); });
-    show(refs.checksMoreWrap, reviews.length > 0);
-    refs.checksMoreLabel.textContent = '其他提示（' + reviews.length + '）';
+    renderNeed(blocks.length, reviews.length);
+  }
+
+  function renderNeed(blockCount, tipCount) {
+    refs.needCount.textContent = String(blockCount);
+    refs.tipCount.textContent = String(tipCount);
+    refs.needText.textContent = blockCount
+      ? '在报告的黄色框里补全。'
+      : '没有必须补全的地方。';
+    refs.needText.className = blockCount ? 'hint' : 'hint r4-okline';
   }
 
   function renderTodo() {
@@ -623,30 +719,41 @@
   /* ------------------------------------------------------------------ */
   /* 步骤 / 发言人 / 导出                                                 */
   /* ------------------------------------------------------------------ */
-  var STEPS = ['sources', 'review', 'export'];
+  var STEPS = ['sources', 'review'];
 
   function showStep(name) {
+    if (name === 'export') name = 'review';
     if (STEPS.indexOf(name) < 0) name = 'sources';
+    if (name === 'review' && !state.doc) name = 'sources';
     state.step = name;
-    document.querySelectorAll('[data-step]').forEach(function (node) {
-      if (node.tagName === 'BUTTON') {
-        if (node.getAttribute('data-step') === name) node.setAttribute('aria-current', 'step');
-        else node.removeAttribute('aria-current');
-        return;
+    var hasDoc = !!state.doc;
+    document.querySelectorAll('#r4StepNav a[data-step]').forEach(function (a) {
+      var step = a.getAttribute('data-step');
+      var cls = '';
+      if (step === 'sources') cls = (step === name) ? 'n' : (hasDoc ? 'd' : '');
+      else cls = (step === name) ? 'n' : (hasDoc ? '' : 'x');
+      a.className = cls;
+      if (step === 'review' && !hasDoc) {
+        a.setAttribute('aria-disabled', 'true');
+        a.removeAttribute('aria-current');
+      } else {
+        a.removeAttribute('aria-disabled');
+        if (step === name) a.setAttribute('aria-current', 'step');
+        else a.removeAttribute('aria-current');
       }
+    });
+    document.querySelectorAll('#r4StepSources, #r4StepReview').forEach(function (node) {
       node.hidden = node.getAttribute('data-step') !== name;
     });
     try { history.replaceState(null, '', stepHash(name, state.tab)); } catch (e) { /* ignore */ }
     if (name === 'review') { loadSpeakers(); loadPreview(false); }
-    if (name === 'export') renderExportState();
+    renderExportState();
     window.scrollTo(0, 0);
   }
 
   function defaultStep() {
     var match = /step=(\w+)/.exec(window.location.hash || '');
     if (match && STEPS.indexOf(match[1]) >= 0) return match[1];
-    var status = state.report && state.report.status;
-    if (status === 'approved' || status === 'published') return 'export';
     return state.doc ? 'review' : 'sources';
   }
 
@@ -1304,10 +1411,21 @@
     show(refs.publishedNote, locked);
   }
 
+  function renderTag() {
+    var status = state.report.status || 'draft';
+    var text = '草稿';
+    if (!state.doc) text = '逐字稿';
+    else if (status === 'generating') text = '生成中';
+    else if (status === 'published') text = '已发布';
+    refs.tag.textContent = text;
+  }
+
   function applyStatus() {
     var status = state.report.status || 'draft';
-    refs.statusLabel.textContent = state.report.label || STATUS_LABELS[status] || status;
-    refs.statusPill.className = 'pill' + (STATUS_CLASS[status] ? ' ' + STATUS_CLASS[status] : '');
+    renderTag();
+    if (refs.exportTitle) {
+      refs.exportTitle.textContent = status === 'published' ? '已正式发布' : '正式发布';
+    }
 
     var hasVersion = state.doc !== null;
     var locked = status === 'published';
@@ -1339,8 +1457,6 @@
     state.has_edits = !!body.has_edits;
     state.conflict = false;
 
-    refs.steps.hidden = true;
-    refs.steps.textContent = '';
     renderSources();
     renderCover();
     renderTodo();
@@ -1357,6 +1473,7 @@
         showStep(defaultStep());
       }
       renderExportState();
+      if (!refs.saved.textContent) setSaved(SAVE_OK);
     }).catch(function (error) {
       setSaved(SAVE_FAIL + '：' + error.message, true);
       toast(error.message, 'error');
@@ -1393,8 +1510,8 @@
     });
   });
 
-  function uploadTranscript() {
-    var file = refs.transcriptFile.files && refs.transcriptFile.files[0];
+  function uploadTranscript(chosen) {
+    var file = chosen || (refs.transcriptFile.files && refs.transcriptFile.files[0]);
     if (!file) {
       toast('请先选择文件', 'error');
       return;
@@ -1420,11 +1537,11 @@
   }
 
   function replaceButton() {
-    var button = document.getElementById('r4TranscriptReplace');
+    var button = document.getElementById('r4PasteReplace');
     if (button) return button;
     button = el('button', 'btn sm', '用这段文字替换现有逐字稿');
     button.type = 'button';
-    button.id = 'r4TranscriptReplace';
+    button.id = 'r4PasteReplace';
     button.hidden = true;
     refs.transcriptText.parentNode.insertBefore(button, refs.transcriptText.nextSibling);
     button.addEventListener('click', function () {
@@ -1478,6 +1595,62 @@
     });
   }
 
+  if (refs.transcriptReplace) {
+    refs.transcriptReplace.addEventListener('click', function () {
+      refs.transcriptFile.click();
+    });
+  }
+
+  if (refs.transcriptDrop) {
+    ['dragenter', 'dragover'].forEach(function (name) {
+      refs.transcriptDrop.addEventListener(name, function (event) {
+        event.preventDefault();
+        refs.transcriptDrop.classList.add('over');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (name) {
+      refs.transcriptDrop.addEventListener(name, function (event) {
+        event.preventDefault();
+        refs.transcriptDrop.classList.remove('over');
+      });
+    });
+    refs.transcriptDrop.addEventListener('drop', function (event) {
+      var file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+      if (!file) return;
+      if (transcriptExists()) {
+        var n = state.report.transcript_length;
+        if (!window.confirm(REPLACE_CONFIRM.replace('%n', n))) return;
+      }
+      uploadTranscript(file);
+    });
+  }
+
+  if (refs.otherFile) {
+    refs.otherFile.addEventListener('change', function () {
+      var file = refs.otherFile.files && refs.otherFile.files[0];
+      uploadOther(file);
+    });
+  }
+  if (refs.otherDrop) {
+    refs.otherDrop.addEventListener('click', function () { refs.otherFile.click(); });
+    ['dragenter', 'dragover'].forEach(function (name) {
+      refs.otherDrop.addEventListener(name, function (event) {
+        event.preventDefault();
+        refs.otherDrop.classList.add('over');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (name) {
+      refs.otherDrop.addEventListener(name, function (event) {
+        event.preventDefault();
+        refs.otherDrop.classList.remove('over');
+      });
+    });
+    refs.otherDrop.addEventListener('drop', function (event) {
+      var file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+      uploadOther(file);
+    });
+  }
+
   refs.transcriptText.addEventListener('input', function () {
     clearTimeout(transcriptTimer);
     transcriptTimer = setTimeout(saveTranscript, 1500);
@@ -1490,13 +1663,20 @@
   var stepNav = document.getElementById('r4StepNav');
   if (stepNav) {
     stepNav.addEventListener('click', function (event) {
-      var button = event.target && event.target.closest ? event.target.closest('button[data-step]') : null;
-      if (button) showStep(button.getAttribute('data-step'));
+      var link = event.target && event.target.closest ? event.target.closest('a[data-step]') : null;
+      if (!link) return;
+      event.preventDefault();
+      if (link.getAttribute('aria-disabled') === 'true') return;
+      showStep(link.getAttribute('data-step'));
     });
   }
 
-  var toExport = document.getElementById('r4ToExport');
-  if (toExport) toExport.addEventListener('click', function () { showStep('export'); });
+  if (refs.genOpen) {
+    refs.genOpen.addEventListener('click', function (event) {
+      event.preventDefault();
+      showStep('review');
+    });
+  }
 
   var spkSave = document.getElementById('r4SpkSave');
   if (spkSave) spkSave.addEventListener('click', saveSpeakers);
@@ -1504,6 +1684,16 @@
   window.addEventListener('message', function (event) {
     if (event.origin !== window.location.origin) return;
     if (event.data && event.data.type === 'm1-report-edit') load();
+  });
+
+  window.addEventListener('hashchange', function () {
+    var match = /step=(\w+)/.exec(window.location.hash || '');
+    if (!match) return;
+    var step = match[1] === 'export' ? 'review' : match[1];
+    if (STEPS.indexOf(step) < 0) return;
+    if (step === 'review' && !state.doc) return;
+    if (state.step === step) return;
+    showStep(step);
   });
   var regen = document.getElementById('r4Regenerate');
   if (regen) regen.addEventListener('click', function () { generate(false); });

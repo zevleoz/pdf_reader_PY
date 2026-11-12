@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="csrf-token" content="{{ csrf_token() if csrf_token is defined else '' }}">
+<title>{% block title %}心有灵析{% endblock %} · 凭远</title>
+<link rel="stylesheet" href="/m1/assets/ark.css">
+{% block head_extra %}{% endblock %}
+<script>
+  // CSRF（与旧壳 admin.html 同契约）：同源 mutating 请求自动带 X-CSRF-Token 头。
+  // 旧壳页面脚本普遍依赖此包装（不在页面里显式传 token），迁移时不改页面 JS，
+  // 由壳统一注入；页面也可显式传 token（不冲突）。
+  (function () {
+    var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var origFetch = window.fetch;
+    window.fetch = function (url, opts) {
+      opts = opts || {};
+      var method = (opts.method || 'GET').toUpperCase();
+      if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
+        var isSameOrigin = typeof url !== 'string' || url.charAt(0) === '/' ||
+                           url.indexOf(location.origin) === 0;
+        if (isSameOrigin) {
+          opts.headers = Object.assign({}, opts.headers, { 'X-CSRF-Token': token });
+        }
+      }
+      return origFetch.call(this, url, opts);
+    };
+    window.y4CsrfToken = token;
+  })();
+</script>
+</head>
+<body>
+<div class="app" id="app" data-world="swiss" data-platform="m1" data-view="m1">
+  <div class="shell">
+    <nav class="nav" aria-label="主导航">
+      <a class="brand" href="/platforms" aria-label="所有平台"><i class="crest-white"></i><span><b>心有灵析</b><small>切换平台</small></span></a>
+      {% set nav = nav_active|default('students') %}
+      <a class="nv{% if nav == 'students' %} on{% endif %}" href="/m1"{% if nav == 'students' %} aria-current="page"{% endif %}><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-4 3.2-6 6.5-6s5.9 2 6.5 6"/><path d="M16 4.8a3.5 3.5 0 010 6.4M18 14.5c2 .8 3.2 2.7 3.5 5.5"/></svg></span><span>学生</span></a>
+      <a class="nv{% if nav == 'preps' %} on{% endif %}" href="/m1/preps"{% if nav == 'preps' %} aria-current="page"{% endif %}><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span><span>会前准备</span></a>
+      <a class="nv{% if nav == 'reports' %} on{% endif %}" href="/m1/reports"{% if nav == 'reports' %} aria-current="page"{% endif %}><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h4"/></svg></span><span>会后报告</span></a>
+      <a class="nv{% if nav == 'plans' %} on{% endif %}" href="/m1/plans"{% if nav == 'plans' %} aria-current="page"{% endif %}><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10.5 5.2 8.4 4.6 5.5 4.6v13.2c2.9 0 5 .6 6.5 1.9 1.5-1.3 3.6-1.9 6.5-1.9V4.6c-2.9 0-5 .6-6.5 1.9Z"/><path d="M12 6.5v13.2"/></svg></span><span>发展计划</span></a>
+      <div class="navlab">其他平台</div>
+      {% for link in platform_links or [] %}
+      <a class="nv old" href="{{ link.href }}"{% if link.blank %} target="_blank" rel="noopener"{% endif %}>
+        <span class="ni">
+          {% if link.key == 'profiling' %}
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-4 3.2-6 6.5-6s5.9 2 6.5 6"/><path d="M16 4.8a3.5 3.5 0 010 6.4M18 14.5c2 .8 3.2 2.7 3.5 5.5"/></svg>
+          {% else %}
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>
+          {% endif %}
+        </span>
+        <span>{{ link.title }}</span>
+      </a>
+      {% endfor %}
+      <div class="who">
+        <span class="av">{{ (current_display_name or '未')[0] }}</span>
+        <span><b>{{ current_display_name or '未命名用户' }}</b><br>{{ current_role_label }}</span>
+        <button type="button" aria-label="退出登录" onclick="m1Logout()"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></button>
+      </div>
+    </nav>
+    <div class="work">
+      <header class="bar">
+        <a class="plat-b" href="/platforms">所有平台</a>
+        {% block crumbs %}{% endblock %}
+      </header>
+      <div id="scroll"><main id="view">{% block content %}{% endblock %}</main></div>
+    </div>
+  </div>
+  {% block overlay %}{% endblock %}
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</div>
+<script>
+function m1Logout() {
+  fetch('/api/admin/logout', { method: 'POST', headers: { 'X-CSRF-Token': '{{ csrf_token() if csrf_token is defined else '' }}' } })
+    .finally(function () { window.location.href = '/login'; });
+}
+window.v2Toast = function (msg, type) {
+  var host = document.getElementById('toasts');
+  if (!host) return;
+  var item = document.createElement('div');
+  item.className = 'toast';
+  item.textContent = msg;
+  host.appendChild(item);
+  setTimeout(function () { item.remove(); }, 2600);
+};
+window.y4Toast = window.v2Toast;
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

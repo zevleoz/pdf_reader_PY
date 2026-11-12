@@ -1,0 +1,741 @@
+{% extends "m1/_layout.html" %}
+{% block title %}{{ plan.student_name }} · 发展计划 · M1{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('m1.m1_asset', filename='plan.css') }}">
+{% endblock %}
+{% block crumbs %}
+<div class="cr"><a href="/m1/plans">发展计划</a><span>/</span><b>{{ plan.student_name }}</b></div>
+{% endblock %}
+
+{% block content %}
+
+{% macro txt(value, path, limit=0, cls='') -%}
+{%- set t = value.text if value is mapping else value -%}
+<span class="pf{{ ' ' + cls if cls }}"{% if step2_editable %} contenteditable="true" spellcheck="false"{% endif %} data-path="{{ path }}"{% if limit %} data-limit="{{ limit }}"{% endif %}>{{ t }}</span>
+{%- endmacro %}
+
+{% macro srclabel(src) -%}
+{{ source_labels.get(src.type, source_labels['ai_original']) }}{% if src.type == 'world_bank' %}{% if src.wb_id %} · {{ cites.get(src.wb_id, '') }}{% endif %}{% elif src.type == 'other' %}{% if src.text %} · {{ src.text }}{% endif %}{% endif %}
+{%- endmacro %}
+
+{% macro goalopts(cur, empty=False) -%}
+{% if empty %}<option value=""{% if not cur %} selected{% endif %}>—</option>{% endif %}
+{% for g in goals %}<option value="{{ g.code }}"{% if g.code == cur %} selected{% endif %}>{{ g.code }} {{ g.name }}</option>{% endfor %}
+{%- endmacro %}
+
+{% set st = plan.status %}
+{% set s1 = 'n' if st == 'inputs' else 'd' %}
+{% set s2 = 'x' if st == 'inputs' else ('d' if st == 'approved' else 'n') %}
+{% set s3 = 'd' if plan.parent_status in ('confirmed', 'exported') else ('n' if st == 'approved' or plan.parent_status in ('generating', 'draft') else 'x') %}
+{% set internal = internal_version %}
+
+<div class="plan-page" id="m1Plan" data-plan-id="{{ plan.id }}" data-status="{{ st }}"
+     data-default-step="{{ default_step }}" data-job-id="{{ job_id or '' }}"
+     data-step1="{{ 1 if step1_editable else 0 }}" data-step2="{{ 1 if step2_editable else 0 }}"
+     data-can-edit="{{ 1 if can_edit else 0 }}">
+
+  <div class="head th">
+    <div>
+      <h1>发展计划<span>{{ state_label }}</span></h1>
+      <p class="sub">{{ plan.student_name }} · {{ grade_text }}（G{{ plan.wb_grade }}） · Block {{ plan.block_no }} · {{ period }} · {{ plan.mentor_name }}</p>
+    </div>
+    <div class="acts"></div>
+  </div>
+
+  <div class="track k3">
+    <a class="{{ s1 }}" href="#step=inputs" data-step="inputs"><b>① 资料与目标</b><small>学生资料 · 目标 · 个性化需求</small></a>
+    <a class="{{ s2 }}" href="#step=internal" data-step="internal"{% if s2 == 'x' %} aria-disabled="true"{% endif %}><b>② 内部版审阅批准</b><small>3 节课 · 导师逐项修改</small></a>
+    <a class="{{ s3 }}" href="#step=parent" data-step="parent"{% if s3 == 'x' or not has_parent_step %} aria-disabled="true"{% endif %}><b>③ 家长版</b><small>预览修改 · 导出 PDF</small></a>
+  </div>
+
+  {% if not can_edit %}
+  <p class="plan-ro">只读：只有负责导师 {{ plan.mentor_name }} 可以修改。</p>
+  {% endif %}
+
+  <!-- ===================== ① 资料与目标 ===================== -->
+  <div class="wk2 plan-step" data-panel="inputs"{% if default_step != 'inputs' %} hidden{% endif %} style="margin-top:22px">
+    <div style="min-width:0">
+
+      <h3 class="h2">基本信息<small>新建时填写，可以改</small></h3>
+      <div class="fm" style="margin-bottom:24px">
+        <label>Block<input class="inp" id="hdrBlock" value="{{ plan.block_no }}" inputmode="numeric"{% if not step1_editable %} disabled{% endif %}></label>
+        <label>阶段周期
+          <span class="pdates">
+            <input type="date" id="hdrStart" value="{{ plan.period_start }}"{% if not step1_editable %} disabled{% endif %}>
+            <span class="mu">至</span>
+            <input type="date" id="hdrEnd" value="{{ plan.period_end }}"{% if not step1_editable %} disabled{% endif %}>
+          </span>
+        </label>
+        <label>学分<input class="inp" id="hdrCredits" value="{{ plan.credits }}" inputmode="numeric"{% if not step1_editable %} disabled{% endif %}></label>
+        <label>计划课次<input class="inp" value="3" disabled><span class="hint">默认 3 节</span></label>
+      </div>
+
+      <h3 class="h2">学生资料<small>从已发布的会后报告提取</small></h3>
+      <div class="src">
+        <span><b>会后报告<span class="req">必需</span></b><span class="how">平台自动读取</span></span>
+        <span class="r"><span class="st {{ 's0' if report.fresh else 's1' }}">{{ report.label or '未发布' }}{% if report_date %} · {{ report_date }}{% endif %}</span></span>
+        <span class="d">只读已发布的版本；报告重新打开后要重新确认这里</span>
+      </div>
+      <div class="src">
+        <span><b>Y4 Assessment</b><span class="how">平台自动读取</span></span>
+        <span class="r"><span class="st s0">已读取</span></span>
+        <span class="d">{% if y4_date %}{{ y4_date }} 测评{% else %}平台上已有的最近一次测评{% endif %}</span>
+      </div>
+
+      {% if not report.fresh %}
+      <div class="pwarn" id="reportWarn">
+        <b>会后报告已更新</b>
+        <span>这份计划读的还是旧版本（{{ report.read_at[:10] if report.read_at else '—' }}）。</span>
+        <span class="sp"></span>
+        {% if step1_editable %}
+        <button class="btn s" id="rereadBtn">重新读取</button>
+        <button class="btn s g" id="useOldBtn">继续使用旧版本</button>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="gcard" style="margin-top:12px">
+        <div class="gt">
+          <b>Development Input</b>
+          <span class="ai">AI 提取</span>
+          <span class="r">{% if step1_editable %}<button class="btn s g" id="reextractBtn">重新提取</button>{% endif %}</span>
+        </div>
+        <dl>
+          {% for key, label in [('strengths', '可利用的积极资源'), ('needs', '主要发展需求'), ('context', '关键生活情境'), ('interests', '兴趣与学习偏好')] %}
+          {% set item = plan.inputs.get(key) or {} %}
+          <dt>{{ label }}{% if item.src == 'ai' %}<span class="ai" data-ai="{{ key }}">AI</span>{% endif %}</dt>
+          <dd><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false"{% endif %} data-input="{{ key }}" data-src="{{ item.src or 'ai' }}">{{ item.text or '' }}</span>
+            {% if not (item.text or '').strip() %}<span class="mu">（还没有读到，先确认会后报告）</span>{% endif %}
+          </dd>
+          {% endfor %}
+        </dl>
+        <p class="hint" style="margin:8px 0 0">只留和本 Block 教学有关的信息，不重复整份报告。每条都能在报告里找到出处。</p>
+      </div>
+
+      <h3 class="h2" style="margin-top:28px">已确认的发展目标<small>1–3 项，通常 1–2 项</small></h3>
+      {% if read_goals %}
+      <div class="chips" style="margin:0 0 12px">
+        <span class="mu" style="font-size:12.5px">会后报告的阶段发展重点：</span>
+        {% for g in read_goals %}
+          {% if g.used %}
+          <span class="chip dim"><code>{{ g.code }}</code>{{ g.name }} · 已添加</span>
+          {% elif step1_editable %}
+          <button class="chip add" data-add-goal="{{ g.code }}"><code>{{ g.code }}</code>{{ g.name }} <span class="plus">＋</span></button>
+          {% else %}
+          <span class="chip"><code>{{ g.code }}</code>{{ g.name }}</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% for g in goals %}
+      <div class="gcard" data-goal-card="{{ g.code }}">
+        <div class="gt">
+          <span class="chip"><code>{{ g.code }}</code>{{ g.name }}</span>
+          <span class="st {{ 's0' if g.locked else 'sn' }}">{{ '已锁定' if g.locked else '未锁定' }}</span>
+          <span class="r">
+            {% if step1_editable %}
+              {% if g.locked %}<button class="btn s g" data-lock="{{ g.code }}" data-locked="0">解锁</button>
+              {% else %}<button class="btn s" data-lock="{{ g.code }}" data-locked="1">锁定</button>{% endif %}
+            {% endif %}
+          </span>
+        </div>
+        <dl>
+          <dt>发展目标</dt>
+          <dd><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false"{% endif %} data-goal-text="{{ g.code }}">{{ g.goal_text }}</span></dd>
+          <dt>当前起点{% if g.start.src == 'ai' %}<span class="ai" data-goal-ai="{{ g.code }}-start">AI</span>{% endif %}</dt>
+          <dd data-goal-field="{{ g.code }}-start"><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false"{% endif %} data-goal-value="{{ g.code }}-start">{{ g.start.text }}</span></dd>
+          <dt>阶段预期进展{% if g.expected.src == 'ai' %}<span class="ai" data-goal-ai="{{ g.code }}-expected">AI</span>{% endif %}</dt>
+          <dd data-goal-field="{{ g.code }}-expected"><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false"{% endif %} data-goal-value="{{ g.code }}-expected">{{ g.expected.text }}</span></dd>
+        </dl>
+      </div>
+      {% endfor %}
+
+      {% if step1_editable and goals|length < 3 %}
+      {% set chosen = goals|map(attribute='code')|list %}
+      <select class="selx" id="addGoal" style="width:100%">
+        <option value="">＋ 添加第 {{ goals|length + 1 }} 项目标（从 18 项 R4 能力中选）…</option>
+        {% for dim in dims %}
+        <optgroup label="{{ dim.id }} {{ dim.zh }}">
+          {% for a in abilities if a.dim == dim.id and a.code not in chosen %}
+          <option value="{{ a.code }}">{{ a.code }} {{ a.name }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <p class="hint" style="margin:6px 0 0">能力和目标由导师选、导师写；AI 只填“当前起点”和“阶段预期进展”，导师可以改。</p>
+
+      <h3 class="h2" style="margin-top:28px">个性化需求<small>可选</small></h3>
+      <div class="src">
+        <span><b>家长关注点 · 学生意愿 · 生活情境 · 导师要求</b><span class="how">{{ '粘贴文字或上传会议记录' if step1_editable else '导师粘贴的文字或上传的会议记录' }}</span></span>
+        <span class="r"><span class="st s0">{{ '已提供' if (personal.notes or files) else '未提供' }}</span></span>
+        <span class="ex">
+          <textarea class="ta" id="personalNotes" aria-label="个性化需求" placeholder="粘贴和家长、学生或学校沟通时记下的需求…"{% if not step1_editable %} disabled{% endif %}>{{ personal.notes or '' }}</textarea>
+          <div id="fileList">
+            {% for f in files %}
+            <div class="file" data-file="{{ f.id }}">
+              <span>{{ f.filename }}</span>
+              <span class="mu">{% if f.size >= 1024 %}{{ (f.size / 1024)|round(0, 'floor')|int }} KB{% else %}{{ f.size }} B{% endif %}</span>
+              {% if step1_editable %}<button class="del" data-del-file="{{ f.id }}">删除</button>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% if step1_editable %}
+          <label class="btn s" style="display:inline-flex;margin-top:6px">上传会议记录
+            <input type="file" id="fileInput" accept=".txt,.docx,.pdf" hidden>
+          </label>
+          {% endif %}
+          <span class="hint">原文只在平台内给导师看，不进教学计划正文，也不进家长版。</span>
+        </span>
+      </div>
+
+      <div class="gcard" style="margin-top:12px">
+        <div class="gt">
+          <b id="summaryH">需求总结</b>
+          {% if ((personal.summary or {}).get('src') or 'ai') == 'ai' %}<span class="ai" id="summaryAi">AI 2–3 句</span>{% endif %}
+          {% if step1_editable %}<span class="r"><button class="btn s g" id="summaryBtn">{{ '重新生成' if personal.summary and personal.summary.text else '生成' }}</button></span>{% endif %}
+        </div>
+        <textarea class="ta" id="summaryText" rows="3" style="width:100%" aria-labelledby="summaryH"{% if not step1_editable %} disabled{% endif %} placeholder="{{ '还没有总结。粘贴需求或上传会议记录后生成。' if step1_editable else '导师还没有生成需求总结。' }}">{{ (personal.summary or {}).get('text') or '' }}</textarea>
+      </div>
+
+    </div>
+
+    <aside class="rail">
+      {% if step1_editable %}
+      <div class="go">
+        <b>生成内部教学计划</b>
+        <span class="hint" style="color:var(--ink2)">使用：会后报告、{{ goals|selectattr('locked')|list|length }} 项已锁定目标、个性化需求。目标没锁定不能生成。</span>
+        <button class="btn p" id="genBtn"{% if blockers %} disabled{% endif %}>生成内部教学计划</button>
+        <span class="hint" id="genHint">{% if blockers %}{{ blockers|join('；') }}{% else %}约 1–3 分钟，可以离开页面。{% endif %}</span>
+      </div>
+      {% endif %}
+      <div class="gen" id="genList">
+        {% for step in gen_steps %}
+        <div data-gen-step="{{ step.id }}"><i></i><span>{{ step.label }}<small>{{ step.note }}</small></span><span class="mu"></span></div>
+        {% endfor %}
+      </div>
+
+      <div>
+        <h3 class="h2">本次 WB 参考课<small>G{{ plan.wb_grade }} · 只作思路</small></h3>
+        {% if not wb_installed %}
+        <p class="hint" style="margin:0">WB 参考资料未安装。活动会全部按 AI Original 设计。</p>
+        {% else %}
+          {% for g in wb_groups %}
+            {% for row in g.rows %}
+            <div class="wbc">
+              <b>{{ g.code }} · {{ row.name or row.wb_id }}</b>
+              <div>{{ row.cite }}</div>
+              {% if row.match or row.limit %}<div class="bd">{% if row.match %}{{ row.match }}{% endif %}{% if row.limit %}{% if row.match %} · {% endif %}{{ row.limit }}{% endif %}</div>{% endif %}
+            </div>
+            {% else %}
+            <div class="wbc"><b>{{ g.code }} · 没有对应的 WB 参考课</b></div>
+            {% endfor %}
+          {% endfor %}
+        {% endif %}
+        <p class="hint" style="margin:6px 0 0">由代码从《M1 World Bank Reference》查出，导师不用操作。G5–G9 以外的学生用最接近的年级。</p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===================== ② 内部版审阅批准 ===================== -->
+  <div class="wk2 wide plan-step" data-panel="internal"{% if default_step != 'internal' %} hidden{% endif %} style="margin-top:22px">
+    <div style="min-width:0">
+      <div class="dbar">
+        <span class="saved" id="saveState">{% if step2_editable %}已保存{% else %}只读{% endif %}</span>
+        <span class="sp"></span>
+        <button class="btn s g" id="verBtn">历史版本</button>
+        <a class="btn s" href="/m1/plans/{{ plan.id }}/print" target="_blank" rel="noopener">预览 / 下载内部版 PDF</a>
+      </div>
+
+      {% if st == 'generating' %}
+      <div class="gcard" style="margin-top:14px">
+        <div class="gt"><b>正在生成内部版</b><span class="ai">可以离开页面</span></div>
+        <div class="gen" id="genListInternal">
+          {% for step in gen_steps %}
+          <div data-gen-step="{{ step.id }}"><i></i><span>{{ step.label }}<small>{{ step.note }}</small></span><span class="mu"></span></div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if internal %}
+      <div class="desk">
+        <article class="a4 notion{% if st != 'approved' %} draft{% endif %}" id="doc" data-rev="{{ internal.rev }}">
+          {% if st != 'approved' %}<p class="sample">草稿 · 批准后锁定这一版用于家长版。</p>{% endif %}
+          <h1>{{ plan.student_name }} · 情绪力阶段发展与教学计划（内部版）</h1>
+          <table class="phead">
+            <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级 / 年龄</th><td>{{ grade_text }}（G{{ plan.wb_grade }}）</td></tr>
+            <tr><th>负责导师</th><td>{{ plan.mentor_name }}</td><th>Module</th><td>M1 Emotional &amp; Relational Development</td></tr>
+            <tr><th>阶段周期</th><td>{{ period }}</td><th>Block / 学分 / 课次</th><td>Block {{ plan.block_no }} · {{ plan.credits }} · 3 节</td></tr>
+          </table>
+
+          <h2>A｜学生当前状态</h2>
+          <p class="mu" style="font-size:12.5px">来自 ① 资料与目标，在那里修改。</p>
+          {% set inputs = plan.inputs or {} %}
+          {% if (inputs.get('strengths') or {}).get('text') or (inputs.get('needs') or {}).get('text') or (inputs.get('context') or {}).get('text') or (inputs.get('interests') or {}).get('text') %}
+            {% for key, label in [('strengths', '可利用的积极资源'), ('needs', '主要发展需求'), ('context', '关键生活情境'), ('interests', '兴趣与学习偏好')] %}
+            <p><b class="k">{{ label }}：</b>{{ (inputs.get(key) or {}).get('text') or '—' }}</p>
+            {% endfor %}
+          {% else %}
+          <p class="mu">还没有学生资料。</p>
+          {% endif %}
+
+          <h2>B｜已确认的发展目标</h2>
+          <table class="t">
+            <thead><tr><th style="width:118px">R4</th><th>发展目标</th><th>当前起点</th><th>阶段预期进展</th></tr></thead>
+            <tbody>
+            {% for g in goals %}
+            <tr><td>{{ g.code }} {{ g.name }}</td><td>{{ g.goal_text }}</td><td>{{ g.start.text }}</td><td>{{ g.expected.text }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+
+          <h2>C｜个性化需求总结</h2>
+          <p>{{ (personal.summary or {}).get('text') or '—' }}</p>
+
+          <h2>Block Overview｜总体目标与教学策略</h2>
+          {% set doc = internal.doc %}
+          <p>{{ txt(doc.get('overview') or {}, 'overview.text', 250, 'block') }}</p>
+          {% if step2_editable %}<button class="btn s g regen" data-regen="overview" style="margin:4px 0 0">重新生成总体目标</button>{% endif %}
+
+          {% for session in doc.get('sessions') or [] %}
+          {% set si = loop.index0 %}
+          {% set sbase = 'sessions.' ~ si %}
+          <div class="sess">
+            <h2>Session {{ session.n }}｜{{ txt(session.get('title') or {}, sbase ~ '.title.text', 20, 'block') }}</h2>
+            {% if step2_editable %}<button class="btn s g regen" data-regen="{{ session.n }}">重新生成本节</button>{% endif %}
+          </div>
+
+          {% if session.get('review') %}
+          <p class="mu" style="font-size:12.5px"><b>上次课后实践回顾</b></p>
+          <ul style="margin:2px 0 10px;padding-left:18px;font-size:13px">
+            {% for row in session.review %}<li>{{ txt(row, sbase ~ '.review.' ~ loop.index0 ~ '.text', 60) }}</li>{% endfor %}
+          </ul>
+          {% endif %}
+
+          <h3>A｜本节教学重点</h3>
+          {% set focus = session.get('focus') or {} %}
+          <div class="pfocus">
+            <label>主要目标
+              <select class="selx" data-path="{{ sbase }}.focus.primary"{% if not step2_editable %} disabled{% endif %}>{{ goalopts(focus.get('primary')) }}</select>
+            </label>
+            <label>辅助目标
+              <select class="selx" data-path="{{ sbase }}.focus.supporting"{% if not step2_editable %} disabled{% endif %}>{{ goalopts(focus.get('supporting'), True) }}</select>
+            </label>
+          </div>
+          <p>{{ txt(focus.get('text') or {}, sbase ~ '.focus.text', 40, 'block') }}</p>
+
+          <h3>B｜核心学习内容</h3>
+          {% set content = session.get('content') or {} %}
+          <p><b class="k">Mindsets：</b>{{ txt(content.get('mindsets') or {}, sbase ~ '.content.mindsets.text', 90) }}</p>
+          <p><b class="k">Path：</b>{{ txt(content.get('path') or {}, sbase ~ '.content.path.text', 90) }}</p>
+          <p><b class="k">Skills：</b>{{ txt(content.get('skills') or {}, sbase ~ '.content.skills.text', 90) }}</p>
+          <p><b class="k">Techniques：</b>{{ txt(content.get('techniques') or {}, sbase ~ '.content.techniques.text', 90) }}</p>
+
+          <h3>C｜教学活动</h3>
+          {% for activity in session.get('activities') or [] %}
+          {% set ai = loop.index0 %}
+          {% set abase = sbase ~ '.activities.' ~ ai %}
+          {% if activity.get('block_review') %}
+          <div class="act review" data-block-review="1" data-a="{{ ai }}">
+            <div class="act-h">
+              <h4>{{ block_review.name }}（约 <input class="inp" style="width:58px;height:28px;padding:0 6px;font-size:12.5px;vertical-align:middle" type="number" min="1" max="180" value="{{ activity.get('minutes', block_review.minutes) }}" data-path="{{ abase }}.minutes" aria-label="{{ block_review.name }} · 分钟"{% if not step2_editable %} disabled{% endif %}> 分钟）</h4>
+            </div>
+            {% for part in block_review.parts %}
+            <p class="steps ro"><b class="lbl">{{ part.label }}：</b>{{ part.text }}</p>
+            {% endfor %}
+            <p><b class="lbl">引导问题：</b>{{ txt(activity.get('questions') or {}, abase ~ '.questions.text', 200) }}</p>
+            <p class="mu" style="font-size:12px">{{ block_review.note }}</p>
+          </div>
+          {% else %}
+          <div class="act" data-block-review="0" data-a="{{ ai }}">
+            <div class="act-h">
+              <h4>Activity {{ ai + 1 }}｜{{ txt(activity.get('name') or {}, abase ~ '.name.text', 40) }}</h4>
+              {% if step2_editable %}
+              <div class="act-tools">
+                <button data-op="up" data-s="{{ si }}" data-a="{{ ai }}"{% if ai == 0 %} disabled{% endif %} aria-label="上移">↑</button>
+                <button data-op="down" data-s="{{ si }}" data-a="{{ ai }}"{% if ai + 1 >= (session.get('activities')|length) or (session.get('activities') or [])[ai + 1].get('block_review') %} disabled{% endif %} aria-label="下移">↓</button>
+                <button data-op="del-activity" data-s="{{ si }}" data-a="{{ ai }}"{% if session.get('activities')|length <= 1 %} disabled{% endif %}>删除</button>
+              </div>
+              {% endif %}
+            </div>
+            <p class="meta">
+              <input class="inp" type="number" min="1" max="180" value="{{ activity.get('minutes', 10) }}" data-path="{{ abase }}.minutes" aria-label="Activity {{ ai + 1 }} · 分钟"{% if not step2_editable %} disabled{% endif %}> 分钟 · 参考来源：
+              {% if step2_editable %}
+              <select class="selx" data-source-type="{{ si }}-{{ ai }}" data-path="{{ abase }}.source.type">
+                <option value="ai_original"{% if (activity.get('source') or {}).get('type') == 'ai_original' %} selected{% endif %}>AI Original</option>
+                <option value="world_bank"{% if (activity.get('source') or {}).get('type') == 'world_bank' %} selected{% endif %}>World Bank · 改编</option>
+                <option value="other"{% if (activity.get('source') or {}).get('type') == 'other' %} selected{% endif %}>其他参考</option>
+              </select>
+              {% set src = activity.get('source') or {} %}
+              {% if src.type == 'world_bank' %}
+              <select class="selx" data-path="{{ abase }}.source.wb_id" data-source-lesson="{{ si }}">
+                {% for row in session_candidates[si] %}
+                <option value="{{ row.wb_id }}"{% if row.wb_id == src.wb_id %} selected{% endif %}>{{ row.cite }}</option>
+                {% endfor %}
+              </select>
+              {% elif src.type == 'other' %}
+              <input class="oth" value="{{ src.text or '' }}" data-path="{{ abase }}.source.text" placeholder="写参考来源">
+              {% endif %}
+              {% else %}
+              <span class="srcl">{{ srclabel(activity.get('source') or {}) }}</span>
+              {% endif %}
+            </p>
+            <p class="steps">{{ txt(activity.get('steps') or {}, abase ~ '.steps.text', 400, 'block') }}</p>
+            <p><b class="lbl">引导问题：</b>{{ txt(activity.get('questions') or {}, abase ~ '.questions.text', 200) }}</p>
+            <p><b class="lbl">所需材料：</b>{{ txt(activity.get('materials') or {}, abase ~ '.materials.text', 60) }}</p>
+          </div>
+          {% endif %}
+          {% endfor %}
+          {% if step2_editable %}
+          <button class="btn s padd" data-op="add-activity" data-s="{{ si }}">＋ 添加教学活动</button>
+          {% endif %}
+
+          <h3>D｜课堂预期表现</h3>
+          <p>{{ txt(session.get('evidence') or {}, sbase ~ '.evidence.text', 80, 'block') }}</p>
+
+          <h3>E｜课后成长实践</h3>
+          {% set practices = session.get('practice') or [] %}
+          {% for practice in practices %}
+          {% set pi = loop.index0 %}
+          {% set pbase = sbase ~ '.practice.' ~ pi %}
+          {% set fcodes = [focus.get('primary'), focus.get('supporting')] %}
+          <div class="prac">
+            <p class="line"><b>Practice {{ pi + 1 }}｜</b>{{ txt(practice.get('name') or {}, pbase ~ '.name.text', 30) }}
+              · 关联
+              <select class="selx" data-path="{{ pbase }}.code"{% if not step2_editable %} disabled{% endif %}>
+                {% set ns = namespace(has=false) %}
+                {% for g in goals if g.code in fcodes %}<option value="{{ g.code }}"{% if g.code == practice.get('code') %} selected{% endif %}>{{ g.code }} {{ g.name }}</option>{% set ns.has = true %}{% endfor %}
+                {% if not ns.has %}<option value="{{ practice.get('code') }}" selected>{{ practice.get('code') }}</option>{% endif %}
+              </select>
+              · {{ txt(practice.get('frequency') or {}, pbase ~ '.frequency.text', 20) }}
+              · 平台：
+              <select class="selx" data-path="{{ pbase }}.platform"{% if not step2_editable %} disabled{% endif %}>
+                {% for p in ['StoryMap', 'Echo', '无'] %}<option value="{{ p }}"{% if p == (practice.get('platform') or '无') %} selected{% endif %}>{{ p }}</option>{% endfor %}
+              </select>
+              {% if step2_editable and practices|length > 1 %}<button class="del" data-op="del-practice" data-s="{{ si }}" data-p="{{ pi }}">删除</button>{% endif %}
+            </p>
+            <p class="task"><b class="lbl">任务：</b>{{ txt(practice.get('task') or {}, pbase ~ '.task.text', 120) }}</p>
+            <p class="task"><b class="lbl">预期证据：</b>{{ txt(practice.get('evidence') or {}, pbase ~ '.evidence.text', 80) }}</p>
+          </div>
+          {% endfor %}
+          {% if step2_editable %}
+          <button class="btn s padd" data-op="add-practice" data-s="{{ si }}">＋ 添加课后实践</button>
+          {% endif %}
+
+          {% if session.get('next_prep') %}
+          <h3>F｜下次课准备</h3>
+          <p>{{ txt(session.get('next_prep') or {}, sbase ~ '.next_prep.text', 80, 'block') }}</p>
+          {% endif %}
+          {% endfor %}
+
+          <div class="foot"><span>{{ plan.student_name }} · {{ plan.plan_code or '' }}</span><span>内部版 · 仅导师使用</span></div>
+        </article>
+      </div>
+      {% elif st != 'generating' %}
+      <p class="hint" style="margin-top:18px">还没有内部版。回到 ① 资料与目标，准备好目标和学生资料后生成。</p>
+      {% endif %}
+    </div>
+
+    <aside class="rail">
+      {% if can_edit %}
+        {% if st == 'review' %}
+        <div class="go">
+          <b>批准内部版</b>
+          <span class="hint" style="color:var(--ink2)">批准后锁定这一版，才能生成家长版。没核对完会提醒，但不挡住。</span>
+          <button class="btn p" id="approveBtn">批准内部版</button>
+        </div>
+        {% elif st == 'approved' %}
+        <div class="go">
+          <b>已批准</b>
+          <span class="hint" style="color:var(--ink2)">{{ approved_at }}{% if approver_name %} · {{ approver_name }}{% endif %}</span>
+          <button class="btn s" id="reopenBtn">重新打开</button>
+          {% if plan.parent_status in ('draft', 'confirmed', 'exported') %}<span class="hint">重新打开后，已有家长版会标记为需要更新。</span>{% endif %}
+        </div>
+        {% endif %}
+      {% endif %}
+
+      <section>
+        <h3 class="h2">需要核对<small id="checkCount">{{ review_checks|length }}</small></h3>
+        <div id="checkList">
+          {% for item in review_checks %}
+          <button class="chk" data-go="{{ item.path|join('.') if item.path else '' }}">
+            <span class="n">{{ loop.index }}</span>
+            <span><b>{{ item.label }}</b><small>{{ item.text }}</small></span>
+          </button>
+          {% endfor %}
+          {% if not review_checks %}<p class="okline" id="checkEmpty">没有需要核对的地方。</p>{% endif %}
+        </div>
+        {% if hint_checks %}
+        <details class="fold" id="hintFold">
+          <summary>其他提示 {{ hint_checks|length }} 条（仅供参考）</summary>
+          {% for item in hint_checks %}<p class="hint">{{ item.label }}：{{ item.text }}</p>{% endfor %}
+        </details>
+        {% endif %}
+      </section>
+
+      <section>
+        <h3 class="h2" id="mentorNotesH">导师备注</h3>
+        <textarea class="ta" id="mentorNotes" aria-labelledby="mentorNotesH" placeholder="记录这一版改了什么、为什么改"{% if not step2_editable %} disabled{% endif %}>{{ ((internal.doc if internal else {}).get('mentor_notes') or {}).get('text', '') }}</textarea>
+        <p class="hint" style="margin:6px 0 0">只在内部版，不进家长版；随文档自动保存。</p>
+      </section>
+    </aside>
+  </div>
+
+  <!-- ===================== ③ 家长版 ===================== -->
+  <div class="wk2 wide plan-step" data-panel="parent" data-avail="{{ 1 if s3 != 'x' else 0 }}"
+       {% if default_step != 'parent' %}hidden{% endif %} style="margin-top:22px">
+    <div style="min-width:0">
+
+      {% if parent_stale %}
+      <div class="pwarn" id="parentStale">
+        <b>家长版已过期</b>
+        <span>内部版在 {{ internal_changed }} 改过，这份家长版要重新生成。</span>
+        <span class="sp"></span>
+        {% if can_edit %}<button class="btn s" id="parentRegenBtn">重新生成</button>{% endif %}
+      </div>
+      {% endif %}
+
+      <div class="dbar">
+        <span class="saved" id="parentSaveState">{% if parent_editable %}已保存{% else %}只读{% endif %}</span>
+        <span class="sp"></span>
+        {% if can_edit and parent and not parent_stale and parent_status == 'draft' %}
+        <button class="btn s g" id="parentRegenBtn2">重新生成</button>
+        {% endif %}
+        {% if parent %}
+        <a class="btn s" href="/m1/plans/{{ plan.id }}/parent/print" target="_blank" rel="noopener">预览 PDF</a>
+        {% endif %}
+      </div>
+
+      {% if not parent %}
+        {% if parent_status == 'generating' or st == 'generating' %}
+        <div class="gcard" style="margin-top:14px">
+          <div class="gt"><b>正在生成家长版</b><span class="ai">可以离开页面</span></div>
+          <p class="hint" style="margin:6px 0 0">只用已批准的内部版生成，完成后可以直接修改。</p>
+        </div>
+        {% elif st == 'approved' %}
+        <div class="gcard" style="margin-top:14px" id="parentEmpty">
+          <div class="gt"><b>生成家长版</b><span class="ai">只用已批准的内部版</span></div>
+          <p class="hint" style="margin:6px 0 12px">从已批准的内部版生成两页家长版。改家长版不会改内部版。</p>
+          {% if can_edit %}<button class="btn p" id="parentGenBtn">生成家长版</button>{% endif %}
+        </div>
+        {% else %}
+        <p class="hint" style="margin-top:18px">批准内部版后才能生成家长版。</p>
+        {% endif %}
+
+      {% else %}
+      <div class="desk">
+        <article class="a4 notion pp-edit{% if parent_status not in ('confirmed', 'exported') or parent_stale %} draft{% endif %}" id="parentDoc">
+          <p class="sample">只用已批准的内部版生成。改这里不会改内部版。</p>
+          <h1>{{ parent_fixed.title }}</h1>
+          <p class="pen">{{ parent_fixed.title_en }}</p>
+          <table class="phead">
+            <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级</th><td>{{ grade_text }}（G{{ plan.wb_grade }}）</td></tr>
+            <tr><th>阶段</th><td>{{ period }}</td><th>负责导师</th><td>{{ plan.mentor_name }}</td></tr>
+          </table>
+
+          <p class="pp-intro"><span class="pf block"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="intro" data-limit="{{ parent_limits.intro }}">{{ parent_view.intro }}</span></p>
+
+          <div class="pp-sect">
+            <h2>{{ parent_fixed.sections[0].no }}｜{{ parent_fixed.sections[0].title }}</h2>
+            <div class="pp-goals">
+              {% for g in parent_view.goals %}
+              <div class="pp-goal">
+                <b>{{ g.code }} {{ g.name }}</b>
+                <span class="pf block"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="goals.{{ loop.index0 }}.text" data-limit="{{ parent_limits.goal }}">{{ g.text }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% if parent_view.goals|length < 3 %}
+            <p class="hint" style="margin:6px 0 0">只有 {{ parent_view.goals|length }} 项目标，第 {{ parent_view.goals|length + 1 }} 张卡片自动隐藏。</p>
+            {% endif %}
+          </div>
+
+          <div class="pp-sect">
+            <h2>{{ parent_fixed.sections[1].no }}｜{{ parent_fixed.sections[1].title }}</h2>
+            <p class="hint" style="margin:0 0 8px">{{ parent_fixed.approach_lead }}</p>
+            <div class="pp-sess3">
+              {% for s in parent_view.sessions %}
+              <div class="pp-sess">
+                <b>Session {{ '%02d'|format(s.n) }}</b>
+                <span class="pf block"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="sessions.{{ loop.index0 }}.title" data-limit="{{ parent_limits.session_title }}">{{ s.title }}</span>
+                <span class="pf block"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="sessions.{{ loop.index0 }}.summary" data-limit="{{ parent_limits.session_summary }}">{{ s.summary }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            <p class="pp-trans"><span class="pf block"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="transition" data-limit="{{ parent_limits.transition }}">{{ parent_view.transition }}</span></p>
+          </div>
+
+          <div class="pp-sect">
+            <h2>{{ parent_fixed.sections[2].no }}｜{{ parent_fixed.sections[2].title }}</h2>
+            {% for p in parent_view.practice_cards %}
+            <div class="pp-prac">
+              <p class="line"><b>PRACTICE {{ loop.index }}</b> · Session {{ '%02d'|format(p.n) }} · {{ p.platform }}</p>
+              <p><span class="pf"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="practice_options.{{ p.index }}.title" data-limit="{{ parent_limits.practice_title }}">{{ p.title }}</span></p>
+              <p><span class="pf block"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="practice_options.{{ p.index }}.text" data-limit="{{ parent_limits.practice_text }}">{{ p.text }}</span></p>
+              <p class="mu">频率：<span class="pf"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="practice_options.{{ p.index }}.frequency" data-limit="{{ parent_limits.practice_frequency }}">{{ p.frequency }}</span> · 平台：{{ p.platform }}</p>
+            </div>
+            {% endfor %}
+            {% if not parent_view.practice_cards %}<p class="mu">还没有选课后实践，在右侧选 1–2 项。</p>{% endif %}
+          </div>
+
+          <div class="pp-sect">
+            <h2>{{ parent_fixed.sections[3].no }}｜{{ parent_fixed.sections[3].title }}</h2>
+            <ul class="pp-fam">
+              {% for line in parent_view.family %}
+              {% set fi = loop.index0 %}
+              <li>
+                <span class="pf block"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="family.{{ fi }}" data-family="{{ fi }}" data-limit="{{ parent_limits.family }}">{{ line }}</span>
+                {% if not parent_view.family_seen[fi] %}<span class="ai" data-family-ai="{{ fi }}">AI 新写</span>{% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="pp-sect">
+            <h2>{{ parent_fixed.sections[4].no }}｜{{ parent_fixed.sections[4].title }}</h2>
+            <div class="pp-review">
+              {% for r in parent_view.review %}
+              {% set ri = loop.index0 %}
+              <div class="pp-rv">
+                <span class="pf"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="review.{{ ri }}.label" data-limit="{{ parent_limits.review_label }}">{{ r.label }}</span>
+                {% if parent_editable and parent_view.review|length > 2 %}<button class="del" data-pp-del-review="{{ ri }}">删除</button>{% endif %}
+                <span class="pf block"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="review.{{ ri }}.text" data-limit="{{ parent_limits.review_text }}">{{ r.text }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% if parent_editable and parent_view.review|length < 4 %}
+            <button class="btn s padd" id="ppAddReview">＋ 添加观察点</button>
+            {% endif %}
+          </div>
+
+          <p class="pp-close">{{ parent_fixed.closing }}</p>
+        </article>
+      </div>
+      {% endif %}
+    </div>
+
+    <aside class="rail">
+      {% if parent %}
+      <div class="go">
+        <b>确认家长版</b>
+        <span class="hint">确认后才能导出正式 PDF。</span>
+        <span class="st {{ 's0' if parent_status == 'exported' else ('s1' if parent_status == 'draft' else 'sn') }}" id="parentStatusChip">{{ parent_labels.get(parent_status, parent_status) }}</span>
+        {% if parent_editable %}
+        <button class="btn p" id="parentConfirmBtn">确认家长版</button>
+        <button class="btn" id="parentExportBtn">导出 PDF</button>
+        {% endif %}
+        <p class="hint" id="parentBlockSummary" style="margin:6px 0 0"{% if not parent_blocking %} hidden{% endif %}>
+          {% if parent_blocking %}{{ parent_blocking|length }} 项待处理 · 先处理：{{ parent_blocking[0].label }}{% endif %}
+        </p>
+        <p class="pwarn" id="parentFitWarn" hidden style="margin:8px 0 0"></p>
+      </div>
+
+      <section>
+        <h3 class="h2">选择课后实践<small>1–2 项</small></h3>
+        <div id="ppPicks">
+          {% for o in parent_view.options %}
+          <label class="pp-pick">
+            <input type="checkbox" data-pp-pick="{{ o.ref }}" aria-label="{{ o.title }} · Session {{ '%02d'|format(o.n) }}"{% if o.ref in parent_view.picked %} checked{% endif %}{% if not parent_editable %} disabled{% endif %}>
+            <span><b>{{ o.title }}</b><small>Session {{ '%02d'|format(o.n) }} · {{ o.code }} · {{ o.platform }}</small></span>
+          </label>
+          {% endfor %}
+        </div>
+        <p class="hint" style="margin:6px 0 0">只能从已批准的实践里选；AI 不会合并或新编。</p>
+      </section>
+
+      <section>
+        <h3 class="h2">导出前检查<small id="ppCheckCount">{{ parent_blocking|length }}</small></h3>
+        <div id="ppChecks">
+          {% for item in parent_blocking %}
+          <button class="chk" data-pp-go="{{ item.path|join('.') if item.path else '' }}">
+            <span class="n">{{ loop.index }}</span>
+            <span><b>{{ item.label }}</b><small>{{ item.text }}</small></span>
+          </button>
+          {% if item.path and item.path[0] == 'family_seen' %}
+          <button class="btn s g" data-pp-seen="{{ item.path[1] }}">已看过</button>
+          {% endif %}
+          {% endfor %}
+          {% if not parent_blocking %}<p class="okline" id="ppCheckEmpty">没有需要处理的地方。</p>{% endif %}
+        </div>
+        {% if parent_hints %}
+        <details class="fold">
+          <summary>其他提示 {{ parent_hints|length }} 条（仅供参考）</summary>
+          {% for item in parent_hints %}<p class="hint">{{ item.label }}：{{ item.text }}</p>{% endfor %}
+        </details>
+        {% endif %}
+        <details class="fold">
+          <summary>会阻止导出的情况</summary>
+          <p class="hint">目标数量或名称与内部版不一致 · 课程主题缺失 · 实践不是来自已批准内容 · 必填内容为空 · 超过两页。</p>
+        </details>
+      </section>
+      {% endif %}
+    </aside>
+  </div>
+
+  {% if parent %}
+  <iframe id="ppFrame" class="pp-frame" title="家长版 PDF 预览检查" tabindex="-1" aria-hidden="true"></iframe>
+  {% endif %}
+</div>
+
+{% if can_edit %}
+<div class="pal dlg" id="approveDlg" hidden role="dialog" aria-modal="true" aria-labelledby="approveH">
+  <div>
+    <div class="dh"><b id="approveH">批准内部版</b><button class="x" data-close aria-label="关闭">×</button></div>
+    <div class="db">
+      <p style="margin:0">批准后这一版锁定，可以生成家长版。需要改的话可以重新打开。</p>
+      <p style="margin:8px 0 0" id="approveWarn" hidden>可以先批准，不会被挡住。</p>
+    </div>
+    <div class="df"><button class="btn" data-close>取消</button><button class="btn p" id="approveOk">批准</button></div>
+  </div>
+</div>
+
+<div class="pal dlg" id="regenDlg" hidden role="dialog" aria-modal="true" aria-labelledby="regenH">
+  <div>
+    <div class="dh"><b id="regenH">重新生成本节</b><button class="x" data-close aria-label="关闭">×</button></div>
+    <div class="db"><p style="margin:0">会用 AI 重写这一节，你在这一节的修改会被替换。其他节不变。</p></div>
+    <div class="df"><button class="btn" data-close>取消</button><button class="btn p" id="regenOk">重新生成</button></div>
+  </div>
+</div>
+
+<div class="pal dlg" id="reopenDlg" hidden role="dialog" aria-modal="true" aria-labelledby="reopenH">
+  <div>
+    <div class="dh"><b id="reopenH">重新打开内部版</b><button class="x" data-close aria-label="关闭">×</button></div>
+    <div class="db"><p style="margin:0">重新打开后可以修改内部版。已生成的家长版会标记为过期，需要重新生成。</p></div>
+    <div class="df"><button class="btn" data-close>取消</button><button class="btn p" id="reopenOk">重新打开</button></div>
+  </div>
+</div>
+
+<div class="pal dlg" id="parentConfirmDlg" hidden role="dialog" aria-modal="true" aria-labelledby="parentConfirmH">
+  <div>
+    <div class="dh"><b id="parentConfirmH">确认家长版</b><button class="x" data-close aria-label="关闭">×</button></div>
+    <div class="db"><p style="margin:0">确认这一版家长版？确认后才能导出正式 PDF；之后再改会变回草稿。</p></div>
+    <div class="df"><button class="btn" data-close>取消</button><button class="btn p" id="parentConfirmOk">确认</button></div>
+  </div>
+</div>
+
+<div class="pal dlg" id="parentRegenDlg" hidden role="dialog" aria-modal="true" aria-labelledby="parentRegenH">
+  <div>
+    <div class="dh"><b id="parentRegenH">重新生成家长版</b><button class="x" data-close aria-label="关闭">×</button></div>
+    <div class="db"><p style="margin:0">会用已批准的内部版重新生成家长版，你在家长版的修改会被替换。内部版不变。</p></div>
+    <div class="df"><button class="btn" data-close>取消</button><button class="btn p" id="parentRegenOk">重新生成</button></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="pal dlg" id="verDlg" hidden role="dialog" aria-modal="true" aria-labelledby="verH">
+  <div>
+    <div class="dh"><b id="verH">历史版本</b><button class="x" data-close aria-label="关闭">×</button></div>
+    <div class="db"><div class="versions" id="verList"><p class="hint">正在读取…</p></div></div>
+    <div class="df"><button class="btn" data-close>关闭</button></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.M1_PLAN = {{ page_state|tojson }};</script>
+<script src="{{ url_for('m1.m1_asset', filename='plan.js') }}"></script>
+{% endblock %}

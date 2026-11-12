@@ -163,7 +163,7 @@ def test_save_cannot_erase_or_acknowledge_a_flag(api_client, m1db):
     stored = store.get_latest_version(prep["id"], "edit")["doc"]
     assert stored["fact_flags"] == [_flag()]
 
-    # 标记仍然开着，所以定稿仍然被拦下
+    # 标记仍然开着：定稿照常放行，但回报未核对数量
     res = api_client.post("/api/m1/preps/%d/finalize" % prep["id"])
-    assert res.status_code == 409
-    assert res.get_json()["flags"]
+    assert res.status_code == 200
+    assert res.get_json()["open_flags"] == 1

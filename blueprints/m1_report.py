@@ -110,10 +110,17 @@ def _inputs(prep: dict) -> dict:
         first_touch = {"present": bool(ft.get("present")), "date": ft.get("date") or ""}
     except Exception:
         first_touch = {"present": False, "date": ""}
+    try:
+        rows = sources.auto_sources(prep["student_id"])["questionnaires"] or []
+        questionnaires = {"done": sum(1 for q in rows if q.get("status") == "已完成"),
+                         "total": len(rows)}
+    except Exception:
+        questionnaires = {"done": 0, "total": 0}
     others = [{"id": s["id"], "label": s["label"], "category": s["category"],
                "filename": s["filename"], "detected_date": s["detected_date"]}
-              for s in store.list_sources(prep["id"])]
-    return {"y4": y4, "first_touch": first_touch, "others": others}
+              for s in store.list_sources(prep["id"], part="report")]
+    return {"y4": y4, "first_touch": first_touch, "questionnaires": questionnaires,
+            "others": others}
 
 
 def _payload(prep: dict) -> dict:
@@ -334,7 +341,7 @@ def api_report_generate(prep_id: int):
     if report["status"] == "generating":
         return _err("生成任务已在进行中", 409)
     if not (report.get("transcript_text") or "").strip():
-        return _err("请先添加 M1 会议逐字稿", 400)
+        return _err("请先添加心有灵析会议逐字稿", 400)
     version = rstore.current_version(report["id"])
     if rstore.has_edits(report, version) and not _json_body().get("confirm_overwrite"):
         return _err("需要确认覆盖", 409)

@@ -77,7 +77,7 @@
       </div>
       <div class="field">
         <label>可用平台</label>
-        <label class="um-check" for="nm1"><input type="checkbox" id="nm1" /> <span>M1</span></label>
+        <label class="um-check" for="nm1"><input type="checkbox" id="nm1" /> <span>心有灵析</span></label>
       </div>
       <button class="btn btn-primary" style="width:100%" onclick="createUser()">添加</button>
       <div class="um-msg" id="createMsg"></div>
@@ -168,7 +168,7 @@
         el.innerHTML = '<div class="empty"><div class="ic">' + iconSvg('users') + '</div><div class="t">暂无用户</div></div>';
         return;
       }
-      var html = '<div class="um-table-wrap"><table class="table"><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>绑定顾问</th><th>可见学生</th><th>可见内容</th><th>M1</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+      var html = '<div class="um-table-wrap"><table class="table"><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>绑定顾问</th><th>可见学生</th><th>可见内容</th><th>心有灵析</th><th>状态</th><th>操作</th></tr></thead><tbody>';
       users.forEach(function (u) {
         var isSelf = me && u.id === me.user_id;
         var locked = u.role === 'admin';
@@ -189,7 +189,7 @@
         var m1Box = '<label class="um-check"><input type="checkbox"' +
           (u.m1_access === 1 ? ' checked' : '') +
           (locked || u.role === 'viewer' ? ' disabled' :
-            ' onchange="changeM1(' + u.id + ', this.checked)"') + ' /> <span>M1</span></label>';
+            ' onchange="changeM1(' + u.id + ', this.checked)"') + ' /> <span>心有灵析</span></label>';
         var stateBadge = u.is_active
           ? '<span class="badge badge-ok"><span class="dot"></span>启用</span>'
           : '<span class="badge badge-neutral"><span class="dot"></span>停用</span>';

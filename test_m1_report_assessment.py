@@ -93,7 +93,7 @@ def test_information_insufficient_never_combines():
 
 
 def test_confirmed_need_demotes_without_clear_behaviour_evidence():
-    vague = [_evidence("e1", "evt-1", kind="主观感受", speaker="待确认")]
+    vague = [_evidence("e1", "evt-1", kind="主观感受", speaker="学生")]
     raw = {"judgements": [_judge("确认发展需求", "e1", "evt-1")]}
     assert report_assessment.resolve_assessment(raw, vague, "R1.1")["tags"] == ["可能存在"]
     empty = [_evidence("e1", "evt-1", status="不采用", verified=False)]
@@ -103,7 +103,7 @@ def test_confirmed_need_demotes_without_clear_behaviour_evidence():
 def test_mentor_behaviour_alone_cannot_confirm_need():
     raw = {"judgements": [_judge("确认发展需求", "e1", "evt-1")]}
     mentor = [_evidence("e1", "evt-1", speaker="导师")]
-    assert report_assessment.resolve_assessment(raw, mentor, "R1.1")["tags"] == ["可能存在"]
+    assert report_assessment.resolve_assessment(raw, mentor, "R1.1")["tags"] == ["信息不足"]
     for speaker in ("学生", "家长"):
         valid = [_evidence("e1", "evt-1", speaker=speaker)]
         assert report_assessment.resolve_assessment(raw, valid, "R1.1")["tags"] == ["确认发展需求"]

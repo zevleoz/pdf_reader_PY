@@ -11,6 +11,10 @@
 !fixtures/m1_report_doc_sample.json
 !fixtures/b3_detail_sample.json
 !static/m1/report_crest.png
+# DP2 测试样本（自造文本，不含真实 WB 内容）
+!tests/fixtures/wb_mini/*.json
+# World Bank 教材索引与课文原文（版权原因不进仓库，手工部署）
+m1/kb/private/
 __pycache__/
 *.pyc
 *.pyo

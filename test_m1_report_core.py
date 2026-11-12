@@ -98,6 +98,8 @@ class FakeModel:
             return {"items": copy.deepcopy(self.meeting_items)}
         if prompt.startswith("任务：从其他资料中提取证据条目"):
             return {"items": []}
+        if prompt.startswith("任务：重新匹配会议证据与能力"):
+            return self._rerank(prompt)
         if prompt.startswith("任务：判断一个维度的能力标签"):
             return self._assess(prompt)
         if prompt.startswith("任务：整理一个维度的能力分析"):
@@ -131,6 +133,30 @@ class FakeModel:
     def _payload(prompt):
         data = prompt.split("【能力与资料】\n", 1)[1]
         return json.loads(data.split("\n\n【上次判断的问题】", 1)[0])
+
+    def _rerank(self, prompt):
+        """默认把抽取时的编号原样判为“直接”，保持既有测试的证据归属。"""
+        head, tail = prompt.split("【会议证据】\n", 1)
+        abilities = json.loads(head.split("【能力定义】\n", 1)[1])
+        evidence = json.loads(tail)
+        rows = []
+        for ability in abilities:
+            code = ability["code"]
+            items = [{"evidence_id": view["id"], "level": "直接", "reason": "示例理由"}
+                     for view in evidence if code in self._codes_for(view["quote"])][:3]
+            rows.append({"code": code, "items": items})
+        return {"abilities": rows}
+
+    def _codes_for(self, quote):
+        probe = report_checks.normalize(quote)
+        codes = []
+        for item in self.meeting_items:
+            other = report_checks.normalize(item["quote"])
+            if other and (other in probe or probe in other):
+                for code in item["ability_codes"]:
+                    if code not in codes:
+                        codes.append(code)
+        return codes
 
     def _assess(self, prompt):
         payload = self._payload(prompt)
@@ -405,7 +431,7 @@ def test_end_to_end_generation(rdb, fake):
     assert doc["meta"]["report_date"] == date.today().isoformat()
     assert doc["meta"]["meeting_date"] == ""          # 不认识的字段留空
     assert doc["meta"]["evidence_sources"] == "Y4 测评"
-    assert "M1 First Meeting 逐字稿" in version["manifest"]["sources"]
+    assert "心有灵析 First Meeting 逐字稿" in version["manifest"]["sources"]
     # First Touch 步骤被跳过，不算资料缺口
     assert ("first_touch", "skipped") in steps and ("checks", "done") in steps
     assert [s for s, st in steps if st == "running"] == [k for k, _ in report_pipeline.STEP_DEFS]
@@ -514,7 +540,7 @@ def test_no_y4_is_a_clear_error(rdb, fake):
 
 def test_other_materials_become_other_items(rdb, fake, monkeypatch):
     sources_text = "家长反馈：晓雨最近遇到困难会主动找老师请教，也会跟妈妈说。"
-    store.add_source(rdb.prep_row["id"], category="parent", label="家长反馈",
+    store.add_source(rdb.prep_row["id"], category="report_other", label="家长反馈",
                      text=sources_text, status="ok")
     seen = []
     original = fake.__call__
@@ -1146,7 +1172,7 @@ def test_get_report_payload_shape(client, rdb, fake, inline_jobs):
     payload = generated_via_api(client, rdb, fake, inline_jobs)
     assert set(payload) >= {"ok", "report", "inputs", "doc", "evidence", "ratings", "mapped",
                             "checks", "appendix", "fixed", "has_edits"}
-    assert set(payload["inputs"]) == {"y4", "first_touch", "others"}
+    assert set(payload["inputs"]) == {"y4", "first_touch", "questionnaires", "others"}
     assert payload["inputs"]["y4"]["complete"] is True
     assert payload["mapped"]["R1.1"] == ["013", "012", "056", "019"]
     assert payload["fixed"]["tags"][0]["key"] == "积极资源"

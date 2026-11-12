@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ plan.student_name }} · 情绪力阶段成长计划</title>
+<link rel="stylesheet" href="{{ url_for('m1.m1_asset', filename='m1.css') }}">
+<link rel="stylesheet" href="{{ url_for('m1.m1_asset', filename='plan_parent.css') }}">
+</head>
+<body class="m1 print-page pp-print">
+{% from "m1/_parent_pages.html" import parent_pages %}
+<div class="print-bar">
+  <span>{{ plan.student_name }} · 家长版{% if wm %} · 草稿{% endif %}</span>
+  <span class="sp"></span>
+  <button class="btn" id="ppPrint">打印</button>
+  <a class="btn" href="/m1/plans/{{ plan.id }}#step=parent">返回</a>
+</div>
+
+<div class="print-desk">
+  <div class="pp-banner" id="ppBanner" role="status"></div>
+  <div id="ppPages">
+    {{ parent_pages(parent_view, parent_fixed, plan, period, grade_text ~ '（G' ~ plan.wb_grade ~ '）', wm) }}
+  </div>
+</div>
+
+<script src="{{ url_for('m1.m1_asset', filename='plan_parent.js') }}"></script>
+<script>
+(function () {
+  var banner = document.getElementById('ppBanner');
+  var printBtn = document.getElementById('ppPrint');
+
+  function check() {
+    var result = window.M1ParentFit.measure(document.getElementById('ppPages'));
+    if (!result.fits) {
+      banner.className = 'pp-banner on';
+      banner.textContent = '第 ' + result.overflowPage + ' 页超出，请缩短：'
+        + (result.section || '页面内容');
+    } else {
+      banner.className = 'pp-banner';
+      banner.textContent = '';
+    }
+    return result;
+  }
+
+  printBtn.addEventListener('click', function () {
+    if (check().fits) window.print();
+  });
+
+  window.addEventListener('load', function () {
+    var result = check();
+    {% if auto_print %}
+    if (result.fits) setTimeout(function () { window.print(); }, 300);
+    {% endif %}
+  });
+})();
+</script>
+</body>
+</html>

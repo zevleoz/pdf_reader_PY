@@ -292,35 +292,25 @@ def _flagged_prep(m1db, monkeypatch):
     return prep
 
 
-def test_finalize_is_blocked_by_an_open_flag_and_allowed_after_ack(api_client, m1db, monkeypatch):
+def test_finalize_is_allowed_with_an_open_flag_and_reports_the_count(api_client, m1db, monkeypatch):
     prep = _flagged_prep(m1db, monkeypatch)
     _login(api_client, m1db.alice_id, "advisor", "Alice")
 
     res = api_client.post("/api/m1/preps/%d/finalize" % prep["id"])
-    assert res.status_code == 409
-    body = res.get_json()
-    assert body["error"] == "还有未核对的内容" and body["flags"]
-
-    for flag in body["flags"]:
-        ack = api_client.post("/api/m1/preps/%d/fact-flags/%s/ack" % (prep["id"], flag["id"]))
-        assert ack.status_code == 200 and ack.get_json()["ok"]
-
-    res = api_client.post("/api/m1/preps/%d/finalize" % prep["id"])
     assert res.status_code == 200, res.get_json()
+    assert res.get_json()["open_flags"] >= 1
     final = store.get_current_version(prep["id"])
     assert final["kind"] == "final"
-    assert all(f["acked"] for f in final["doc"]["fact_flags"])  # the trail is kept
+    assert any(not f["acked"] for f in final["doc"]["fact_flags"])  # the trail is kept
 
 
 def test_finalize_is_allowed_after_the_flagged_block_is_edited(api_client, m1db, monkeypatch):
     prep = _flagged_prep(m1db, monkeypatch)
     _login(api_client, m1db.alice_id, "advisor", "Alice")
-    res = api_client.post("/api/m1/preps/%d/finalize" % prep["id"])
-    assert res.status_code == 409
-    block_ids = {flag["block_id"] for flag in res.get_json()["flags"]}
 
     edit = store.get_latest_version(prep["id"], "edit")
     doc = edit["doc"]
+    block_ids = {flag["block_id"] for flag in doc["fact_flags"] if not flag["acked"]}
     for row in doc["priority"]:
         if row["hypothesis"]["id"] in block_ids:
             row["hypothesis"]["text"] = "还需要了解她在这件事上的实际经历。".replace("她", "学生")
@@ -330,6 +320,7 @@ def test_finalize_is_allowed_after_the_flagged_block_is_edited(api_client, m1db,
 
     res = api_client.post("/api/m1/preps/%d/finalize" % prep["id"])
     assert res.status_code == 200, res.get_json()
+    assert res.get_json()["open_flags"] == 0  # editing the block closed the flag
 
 
 def test_ack_route_needs_a_known_flag_and_access(api_client, m1db, monkeypatch):
@@ -349,11 +340,13 @@ def test_document_level_flag_closes_only_by_ack(api_client, m1db, monkeypatch):
     pipeline.generate(prep["id"])
     _login(api_client, m1db.alice_id, "advisor", "Alice")
 
+    draft = store.get_latest_version(prep["id"], "edit")
+    assert [f["id"] for f in draft["doc"]["fact_flags"] if not f["acked"]] == ["ff-doc"]
+    ack = api_client.post("/api/m1/preps/%d/fact-flags/ff-doc/ack" % prep["id"])
+    assert ack.status_code == 200
     res = api_client.post("/api/m1/preps/%d/finalize" % prep["id"])
-    assert res.status_code == 409
-    assert [f["id"] for f in res.get_json()["flags"]] == ["ff-doc"]
-    api_client.post("/api/m1/preps/%d/fact-flags/ff-doc/ack" % prep["id"])
-    assert api_client.post("/api/m1/preps/%d/finalize" % prep["id"]).status_code == 200
+    assert res.status_code == 200
+    assert res.get_json()["open_flags"] == 0
 
 
 # ---------------------------------------------------------------------------

@@ -417,9 +417,9 @@ def test_safety_keyword_sets_flag_and_blocks_finalize(m1db, monkeypatch):
         sess["user_id"] = m1db.admin_id
         sess["role"] = "admin"
         sess["advisor_name"] = ""
-    blocked = client.post("/api/m1/preps/%d/finalize" % prep["id"])
-    assert blocked.status_code == 409
-    assert "安全提示" in blocked.get_json()["error"]
+    done = client.post("/api/m1/preps/%d/finalize" % prep["id"])
+    assert done.status_code == 200
+    assert done.get_json()["safety_unacked"] is True
 
 
 # ---------------------------------------------------------------------------

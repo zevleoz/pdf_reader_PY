@@ -271,18 +271,14 @@ def test_finalize_blocked_by_safety_then_ack(admin, m1db):
                     "doc": _doc(safety=[{"text": "说过不想活了",
                                          "source_ref": "m1_source:1"}])})
 
-    blocked = admin.post(f"/api/m1/preps/{prep['id']}/finalize")
-    assert blocked.status_code == 409
-    assert "安全提示" in blocked.get_json()["error"]
-    assert admin.get(f"/api/m1/preps/{prep['id']}").get_json()["status"] == "draft"
-
-    assert admin.post(f"/api/m1/preps/{prep['id']}/safety-ack").status_code == 200
     done = admin.post(f"/api/m1/preps/{prep['id']}/finalize")
     assert done.status_code == 200
-    assert done.get_json()["version"]["kind"] == "final"
-    assert done.get_json()["prep"]["status"] == "final"
-    assert done.get_json()["prep"]["safety_ack_by"] == m1db.admin_id
-    assert {"m1.safety_ack", "m1.final"} <= set(_actions(m1db.engine))
+    body = done.get_json()
+    assert body["safety_unacked"] is True
+    assert body["version"]["kind"] == "final"
+    assert body["prep"]["status"] == "final"
+    assert body["prep"]["safety_ack_at"] is None
+    assert "m1.final" in _actions(m1db.engine)
 
     # 已定稿后草稿不可直接改写
     assert admin.put(f"/api/m1/preps/{prep['id']}/doc",

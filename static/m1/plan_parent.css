@@ -1,0 +1,95 @@
+/* M1 家长版 PDF：两页 A4（作用域 .pp，样式对齐参考页 14） */
+
+.pp{
+  --bg:#FBF9F6;--ink:#2B2B2B;--mute:#7A7570;--green:#5E8A6E;--mauve:#9C5F8B;
+  --gold:#B08A3E;--g1:#EEF5F0;--m1c:#F8EEF5;--y1:#FBF6EA;--line:#E6E0DA;
+  color:var(--ink);
+  font:13px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+.pp *{box-sizing:border-box}
+.pp .pg{
+  width:794px;min-height:1123px;margin:16px auto;background:var(--bg);
+  position:relative;padding:56px 72px 70px;box-shadow:0 10px 30px -16px rgba(0,0,0,.35);
+}
+.pp .pg::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;
+  background:linear-gradient(90deg,#8FB59B,#C9A6C0,#E8C9D8)}
+.pp .pg.wm::after{content:"草稿";position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) rotate(-18deg);
+  font-size:92px;font-weight:700;letter-spacing:.2em;color:rgba(156,95,139,.10);pointer-events:none;white-space:nowrap}
+
+.pp .top{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.14em;color:var(--mute)}
+.pp .top b{color:var(--mauve);font-weight:700}
+.pp .kick{margin-top:40px;font-size:11px;letter-spacing:.18em;color:var(--mauve);font-weight:700}
+.pp h1{margin:8px 0 2px;font:700 34px/1.25 "Songti SC","Noto Serif SC",serif;color:var(--green)}
+.pp h1 span{color:var(--mauve)}
+.pp .en{color:var(--mauve);letter-spacing:.06em;font-size:13px}
+.pp .info{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);margin:22px 0 18px}
+.pp .info div{padding:9px 0;display:flex;gap:18px}
+.pp .info span{color:var(--mute);width:84px;flex:none}
+.pp .intro{margin:0 0 26px}
+
+.pp .sec{display:flex;align-items:baseline;gap:10px;margin:26px 0 12px}
+.pp .sec .no{font:300 20px/1 Georgia,serif;color:#B8C9BD}
+.pp .sec h2{margin:0;font-size:17px;color:var(--green)}
+.pp .sec .tag{margin-left:auto;font-size:10.5px;letter-spacing:.14em;color:var(--mute)}
+
+.pp .goal{display:flex;gap:22px;border-radius:10px;padding:14px 18px;margin-bottom:10px}
+.pp .goal .n{font:300 20px/1.2 Georgia,serif;flex:none}
+.pp .goal b{display:block;font-size:14px;margin-bottom:2px}
+.pp .goal.c1{background:var(--g1);border:1px solid #CFE2D5}
+.pp .goal.c1 .n{color:var(--green)}
+.pp .goal.c2{background:var(--m1c);border:1px solid #EBD2E3}
+.pp .goal.c2 .n,.pp .goal.c2 b{color:var(--mauve)}
+.pp .goal.c3{background:var(--y1);border:1px solid #E9DDC2}
+.pp .goal.c3 .n{color:var(--gold)}
+
+.pp .lead{margin:0 0 10px;color:#555}
+.pp .sess{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pp .sess div{border-radius:10px;padding:12px 14px;border:1px solid var(--line)}
+.pp .sess div:nth-child(1){background:var(--g1)}
+.pp .sess div:nth-child(2){background:var(--m1c)}
+.pp .sess div:nth-child(3){background:#F3F3F8}
+.pp .sess small{display:block;font-size:10.5px;letter-spacing:.14em;color:var(--mauve);font-weight:700}
+.pp .sess b{display:block;margin:4px 0}
+.pp .trans{margin-top:12px;color:#555}
+
+.pp .foot{position:absolute;left:72px;right:72px;bottom:28px;display:flex;justify-content:space-between;
+  border-top:1px solid var(--line);padding-top:8px;font-size:10.5px;letter-spacing:.12em;color:var(--mute)}
+
+.pp .quote{display:flex;gap:16px;align-items:center;background:var(--m1c);border-radius:10px;
+  padding:18px 20px;margin-top:22px}
+.pp .quote i{width:34px;height:34px;border-radius:50%;background:#fff;display:grid;place-items:center;
+  color:var(--mauve);font-style:normal;flex:none}
+
+.pp .prac{display:flex;gap:16px;border:1px solid var(--line);background:#fff;border-radius:10px;
+  padding:14px 18px;margin-bottom:10px}
+.pp .prac .n{background:var(--g1);color:var(--green);border-radius:6px;width:30px;height:30px;
+  display:grid;place-items:center;font-weight:700;flex:none}
+.pp .prac small{display:block;color:var(--mute);margin-top:4px}
+.pp .fam{background:var(--g1);border-left:3px solid var(--green);border-radius:0 10px 10px 0;padding:10px 18px}
+.pp .fam ul{margin:0;padding-left:18px}
+.pp .obs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pp .obs div{background:var(--m1c);border-radius:10px;padding:12px 14px}
+.pp .obs b{display:block;color:var(--mauve);font-size:12.5px}
+.pp .close{border-top:1px solid var(--line);margin-top:24px;padding-top:10px;color:#555;font-size:12px}
+
+/* 打印页外壳 */
+body.pp-print{background:#E9E6E2;margin:0}
+.pp-print .print-bar{position:sticky;top:0;z-index:5;background:#1E1C19;color:#F5F2ED}
+.pp-print .print-desk{padding:22px 16px 46px;overflow-x:auto}
+.pp-banner{display:none;max-width:794px;margin:0 auto 14px;padding:10px 12px;border-radius:3px;
+  background:#FFF8E6;border:1px solid #E7C27A;color:#7A5A00;font-size:13px;line-height:1.6}
+.pp-banner.on{display:block}
+
+@media print{
+  @page{size:A4;margin:0}
+  html,body.pp-print{background:#FBF9F6}
+  .pp-print .print-bar,.pp-print .pp-banner{display:none !important}
+  .pp-print .print-desk{padding:0;overflow:visible}
+  .pp .pg{margin:0;box-shadow:none;min-height:0;width:210mm;height:296.5mm;
+    page-break-after:always;break-after:page;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pp .pg:last-child{page-break-after:auto;break-after:auto}
+  .pp .goal,.pp .prac,.pp .obs div,.pp .sess div{break-inside:avoid}
+  .pp .pg::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}

@@ -477,7 +477,7 @@ def _piece_model(monkeypatch, pieces, failing, calls):
     monkeypatch.setattr(pipeline, "_ask", ask)
 
 
-def test_a_piece_that_fails_twice_is_flagged_and_blocks_finalizing(api_client, m1db, monkeypatch):
+def test_a_piece_that_fails_twice_is_flagged_and_kept_at_finalize(api_client, m1db, monkeypatch):
     prep, pieces, auto = _long_source(m1db, monkeypatch)
     calls = []
     _piece_model(monkeypatch, pieces, {2: 2}, calls)
@@ -494,11 +494,10 @@ def test_a_piece_that_fails_twice_is_flagged_and_blocks_finalizing(api_client, m
 
     _login(api_client, m1db.alice_id, "advisor", "Alice")
     res = api_client.post("/api/m1/preps/%d/finalize" % prep["id"])
-    assert res.status_code == 409
-    assert unread[0]["id"] in [f["id"] for f in res.get_json()["flags"]]
-    for flag in res.get_json()["flags"]:
-        api_client.post("/api/m1/preps/%d/fact-flags/%s/ack" % (prep["id"], flag["id"]))
-    assert api_client.post("/api/m1/preps/%d/finalize" % prep["id"]).status_code == 200
+    assert res.status_code == 200, res.get_json()
+    assert res.get_json()["open_flags"] == 1
+    final = store.get_current_version(prep["id"])
+    assert unread[0]["id"] in [f["id"] for f in final["doc"]["fact_flags"]]
 
 
 def test_a_piece_that_fails_once_is_retried_and_leaves_no_flag(m1db, monkeypatch):

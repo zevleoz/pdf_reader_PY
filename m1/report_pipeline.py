@@ -136,13 +136,13 @@ def step_check(prep: Dict[str, Any], report: Dict[str, Any], today: Optional[dat
     from growth_talk import y4_snapshot
 
     if not (report.get("transcript_text") or "").strip():
-        raise ReportError("还没有 M1 会议逐字稿，请先粘贴或上传逐字稿")
+        raise ReportError("还没有心有灵析会议逐字稿，请先粘贴或上传逐字稿")
     y4_report = y4_snapshot.latest_complete_y4(prep["student_id"])
     if y4_report is None:
         raise ReportError("该学生还没有完整的 Y4 测评，无法生成报告")
 
     auto = sources.auto_sources(prep["student_id"])
-    uploads = store.list_sources(prep["id"])
+    uploads = store.list_sources(prep["id"], part="report")
     first_touch = auto.get("first_touch") or {}
     y4_date = getattr(y4_report, "report_date", None)
     y4_date = y4_date.isoformat() if hasattr(y4_date, "isoformat") else _clean(str(y4_date or ""))
@@ -150,7 +150,7 @@ def step_check(prep: Dict[str, Any], report: Dict[str, Any], today: Optional[dat
     meeting_date = (_clean(prep.get("meeting_date"))
                     or sources.suggested_meeting_date(transcript))
 
-    labels = ["Y4 测评", "M1 First Meeting 逐字稿"]
+    labels = ["Y4 测评", "心有灵析 First Meeting 逐字稿"]
     if first_touch.get("present") and _clean(first_touch.get("text")):
         labels.append("First Touch")
     if any(q.get("status") == "已完成" for q in auto.get("questionnaires") or []):
@@ -333,6 +333,28 @@ def _drop_mentor_lead(item: Dict[str, Any], index: report_checks.TextIndex) -> b
     return True
 
 
+_QUESTION_END_RE = re.compile(r"(?<=[？?])")
+
+
+def _clear_question_lead(item: Dict[str, Any]) -> bool:
+    """没有说话人分离时：引文开头的提问句不是学生的经历。
+
+    去掉开头的提问句；只剩提问时返回 False（丢弃）。去掉之后如果引文仍在前半段出现
+    问号，说明还混着导师的问句，只能记为“待确认”。
+    """
+    pieces = [p for p in _QUESTION_END_RE.split(item["quote"]) if p]
+    if pieces and pieces[0].rstrip().endswith(("？", "?")):
+        rest = "".join(pieces[1:]).strip()
+        if not rest:
+            return False
+        item["quote"] = rest
+    quote = item["quote"]
+    marks = [at for at in (quote.find("？"), quote.find("?")) if at >= 0]
+    if marks and min(marks) * 2 < len(quote):
+        item["speaker"] = "待确认"
+    return True
+
+
 def _merge_overlaps(merged: Dict[str, Dict[str, Any]]) -> None:
     """（同一份资料里）同一发言人，短引文包含在长引文里时合并到长的一条。"""
     keys = sorted(merged, key=len, reverse=True)
@@ -353,13 +375,47 @@ _SPEAKER_LABEL_RE = re.compile(
     r"^\W*(?:\d{1,2}:\d{2}(?::\d{2})?\W*)?"
     r"(?:学生|导师|老师|家长|妈妈|爸爸|其他|待确认)(?:\s*\[[^\]]*\])?\s*[：:]\s*")
 
+# 逐字稿段首的转写标签（可能是“发言人1”，也可能是同一个账号名）
+_LINE_LABEL_RE = re.compile(
+    r"^\W*(?:\d{1,2}:\d{2}(?::\d{2})?\W*)?"
+    r"(?P<label>[^\s:：\[\]()（）]{1,10})(?:\s[A-Za-z0-9]{1,3})?\s*"
+    r"(?:\d{1,2}:\d{2}(?::\d{2})?\s*)?[：:]\s*")
+SINGLE_LABEL_SHARE = 0.9
+STUDENT_LABEL_WORDS = ("学生", "student")
+
+
+def single_speaker_transcript(text: str,
+                              turns: Optional[List[Dict[str, Any]]] = None) -> bool:
+    """逐字稿没有说话人分离：同一标签覆盖至少九成段落，或学生始终没有出现。
+
+    这两种情况下，段首标注不能用来决定一条引文的发言人（提问和回答常在同一段里），
+    提取模型需要逐条判断说话人。有正常说话人标签的逐字稿不受影响。
+    """
+    paragraphs = report_checks.split_paragraphs(text)
+    labels = []
+    for paragraph in paragraphs:
+        match = _LINE_LABEL_RE.match(paragraph)
+        if match:
+            labels.append(match.group("label"))
+    if labels and paragraphs:
+        _label, count = Counter(labels).most_common(1)[0]
+        if count >= SINGLE_LABEL_SHARE * len(paragraphs):
+            return True
+    student_label = any(word in label.lower()
+                        for label in labels for word in STUDENT_LABEL_WORDS)
+    student_turn = any((turn.get("role") or "") == "学生" for turn in turns or [])
+    return not student_label and not student_turn
+
 
 def extract_items(text: str, template: str, template_args: tuple, source: str,
                   label: str, failures: Optional[List[int]] = None,
-                  roles: Optional[Callable[[str], str]] = None) -> List[Dict[str, Any]]:
+                  roles: Optional[Callable[[str], str]] = None,
+                  judge_speaker: bool = False) -> List[Dict[str, Any]]:
     """一份资料 → 已核验、去重的证据条目（还没有 id）。
 
     每个资料块、每个维度各调用一次；同一引文跨块、跨维度合并。
+    ``judge_speaker`` 为真时（没有说话人分离的会议逐字稿）由模型逐条给出 speaker，
+    段首标注和 ``roles`` 都不再决定发言人。
     """
     index = report_checks.TextIndex(text)
     chunks = make_chunks(index.paragraphs)
@@ -399,12 +455,18 @@ def extract_items(text: str, template: str, template_args: tuple, source: str,
                 continue
             item["quote"] = stripped
             if source == "M1":
-                item["speaker"] = "待确认"     # 发言人只由逐字稿段首决定，提取模型不猜
+                if judge_speaker:              # 没有说话人分离：模型逐条判断，段首不作依据
+                    if item["speaker"] not in ("学生", "导师"):
+                        item["speaker"] = "待确认"
+                    if item["speaker"] == "学生" and not _clear_question_lead(item):
+                        continue
+                else:
+                    item["speaker"] = "待确认"  # 发言人只由逐字稿段首决定，提取模型不猜
                 if not _drop_mentor_lead(item, index):
                     continue
                 if _m1_rules(item, index):
                     continue
-                if roles is not None:
+                if not judge_speaker and roles is not None:
                     item["speaker"] = roles(item["quote"])
             key = report_checks.normalize(item["quote"]) or item["quote"]
             if key in merged:                      # 重叠部分或跨维度的重复项
@@ -441,7 +503,8 @@ def extract_items(text: str, template: str, template_args: tuple, source: str,
         else:
             item["status"] = ("待核实" if source != "M1" or item["speaker"] == "待确认"
                               or not item["quote_verified"] else "已确认")
-        if (source == "M1" and item["speaker"] in ("学生", "家长")
+        if (source == "M1" and not judge_speaker          # 单标签逐字稿的段首角色不可信
+                and item["speaker"] in ("学生", "家长")
                 and item["quote_verified"]
                 and report_checks.mentor_labelled(index, item["quote"])):
             item["speaker"] = "待确认"
@@ -518,9 +581,12 @@ def step_safety(transcript: str) -> List[Dict[str, str]]:
 # ---------------------------------------------------------------------------
 def step_meeting(transcript: str,
                  failures: Optional[List[int]] = None,
-                 roles=None) -> List[Dict[str, Any]]:
-    return extract_items(transcript, report_prompts.MEETING_PROMPT, (), "M1", "逐字稿",
-                         failures=failures, roles=roles)
+                 roles=None,
+                 single_speaker: bool = False) -> List[Dict[str, Any]]:
+    template = (report_prompts.MEETING_UNLABELLED_PROMPT if single_speaker
+                else report_prompts.MEETING_PROMPT)
+    return extract_items(transcript, template, (), "M1", "逐字稿",
+                         failures=failures, roles=roles, judge_speaker=single_speaker)
 
 
 def _event_id(source: str, key: str) -> str:
@@ -542,6 +608,119 @@ def assign_ids(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             row[field] = item.get(field, [] if field == "ability_codes" else "")
         out.append(row)
     return out
+
+
+# ---------------------------------------------------------------------------
+# 证据重排
+# ---------------------------------------------------------------------------
+RERANK_DIRECT = "直接"
+RERANK_INDIRECT = "间接"
+RERANK_MAX_PER_ABILITY = 3
+RERANK_MAX_DIRECT_PER_ITEM = 3
+
+
+def _dim_name(dim_id: str) -> str:
+    dims = {d["id"]: d for d in report_kb.fixed()["dims"]}
+    return "%s %s｜%s" % (dim_id, dims[dim_id]["en"], dims[dim_id]["zh"])
+
+
+def _rerank_codes(result, codes: List[str],
+                  valid_ids: set) -> Dict[str, List[tuple]]:
+    """重排回答 → {能力编号: [(证据 id, 分级)]}；去掉非法、重复和超额项。"""
+    out: Dict[str, List[tuple]] = {}
+    seen = set()
+    for row in (result or {}).get("abilities") or []:
+        if not isinstance(row, dict):
+            continue
+        code = row.get("code")
+        if code not in codes:
+            continue
+        kept = out.setdefault(code, [])
+        for item in row.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            eid = item.get("evidence_id")
+            level = _clean(item.get("level"))
+            if eid not in valid_ids or level not in (RERANK_DIRECT, RERANK_INDIRECT):
+                continue
+            if (code, eid) in seen or len(kept) >= RERANK_MAX_PER_ABILITY:
+                continue
+            seen.add((code, eid))
+            kept.append((eid, level))
+    return out
+
+
+def step_rerank(evidence: List[Dict[str, Any]],
+                adjustments: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """每个维度一次调用，把会议证据的能力编号分成“直接 / 间接”两份。
+
+    直接编号写回 ``ability_codes``；间接编号不进入编号，只返回给内部备注使用。
+    某个维度的调用失败时，该维度的证据沿用抽取时的编号，并记一条 review（不阻断）。
+    """
+    meeting = [e for e in evidence if e.get("source") == "M1"]
+    if not meeting:
+        return {}
+    abilities = report_kb.ability_map()
+    codes_by_dim: Dict[str, List[str]] = {}
+    for code, info in abilities.items():
+        codes_by_dim.setdefault(info["dim"], []).append(code)
+    valid_ids = {e["id"] for e in meeting}
+    views = [_evidence_view(e) for e in meeting]
+
+    def ask(dim_id: str):
+        codes = codes_by_dim[dim_id]
+        prompt = report_prompts.RERANK_PROMPT % (
+            _dim_name(dim_id), _json(_ability_brief(codes)), _json(views))
+        try:
+            return dim_id, _rerank_codes(_ask(prompt), codes, valid_ids)
+        except (AnalysisError, json.JSONDecodeError):
+            return dim_id, None
+
+    results = dict(_parallel(ask, list(codes_by_dim)))
+    for dim_id, mapping in results.items():
+        if mapping is None:
+            adjustments.append({"message": "%s：会议证据重排调用失败，沿用抽取时的能力编号"
+                                % dim_id, "path": ["dims", dim_id]})
+
+    order = [d["id"] for d in report_kb.fixed()["dims"]]
+    claims: Dict[str, Dict[str, str]] = {}
+    for dim_id in order:
+        for code, rows in (results.get(dim_id) or {}).items():
+            for eid, level in rows:
+                claims.setdefault(eid, {})[code] = level
+
+    indirect: Dict[str, List[str]] = {}
+    demoted = 0
+    for item in meeting:
+        old = list(item.get("ability_codes") or [])
+        direct: List[str] = []
+        weak: List[str] = []
+        for dim_id in order:
+            if results.get(dim_id) is None:      # 该维度失败：沿用抽取时的编号
+                for code in old:
+                    if abilities[code]["dim"] == dim_id and code not in direct:
+                        direct.append(code)
+                continue
+            for code in codes_by_dim[dim_id]:
+                level = (claims.get(item["id"]) or {}).get(code)
+                if level == RERANK_DIRECT:
+                    direct.append(code)
+                elif level == RERANK_INDIRECT:
+                    weak.append(code)
+        if len(direct) > RERANK_MAX_DIRECT_PER_ITEM:
+            demoted += len(direct) - RERANK_MAX_DIRECT_PER_ITEM
+            weak.extend(direct[RERANK_MAX_DIRECT_PER_ITEM:])
+            direct = direct[:RERANK_MAX_DIRECT_PER_ITEM]
+        item["ability_codes"] = direct
+        for code in weak:
+            quotes = indirect.setdefault(code, [])
+            if item["quote"] not in quotes:
+                quotes.append(item["quote"])
+    if demoted:
+        adjustments.append({"message": "一条证据直接支撑的能力超过 %d 项，多出的编号已改为间接"
+                            % RERANK_MAX_DIRECT_PER_ITEM, "path": ["dims"]})
+    return indirect
+
 
 
 # ---------------------------------------------------------------------------
@@ -612,11 +791,13 @@ def _valid_ids(evidence, code: Optional[str] = None) -> Dict[str, str]:
 
 
 _STUDENT_SELF_RE = re.compile(
-    r"学生(?:认为|自认|自认为|意识到|觉得|将[^。]{0,30}?视为|把[^。]{0,30}?看作)")
+    r"学生(?:也|还|又)?(?:认为|自认|自认为|意识到|觉得|将[^。]{0,30}?视为|把[^。]{0,30}?看作)")
+# meeting 每句的角色：只用于结构检查，解析后从文档里丢弃（Task D）
+_SENTENCE_ROLES = ("fact", "relation", "boundary")
 
 
 def _sentences(raw, valid_ids, path: list, adjustments: List[Dict[str, Any]],
-               label: str, empty: str = "") -> Dict[str, Any]:
+               label: str, empty: str = "", keep_role: bool = False) -> Dict[str, Any]:
     """按句收下 AI 的文字（S2-P6 §10）：事实句必须有可用证据，推断句要留有余地。
 
     事实句写成“学生认为/自认/意识到/觉得”时，证据里必须至少有一条是学生本人说的；
@@ -652,7 +833,11 @@ def _sentences(raw, valid_ids, path: list, adjustments: List[Dict[str, Any]],
                                     "已删除" % label, "path": path})
                 continue
             ids = valid
-        kept.append({"text": text, "evidence_ids": ids, "kind": kind})
+        role = _clean(item.get("role"))
+        if role not in _SENTENCE_ROLES:
+            role = ""
+        kept.append({"text": text, "evidence_ids": ids, "kind": kind,
+                     **({"role": role} if keep_role else {})})
     text = "".join(row["text"] for row in kept) or empty
     return {"text": text, "src": "ai", "sentences": kept}
 
@@ -761,7 +946,30 @@ def _cap_field(field: Dict[str, Any], limit: int, label: str, path: list,
                             "path": path})
 
 
-def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
+def _indirect_note(indirect: Optional[Dict[str, List[str]]], code: str) -> str:
+    """重排判为“间接”的证据只写进内部备注，不进正文、不参与判断。"""
+    return "；".join("间接证据（不用于判断）：“%s”" % quote
+                    for quote in (indirect or {}).get(code, []))
+
+
+def _structure_notes(field: Dict[str, Any], code: str, tags: List[str],
+                     direct: bool, path: list,
+                     adjustments: List[Dict[str, Any]]) -> None:
+    """检查 meeting 的句式角色，然后把 role 丢弃：它不进文档 schema，也不进 UI。"""
+    rows = field.get("sentences") or []
+    roles = [row.pop("role", "") for row in rows]
+    if not any(roles):
+        return
+    if direct and "fact" not in roles:
+        adjustments.append({"message": "%s：有直接会议证据，但没有写事实句（role=fact）" % code,
+                            "path": path})
+    if {"可能存在", "信息不足"} & set(tags) and "boundary" not in roles:
+        adjustments.append({"message": "%s：标签为%s，但没有写证据边界（role=boundary）"
+                            % (code, "、".join(tags)), "path": path})
+
+
+def step_dims(mapping, evidence, adjustments,
+              indirect: Optional[Dict[str, List[str]]] = None) -> Dict[str, Dict[str, Any]]:
     dims = {d["id"]: d for d in report_kb.fixed()["dims"]}
     abilities = report_kb.ability_map()
     codes_by_dim: Dict[str, List[str]] = {dim_id: [] for dim_id in dims}
@@ -830,7 +1038,8 @@ def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
                 row["y4_selected"] = [c for c in raw.get("y4_selected") or [] if isinstance(c, str)]
                 row["other_clues"] = _field(report_display.sources_line(evidence, code), "code")
                 row["meeting"] = _sentences(raw.get("meeting"), _valid_ids(evidence, code),
-                                            path + ["meeting"], adjustments, code)
+                                            path + ["meeting"], adjustments, code,
+                                            keep_role=True)
                 _cut_judgements(row["meeting"], code, path + ["meeting"], adjustments)
                 row["evidence_ids"] = [i for i in raw.get("evidence_ids") or [] if isinstance(i, str)]
                 row["internal_note"] = _clean(raw.get("internal_note"))
@@ -838,10 +1047,17 @@ def step_dims(mapping, evidence, adjustments) -> Dict[str, Dict[str, Any]]:
                          else report_checks.LIMITS["meeting"])
                 _cap_field(row["meeting"], limit, "%s 首次会议核实情况" % code,
                            path + ["meeting"], adjustments)
+                _structure_notes(row["meeting"], code, row["tags"],
+                                 any(e.get("source") == "M1" for e in _usable(evidence, code)),
+                                 path + ["meeting"], adjustments)
             row["evidence_ids"] = list(dict.fromkeys(
                 resolved["evidence_ids"] + row["evidence_ids"]))
             if not row["internal_note"]:
                 row["internal_note"] = resolved["internal_note"]
+            note = _indirect_note(indirect, code)
+            if note:
+                row["internal_note"] = "；".join(
+                    part for part in (row["internal_note"], note) if part)
             enforce_ability(code, row, evidence, mapping, adjustments, path)
             row["y4_selected"] = row["y4_selected"][:report_checks.Y4_MAX]
             abilities_out[code] = row
@@ -1226,18 +1442,25 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None,
 
     ctx = run("check", lambda: step_check(prep, report))
     analysis = run("speakers", lambda: speakers.for_generation(report, _ask, actor_id))
-    transcript = (speakers.marked_text(analysis["turns"]) if analysis
+    turns = analysis["turns"] if analysis else []
+    single_speaker = single_speaker_transcript(report.get("transcript_text") or "",
+                                               turns or None)
+    if single_speaker:
+        # 段首只有一个标签：角色不可信，不把整段标成学生，改由提取模型逐条判断
+        turns = [dict(turn, role="", speech_act="") for turn in turns]
+    transcript = (speakers.marked_text(turns) if analysis
                   else report["transcript_text"])
-    meeting_text = (speakers.prompt_text(analysis["turns"]) if analysis
+    meeting_text = (speakers.prompt_text(turns) if analysis
                     else report["transcript_text"])
-    roles = speakers.role_lookup(analysis["turns"]) if analysis else None
+    roles = (speakers.role_lookup(turns) if analysis and not single_speaker else None)
     ratings = run("y4", lambda: step_y4(ctx["values"]))
     mapping = run("mapping", lambda: step_mapping(ratings))
     other_items = run("first_touch", lambda: step_first_touch(ctx)) or []
     safety = run("safety", lambda: step_safety(transcript))
     chunk_failed: List[int] = []
     meeting_items = run("meeting", lambda: step_meeting(meeting_text, chunk_failed,
-                                                       roles=roles))
+                                                       roles=roles,
+                                                       single_speaker=single_speaker))
     evidence = assign_ids(meeting_items + other_items)
 
     adjustments: List[Dict[str, Any]] = []
@@ -1247,7 +1470,8 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None,
     held: Dict[str, Any] = {}
 
     def dims_step():
-        dims = step_dims(mapping, evidence, adjustments)
+        indirect = step_rerank(evidence, adjustments)
+        dims = step_dims(mapping, evidence, adjustments, indirect)
         held["sources"] = guard_sources(dims, evidence, index)
         _sentence_checks(dims, evidence, index, guard)
         _guard_pass(_triples(_family_pairs({"dims": dims}), held["sources"]), gender, guard,

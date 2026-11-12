@@ -251,6 +251,28 @@ def list_statuses(prep_ids: List[int]) -> Dict[int, Dict[str, str]]:
                 for pid, status in rows}
 
 
+def list_overview(prep_ids: List[int]) -> Dict[int, Dict[str, Any]]:
+    """列表页用的报告概览：是否有逐字稿、是否已开始；未开始的行标签为「未开始」。"""
+    ids = [int(i) for i in prep_ids]
+    if not ids:
+        return {}
+    with Session(_engine()) as sess:
+        rows = sess.execute(select(M1Report)
+                            .where(M1Report.prep_id.in_(ids))).scalars().all()
+        out = {}
+        for row in rows:
+            has_transcript = bool((row.transcript_text or "").strip())
+            started = has_transcript or row.status != "draft"
+            out[int(row.prep_id)] = {
+                "status": row.status,
+                "label": STATUS_LABELS.get(row.status, row.status) if started else "未开始",
+                "started": started,
+                "has_transcript": has_transcript,
+                "updated_at": _iso(row.updated_at),
+            }
+        return out
+
+
 def set_transcript(report_id: int, *, text: str, filename: str = "",
                    stored_path: str = "") -> Dict[str, Any]:
     with Session(_engine()) as sess:

@@ -1,0 +1,69 @@
+{
+  "version": "TEST",
+  "built_at": "2026-11-10T00:00:00+08:00",
+  "lessons": {
+    "WB-G9-DEMO-ONE": {
+      "grade": 9,
+      "skill": "DEMO SKILL ONE",
+      "no": 1,
+      "name": "LESSON ONE",
+      "objective": "sample objective one",
+      "pdf": "G9.pdf",
+      "pdf_page": 10,
+      "book_page": 10,
+      "end_page": 11,
+      "has_text": true
+    },
+    "WB-G9-DEMO-TWO": {
+      "grade": 9,
+      "skill": "DEMO SKILL TWO",
+      "no": 2,
+      "name": "LESSON TWO",
+      "objective": "sample objective two",
+      "pdf": "G9.pdf",
+      "pdf_page": 12,
+      "book_page": 12,
+      "end_page": 12,
+      "has_text": false
+    },
+    "WB-G9-DEMO-THREE": {
+      "grade": 9,
+      "skill": "DEMO SKILL THREE",
+      "no": 3,
+      "name": "LESSON THREE",
+      "objective": "sample objective three",
+      "pdf": "G9.pdf",
+      "pdf_page": 20,
+      "book_page": 20,
+      "end_page": 21,
+      "has_text": true
+    }
+  },
+  "r4": {
+    "R4.9": {
+      "name": "示例能力",
+      "focus": "sample focus",
+      "boundary": "sample boundary",
+      "by_grade": {
+        "9": [
+          {
+            "lesson": "WB-G9-DEMO-ONE",
+            "match": "部分对应（示例一）",
+            "limit": "示例限制一"
+          },
+          {
+            "lesson": "WB-G9-DEMO-TWO",
+            "match": "部分对应（示例二）",
+            "limit": "示例限制二"
+          },
+          {
+            "lesson": "WB-G9-DEMO-THREE",
+            "match": "部分对应（示例三）",
+            "limit": "示例限制三"
+          }
+        ]
+      }
+    }
+  },
+  "problems": []
+}

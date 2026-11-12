@@ -96,6 +96,6 @@ def test_fixed_text_is_present():
     assert len(fixed["structure_rows"]) == 4
     assert len(fixed["agenda_60"]) == 5
     assert len(fixed["quick_check"]) == 4
-    assert fixed["principle_callout"].startswith("M1 属于情绪与关系发展支持")
+    assert fixed["principle_callout"].startswith("心有灵析属于情绪与关系发展支持")
     assert fixed["appendix_callout"].startswith("围绕 18 项 R4 能力")
     assert "Situation：" in fixed["event_path_callout"]
