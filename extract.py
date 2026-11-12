@@ -540,6 +540,86 @@ def _pdf_slot(pdf_path: Path) -> str:
     return pdf_path.stem
 
 
+# ---- B6 排序（087-094 能力 / 110-124 价值观）：文本优先 + 名称校验 ----
+B6_ABILITY_NAMES = ["语言能力", "逻辑数学能力", "音乐能力", "空间能力",
+                    "身体运动能力", "人际关系能力", "内省能力", "自然能力"]
+B6_VALUE_NAMES = ["创造发明", "独立自主", "美的追求", "智力激发", "利他助人",
+                  "成就感", "管理权力", "工作环境", "同事关系", "上司关系",
+                  "多样变化", "经济报酬", "安全稳定", "声望地位", "生活方式"]
+B6_ABILITY_RANK_CODES = [f"{87 + i:03d}" for i in range(8)]
+B6_VALUE_RANK_CODES = [f"{110 + i:03d}" for i in range(15)]
+
+
+def parse_b6_ability_ranking(page_text: str) -> Optional[List[str]]:
+    """从单页文本读 NO.1..NO.8 后的下一非空行；仅当 8 个名称齐全、不重复且都是能力名称时返回。"""
+    if "我的能力优势一览表" not in (page_text or ""):
+        return None
+    lines = [l.strip() for l in page_text.splitlines()]
+    found: Dict[int, str] = {}
+    for i, ln in enumerate(lines):
+        m = re.fullmatch(r"NO\.\s*(\d+)", ln)
+        if not m:
+            continue
+        n = int(m.group(1))
+        if not 1 <= n <= 8 or n in found:
+            continue
+        nxt = next((x for x in lines[i + 1:] if x), "")
+        found[n] = re.sub(r"\s+", "", nxt)
+    names = [found.get(n, "") for n in range(1, 9)]
+    if len(set(names)) != 8 or any(n not in B6_ABILITY_NAMES for n in names):
+        return None
+    return names
+
+
+def read_b6_ability_ranking(pdf_path: Path) -> Optional[List[str]]:
+    """逐页读取 B6，找到「我的能力优势一览表」页并解析排名。"""
+    try:
+        doc = fitz.open(str(pdf_path))
+    except Exception:
+        return None
+    try:
+        for page in doc:
+            txt = page.get_text()
+            if "我的能力优势一览表" in txt:
+                r = parse_b6_ability_ranking(txt)
+                if r:
+                    return r
+    finally:
+        doc.close()
+    return None
+
+
+def b6_rank_ai_value_ok(code: str, ai_value: Any) -> bool:
+    """087-094 / 110-124：AI 值必须是该排名允许的名称（去空格后精确匹配）。其它编号恒为 True。"""
+    if code in B6_ABILITY_RANK_CODES:
+        allowed = B6_ABILITY_NAMES
+    elif code in B6_VALUE_RANK_CODES:
+        allowed = B6_VALUE_NAMES
+    else:
+        return True
+    return re.sub(r"\s+", "", str(ai_value)) in allowed
+
+
+def b6_rank_pick(code: str, ai_value: Any, hard_value: Any,
+                 text_ranking_found: bool) -> Optional[str]:
+    """087-094 / 110-124 的取值；返回 None 表示不归本规则处理（走原有流程）。
+    顺序：一览表文本（087-094，仅当找到）> 通过名称校验的 AI 值 > 文本/排序值。"""
+    if code not in B6_ABILITY_RANK_CODES and code not in B6_VALUE_RANK_CODES:
+        return None
+    empty = (None, "", "—")
+    if text_ranking_found and code in B6_ABILITY_RANK_CODES and hard_value not in empty:
+        return str(hard_value).strip()
+    if ai_value not in empty:
+        if b6_rank_ai_value_ok(code, ai_value):
+            return str(ai_value).strip()
+        print(f"  [B6 排序] {code} 视觉值「{ai_value}」不是"
+              f"{'能力' if code in B6_ABILITY_RANK_CODES else '价值观'}名称，已忽略")
+    if hard_value not in empty:
+        return str(hard_value).strip()
+    return ""
+
+
+
 def process_pdf(pdf_path: Path) -> Tuple[str, str, List[str], List[Dict[str, Any]]]:
     """返回 (slot, pdf_title, text_blobs, items)。"""
     slot = _pdf_slot(pdf_path)
@@ -2657,6 +2737,18 @@ def main(force_skip_vision: bool = False) -> int:
     for i, (kw, _v) in enumerate(sorted_abilities):
         hard_values[f"{87 + i:03d}"] = kw
 
+    # 087-094：以「我的能力优势一览表」页的文本排名为准（8 个名称齐全才采用）
+    b6_text_ranking: Optional[List[str]] = None
+    for _pdf in pdfs:
+        if _pdf_slot(_pdf) == "B6":
+            b6_text_ranking = read_b6_ability_ranking(_pdf)
+            if b6_text_ranking:
+                break
+    if b6_text_ranking:
+        for _i, _kw in enumerate(b6_text_ranking):
+            hard_values[B6_ABILITY_RANK_CODES[_i]] = _kw
+        print("  [B6 排序] 087-094 取自一览表文本")
+
     # ---- 职业价值观（B6）：15 子项得分 + 15 排序（全 15 项都排序）
     # 文本层结构化："数字\n中文标签" 的相邻行，例如 "9.39\n生活方式"、"3.29\n美的追求"
     # 其它项只有视觉层能看到，依赖 run_vision_api() 返回
@@ -2875,6 +2967,11 @@ def main(force_skip_vision: bool = False) -> int:
             if v not in (None, "", "—"):
                 return _coerce_to_type(v, schema_type)
         
+        _b6 = b6_rank_pick(code, code_values.get(code), hard_values.get(code),
+                           bool(b6_text_ranking))
+        if _b6 is not None:
+            return _b6
+
         v = code_values.get(code)
         if v not in (None, "", "—"):
             return _coerce_to_type(v, schema_type)
