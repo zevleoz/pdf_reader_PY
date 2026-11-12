@@ -19,9 +19,10 @@
   <article class="a4 notion{% if plan.status != 'approved' %} draftmark{% endif %}">
     {% if plan.status != 'approved' %}<span class="pp-sr">草稿</span>{% endif %}
     {% set doc = internal.doc %}
+    {% set grade_label = (grade_text ~ ('（G' ~ plan.wb_grade ~ '）' if plan.wb_grade else '')) or '—' %}
     <h1>{{ plan.student_name }} · 情绪力阶段发展与教学计划（内部版）</h1>
     <table>
-      <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级 / 年龄</th><td>{{ grade_text }}（G{{ plan.wb_grade }}）</td></tr>
+      <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级 / 年龄</th><td>{{ grade_label }}</td></tr>
       <tr><th>负责导师</th><td>{{ plan.mentor_name }}</td><th>Module</th><td>M1 Emotional &amp; Relational Development</td></tr>
       <tr><th>阶段周期</th><td>{{ period }}</td><th>Block / 学分 / 课次</th><td>Block {{ plan.block_no }} · {{ plan.credits }} · 3 节</td></tr>
     </table>

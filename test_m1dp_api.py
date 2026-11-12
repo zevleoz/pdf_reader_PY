@@ -156,14 +156,41 @@ def test_create_rejects_report_without_draft(plan_client, m1db):
     assert "还没有生成 AI 草稿" in res.get_json()["error"]
 
 
-def test_create_needs_a_reference_grade(plan_client, m1db, monkeypatch):
+def test_create_without_a_reference_grade_is_allowed(plan_client, m1db, monkeypatch):
     prep, _report = _published_prep(m1db)
     monkeypatch.setattr(pstore, "parse_wb_grade", lambda text: None)
     _login(plan_client, m1db.alice_id, "advisor", "Alice")
     payload = {"student_id": m1db.student_id, "prep_id": prep["id"], "block_no": 1,
                "period_start": "2026-11-17", "period_end": "2026-12-15"}
-    # 年级文字无法解析时，必须由导师选择参考年级
-    assert plan_client.post("/api/m1/plans", json=payload).status_code == 400
+    # 学生没有年级、导师也没选：参考年级可以空着
+    res = plan_client.post("/api/m1/plans", json=payload)
+    assert res.status_code == 201, res.get_json()
+    assert res.get_json()["plan"]["wb_grade"] is None
+
+
+def test_create_refuses_a_grade_outside_g5_to_g9(plan_client, m1db):
+    _login(plan_client, m1db.alice_id, "advisor", "Alice")
+    for grade in (4, 10):
+        prep, _report = _published_prep(m1db)
+        payload = {"student_id": m1db.student_id, "prep_id": prep["id"], "block_no": 1,
+                   "period_start": "2026-11-17", "period_end": "2026-12-15",
+                   "wb_grade": grade}
+        assert plan_client.post("/api/m1/plans", json=payload).status_code == 400
+
+
+def test_wb_candidates_without_a_grade_fall_back_to_g9(monkeypatch):
+    from blueprints import m1_plan
+    from m1 import wb
+
+    monkeypatch.setenv("M1_WB_DIR",
+                       str(BASE_DIR / "tests" / "fixtures" / "wb_mini"))
+    goals = [{"code": "R4.9"}]
+    assert pstore.wb_grade_or_default({"wb_grade": None}) == 9
+    assert pstore.wb_grade_or_default({"wb_grade": 7}) == 7
+    assert m1_plan._wb_candidates({"wb_grade": None, "goals": goals}) == \
+        m1_plan._wb_candidates({"wb_grade": 9, "goals": goals})
+    assert m1_plan._wb_candidates({"wb_grade": None, "goals": goals})["R4.9"] == \
+        wb.candidates("R4.9", 9)
 
 
 # ---------------------------------------------------------------------------

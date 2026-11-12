@@ -232,7 +232,8 @@
     status: {{ prep.status|tojson }},
     rev: {{ prep.rev }},
     prep: {{ prep|tojson }},
-    role: {{ (current_role or '')|tojson }}
+    role: {{ (current_role or '')|tojson }},
+    m1Admin: {{ (m1_manager|default(false))|tojson }}
   };
 </script>
 <script src="/m1/assets/m1_doc.js" defer></script>

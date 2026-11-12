@@ -21,10 +21,10 @@ from test_m1dp_store import _create, _goal, _published_prep
 _BLOCK = [0]
 
 
-def _plan_with_internal(db):
+def _plan_with_internal(db, wb_grade=9):
     _BLOCK[0] += 1
     prep, report = _published_prep(db)
-    plan = _create(db, prep, report, block_no=_BLOCK[0])
+    plan = _create(db, prep, report, block_no=_BLOCK[0], wb_grade=wb_grade)
     plan = pstore.save_goals(plan["id"], plan["rev"], [_goal()])
     doc = _internal_doc()
     version = pstore.add_version(plan["id"], part="internal", kind="ai_draft",
@@ -74,14 +74,14 @@ def _parent_doc(*, goals=1, picks=("s1p1",), reviews=2, seen=(False, False)):
     }
 
 
-def _approved(db):
-    plan = _plan_with_internal(db)
+def _approved(db, wb_grade=9):
+    plan = _plan_with_internal(db, wb_grade=wb_grade)
     pstore.approve(plan["id"], db.alice_id)
     return pstore.get_plan(plan["id"])
 
 
-def _with_parent(db, doc=None, *, stale=False):
-    plan = _approved(db)
+def _with_parent(db, doc=None, *, stale=False, wb_grade=9):
+    plan = _approved(db, wb_grade=wb_grade)
     version = pstore.add_version(plan["id"], part="parent", kind="ai_draft",
                                  doc=doc or _parent_doc(),
                                  source_version_id=plan["current_version_id"])
@@ -331,6 +331,14 @@ def test_parent_print_header_and_footer_are_fixed(page_client, m1db):
     assert "ONE STEP AT A TIME · TOGETHER WE GROW" in body
     assert "01 / 02" in body and "02 / 02" in body
     assert "草稿" in body
+
+
+def test_parent_print_without_a_grade_shows_the_grade_text_alone(page_client, m1db):
+    plan = _with_parent(m1db, wb_grade=None)
+    _mentor(page_client, m1db)
+    body = page_client.get("/m1/plans/%d/parent/print" % plan["id"]).get_data(as_text=True)
+    assert "GNone" not in body and "（G）" not in body
+    assert "初二" in body
 
 
 def test_parent_print_404_without_parent(page_client, m1db):

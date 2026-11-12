@@ -249,6 +249,12 @@ def parse_wb_grade(grade_text: str) -> Optional[int]:
         return None
 
 
+def wb_grade_or_default(plan) -> int:
+    """WB 参考年级；没填时按 G9（SPEC D4，与生成步骤一致）。"""
+    value = (plan or {}).get("wb_grade")
+    return int(value) if value is not None else 9
+
+
 def _student(sess: Session, student_id: int):
     return sess.get(_db.Student, int(student_id))
 
@@ -392,8 +398,9 @@ def create_plan(student_id: int, *, prep_id: int, report_id: int,
         raise ValueError("本轮计划课次固定为 3 节")
     if isinstance(block_no, bool) or not isinstance(block_no, int) or block_no < 1:
         raise ValueError("Block 编号需为 1 或以上")
-    if isinstance(wb_grade, bool) or not isinstance(wb_grade, int) \
-            or not 5 <= wb_grade <= 9:
+    if wb_grade is not None and (isinstance(wb_grade, bool)
+                                 or not isinstance(wb_grade, int)
+                                 or not 5 <= wb_grade <= 9):
         raise ValueError("参考年级需在 G5–G9 之间")
     _check_dates(period_start, period_end)
     report = rstore.get_report_by_id(report_id)
@@ -417,7 +424,8 @@ def create_plan(student_id: int, *, prep_id: int, report_id: int,
             report_id=int(report_id), report_version_id=int(version_id),
             mentor_user_id=int(mentor_user_id) if mentor_user_id is not None else None,
             block_no=int(block_no), period_start=period_start, period_end=period_end,
-            credits=str(credits or "").strip()[:20], sessions=3, wb_grade=int(wb_grade),
+            credits=str(credits or "").strip()[:20], sessions=3,
+            wb_grade=int(wb_grade) if wb_grade is not None else None,
             inputs=_dumps({
                 "strengths": _field(""), "needs": _field(""),
                 "context": _field(""), "interests": _field(""),
@@ -1269,7 +1277,7 @@ def can_view_plan(user, plan) -> bool:
 
 
 def can_edit_plan(user, plan) -> bool:
-    """admin，或该计划从 prep 复制来的 Mentor 本人（D6）。"""
+    """admin、心有灵析管理账号，或该计划从 prep 复制来的 Mentor 本人（D6）。"""
     if plan is None:
         return False
     if isinstance(plan, int):
@@ -1277,7 +1285,7 @@ def can_edit_plan(user, plan) -> bool:
     if not plan:
         return False
     u = store._user_dict(user)
-    if u.get("role") == "admin":
+    if u.get("role") == "admin" or store.is_m1_admin(u):
         return True
     mentor_id = plan.get("mentor_user_id")
     if mentor_id is None or u.get("user_id") is None:

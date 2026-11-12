@@ -29,11 +29,12 @@
 <div class="page-head">
   <div>
     <div class="page-title">用户管理</div>
-    <div class="page-sub">创建账号、分配角色与绑定顾问。仅管理员可见。</div>
+    <div class="page-sub">{% if limited %}开关顾问账号的心有灵析权限。{% else %}创建账号、分配角色与绑定顾问。仅管理员可见。{% endif %}</div>
   </div>
 </div>
 
-<div class="um-grid">
+<div class="um-grid"{% if limited %} style="grid-template-columns:1fr"{% endif %}>
+  {% if not limited %}
   <section class="surface um-form" style="margin-bottom:0">
     <div class="surface-head"><span class="surface-title">新增用户</span></div>
     <div style="padding:16px">
@@ -84,6 +85,7 @@
       <p class="um-role-hint">完整：可看家长联系方式、问卷答案和分数、解读会纪要，可导出。概要：只看学生档案、Y4、问卷完成状态和 6AM。</p>
     </div>
   </section>
+  {% endif %}
 
   <section class="surface" style="margin-bottom:0">
     <div class="surface-head">
@@ -106,6 +108,7 @@
       viewer: { scope: 'all', detail: 'summary', m1: false }
     };
     var me = null;
+    var LIMITED = {{ 'true' if limited else 'false' }};
 
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -114,6 +117,7 @@
     }
 
     function onRoleChange() {
+      if (!document.getElementById('nr')) return; // 受限视图没有新增用户表单
       var role = document.getElementById('nr').value;
       var d = ROLE_DEFAULTS[role] || ROLE_DEFAULTS.viewer;
       var nsc = document.getElementById('nsc');
@@ -133,6 +137,7 @@
 
     // 绑定顾问只在「可见学生＝名下学生」时出现；隐藏时清空，避免带上无意义的值
     function syncAdvisorField() {
+      if (!document.getElementById('nsc')) return;
       var show = document.getElementById('nsc').value === 'own';
       var field = document.getElementById('naField');
       var na = document.getElementById('na');
@@ -162,13 +167,28 @@
       }
     }
 
+    function renderLimited(users) {
+      var el = document.getElementById('userList');
+      var html = '<div class="um-table-wrap"><table class="table" style="min-width:0"><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>心有灵析</th></tr></thead><tbody>';
+      users.forEach(function (u) {
+        var canToggle = u.role === 'advisor' && !(me && u.id === me.user_id);
+        var box = '<label class="um-check"><input type="checkbox"' + (u.m1_access === 1 ? ' checked' : '') +
+          (canToggle ? ' onchange="changeM1(' + u.id + ', this.checked)"' : ' disabled') +
+          ' /> <span>心有灵析</span></label>';
+        html += '<tr><td><b>' + esc(u.username) + '</b></td><td>' + esc(u.display_name || '-') +
+          '</td><td>' + esc(ROLE_LABEL[u.role] || u.role) + '</td><td>' + box + '</td></tr>';
+      });
+      el.innerHTML = html + '</tbody></table></div>';
+    }
+
     function renderUsers(users) {
       var el = document.getElementById('userList');
+      if (LIMITED) { renderLimited(users); return; }
       if (!users.length) {
         el.innerHTML = '<div class="empty"><div class="ic">' + iconSvg('users') + '</div><div class="t">暂无用户</div></div>';
         return;
       }
-      var html = '<div class="um-table-wrap"><table class="table"><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>绑定顾问</th><th>可见学生</th><th>可见内容</th><th>心有灵析</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+      var html = '<div class="um-table-wrap"><table class="table"><thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>绑定顾问</th><th>可见学生</th><th>可见内容</th><th>心有灵析</th><th>心有灵析管理</th><th>状态</th><th>操作</th></tr></thead><tbody>';
       users.forEach(function (u) {
         var isSelf = me && u.id === me.user_id;
         var locked = u.role === 'admin';
@@ -190,6 +210,10 @@
           (u.m1_access === 1 ? ' checked' : '') +
           (locked || u.role === 'viewer' ? ' disabled' :
             ' onchange="changeM1(' + u.id + ', this.checked)"') + ' /> <span>心有灵析</span></label>';
+        var adminBox = '<label class="um-check"><input type="checkbox"' +
+          (u.m1_admin === 1 ? ' checked' : '') +
+          (u.role === 'advisor' && u.m1_access === 1 ? ' onchange="changeM1Admin(' + u.id + ', this.checked)"' : ' disabled') +
+          ' /> <span>心有灵析管理</span></label>';
         var stateBadge = u.is_active
           ? '<span class="badge badge-ok"><span class="dot"></span>启用</span>'
           : '<span class="badge badge-neutral"><span class="dot"></span>停用</span>';
@@ -210,6 +234,7 @@
           '<td>' + scopeSel + '</td>' +
           '<td>' + detailSel + '</td>' +
           '<td>' + m1Box + '</td>' +
+          '<td>' + adminBox + '</td>' +
           '<td>' + stateBadge + '</td>' +
           '<td>' + actions + '</td>' +
           '</tr>';
@@ -231,6 +256,7 @@
 
     function setMsg(id, text, isErr) {
       var el = document.getElementById(id);
+      if (!el) return;
       el.textContent = text || '';
       el.className = 'um-msg' + (isErr ? ' err' : '');
     }
@@ -249,6 +275,7 @@
     }
 
     async function createUser() {
+      if (!document.getElementById('nu')) return;
       var username = document.getElementById('nu').value.trim();
       var password = document.getElementById('np').value;
       var role = document.getElementById('nr').value;
@@ -311,6 +338,11 @@
       if (!ok) await loadUsers();
     }
 
+    async function changeM1Admin(id, checked) {
+      var ok = await putUser(id, { m1_admin: checked ? 1 : 0 }, PERM_OK);
+      if (!ok) await loadUsers();
+    }
+
     function toggleActive(id, active) {
       putUser(id, { is_active: active }, active ? '已启用' : '已停用');
     }
@@ -342,7 +374,7 @@
     }
 
     (async function () {
-      onRoleChange();
+      if (!LIMITED) onRoleChange();
       await loadMe();
       await loadUsers();
     })();

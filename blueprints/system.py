@@ -1,12 +1,31 @@
 """系统蓝图：公开 API 文档页 + 用户管理（仅 admin）。"""
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, render_template, request, session
+from flask import Blueprint, abort, jsonify, render_template, request, session
 
 import db as _db
+import app_utils
 from app_utils import invalidate_session_user, role_required
 
 bp = Blueprint("system", __name__)
+
+
+def _is_full_admin() -> bool:
+    return session.get("role") == "admin"
+
+
+def _is_m1_manager() -> bool:
+    """心有灵析管理账号（非完整管理员）：生效值，随账号设置在 TTL 内更新。"""
+    from m1 import store as m1_store
+    return not _is_full_admin() and m1_store.is_m1_admin(app_utils.current_user())
+
+
+def _forbidden():
+    return jsonify({"ok": False, "error": "无权访问"}), 403
+
+
+# 心有灵析管理账号在用户页只能看到这些字段
+_M1_ADMIN_USER_FIELDS = ("id", "username", "display_name", "role", "m1_access", "m1_admin")
 
 
 @bp.route("/api/docs")
@@ -14,9 +33,12 @@ def api_docs():
     """公开 API 文档页面（无需登录）。"""
     return render_template("api_docs.html")
 @bp.route("/system/users")
-@role_required('admin')
+@role_required('admin', 'advisor')
 def system_users_page():
-    return render_template("users.html", nav_active="system.users")
+    if not (_is_full_admin() or _is_m1_manager()):
+        abort(403)
+    return render_template("users.html", nav_active="system.users",
+                           limited=not _is_full_admin())
 
 
 @bp.route("/system/settings")
@@ -27,9 +49,15 @@ def system_settings_page():
 
 
 @bp.route("/api/users")
-@role_required('admin')
+@role_required('admin', 'advisor')
 def api_users_list():
-    return jsonify({"ok": True, "users": _db.list_users()})
+    if _is_full_admin():
+        return jsonify({"ok": True, "users": _db.list_users()})
+    if not _is_m1_manager():
+        return _forbidden()
+    users = [{k: u.get(k) for k in _M1_ADMIN_USER_FIELDS}
+             for u in _db.list_users() if u.get("is_active")]
+    return jsonify({"ok": True, "users": users, "limited": True})
 
 
 @bp.route("/api/users", methods=["POST"])
@@ -53,9 +81,11 @@ def api_users_create():
 
 
 @bp.route("/api/users/<int:user_id>", methods=["PUT"])
-@role_required('admin')
+@role_required('admin', 'advisor')
 def api_users_update(user_id):
     data = request.get_json(force=True, silent=True) or {}
+    if not _is_full_admin():
+        return _m1_manager_update(user_id, data)
     kwargs = {}
     if data.get("password"):
         kwargs["password"] = data["password"]
@@ -68,6 +98,8 @@ def api_users_update(user_id):
             kwargs[k] = "" if data[k] is None else data[k]
     if "is_active" in data:
         kwargs["is_active"] = 1 if data["is_active"] else 0
+    if "m1_admin" in data:
+        kwargs["m1_admin"] = 0 if data["m1_admin"] is None else data["m1_admin"]
     # 防锁死：不能停用自己，也不能停用/降权最后一个 admin
     if user_id == session.get('user_id') and kwargs.get('is_active') == 0:
         return jsonify({"ok": False, "error": "不能停用当前登录账号"}), 400
@@ -80,6 +112,25 @@ def api_users_update(user_id):
         return jsonify({"ok": False, "error": "至少保留一个启用的管理员"}), 400
     try:
         ok = _db.update_user(user_id, **kwargs)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    invalidate_session_user(user_id)
+    return jsonify({"ok": True, "updated": bool(ok)})
+
+
+def _m1_manager_update(user_id, data):
+    """心有灵析管理账号：只能改他人 advisor 账号的 m1_access。"""
+    if not _is_m1_manager():
+        return _forbidden()
+    if set(data) != {"m1_access"} or user_id == session.get("user_id"):
+        return _forbidden()
+    target = _db.get_user_by_id(user_id)
+    if not target:
+        return jsonify({"ok": False, "error": "用户不存在"}), 404
+    if target.get("role") != "advisor":
+        return _forbidden()
+    try:
+        ok = _db.update_user(user_id, m1_access=data["m1_access"])
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
     invalidate_session_user(user_id)

@@ -134,7 +134,8 @@ def _wb_candidates(plan: dict):
         return out
     from m1 import wb
     for item in plan.get("goals") or []:
-        out[item["code"]] = wb.candidates(item["code"], plan.get("wb_grade")) or []
+        out[item["code"]] = wb.candidates(
+            item["code"], pstore.wb_grade_or_default(plan)) or []
     return out
 
 
@@ -229,9 +230,7 @@ def api_plan_create():
         try:
             grade = int(grade)
         except (TypeError, ValueError):
-            grade = None
-    if grade is None:
-        return _err("请选择参考年级（G5–G9）", 400)
+            return _err("参考年级需在 G5–G9 之间", 400)
     plan, error = _run(lambda: pstore.create_plan(
         student_id, prep_id=prep_id, report_id=report["id"],
         report_version_id=report.get("current_version_id"),

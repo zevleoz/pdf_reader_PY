@@ -76,9 +76,9 @@ def _internal_doc(code="R2.2", *, review_checks=None):
     return doc
 
 
-def _plan_with_internal(db, doc=None, checks=None):
+def _plan_with_internal(db, doc=None, checks=None, wb_grade=9):
     prep, report = _published_prep(db)
-    plan = _create(db, prep, report)
+    plan = _create(db, prep, report, wb_grade=wb_grade)
     plan = pstore.save_goals(plan["id"], plan["rev"], [_goal()])
     doc = doc or _internal_doc()
     checks = checks if checks is not None else [
@@ -137,6 +137,20 @@ def test_page_requires_access_and_marks_read_only(page_client, m1db):
         sess.pop("student_scope", None)  # 回到默认 own 范围
     assert page_client.get("/m1/plans/%d" % plan["id"]).status_code == 404
     assert page_client.get("/m1/plans/999999").status_code == 404
+
+
+def test_no_grade_plan_never_prints_gnone(page_client, m1db):
+    plan = _plan_with_internal(m1db, wb_grade=None)
+    _mentor(page_client, m1db)
+
+    html = page_client.get("/m1/plans/%d" % plan["id"]).get_data(as_text=True)
+    assert "GNone" not in html and "（G）" not in html
+    assert "初二" in html
+    assert "未填年级，按 G9 课程参考 · 只作思路" in html
+
+    printed = page_client.get("/m1/plans/%d/print" % plan["id"]).get_data(as_text=True)
+    assert "GNone" not in printed and "（G）" not in printed
+    assert "初二" in printed
 
 
 def test_approved_page_is_locked(page_client, m1db):

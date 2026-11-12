@@ -14,6 +14,7 @@
     rev: CTX.rev || 1,
     prep: CTX.prep || {},
     role: CTX.role || '',
+    m1Admin: !!CTX.m1Admin,
     detail: null,
     doc: null,
     kb: null,
@@ -159,7 +160,7 @@
     document.getElementById('durHint').textContent = prep.duration === 60
       ? '标准版：探索 1–2 个事件' : '延长版：探索 2–3 个事件';
     renderPeople();
-    if (state.role === 'admin') loadMentorOptions();
+    if (state.role === 'admin' || state.m1Admin) loadMentorOptions();
   }
 
   function renderPeople() {
@@ -193,8 +194,8 @@
   }
 
   function loadMentorOptions() {
-    api('/api/users').then(function (body) {
-      var users = (body.users || []).filter(function (user) { return user.is_active !== false; });
+    api('/api/m1/mentors').then(function (body) {
+      var users = body.mentors || [];
       if (!users.length) return;
       var box = document.getElementById('mentorBox');
       var select = el('select', 'inp');
