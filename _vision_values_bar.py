@@ -6,7 +6,7 @@ import urllib.request
 import os
 import re
 from pathlib import Path
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 
 try:
     import pymupdf as fitz
@@ -380,8 +380,10 @@ def _normalize_generic_label(name: str) -> str:
     return _GENERIC_ALIASES.get(norm, norm)
 
 
-def main() -> Dict[str, float]:
-    base_dir = Path(__file__).resolve().parent
+def main(base_dir: Optional[Path] = None) -> Dict[str, float]:
+    # base_dir 默认项目根；单文件读取任务（y4_upload）传入自己的临时目录，
+    # 目录内需有 input/ 与 data/，这样不碰共享的 input/ 与 data/。
+    base_dir = Path(base_dir) if base_dir is not None else Path(__file__).resolve().parent
     input_dir = base_dir / "input"
     
     b6_files = sorted(input_dir.glob("*B6*.pdf"))

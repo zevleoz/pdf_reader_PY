@@ -554,3 +554,154 @@ def api_student_six_am(code):
             "profile": prof,
         })
     return jsonify({"ok": True, "profiles": out})
+
+
+# ---------------------------------------------------------------------------
+# Y4 单文件上传（S4-U1）：逐份上传 A2/B3/B4/B6，读取后合并进学生当前 Y4 记录。
+# 任务进队列由后台 worker 依次执行（不再有 409）。逻辑见 y4_upload.py。
+# ---------------------------------------------------------------------------
+def _y4_student(code):
+    st, err = _scoped_student(code)
+    if err:
+        return None, (jsonify({"ok": False, "error": err[0]}), err[1])
+    return st, None
+
+
+def _y4_actor():
+    import app_utils
+    user = app_utils.current_user()
+    return ((user.get("display_name") or user.get("advisor_name") or "").strip()
+            or "admin")
+
+
+@bp.route("/students/<code>/api/y4/status")
+@admin_required
+def api_y4_status(code):
+    import y4_upload
+    st, resp = _y4_student(code)
+    if resp:
+        return resp
+    return jsonify({"ok": True, **y4_upload.status_payload(st)})
+
+
+@bp.route("/students/<code>/api/y4/read", methods=["POST"])
+@admin_required
+def api_y4_read(code):
+    """body: {slot, upload_id, file_name?}。文件先走 /api/upload/chunk（key=<SLOT>）。"""
+    import y4_upload
+    from blueprints import reports as _rep
+    st, resp = _y4_student(code)
+    if resp:
+        return resp
+    body = request.get_json(silent=True) or request.form or {}
+    slot = str(body.get("slot") or "").strip().upper()
+    upload_id = str(body.get("upload_id") or "").strip()
+    file_name = str(body.get("file_name") or "").strip()
+    if slot not in y4_upload.SLOTS:
+        return jsonify({"ok": False, "error": "slot 必须是 A2/B3/B4/B6"}), 400
+    if not upload_id or not _rep._UPLOAD_ID_RE.fullmatch(upload_id):
+        return jsonify({"ok": False, "error": "upload_id 非法"}), 400
+    src_dir = _rep.UPLOAD_DIR / upload_id
+    if not src_dir.is_dir():
+        return jsonify({"ok": False, "error": "未找到上传数据，请重新上传"}), 400
+    parts, error = _rep._collect_chunk_plan(src_dir, slot)
+    if error:
+        return jsonify({"ok": False, "error": error}), 400
+    if not parts:
+        return jsonify({"ok": False, "error": "没有收到这份资料的上传数据"}), 400
+    try:
+        job_id, position = y4_upload.start_read(
+            st, slot, parts, file_name, _y4_actor())
+    except y4_upload.Conflict as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 409
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    import shutil
+    shutil.rmtree(str(src_dir), ignore_errors=True)
+    return jsonify({"ok": True, "job_id": job_id, "position": position})
+
+
+@bp.route("/students/<code>/api/y4/jobs/<int:job_id>/retry", methods=["POST"])
+@admin_required
+def api_y4_retry(code, job_id):
+    import y4_upload
+    st, resp = _y4_student(code)
+    if resp:
+        return resp
+    try:
+        new_id, position = y4_upload.retry_read(job_id, st, _y4_actor())
+    except LookupError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 404
+    except y4_upload.Conflict as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 409
+    except FileNotFoundError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "job_id": new_id, "position": position})
+
+
+@bp.route("/students/<code>/api/y4/build", methods=["POST"])
+@admin_required
+def api_y4_build(code):
+    import y4_upload
+    st, resp = _y4_student(code)
+    if resp:
+        return resp
+    try:
+        job_id, position = y4_upload.start_build(st, _y4_actor())
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "job_id": job_id, "position": position})
+
+
+@bp.route("/students/<code>/api/y4/build/file")
+@admin_required
+def api_y4_build_file(code):
+    """下载已生成的 Y4 PDF。默认新版（v2）；?legacy=1 取旧版。"""
+    import y4_upload
+    from flask import send_file
+    from urllib.parse import quote
+    st, resp = _y4_student(code)
+    if resp:
+        return resp
+    rd = y4_upload.current_round(st["id"])
+    build = rd["state"]["build"]
+    key = "v1_path" if request.args.get("legacy") == "1" else "v2_path"
+    path = build.get(key) or ""
+    if not path or not y4_upload._abs(path).exists():
+        return jsonify({"ok": False, "error": "报告还没有生成"}), 404
+    name = f"凭远Y4评测报告_{(st.get('name') or '').replace('/', '_').replace(' ', '')}.pdf"
+    r = send_file(str(y4_upload._abs(path)), mimetype="application/pdf",
+                  as_attachment=True, download_name=name)
+    r.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(name)}"
+    return r
+
+
+@bp.route("/students/<code>/api/y4/new-round", methods=["POST"])
+@admin_required
+def api_y4_new_round(code):
+    import y4_upload
+    st, resp = _y4_student(code)
+    if resp:
+        return resp
+    round_id = y4_upload.new_round(st, _y4_actor())
+    return jsonify({"ok": True, "round_id": round_id, "report_id": None})
+
+
+@bp.route("/students/<code>/api/y4/slots/<slot>/file")
+@admin_required
+def api_y4_slot_file(code, slot):
+    import y4_upload
+    from flask import send_file
+    st, resp = _y4_student(code)
+    if resp:
+        return resp
+    slot = slot.upper()
+    if slot not in y4_upload.SLOTS:
+        return jsonify({"ok": False, "error": "slot 必须是 A2/B3/B4/B6"}), 400
+    rd = y4_upload.current_round(st["id"])
+    path = y4_upload.original_path(rd["id"], slot) if rd["id"] else None
+    if path is None or not path.exists():
+        return jsonify({"ok": False, "error": "没有这份原文件"}), 404
+    name = rd["state"]["slots"][slot].get("file_name") or f"{slot}.pdf"
+    return send_file(str(path), mimetype="application/pdf",
+                     as_attachment=False, download_name=name)

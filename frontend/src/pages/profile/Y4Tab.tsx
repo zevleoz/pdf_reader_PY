@@ -6,7 +6,8 @@ import { errorText, getJSON, postJSON } from "@/lib/api";
 import { csrfToken } from "@/lib/boot";
 import { cn } from "@/lib/utils";
 
-import { Chip, evalTone, fmtDate, fmtValue, Gate, saveResponse, useProfile, useY4Data, WEAK_EVALS } from "./common";
+import { Y4UploadSection, notUploaded, useY4Upload, valueText, type Y4Upload } from "./Y4Upload";
+import { Chip, evalTone, fmtDate, Gate, saveResponse, useProfile, useY4Data, WEAK_EVALS } from "./common";
 
 const FALLBACK_DIMS = ["心力", "精力", "学习力", "生涯力"];
 
@@ -71,7 +72,7 @@ const asText = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 
 /** 编辑态：报告快照里的全部数值（含同龄均值、新版 B3 的 134/135），改动保存到快照，
  *  生成 PDF 即用新值（/api/reports/<id>/values + /regenerate）。 */
-function Y4Editor({ reportId, query, onClose }: { reportId: number; query: string; onClose: () => void }) {
+function Y4Editor({ reportId, query, onClose, up }: { reportId: number; query: string; onClose: () => void; up: Y4Upload }) {
   const { cache, notify } = useProfile();
   const [items, setItems] = React.useState<RawItem[] | null>(null);
   const [log, setLog] = React.useState<EditEntry[]>([]);
@@ -246,6 +247,7 @@ function Y4Editor({ reportId, query, onClose }: { reportId: number; query: strin
                   isChanged && "border-[#EAD48A] bg-[#FFF7D6]",
                 )}
                 value={draft[it.code] ?? ""}
+                placeholder={notUploaded(up, it.code, draft[it.code] ?? "") ? "未上传" : undefined}
                 onChange={(e) => setDraft((m) => ({ ...m, [it.code]: e.target.value }))}
               />
               <span className="font-mono text-[11px] text-mute">{it.source_pdf || ""}</span>
@@ -313,6 +315,7 @@ export default function Y4Tab() {
   const [q, setQ] = React.useState("");
   const [editing, setEditing] = React.useState(false);
   const canEdit = data.permissions.can_write;
+  const up = useY4Upload();
 
   return (
     <Gate res={res}>
@@ -327,6 +330,7 @@ export default function Y4Tab() {
         );
         return (
           <div>
+            {!editing ? <Y4UploadSection up={up} items={d.items} canEdit={canEdit} /> : null}
             <div className="mb-3 flex flex-wrap items-center gap-2">
               {!editing ? (
                 <>
@@ -380,7 +384,7 @@ export default function Y4Tab() {
               ) : null}
             </div>
             {editing && d.report ? (
-              <Y4Editor reportId={d.report.id} query={q} onClose={() => setEditing(false)} />
+              <Y4Editor reportId={d.report.id} query={q} onClose={() => setEditing(false)} up={up} />
             ) : rows.length === 0 ? (
               <p className="px-4 py-11 text-center">
                 <b className="block text-base text-ink">{d.items.length === 0 ? "暂无画像数据" : "没有匹配的指标"}</b>
@@ -395,7 +399,7 @@ export default function Y4Tab() {
                     <span className="min-w-0 break-words">
                       {it.label} <span className="ml-1 font-mono text-[11px] text-mute">{it.code}</span>
                     </span>
-                    <span className="text-right font-semibold">{fmtValue(it.value)}</span>
+                    <span className="text-right font-semibold">{valueText(up, it)}</span>
                     <span>{it.eval ? <Chip tone={evalTone(it.eval)}>{it.eval}</Chip> : null}</span>
                   </div>
                 ))}

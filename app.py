@@ -272,6 +272,11 @@ if __name__ == "__main__":
             _job_args = {}
         sys.exit(_run_pipeline_job(_job_args))
 
+    if len(sys.argv) > 1 and sys.argv[1] == "y4worker":
+        # 独立子进程按序执行 Y4 单文件读取/生成队列：python app.py y4worker
+        import y4_upload
+        sys.exit(y4_upload.run_worker())
+
     if len(sys.argv) > 1 and sys.argv[1] == "gtjob":
         # 独立子进程执行 Growth Talk 分析：python app.py gtjob <run_id>
         from growth_talk.jobs import run_analysis_job

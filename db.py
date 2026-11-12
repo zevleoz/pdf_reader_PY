@@ -212,7 +212,17 @@ def init_db() -> None:
         import m1.store  # noqa: F401
     except Exception as e:  # M1 导入失败不应阻断既有功能
         print(f"[DB] M1 模型注册失败 (非致命): {e}")
+    # Y4 单文件上传的任务队列表 y4_jobs，同样要在 create_all 之前注册。
+    try:
+        import y4_upload  # noqa: F401
+    except Exception as e:  # 导入失败不应阻断既有功能
+        print(f"[DB] Y4 上传模型注册失败 (非致命): {e}")
     Base.metadata.create_all(engine)
+    try:
+        import y4_upload as _y4u
+        _y4u.ensure_schema()
+    except Exception as e:
+        print(f"[DB] y4_jobs 补列失败 (非致命): {e}")
     _migrate_schema()
     try:
         import questionnaire_store as _qstore
