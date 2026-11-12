@@ -91,7 +91,7 @@ export type ScoreSet = {
   reviewed_by?: string;
 };
 
-export type SixAmModel = { dims: { id: string; name: string }[]; levels: string[] };
+export type SixAmModel = { dims: { id: string; name: string }[]; levels: string[]; a6?: { name?: string } };
 export type SixAmReview = {
   verdict: string;
   adjusted_state?: string | null;
@@ -105,6 +105,33 @@ export type SixAmProfileRow = {
   version: number;
   created_at: string | null;
   profile: { schema?: string; dims?: Record<string, { level?: string }> };
+};
+
+export type SixAmA6Row = { name?: string; top?: boolean; fit_label?: string; why?: string[] };
+export type SixAmInputs = {
+  ft?: {
+    goal?: { judgement?: string | null; time_on_liked?: boolean | null };
+    standard_task?: { can_split?: boolean | null; can_commit?: boolean | null };
+    schedule?: { confirmed_full?: boolean | null };
+  };
+  parent?: { complaint?: { text?: string } | string };
+};
+/** GET /api/reports/<rid>/six-am 与两个写接口返回的档案（v0.6 的 profile 内容由 mindmap.js 解读，这里只列用到的字段）。 */
+export type SixAmView = {
+  ok?: boolean;
+  profile_id: number;
+  version: number;
+  report_id: number;
+  report_date: string | null;
+  legacy: boolean;
+  versions: { profile_id: number; version: number }[];
+  profile: {
+    order?: string[];
+    flags?: { safety?: boolean; answer_state?: boolean };
+    dims?: Record<string, { level?: string }>;
+    a6?: { ranked?: SixAmA6Row[]; avoid?: { name?: string; why?: string }[] };
+    inputs?: SixAmInputs;
+  };
 };
 
 export type Y4Dim = { name: string; healthy: number; weak_count: number; total: number };
