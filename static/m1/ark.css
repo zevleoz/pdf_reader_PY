@@ -518,7 +518,8 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .sd.sheet{animation:sdin .2s var(--ease) both}
 @keyframes sdin{from{transform:translateX(10px);opacity:0}}
 .plat-b{display:none;font-weight:600;color:var(--ink)}
-.app[data-platform="m1"]{--shell:#0B3FD6;--on-ink:#0B3FD6;--hl:#0B3FD6;--tint:#E9EEFD}
+.app[data-platform="m1"]{--shell:#D6C8F0;--shell-ink:#2B1F45;--on-ink:#6E52B5;--act:#6E52B5;--act-ink:#FFFFFF;--hl:#6E52B5;--tint:#F3EFFB;--pub:#6E52B5}
+.app[data-world="swiss"][data-platform="m1"] .brand i{filter:brightness(0) opacity(.75)}
 .app[data-world="crest"][data-platform="m1"]{--shell:#12306B;--on:#C9A24A;--on-ink:#12306B;--hl:#12306B}
 .app[data-view="launcher"] .nav,.app[data-view="launcher"] .bar{display:none}
 .app[data-view="launcher"] .shell,.app[data-world="crest"][data-view="launcher"] .shell{display:block}

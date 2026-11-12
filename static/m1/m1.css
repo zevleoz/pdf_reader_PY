@@ -10,7 +10,7 @@
   --ink: #18181B; --muted: #71717A; --faint: #A1A1AA;
   --brand: #D24949; --brand-deep: #B33A3A; --brand-soft: #FAEEEE; --brand-ring: rgba(210,73,73,.32);
   --ok: #15803D; --ok-soft: #F0FDF4; --warn: #B45309; --warn-soft: #FEF6E7;
-  --danger: #DC2626; --danger-soft: #FEF2F2; --info: #1D4ED8; --info-soft: #EFF4FF;
+  --danger: #DC2626; --danger-soft: #FEF2F2; --info: #6E52B5; --info-soft: #F3EFFB;
   --on-brand: #FFFFFF; --scrim: rgba(17,17,20,.45);
   --paper: #FFFFFF; --paper-ink: #37352F; --paper-muted: #787774; --paper-line: #E9E9E7;
   --paper-head: #F7F6F3; --paper-red: #D44C47; --call-gray: #F1F1EF; --call-brown: #F4EEEE;
@@ -142,7 +142,7 @@
 .editing .blk:hover { outline-color: #C9C6BF; cursor: text; }
 .editing .blk:focus { outline: 2px solid var(--brand); }
 .mk { display: inline-block; margin-left: 4px; font: 600 9.5px/1.4 var(--font); padding: 0 4px;
-  border-radius: 3px; vertical-align: 1px; background: #EEF4FF; color: #1D4ED8; user-select: none; }
+  border-radius: 3px; vertical-align: 1px; background: #F3EFFB; color: #6E52B5; user-select: none; }
 .mk.ed { background: #ECFDF3; color: #15803D; }
 .mk.me { background: #FDF0E6; color: #B45309; }
 .plain .mk { display: none; }

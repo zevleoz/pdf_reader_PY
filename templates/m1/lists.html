@@ -1,8 +1,8 @@
 {% extends "m1/_layout.html" %}
 {% set meta = {
   'preps': {'title': '会前准备', 'lead': 'First Meeting 前给导师用的提纲。按会议时间排。'},
-  'reports': {'title': '会后报告', 'lead': 'First Meeting 后给家长的《首次情绪力分析报告》。发布后才能开始发展计划。'},
-  'plans': {'title': '发展计划', 'lead': '每个 Block 一行：三节课的内部版，和给家长的两页 PDF。会后报告发布后可以新建。'}
+  'reports': {'title': '会后报告', 'lead': 'First Meeting 后给家长的《首次情绪力分析报告》。生成 AI 草稿后就可以开始发展计划。'},
+  'plans': {'title': '发展计划', 'lead': '每个 Block 一行：三节课的内部版，和给家长的两页 PDF。会后报告生成 AI 草稿后可以新建。'}
 } %}
 {% set info = meta[kind] %}
 {% block title %}{{ info.title }}{% endblock %}
@@ -69,7 +69,7 @@
     <p class="hint">本轮固定 3 节课。Block 编号默认接着这位学生的上一个 Block。</p>
     <p class="hint" id="planMentor" hidden></p>
   </div>
-  <div class="df"><span class="hint">只能为会后报告已发布的学生新建</span>
+  <div class="df"><span class="hint">会后报告生成 AI 草稿后就可以新建</span>
     <button class="btn" type="button" id="planCancel">取消</button>
     <button class="btn p" type="button" id="planGo" disabled>新建并打开</button>
   </div>

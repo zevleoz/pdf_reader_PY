@@ -12,7 +12,7 @@ import m1.plan_store as pstore
 from app_utils import BASE_DIR
 from test_m1_pipeline import _login
 from test_m1_store import m1db  # noqa: F401  pytest fixture
-from test_m1dp_store import _create, _goal, _published_prep
+from test_m1dp_store import _create, _drafted_prep, _goal, _published_prep
 
 
 @pytest.fixture()
@@ -111,7 +111,7 @@ def _multipart(filename, data):
 # ---------------------------------------------------------------------------
 # 列表 / 可新建 / 新建
 # ---------------------------------------------------------------------------
-def test_list_and_eligible_only_include_published_reports(plan_client, m1db):
+def test_list_and_eligible_include_ready_reports(plan_client, m1db):
     prep, _report = _published_prep(m1db)
     _create(m1db, prep, _report)
     _login(plan_client, m1db.alice_id, "advisor", "Alice")
@@ -127,7 +127,23 @@ def test_list_and_eligible_only_include_published_reports(plan_client, m1db):
     assert plan_client.get("/api/m1/plans?scope=all").get_json()["plans"]
 
 
-def test_create_rejects_unpublished_and_duplicate_block(plan_client, m1db):
+def test_eligible_and_create_accept_ai_draft_report(plan_client, m1db):
+    prep, report = _drafted_prep(m1db)
+    _login(plan_client, m1db.alice_id, "advisor", "Alice")
+
+    eligible = plan_client.get("/api/m1/plans/eligible").get_json()["students"]
+    assert [row["prep_id"] for row in eligible] == [prep["id"]]
+
+    payload = {"student_id": m1db.student_id, "prep_id": prep["id"], "block_no": 1,
+               "period_start": "2026-11-17", "period_end": "2026-12-15",
+               "wb_grade": 9}
+    res = plan_client.post("/api/m1/plans", json=payload)
+    assert res.status_code == 201, res.get_json()
+    assert res.get_json()["plan"]["report_version_id"] == report["current_version_id"]
+    assert plan_client.post("/api/m1/plans", json=payload).status_code == 400
+
+
+def test_create_rejects_report_without_draft(plan_client, m1db):
     import m1.report_store as rstore
     prep = m1db.prep()
     rstore.get_or_create_report(prep["id"], m1db.alice_id)
@@ -135,13 +151,9 @@ def test_create_rejects_unpublished_and_duplicate_block(plan_client, m1db):
     payload = {"student_id": m1db.student_id, "prep_id": prep["id"], "block_no": 1,
                "period_start": "2026-11-17", "period_end": "2026-12-15",
                "wb_grade": 9}
-    assert plan_client.post("/api/m1/plans", json=payload).status_code == 409
-
-    published, report = _published_prep(m1db, student_id=m1db.other_student_id,
-                                        mentor_id=m1db.alice_id)
-    payload.update(student_id=m1db.other_student_id, prep_id=published["id"])
-    assert plan_client.post("/api/m1/plans", json=payload).status_code == 201
-    assert plan_client.post("/api/m1/plans", json=payload).status_code == 400
+    res = plan_client.post("/api/m1/plans", json=payload)
+    assert res.status_code == 409
+    assert "还没有生成 AI 草稿" in res.get_json()["error"]
 
 
 def test_create_needs_a_reference_grade(plan_client, m1db, monkeypatch):

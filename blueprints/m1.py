@@ -676,7 +676,7 @@ def api_prep_overview(prep_id: int):
             "materials": report_materials,
         },
         "plans": plans,
-        "can_create_plan": bool(report and report.get("status") == "published"),
+        "can_create_plan": pstore.report_ready(report),
         "activity": store.list_activity(prep_id, prep["student_id"]),
     })
 

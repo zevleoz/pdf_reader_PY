@@ -220,8 +220,8 @@ def api_plan_create():
     if int(prep["student_id"]) != student_id:
         return _err("学生与会前准备不匹配", 400)
     report = rstore.get_report(prep_id)
-    if not report or report["status"] != "published":
-        return _err("会后报告还没有正式发布", 409)
+    if not pstore.report_ready(report):
+        return _err("会后报告还没有生成 AI 草稿", 409)
     grade = body.get("wb_grade")
     if grade in (None, ""):
         grade = pstore.parse_wb_grade(prep.get("grade") or "")
@@ -932,7 +932,6 @@ def _plan_page_context(plan: dict) -> dict:
     review_checks = [item for item in checks if item.get("level") == "review"]
     hint_checks = [item for item in checks if item.get("level") == "hint"]
     report = pstore.report_state(plan)
-    report_row = rstore.get_report_by_id(plan["report_id"]) if plan.get("report_id") else None
     goals = _goal_display(plan)
     candidates = _wb_candidates(plan)
     doc = (internal or {}).get("doc") or {}
@@ -981,7 +980,6 @@ def _plan_page_context(plan: dict) -> dict:
         "hint_checks": hint_checks,
         "blockers": blockers,
         "report": report,
-        "report_date": _day((report_row or {}).get("published_at")),
         "y4_date": _day(student.get("y4_date")),
         "grade_text": student.get("grade") or "",
         "personal": personal,
