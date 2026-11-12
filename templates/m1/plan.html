@@ -70,11 +70,11 @@
         <label>计划课次<input class="inp" value="3" disabled><span class="hint">默认 3 节</span></label>
       </div>
 
-      <h3 class="h2">学生资料<small>从已发布的会后报告提取</small></h3>
+      <h3 class="h2">学生资料<small>从会后报告提取</small></h3>
       <div class="src">
         <span><b>会后报告<span class="req">必需</span></b><span class="how">平台自动读取</span></span>
-        <span class="r"><span class="st {{ 's0' if report.fresh else 's1' }}">{{ report.label or '未发布' }}{% if report_date %} · {{ report_date }}{% endif %}</span></span>
-        <span class="d">只读已发布的版本；报告重新打开后要重新确认这里</span>
+        <span class="r"><span class="st {{ 's0' if report.fresh else 's1' }}">{{ report.label or '未发布' }}{% if report.read_at %} · {{ report.read_at[:10] }}{% endif %}</span></span>
+        <span class="d">{% if report.status_at_read != 'published' %}读取时报告还没有正式发布；报告再修改后，这里会提示重新读取。{% else %}报告修改后，这里会提示重新读取。{% endif %}</span>
       </div>
       <div class="src">
         <span><b>Y4 Assessment</b><span class="how">平台自动读取</span></span>

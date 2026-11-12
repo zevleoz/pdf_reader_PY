@@ -317,8 +317,8 @@ def read_report(plan_id: int, *, progress=None, actor_id=None) -> Dict[str, Any]
     report = rstore.get_report_by_id(plan["report_id"])
     if not report:
         raise PlanError("没有找到会后报告")
-    if report.get("status") != "published":
-        raise PlanError("会后报告还没有正式发布")
+    if not pstore.report_ready(report):
+        raise PlanError("会后报告还没有生成 AI 草稿")
     version_id = report.get("current_version_id")
     if not version_id:
         raise PlanError("会后报告还没有内容")

@@ -533,14 +533,15 @@
   function renderEligibleNote() {
     var host = document.getElementById('m1Eligible');
     if (!host) return;
+    var ready = ['ai_draft', 'needs_check', 'reviewing', 'approved', 'published'];
     var blocked = state.preps.filter(function (row) {
-      return (row.report || {}).status !== 'published';
+      return ready.indexOf((row.report || {}).status || '') === -1;
     }).map(function (row) { return row.student_name; });
     if (blocked.length) {
-      host.textContent = '可以发展计划的学生：会后报告已发布（' +
-        blocked.join('、') + '的报告还没发布，所以不在这里）。';
+      host.textContent = '可以发展计划的学生：会后报告已有 AI 草稿（' +
+        blocked.join('、') + ' 的报告还没生成，所以不在这里）。';
     } else {
-      host.textContent = '可以发展计划的学生：会后报告已发布的学生都在这里。';
+      host.textContent = '可以发展计划的学生：会后报告已有 AI 草稿的学生都在这里。';
     }
   }
 
