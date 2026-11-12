@@ -88,12 +88,8 @@
   }
 
   function inView(prep, view) {
-    var report = prep.report || {};
-    if (view === 'prep') return prep.status !== 'final';
-    if (view === 'report') {
-      return report.status !== 'published' && (report.started || isPast(prep));
-    }
-    if (view === 'done') return prep.status === 'final' && report.status === 'published';
+    if (view === 'todo') return !!prep.next;
+    if (view === 'done') return !prep.next;
     return true;
   }
 
@@ -113,22 +109,9 @@
     return ['s1', '草稿 · 待发布'];
   }
 
-  function actionFor(prep) {
-    var report = prep.report || {};
-    var base = '/m1/preps/' + prep.id;
-    if (!prep.current_version_id) {
-      return { label: '生成', primary: false, href: base + '/prep' };
-    }
-    if (prep.status !== 'final') {
-      return { label: '去定稿', primary: true, href: base + '/prep#step=review' };
-    }
-    if (!report.started) {
-      return { label: '上传逐字稿', primary: isPast(prep), href: base + '/report' };
-    }
-    if (report.status !== 'published') {
-      return { label: '核对发布', primary: true, href: base + '/report#step=review' };
-    }
-    return { label: '查看', primary: false, href: base };
+  function planChip(prep) {
+    if (!prep.plan) return ['sn', '—'];
+    return [prep.plan.tone || 's1', 'Block ' + prep.plan.block_no + ' · ' + prep.plan.label];
   }
 
   function makeRow(prep) {
@@ -148,29 +131,30 @@
     if (prep.mentor_name) timeCell.appendChild(el('small', null, prep.mentor_name));
     row.appendChild(timeCell);
 
-    var materials = prep.materials || [];
-    var materialsCell = el('span', 'c-s mu', materials.length ? materials.join('、') : '—');
-    materialsCell.title = materialsCell.textContent;
-    row.appendChild(materialsCell);
-
     var prepPair = prepChip(prep);
-    var prepCell = el('span', 'c-p');
-    prepCell.appendChild(el('em', null, '会前准备'));
+    var prepCell = el('span', 'c-s mu');
     prepCell.appendChild(el('span', 'st ' + prepPair[0], prepPair[1]));
     row.appendChild(prepCell);
 
     var reportPair = reportChip(prep);
-    var reportCell = el('span', 'c-r');
+    var reportCell = el('span', 'c-p');
     reportCell.appendChild(el('em', null, '会后报告'));
     reportCell.appendChild(el('span', 'st ' + reportPair[0], reportPair[1]));
     row.appendChild(reportCell);
 
-    var action = actionFor(prep);
+    var planPair = planChip(prep);
+    var planCell = el('span', 'c-r');
+    planCell.appendChild(el('em', null, '发展计划'));
+    planCell.appendChild(el('span', 'st ' + planPair[0], planPair[1]));
+    row.appendChild(planCell);
+
     var actionCell = el('span', 'c-b');
-    var link = el('a', 'btn s' + (action.primary ? ' p' : ''), action.label);
-    link.href = action.href;
-    link.addEventListener('click', function (event) { event.stopPropagation(); });
-    actionCell.appendChild(link);
+    if (prep.next) {
+      var link = el('a', 'btn s' + (prep.next.primary ? ' p' : ''), prep.next.label);
+      link.href = prep.next.href;
+      link.addEventListener('click', function (event) { event.stopPropagation(); });
+      actionCell.appendChild(link);
+    }
     row.appendChild(actionCell);
 
     function go() { window.location.href = row.dataset.href; }
@@ -187,10 +171,10 @@
   function headerRow() {
     var head = el('div', 'lh m1l');
     head.appendChild(el('span', null, '学生'));
-    head.appendChild(el('span', null, '会议时间 · Mentor'));
-    head.appendChild(el('span', null, '资料'));
+    head.appendChild(el('span', null, 'First Meeting · Mentor'));
     head.appendChild(el('span', null, '会前准备'));
     head.appendChild(el('span', null, '会后报告'));
+    head.appendChild(el('span', null, '发展计划'));
     head.appendChild(el('span'));
     return head;
   }
@@ -247,7 +231,7 @@
     var scoped = state.preps.filter(function (prep) {
       return matchesWho(prep) && matchesQuery(prep);
     });
-    ['all', 'prep', 'report', 'done'].forEach(function (view) {
+    ['all', 'todo', 'done'].forEach(function (view) {
       setCount(view, scoped.filter(function (prep) { return inView(prep, view); }).length);
     });
 
@@ -255,7 +239,7 @@
     var counter = document.getElementById('m1Count');
     if (counter) {
       var span = counter.querySelector('span');
-      if (span) span.textContent = String(rows.length);
+      if (span) span.textContent = String(scoped.length);
     }
 
     if (!state.preps.length) {

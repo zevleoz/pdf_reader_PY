@@ -60,7 +60,7 @@ def test_home_is_m1_not_profiling(client, m1db):
     resp = client.get("/m1")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert '<h1 id="m1Count">心有灵析<span>' in html
+    assert '<h1 id="m1Count">学生<span>' in html
     assert "M1 会前准备" not in html
 
 

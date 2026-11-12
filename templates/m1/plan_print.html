@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ plan.student_name }} · 发展计划（内部版）</title>
+<link rel="stylesheet" href="{{ url_for('m1.m1_asset', filename='m1.css') }}">
+<link rel="stylesheet" href="{{ url_for('m1.m1_asset', filename='plan.css') }}">
+</head>
+<body class="m1 print-page plan-print">
+<div class="print-bar">
+  <span>{{ plan.student_name }} · 发展计划（内部版）{% if plan.status != 'approved' %} · 草稿{% endif %}</span>
+  <span class="sp"></span>
+  <button class="btn" onclick="window.print()">打印</button>
+  <a class="btn" href="/m1/plans/{{ plan.id }}">返回</a>
+</div>
+
+<div class="print-desk">
+  <article class="a4 notion{% if plan.status != 'approved' %} draftmark{% endif %}">
+    {% if plan.status != 'approved' %}<span class="pp-sr">草稿</span>{% endif %}
+    {% set doc = internal.doc %}
+    <h1>{{ plan.student_name }} · 情绪力阶段发展与教学计划（内部版）</h1>
+    <table>
+      <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级 / 年龄</th><td>{{ grade_text }}（G{{ plan.wb_grade }}）</td></tr>
+      <tr><th>负责导师</th><td>{{ plan.mentor_name }}</td><th>Module</th><td>M1 Emotional &amp; Relational Development</td></tr>
+      <tr><th>阶段周期</th><td>{{ period }}</td><th>Block / 学分 / 课次</th><td>Block {{ plan.block_no }} · {{ plan.credits }} · 3 节</td></tr>
+    </table>
+
+    <h2>A｜学生当前状态</h2>
+    {% set inputs = plan.inputs or {} %}
+    {% if (inputs.get('strengths') or {}).get('text') or (inputs.get('needs') or {}).get('text') or (inputs.get('context') or {}).get('text') or (inputs.get('interests') or {}).get('text') %}
+      {% for key, label in [('strengths', '可利用的积极资源'), ('needs', '主要发展需求'), ('context', '关键生活情境'), ('interests', '兴趣与学习偏好')] %}
+      <p><b>{{ label }}：</b>{{ (inputs.get(key) or {}).get('text') or '—' }}</p>
+      {% endfor %}
+    {% else %}
+    <p class="mu">还没有学生资料。</p>
+    {% endif %}
+
+    <h2>B｜已确认的发展目标</h2>
+    <table>
+      <thead><tr><th style="width:112px">R4</th><th>发展目标</th><th>当前起点</th><th>阶段预期进展</th></tr></thead>
+      <tbody>
+      {% for g in goals %}
+      <tr><td>{{ g.code }} {{ g.name }}</td><td>{{ g.goal_text }}</td><td>{{ g.start.text }}</td><td>{{ g.expected.text }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>C｜个性化需求总结</h2>
+    <p>{{ (personal.summary or {}).get('text') or '—' }}</p>
+
+    <h2>Block Overview｜总体目标与教学策略</h2>
+    <p>{{ (doc.get('overview') or {}).get('text') or '' }}</p>
+
+    {% for session in doc.get('sessions') or [] %}
+    <div class="pp-sess">
+      <h2>Session {{ session.n }}｜{{ (session.get('title') or {}).get('text') or '' }}</h2>
+      {% if session.get('review') %}
+      <p class="mu"><b>上次课后实践回顾</b></p>
+      <ul style="margin:2px 0 8px;padding-left:18px">
+        {% for row in session.review %}<li>{{ row.text if row is mapping else row }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+
+      <h3>A｜本节教学重点</h3>
+      {% set focus = session.get('focus') or {} %}
+      <p class="mu">主要目标：{{ focus.get('primary') or '—' }}{% if focus.get('supporting') %} · 辅助目标：{{ focus.get('supporting') }}{% endif %}</p>
+      <p>{{ (focus.get('text') or {}).get('text') or '' }}</p>
+
+      <h3>B｜核心学习内容</h3>
+      {% set content = session.get('content') or {} %}
+      <p><b>Mindsets：</b>{{ (content.get('mindsets') or {}).get('text') or '' }}</p>
+      <p><b>Path：</b>{{ (content.get('path') or {}).get('text') or '' }}</p>
+      <p><b>Skills：</b>{{ (content.get('skills') or {}).get('text') or '' }}</p>
+      <p><b>Techniques：</b>{{ (content.get('techniques') or {}).get('text') or '' }}</p>
+
+      <h3>C｜教学活动</h3>
+      {% for activity in session.get('activities') or [] %}
+      {% if activity.get('block_review') %}
+      <div class="pp-act pp-review">
+        <p><b>{{ block_review.name }}（约 {{ activity.get('minutes', block_review.minutes) }} 分钟）</b></p>
+        {% for part in block_review.parts %}
+        <p><b>{{ part.label }}：</b>{{ part.text }}</p>
+        {% endfor %}
+        {% set questions = (activity.get('questions') or {}).get('text') or '' %}
+        {% if questions %}<p><b>引导问题：</b>{{ questions }}</p>{% endif %}
+        <p class="mu">{{ block_review.note }}</p>
+      </div>
+      {% else %}
+      <div class="pp-act">
+        <p><b>Activity {{ loop.index }}｜{{ (activity.get('name') or {}).get('text') or '' }}</b>
+          <span class="meta"> · {{ activity.get('minutes', 0) }} 分钟 · 参考来源：{% set src = activity.get('source') or {} %}{{ source_labels.get(src.type, source_labels['ai_original']) }}{% if src.type == 'world_bank' %} · {{ cites.get(src.wb_id, '') }}{% elif src.type == 'other' and src.text %} · {{ src.text }}{% endif %}</span>
+        </p>
+        <p style="white-space:pre-wrap">{{ (activity.get('steps') or {}).get('text') or '' }}</p>
+        <p><b>引导问题：</b>{{ (activity.get('questions') or {}).get('text') or '' }}</p>
+        <p><b>所需材料：</b>{{ (activity.get('materials') or {}).get('text') or '' }}</p>
+      </div>
+      {% endif %}
+      {% endfor %}
+
+      <h3>D｜课堂预期表现</h3>
+      <p>{{ (session.get('evidence') or {}).get('text') or '' }}</p>
+
+      <h3>E｜课后成长实践</h3>
+      {% for practice in session.get('practice') or [] %}
+      <p><b>Practice {{ loop.index }}｜{{ (practice.get('name') or {}).get('text') or '' }}</b>
+        · 关联 {{ practice.get('code') or '' }}
+        · {{ (practice.get('frequency') or {}).get('text') or '' }}
+        · 平台：{{ practice.get('platform') or '无' }}
+      </p>
+      <p><b>任务：</b>{{ (practice.get('task') or {}).get('text') or '' }}</p>
+      <p><b>预期证据：</b>{{ (practice.get('evidence') or {}).get('text') or '' }}</p>
+      {% endfor %}
+
+      {% if session.get('next_prep') %}
+      <h3>F｜下次课准备</h3>
+      <p>{{ (session.get('next_prep') or {}).get('text') or '' }}</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </article>
+</div>
+
+{% if auto_print %}<script>window.addEventListener('load', function () { window.print(); });</script>{% endif %}
+</body>
+</html>

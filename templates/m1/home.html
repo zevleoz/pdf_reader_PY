@@ -1,12 +1,14 @@
 {% extends "m1/_layout.html" %}
-{% block title %}心有灵析{% endblock %}
+{% block title %}学生{% endblock %}
+
+{% block crumbs %}<div class="cr"><b>学生</b></div>{% endblock %}
 
 {% block content %}
 <div id="m1Home" data-student-id="{{ student_id or '' }}" data-me-name="{{ current_display_name }}">
   <div class="head">
     <div>
-      <h1 id="m1Count">心有灵析<span>0</span></h1>
-      <p class="sub">每位学生的 First Meeting。会前准备和会后报告分开做，各有各的资料和状态。</p>
+      <h1 id="m1Count">学生<span>0</span></h1>
+      <p class="sub">每位学生一行，三份文档各一列：会前准备 → 会后报告 → 发展计划。点一行进学生页。</p>
     </div>
     <div class="acts">
       <button class="btn p" type="button" id="addStudent"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>添加学生</button>
@@ -16,8 +18,7 @@
   <div class="tool">
     <div class="vw" role="tablist" style="margin:0;border:0;flex:1;min-width:0">
       <button class="on" type="button" data-view="all">全部<em>0</em></button>
-      <button type="button" data-view="prep">会前待办<em>0</em></button>
-      <button type="button" data-view="report">会后待办<em>0</em></button>
+      <button type="button" data-view="todo">有待办<em>0</em></button>
       <button type="button" data-view="done">已完成<em>0</em></button>
     </div>
     <div class="seg" role="group" aria-label="添加人">
@@ -28,6 +29,7 @@
   </div>
 
   <div class="panel list" id="m1List"></div>
+  <p class="hint" style="margin-top:10px">「下一步」按钮直接打开对应文档的对应步骤。发展计划显示最新的 Block。</p>
 </div>
 {% endblock %}
 

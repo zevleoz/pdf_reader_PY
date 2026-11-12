@@ -114,8 +114,38 @@
       return { sentence: '核对并正式发布会后报告', button: '核对发布',
         href: base + '/report#step=review' };
     }
-    return { sentence: '会后报告已发布', button: '查看会后报告',
-      href: base + '/report#step=review' };
+    var plan = (data.plans || [])[0];
+    var block = plan ? 'Block ' + plan.block_no : 'Block 1';
+    if (!plan) {
+      return { sentence: '会后报告已发布，可以新建 ' + block + ' 发展计划',
+        button: '新建发展计划', href: '/m1/plans?new=' + prep.id };
+    }
+    if (plan.status === 'inputs') {
+      return { sentence: '确认 ' + block + ' 发展目标，生成内部教学计划',
+        button: '继续发展计划', href: plan.step_url };
+    }
+    if (plan.status === 'generating' || plan.status === 'review') {
+      return { sentence: '审阅并批准 ' + block + ' 内部版', button: '审阅内部版',
+        href: plan.step_url };
+    }
+    if (plan.parent_status === 'generating') {
+      return { sentence: block + ' 家长版正在生成', button: '查看生成进度',
+        href: plan.step_url };
+    }
+    if (plan.parent_status === 'none' || !plan.parent_status) {
+      return { sentence: '内部版已批准，可以生成 ' + block + ' 家长版',
+        button: '生成家长版', href: plan.step_url };
+    }
+    if (plan.parent_status === 'draft') {
+      return { sentence: '确认 ' + block + ' 家长版', button: '确认家长版',
+        href: plan.step_url };
+    }
+    if (plan.parent_status === 'exported') {
+      return { sentence: block + ' 发展计划已导出', button: '打开发展计划',
+        href: '/m1/plans/' + plan.id };
+    }
+    return { sentence: block + ' 家长版已确认', button: '导出家长版',
+      href: plan.step_url };
   }
 
   function renderHead(data) {
@@ -141,15 +171,36 @@
     host.appendChild(right);
   }
 
+  function planTrackLabel(plan) {
+    if (plan.parent_version_id && plan.parent_stale) return '家长版 已过期';
+    if (plan.status !== 'approved') return plan.status_label || '';
+    var parent = plan.parent_status;
+    if (parent === 'draft') return '家长版待确认';
+    if (parent === 'confirmed') return '家长版已确认';
+    if (parent === 'generating') return '家长版生成中';
+    if (parent === 'exported') return '已导出';
+    return '已批准';
+  }
+
+  function parentTrackLabel(plan) {
+    if (!plan) return '—';
+    if (plan.parent_version_id && plan.parent_stale) return '已过期';
+    if (!plan.parent_status || plan.parent_status === 'none') return '—';
+    if (plan.parent_status === 'exported') {
+      return '已导出' + (plan.parent_exported_at ? ' · ' + md(plan.parent_exported_at) : '');
+    }
+    return plan.parent_label || plan.parent_status;
+  }
+
   function renderTrack(data) {
     var host = document.getElementById('m1Track');
     var prep = data.prep;
     var prepPart = data.prep_part;
     var reportPart = data.report_part;
-    var y4 = data.auto.y4;
+    var plan = (data.plans || [])[0];
+    var exported = !!plan && plan.parent_status === 'exported';
 
     var cells = [
-      { title: 'Y4', small: y4.date ? md(y4.date) : '—', done: true },
       { title: '会前准备', small: prepPart.label +
           (prepPart.status === 'final' && prepPart.finalized_at
             ? ' · ' + md(prepPart.finalized_at) : ''),
@@ -157,10 +208,14 @@
       { title: 'First Meeting',
         small: prep.meeting_date ? md(prep.meeting_date) : '日期待定',
         done: !!prep.meeting_date && prep.meeting_date <= today() },
-      { title: '会后报告', small: reportPart.label, done: !!reportPart.has_version },
-      { title: '发布', small: reportPart.status === 'published'
-          ? md(reportPart.updated_at) : '—',
-        done: reportPart.status === 'published' }
+      { title: '会后报告', small: reportPart.status === 'published'
+          ? '已发布' + (reportPart.published_at ? ' · ' + md(reportPart.published_at) : '')
+          : reportPart.label,
+        done: reportPart.status === 'published' },
+      { title: '发展计划', small: plan
+          ? 'Block ' + plan.block_no + ' · ' + planTrackLabel(plan) : '—',
+        done: exported },
+      { title: '家长版', small: parentTrackLabel(plan), done: exported }
     ];
 
     var nextIndex = cells.findIndex(function (cell) { return !cell.done; });
@@ -248,7 +303,7 @@
     title.appendChild(chip(reportChip(part)));
     host.appendChild(title);
     host.appendChild(el('p', null,
-      '给家长的《首次情绪力分析报告》。上传 First Meeting 逐字稿即可生成，随时可以开始。资料和会前准备分开：Y4、First Touch 自动读取，其他要单独上传。'));
+      '给家长的《首次情绪力分析报告》。发展计划从这份已发布的报告读取学生资料。'));
 
     var dl = el('dl', 'kv');
     dl.appendChild(el('dt', null, '逐字稿'));
@@ -276,6 +331,98 @@
       acts.appendChild(exported);
     }
     host.appendChild(acts);
+  }
+
+  function planCardChip(plan) {
+    var tone = plan.parent_status === 'exported' ? 's0'
+      : (plan.parent_stale ? 's2' : (plan.status === 'approved' ? 's0' : 's1'));
+    return [tone, planTrackLabel(plan)];
+  }
+
+  function renderPlanCard(plan, prep) {
+    var card = el('section', 'tc');
+    card.style.marginTop = '12px';
+
+    var title = el('div', 'tt');
+    title.appendChild(el('b', null, 'Block ' + plan.block_no));
+    title.appendChild(chip(planCardChip(plan)));
+    card.appendChild(title);
+    card.appendChild(el('p', null,
+      '三节课的内部教学计划，批准后生成给家长的《情绪力阶段成长计划》（两页 PDF）。'));
+
+    var dl = el('dl', 'kv');
+    dl.appendChild(el('dt', null, '阶段'));
+    dl.appendChild(el('dd', null,
+      [plan.period_start + (plan.period_end ? ' 至 ' + md(plan.period_end) : ''),
+        plan.sessions + ' 节课',
+        plan.credits ? '学分 ' + plan.credits : ''].filter(Boolean).join(' · ')));
+
+    dl.appendChild(el('dt', null, '发展目标'));
+    var goals = plan.goals || [];
+    var goalCell = el('dd');
+    if (goals.length) {
+      var chips = el('span', 'chips');
+      goals.forEach(function (item) {
+        var wrap = el('span', 'chip');
+        wrap.appendChild(el('code', null, item.code));
+        wrap.appendChild(document.createTextNode(
+          (plan.goal_names && plan.goal_names[item.code]) || ''));
+        chips.appendChild(wrap);
+      });
+      goalCell.appendChild(chips);
+    } else {
+      goalCell.className = 'mu';
+      goalCell.textContent = '还没有选目标';
+    }
+    dl.appendChild(goalCell);
+
+    dl.appendChild(el('dt', null, '内部版'));
+    var internalText = '还没有生成';
+    if (plan.status === 'approved') {
+      internalText = '已批准' + (plan.approved_at ? ' · ' + md(plan.approved_at) : '');
+    } else if (plan.status === 'review') {
+      internalText = '待批准';
+    } else if (plan.status === 'generating') {
+      internalText = '生成中';
+    }
+    dl.appendChild(el('dd', plan.status === 'inputs' ? 'mu' : null, internalText));
+
+    dl.appendChild(el('dt', null, '家长版'));
+    var parentText = parentTrackLabel(plan);
+    dl.appendChild(el('dd', parentText === '—' ? 'mu' : null, parentText));
+    card.appendChild(dl);
+
+    var acts = el('div', 'acts');
+    var link = el('a', 'btn p', plan.parent_status === 'exported' ? '打开' : '继续');
+    link.href = plan.parent_status === 'exported'
+      ? '/m1/plans/' + plan.id : plan.step_url;
+    acts.appendChild(link);
+    card.appendChild(acts);
+    return card;
+  }
+
+  function renderPlans(data) {
+    var host = document.getElementById('m1Plans');
+    var prep = data.prep;
+    host.innerHTML = '';
+
+    var heading = el('h3', 'h2', '发展计划');
+    var right = el('span', 'r');
+    if (data.can_create_plan) {
+      var create = el('a', 'btn s');
+      create.href = '/m1/plans?new=' + prep.id;
+      create.innerHTML = '+ 新建 Block';
+      right.appendChild(create);
+    }
+    heading.appendChild(right);
+    host.appendChild(heading);
+
+    var plans = data.plans || [];
+    if (!plans.length) {
+      host.appendChild(el('p', 'hint', '会后报告发布后，可以新建第一个 Block 的发展计划。'));
+      return;
+    }
+    plans.forEach(function (plan) { host.appendChild(renderPlanCard(plan, prep)); });
   }
 
   function renderMeeting(data) {
@@ -406,6 +553,7 @@
     renderTrack(data);
     renderPrepCard(data);
     renderReportCard(data);
+    renderPlans(data);
     renderMeeting(data);
     renderActivity(data);
   }

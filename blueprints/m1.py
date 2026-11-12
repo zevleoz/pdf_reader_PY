@@ -11,14 +11,17 @@ from __future__ import annotations
 
 import os
 import re
+from datetime import date
 from functools import wraps
 
 from flask import (Blueprint, abort, jsonify, render_template, request,
                    send_from_directory, session)
 from jinja2 import TemplateNotFound
+from sqlalchemy.exc import OperationalError
 
 import app_utils
 import db as _db
+import m1.plan_store as pstore
 import m1.report_store as rstore
 import m1.sources as sources
 import m1.store as store
@@ -123,14 +126,26 @@ def _api_prep(prep_id: int):
     return prep, None
 
 
-def _render_page(template: str, **ctx):
+def _nav_for_path(path: str) -> str:
+    """导航高亮：列表/学生页/计划页各有自己的入口。"""
+    if path.startswith("/m1/reports") or path.endswith("/report"):
+        return "reports"
+    if path.startswith("/m1/plans"):
+        return "plans"
+    if path == "/m1/preps" or path.endswith("/prep"):
+        return "preps"
+    return "students"
+
+
+def _render_page(template: str, nav_active: str | None = None, **ctx):
     """P4 模板尚未落地时返回最小占位页。"""
     from blueprints import auth
 
     _page_guard()
     platform_links = [c for c in auth._platform_cards() if c["key"] != "m1"]
     try:
-        return render_template(template, nav_active="m1", nav_groups=_m1_nav(),
+        return render_template(template, nav_active=nav_active or _nav_for_path(request.path),
+                               nav_groups=_m1_nav(),
                                platform_links=platform_links, **ctx)
     except TemplateNotFound:
         return ("<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
@@ -325,8 +340,26 @@ def _detail(prep: dict) -> dict:
 @page_login_required
 def page_home():
     student_id = request.args.get("student", type=int)
-    return _render_page("m1/home.html", student_id=student_id,
+    return _render_page("m1/home.html", nav_active="students", student_id=student_id,
                         ctx={"studentId": student_id})
+
+
+@bp.route("/m1/preps")
+@page_login_required
+def page_preps():
+    return _render_page("m1/lists.html", nav_active="preps", kind="preps")
+
+
+@bp.route("/m1/reports")
+@page_login_required
+def page_reports():
+    return _render_page("m1/lists.html", nav_active="reports", kind="reports")
+
+
+@bp.route("/m1/plans")
+@page_login_required
+def page_plans():
+    return _render_page("m1/lists.html", nav_active="plans", kind="plans")
 
 
 @bp.route("/m1/preps/<int:prep_id>")
@@ -341,8 +374,8 @@ def page_student(prep_id: int):
 @page_login_required
 def page_workspace(prep_id: int):
     prep = _prep_or_404(prep_id)
-    return _render_page("m1/workspace.html", prep=prep, prep_id=prep["id"],
-                        m1_parts=M1_PARTS, ctx={"prep": prep})
+    return _render_page("m1/workspace.html", nav_active="preps", prep=prep,
+                        prep_id=prep["id"], m1_parts=M1_PARTS, ctx={"prep": prep})
 
 
 @bp.route("/m1/preps/<int:prep_id>/print")
@@ -363,6 +396,83 @@ def page_print(prep_id: int):
 # ---------------------------------------------------------------------------
 # 学生 / prep 列表
 # ---------------------------------------------------------------------------
+def _latest_plans(student_ids):
+    try:
+        return pstore.latest_by_student(student_ids)
+    except OperationalError:
+        pstore.ensure_tables()
+        return pstore.latest_by_student(student_ids)
+
+
+def _visible_plans(user):
+    try:
+        return pstore.list_plans(user, scope="all")
+    except OperationalError:
+        pstore.ensure_tables()
+        return pstore.list_plans(user, scope="all")
+
+
+def _plan_step_url(plan: dict) -> str:
+    step = "inputs"
+    if plan.get("status") in ("generating", "review"):
+        step = "internal"
+    elif plan.get("status") == "approved":
+        step = "parent"
+    return "/m1/plans/%d#step=%s" % (plan["id"], step)
+
+
+def _plan_cell(plan: dict | None):
+    """学生列表「发展计划」单元格：Block 号 + 阶段 + 状态语气。"""
+    if not plan:
+        return None
+    label = plan.get("status_label") or ""
+    tone = "s1"
+    if plan.get("parent_version_id") and plan.get("parent_stale"):
+        label, tone = "家长版 已过期", "s2"
+    elif plan.get("status") == "approved":
+        parent = plan.get("parent_status")
+        if parent == "draft":
+            label = "家长版待确认"
+        elif parent == "confirmed":
+            label = "家长版已确认"
+        elif parent == "generating":
+            label = "家长版生成中"
+        elif parent == "exported":
+            label, tone = "已导出", "s0"
+        else:
+            label, tone = "已批准", "s0"
+    return {"id": plan["id"], "block_no": int(plan.get("block_no") or 1),
+            "label": label, "tone": tone, "step_url": _plan_step_url(plan)}
+
+
+def _is_past(value) -> bool:
+    return bool(value) and str(value)[:10] < date.today().isoformat()
+
+
+def _next_step(prep: dict, report: dict | None, plan: dict | None):
+    """列表里的「下一步」：顺序固定，返回 None 表示没有可点的动作。"""
+    base = "/m1/preps/%d" % prep["id"]
+    if not prep.get("current_version_id"):
+        return {"label": "生成", "href": base + "/prep", "primary": False}
+    if prep.get("status") != "final":
+        return {"label": "去定稿", "href": base + "/prep#step=review", "primary": True}
+    if not (report or {}).get("started"):
+        return {"label": "上传逐字稿", "href": base + "/report",
+                "primary": _is_past(prep.get("meeting_date"))}
+    if (report or {}).get("status") != "published":
+        return {"label": "核对发布", "href": base + "/report#step=review", "primary": True}
+    if not plan:
+        return {"label": "新建发展计划", "href": "/m1/plans?new=%d" % prep["id"],
+                "primary": True}
+    if plan.get("status") == "inputs":
+        return {"label": "继续发展计划", "href": _plan_step_url(plan), "primary": True}
+    if plan.get("status") in ("generating", "review"):
+        return {"label": "审阅内部版", "href": _plan_step_url(plan), "primary": True}
+    if plan.get("parent_status") == "draft":
+        return {"label": "确认家长版", "href": _plan_step_url(plan), "primary": True}
+    return None
+
+
 @bp.route("/api/m1/students")
 @role_required(*_WRITE_ROLES)
 def api_students():
@@ -379,6 +489,7 @@ def api_preps():
     user = _user()
     rows = store.list_preps(user=user, student_id=student_id, status=status)
     overview = rstore.list_overview([row["id"] for row in rows])
+    plans = _latest_plans([row["student_id"] for row in rows])
     for row in rows:
         found = overview.get(row["id"])
         if found:
@@ -387,6 +498,15 @@ def api_preps():
         else:
             row["report"] = {"status": "draft", "label": "未开始", "started": False}
         row["materials"] = _prep_materials(row)
+        row["transcript"] = bool(found and found.get("has_transcript"))
+        published_at = ""
+        if found and found.get("status") == "published":
+            report_row = rstore.get_report(row["id"], with_transcript=False)
+            published_at = (report_row or {}).get("published_at") or ""
+        row["published_at"] = published_at
+        plan = plans.get(int(row["student_id"]))
+        row["plan"] = _plan_cell(plan)
+        row["next"] = _next_step(row, found, plan)
     return jsonify({"ok": True, "me": user.get("user_id"), "preps": rows})
 
 
@@ -514,6 +634,16 @@ def api_prep_overview(prep_id: int):
     if has_transcript:
         report_materials.append("逐字稿")
 
+    plans = [row for row in _visible_plans(_user())
+             if int(row["student_id"]) == int(prep["student_id"])]
+    plans.sort(key=lambda row: (int(row.get("block_no") or 0), int(row.get("id") or 0)),
+               reverse=True)
+    for row in plans:
+        row["step_url"] = _plan_step_url(row)
+        row["finished"] = row.get("parent_status") == "exported"
+        row["goal_names"] = {item.get("code"): names.get(item.get("code"), "")
+                             for item in row.get("goals") or []}
+
     return jsonify({
         "ok": True,
         "prep": prep,
@@ -542,8 +672,11 @@ def api_prep_overview(prep_id: int):
             "transcript_filename": (report or {}).get("transcript_filename") or "",
             "has_version": bool(report_version),
             "updated_at": (report or {}).get("updated_at") or "",
+            "published_at": (report or {}).get("published_at") or "",
             "materials": report_materials,
         },
+        "plans": plans,
+        "can_create_plan": bool(report and report.get("status") == "published"),
         "activity": store.list_activity(prep_id, prep["student_id"]),
     })
 
@@ -820,6 +953,13 @@ def api_job_status(job_id: str):
     job = m1_jobs.read_job(job_id)
     if not job:
         return _err("任务不存在", 404)
+    if job.get("plan_id"):
+        plan = pstore.get_plan(job.get("plan_id"))
+        if not plan:
+            return _err("任务不存在", 404)
+        if not pstore.can_view_plan(_user(), plan):
+            return _err("无权访问该任务", 403)
+        return jsonify({"ok": True, "job": job})
     prep = store.get_prep(job.get("prep_id") or 0)
     if not prep:
         return _err("任务不存在", 404)

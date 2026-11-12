@@ -35,7 +35,11 @@
   <div class="shell">
     <nav class="nav" aria-label="主导航">
       <a class="brand" href="/platforms" aria-label="所有平台"><i class="crest-white"></i><span><b>心有灵析</b><small>切换平台</small></span></a>
-      <a class="nv on" href="/m1" aria-current="page"><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span><span>会议</span></a>
+      {% set nav = nav_active|default('students') %}
+      <a class="nv{% if nav == 'students' %} on{% endif %}" href="/m1"{% if nav == 'students' %} aria-current="page"{% endif %}><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-4 3.2-6 6.5-6s5.9 2 6.5 6"/><path d="M16 4.8a3.5 3.5 0 010 6.4M18 14.5c2 .8 3.2 2.7 3.5 5.5"/></svg></span><span>学生</span></a>
+      <a class="nv{% if nav == 'preps' %} on{% endif %}" href="/m1/preps"{% if nav == 'preps' %} aria-current="page"{% endif %}><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span><span>会前准备</span></a>
+      <a class="nv{% if nav == 'reports' %} on{% endif %}" href="/m1/reports"{% if nav == 'reports' %} aria-current="page"{% endif %}><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h4"/></svg></span><span>会后报告</span></a>
+      <a class="nv{% if nav == 'plans' %} on{% endif %}" href="/m1/plans"{% if nav == 'plans' %} aria-current="page"{% endif %}><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10.5 5.2 8.4 4.6 5.5 4.6v13.2c2.9 0 5 .6 6.5 1.9 1.5-1.3 3.6-1.9 6.5-1.9V4.6c-2.9 0-5 .6-6.5 1.9Z"/><path d="M12 6.5v13.2"/></svg></span><span>发展计划</span></a>
       <div class="navlab">其他平台</div>
       {% for link in platform_links or [] %}
       <a class="nv old" href="{{ link.href }}"{% if link.blank %} target="_blank" rel="noopener"{% endif %}>

@@ -581,6 +581,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
 
 /* tool step strip = the prototype .track */
 .track.k2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.track.k3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .track.k5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .track>a{display:block;padding:9px 10px 8px;border-top:5px solid var(--line);min-width:0;transition:background .12s}
 .track>a:hover{background:var(--sunk)}
@@ -606,6 +607,28 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .chip button{margin-left:auto;color:var(--mute);font-size:15px;line-height:1;padding:0 2px}
 .chip button:hover{color:var(--ink)}
 .chip.add{background:none;box-shadow:inset 0 0 0 1px var(--line);color:var(--mute);cursor:pointer}
+
+/* plan pages: grouped cards and pick lists */
+.gcard{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:12px;background:var(--surface)}
+.gcard .gt{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.gcard .gt b{font-size:14.5px}
+.gcard .gt .r{margin-left:auto}
+.gcard dl{display:grid;grid-template-columns:118px 1fr;gap:6px 12px;margin:0;font-size:13.5px}
+.gcard dt{color:var(--mute)}
+.gcard dd{margin:0}
+.gcard dd[contenteditable]{background:var(--sunk);padding:4px 6px;border-radius:3px}
+.pick{display:flex;flex-direction:column}
+.pick button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 10px;padding:9px 10px;text-align:left;border-bottom:1px solid var(--line)}
+.pick button:hover:not([disabled]){background:var(--sunk)}
+.pick button.on{background:var(--sel);color:var(--sel-ink)}
+.pick button.on small{color:inherit}
+.pick button[disabled]{cursor:not-allowed;color:var(--mute)}
+.pick b{font-weight:700}
+.pick small{color:var(--mute);font-size:12.5px}
+.pick .r{grid-row:1/3;grid-column:2;align-self:center;font-size:12.5px}
+.pick{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.pick input{margin-top:3px}
+.pick small{display:block;color:var(--mute)}
 
 /* sources */
 .src{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:11px 0;border-bottom:1px solid var(--line);align-items:center}
@@ -748,6 +771,7 @@ details.fold summary:hover{color:var(--ink)}
   .lr.m1l .c-p{grid-area:p}.lr.m1l .c-r{grid-area:r}.lr.m1l .c-b{grid-area:b}
   .lr.m1l em{display:block;font-size:11.5px;color:var(--mute);margin-bottom:2px}
   .track.k2{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:row}
+  .track.k3{grid-auto-columns:120px}
   .track.k5{grid-auto-columns:120px}
   .app[data-world="swiss"] .th h1{font-size:32px}
   .desk{padding:10px 0;margin:0 -16px}

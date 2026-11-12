@@ -1,0 +1,18 @@
+{
+  "WB-G9-DEMO-ONE": {
+    "text": "LESSON ONE\n\nsample text for the first made-up lesson",
+    "pages": [
+      10,
+      11
+    ],
+    "chars": 52
+  },
+  "WB-G9-DEMO-THREE": {
+    "text": "LESSON THREE\n\nsample text for the third made-up lesson",
+    "pages": [
+      20,
+      21
+    ],
+    "chars": 52
+  }
+}

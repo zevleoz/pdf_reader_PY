@@ -804,6 +804,12 @@ ACTIVITY_TEXT = {
     "m1.report_generate_done": ("会后报告已生成", True),
     "m1.report_publish": ("正式发布会后报告", False),
     "m1.report_reopen": ("重新打开会后报告", False),
+    "m1.plan_create": ("新建发展计划", False),
+    "m1.plan_generate_done": ("内部教学计划已生成", True),
+    "m1.plan_approve": ("批准内部教学计划", False),
+    "m1.plan_reopen": ("重新打开内部教学计划", False),
+    "m1.plan_parent_confirm": ("确认家长版", False),
+    "m1.plan_parent_export": ("导出家长版 PDF", False),
 }
 
 

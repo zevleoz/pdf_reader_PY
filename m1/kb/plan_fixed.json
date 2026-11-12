@@ -1,0 +1,43 @@
+{
+  "parent": {
+    "title": "情绪力阶段成长计划",
+    "title_en": "Emotional & Relational Development Plan",
+    "kicker": "R4 · EMOTIONAL & RELATIONAL DEVELOPMENT",
+    "header_left": "APP · ARK / 心有灵析",
+    "header_right_p1": "EMOTIONAL & RELATIONAL",
+    "header_right_p2": "GROW THROUGH PRACTICE",
+    "footer_p1": "心有灵析 · PERSONALIZED DEVELOPMENT",
+    "footer_p2": "ONE STEP AT A TIME · TOGETHER WE GROW",
+    "quote": "课堂帮助我们学习新的理解与方法；日常生活中的一次次小练习，则让这些能力逐渐成为自己的力量。",
+    "closing": "说明：本计划根据已确认的发展目标制定。课程和实践安排可依学生状态调整；记录与回顾用于支持成长，不构成心理或医学诊断。",
+    "approach_lead": "通过导师课程学习方法，并在真实生活中持续练习、观察与反思。",
+    "sections": [
+      {"no": "01", "title": "阶段成长目标", "tag": "DEVELOPMENT GOALS"},
+      {"no": "02", "title": "成长支持路径", "tag": "OUR APPROACH"},
+      {"no": "03", "title": "课后成长实践", "tag": "EVERYDAY PRACTICE"},
+      {"no": "04", "title": "家庭协作与支持", "tag": "FAMILY PARTNERSHIP"},
+      {"no": "05", "title": "成长观察与阶段回顾", "tag": "GROWTH & REVIEW"}
+    ]
+  },
+  "internal": {
+    "module": "M1 Emotional & Relational Development",
+    "title_suffix": "情绪力阶段发展与教学计划（内部版）",
+    "block_review": {
+      "name": "Block Review & Summary｜阶段总结与回顾",
+      "minutes": 10,
+      "parts": [
+        {"label": "Learning Recap｜学习回顾", "text": "回顾本 Block 学过的内容和方法。"},
+        {"label": "Practice Reflection｜实践反思", "text": "说说课后练习的过程、感受和遇到的困难。"},
+        {"label": "Personal Takeaways｜个人收获", "text": "用自己的话说出这一阶段的收获和变化。"},
+        {"label": "Next Steps｜后续练习", "text": "一起确定接下来可以继续练习的方向。"}
+      ],
+      "note": "这一环节属于本节课最后的教学活动，不作为正式能力评定。"
+    },
+    "source_labels": {
+      "ai_original": "AI Original",
+      "world_bank": "World Bank · 改编",
+      "other": "其他参考"
+    }
+  },
+  "platforms": ["StoryMap", "Echo", "无"]
+}
