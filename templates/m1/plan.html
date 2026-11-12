@@ -28,6 +28,7 @@
 {% set s2 = 'x' if st == 'inputs' else ('d' if st == 'approved' else 'n') %}
 {% set s3 = 'd' if plan.parent_status in ('confirmed', 'exported') else ('n' if st == 'approved' or plan.parent_status in ('generating', 'draft') else 'x') %}
 {% set internal = internal_version %}
+{% set grade_label = (grade_text ~ ('（G' ~ plan.wb_grade ~ '）' if plan.wb_grade else '')) or '—' %}
 
 <div class="plan-page" id="m1Plan" data-plan-id="{{ plan.id }}" data-status="{{ st }}"
      data-default-step="{{ default_step }}" data-job-id="{{ job_id or '' }}"
@@ -37,7 +38,7 @@
   <div class="head th">
     <div>
       <h1>发展计划<span>{{ state_label }}</span></h1>
-      <p class="sub">{{ plan.student_name }} · {{ grade_text }}（G{{ plan.wb_grade }}） · Block {{ plan.block_no }} · {{ period }} · {{ plan.mentor_name }}</p>
+      <p class="sub">{{ plan.student_name }} · {{ grade_label }} · Block {{ plan.block_no }} · {{ period }} · {{ plan.mentor_name }}</p>
     </div>
     <div class="acts"></div>
   </div>
@@ -217,7 +218,7 @@
       </div>
 
       <div>
-        <h3 class="h2">本次 WB 参考课<small>G{{ plan.wb_grade }} · 只作思路</small></h3>
+        <h3 class="h2">本次 WB 参考课<small>{% if plan.wb_grade %}G{{ plan.wb_grade }} · 只作思路{% else %}未填年级，按 G9 课程参考 · 只作思路{% endif %}</small></h3>
         {% if not wb_installed %}
         <p class="hint" style="margin:0">WB 参考资料未安装。活动会全部按 AI Original 设计。</p>
         {% else %}
@@ -265,7 +266,7 @@
           {% if st != 'approved' %}<p class="sample">草稿 · 批准后锁定这一版用于家长版。</p>{% endif %}
           <h1>{{ plan.student_name }} · 情绪力阶段发展与教学计划（内部版）</h1>
           <table class="phead">
-            <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级 / 年龄</th><td>{{ grade_text }}（G{{ plan.wb_grade }}）</td></tr>
+            <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级 / 年龄</th><td>{{ grade_label }}</td></tr>
             <tr><th>负责导师</th><td>{{ plan.mentor_name }}</td><th>Module</th><td>M1 Emotional &amp; Relational Development</td></tr>
             <tr><th>阶段周期</th><td>{{ period }}</td><th>Block / 学分 / 课次</th><td>Block {{ plan.block_no }} · {{ plan.credits }} · 3 节</td></tr>
           </table>
@@ -531,7 +532,7 @@
           <h1>{{ parent_fixed.title }}</h1>
           <p class="pen">{{ parent_fixed.title_en }}</p>
           <table class="phead">
-            <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级</th><td>{{ grade_text }}（G{{ plan.wb_grade }}）</td></tr>
+            <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级</th><td>{{ grade_label }}</td></tr>
             <tr><th>阶段</th><td>{{ period }}</td><th>负责导师</th><td>{{ plan.mentor_name }}</td></tr>
           </table>
 

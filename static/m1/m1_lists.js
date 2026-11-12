@@ -20,13 +20,13 @@
     plans: [],
     eligible: [],
     me: null,
-    who: 'mine',
+    who: root.dataset.defaultWho === 'all' ? 'all' : 'mine',
     view: 'all',
     q: ''
   };
 
   try {
-    var savedWho = window.localStorage.getItem('m1.' + kind + '.who');
+    var savedWho = window.localStorage.getItem('m1.' + kind + '.who2');
     if (savedWho === 'all' || savedWho === 'mine') state.who = savedWho;
   } catch (err) {}
 
@@ -406,9 +406,12 @@
     render();
   }
 
-  function setWho(who) {
+  // persist=true 仅在用户点击「我添加的 / 全部」时传入；页面启动不写 localStorage
+  function setWho(who, persist) {
     state.who = who;
-    try { window.localStorage.setItem('m1.' + kind + '.who', who); } catch (err) {}
+    if (persist) {
+      try { window.localStorage.setItem('m1.' + kind + '.who2', who); } catch (err) {}
+    }
     Array.prototype.forEach.call(document.querySelectorAll('[data-who]'), function (button) {
       var on = button.dataset.who === who;
       button.classList.toggle('on', on);
@@ -446,13 +449,20 @@
     })[0] || null;
   }
 
+  function planHintText(hasStudent, hasDates) {
+    if (!hasStudent) return '先选择学生';
+    if (!hasDates) return '填好阶段开始和结束后就可以新建';
+    return '会后报告生成 AI 草稿后就可以新建';
+  }
+
   function syncPlanGo() {
     var go = planField('planGo');
     if (!go) return;
-    go.disabled = !(planField('planStudent').value &&
-      planField('planBlock').value &&
-      planField('planStart').value &&
-      planField('planEnd').value);
+    var hasStudent = !!planField('planStudent').value;
+    var hasDates = !!(planField('planStart').value && planField('planEnd').value);
+    go.disabled = !(hasStudent && planField('planBlock').value && hasDates);
+    var hint = planField('planHint');
+    if (hint) hint.textContent = planHintText(hasStudent, hasDates);
   }
 
   function syncStudentFields() {
@@ -484,6 +494,7 @@
     ['planBlock', 'planStart', 'planEnd', 'planCredits'].forEach(function (id) {
       planField(id).value = '';
     });
+    planField('planGrade').value = '';
     planField('planGradeWrap').hidden = true;
     planField('planMentor').hidden = true;
 
@@ -519,7 +530,8 @@
       credits: planField('planCredits').value
     };
     if (planField('planGradeWrap').hidden === false) {
-      body.wb_grade = Number(planField('planGrade').value.replace('G', ''));
+      var gradeValue = planField('planGrade').value;
+      if (gradeValue) body.wb_grade = Number(gradeValue.replace('G', ''));
     }
     api('/api/m1/plans', { method: 'POST', body: body }).then(function (data) {
       var id = data.plan && data.plan.id;
@@ -567,7 +579,7 @@
     button.addEventListener('click', function () { setView(button.dataset.view); });
   });
   Array.prototype.forEach.call(document.querySelectorAll('[data-who]'), function (button) {
-    button.addEventListener('click', function () { setWho(button.dataset.who); });
+    button.addEventListener('click', function () { setWho(button.dataset.who, true); });
   });
 
   var search = document.getElementById('m1Search');

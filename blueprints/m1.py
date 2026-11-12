@@ -146,7 +146,8 @@ def _render_page(template: str, nav_active: str | None = None, **ctx):
     try:
         return render_template(template, nav_active=nav_active or _nav_for_path(request.path),
                                nav_groups=_m1_nav(),
-                               platform_links=platform_links, **ctx)
+                               platform_links=platform_links,
+                               m1_manager=store.is_m1_admin(_user()), **ctx)
     except TemplateNotFound:
         return ("<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
                 "<title>心有灵析</title></head><body>"
@@ -510,6 +511,22 @@ def api_preps():
     return jsonify({"ok": True, "me": user.get("user_id"), "preps": rows})
 
 
+@bp.route("/api/m1/mentors")
+@role_required(*_WRITE_ROLES)
+def api_mentors():
+    """可选的心有灵析 Mentor：启用的 admin/advisor 且心有灵析打开。仅管理员 / 心有灵析管理。"""
+    if not store.is_m1_admin(_user()):
+        return _err("只有管理员可以更换 Mentor", 403)
+    rows = []
+    for u in _db.list_users():
+        if not u.get("is_active") or u.get("role") not in ("admin", "advisor"):
+            continue
+        if not u.get("m1_access"):
+            continue
+        rows.append({"id": u["id"], "display_name": u.get("display_name") or u.get("username")})
+    return jsonify({"ok": True, "mentors": rows})
+
+
 @bp.route("/api/m1/preps", methods=["POST"])
 @role_required(*_WRITE_ROLES)
 def api_create_prep():
@@ -694,6 +711,8 @@ def api_update_prep(prep_id: int):
             fields[key] = body[key]
     if not fields:
         return _err("没有需要更新的字段")
+    if "mentor_user_id" in fields and not store.is_m1_admin(_user()):
+        return _err("只有管理员可以更换 Mentor", 403)
     if "mentor_user_id" in fields and fields["mentor_user_id"] not in (None, ""):
         try:
             fields["mentor_user_id"] = int(fields["mentor_user_id"])

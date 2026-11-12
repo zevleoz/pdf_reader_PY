@@ -285,6 +285,20 @@ def test_eligible_requires_ai_draft_report(client, m1db):
     assert pending["student_id"] not in ids
 
 
+def test_new_plan_dialog_grade_can_be_blank_and_says_what_is_missing():
+    script = (BASE_DIR / "static" / "m1" / "m1_lists.js").read_text(encoding="utf-8")
+    first = script.index("先选择学生")
+    second = script.index("填好阶段开始和结束后就可以新建")
+    third = script.index("会后报告生成 AI 草稿后就可以新建")
+    assert first < second < third
+    assert "if (gradeValue) body.wb_grade" in script
+
+    html = (BASE_DIR / "templates" / "m1" / "lists.html").read_text(encoding="utf-8")
+    assert "参考年级（可不填）" in html
+    assert '<option value="">不填</option>' in html
+    assert 'id="planHint"' in html
+
+
 # ---------------------------------------------------------------------------
 # 列表排序（页面脚本里的纯函数）
 # ---------------------------------------------------------------------------

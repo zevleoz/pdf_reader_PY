@@ -53,6 +53,9 @@
         <span>{{ link.title }}</span>
       </a>
       {% endfor %}
+      {% if m1_manager %}
+      <a class="nv old" href="/system/users"><span class="ni"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-4 3.2-6 7-6s6.4 2 7 6"/></svg></span><span>账号</span></a>
+      {% endif %}
       <div class="who">
         <span class="av">{{ (current_display_name or '未')[0] }}</span>
         <span><b>{{ current_display_name or '未命名用户' }}</b><br>{{ current_role_label }}</span>

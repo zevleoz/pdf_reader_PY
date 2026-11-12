@@ -10,7 +10,7 @@
 {% block crumbs %}<div class="cr"><b>{{ info.title }}</b></div>{% endblock %}
 
 {% block content %}
-<div id="m1Lists" data-kind="{{ kind }}" data-me-name="{{ current_display_name }}">
+<div id="m1Lists" data-kind="{{ kind }}" data-me-name="{{ current_display_name }}" data-default-who="{{ 'all' if m1_manager else 'mine' }}">
   <div class="head">
     <div>
       <h1 id="m1Count">{{ info.title }}<span>0</span></h1>
@@ -41,8 +41,8 @@
       {% endif %}
     </div>
     <div class="seg" role="group" aria-label="添加人">
-      <button class="on" type="button" data-who="mine" aria-pressed="true">我添加的</button>
-      <button type="button" data-who="all" aria-pressed="false">全部</button>
+      <button{% if not m1_manager %} class="on"{% endif %} type="button" data-who="mine" aria-pressed="{{ 'false' if m1_manager else 'true' }}">我添加的</button>
+      <button{% if m1_manager %} class="on"{% endif %} type="button" data-who="all" aria-pressed="{{ 'true' if m1_manager else 'false' }}">全部</button>
     </div>
     <label class="fld" style="width:220px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="m1Search" placeholder="搜索姓名或 Y4 编号" aria-label="搜索"></label>
   </div>
@@ -64,12 +64,12 @@
       <label>阶段结束<input class="inp" id="planEnd" type="date"></label>
       <label>学分<input class="inp" id="planCredits" placeholder="如 3"></label>
       <label>计划课次<input class="inp" id="planSessions" value="3 节" readonly></label>
-      <label class="w" id="planGradeWrap" hidden>参考年级<select class="inp" id="planGrade"><option value="G5">G5</option><option value="G6">G6</option><option value="G7">G7</option><option value="G8">G8</option><option value="G9">G9</option></select></label>
+      <label class="w" id="planGradeWrap" hidden>参考年级（可不填）<select class="inp" id="planGrade"><option value="">不填</option><option value="G5">G5</option><option value="G6">G6</option><option value="G7">G7</option><option value="G8">G8</option><option value="G9">G9</option></select></label>
     </div>
     <p class="hint">本轮固定 3 节课。Block 编号默认接着这位学生的上一个 Block。</p>
     <p class="hint" id="planMentor" hidden></p>
   </div>
-  <div class="df"><span class="hint">会后报告生成 AI 草稿后就可以新建</span>
+  <div class="df"><span class="hint" id="planHint">会后报告生成 AI 草稿后就可以新建</span>
     <button class="btn" type="button" id="planCancel">取消</button>
     <button class="btn p" type="button" id="planGo" disabled>新建并打开</button>
   </div>

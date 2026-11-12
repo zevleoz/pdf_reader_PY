@@ -168,7 +168,16 @@ def _user_dict(user) -> dict:
         "student_scope": getattr(user, "student_scope", "") or "",
         "detail_level": getattr(user, "detail_level", "") or "",
         "m1_access": getattr(user, "m1_access", None),
+        "m1_admin": getattr(user, "m1_admin", None),
     }
+
+
+def is_m1_admin(user=None) -> bool:
+    """心有灵析管理：admin，或 advisor 账号的 m1_admin 打开且 m1_access 打开（生效值）。"""
+    u = _user_dict(user)
+    return bool(_db.effective_account_settings(
+        u.get("role") or "", u.get("student_scope"), u.get("detail_level"),
+        u.get("m1_access"), u.get("m1_admin"))["m1_admin"])
 
 
 def _sees_all_students(u: dict) -> bool:

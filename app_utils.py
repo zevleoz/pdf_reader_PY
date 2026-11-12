@@ -129,7 +129,7 @@ def current_user() -> dict:
         "role": session.get("role") or "",
         "advisor_name": session.get("advisor_name") or "",
         "display_name": session.get("display_name") or "",
-        **{k: policy[k] for k in ("student_scope", "detail_level", "m1_access")},
+        **{k: policy[k] for k in ("student_scope", "detail_level", "m1_access", "m1_admin")},
     }
 
 
@@ -141,7 +141,8 @@ def account_policy() -> dict:
         "advisor_name": session.get("advisor_name") or "",
         **_db.effective_account_settings(role, session.get("student_scope"),
                                          session.get("detail_level"),
-                                         session.get("m1_access")),
+                                         session.get("m1_access"),
+                                         session.get("m1_admin")),
     }
 
 
@@ -161,7 +162,8 @@ def can_use_m1() -> bool:
 # 同时在用户被停用/物理删除/改权限后于 TTL 内作用到既有 session。
 _SESSION_USER_TTL = 60
 _SESSION_USER_CACHE: dict = {}
-_SESSION_SYNC_FIELDS = ("role", "advisor_name", "student_scope", "detail_level", "m1_access")
+_SESSION_SYNC_FIELDS = ("role", "advisor_name", "student_scope", "detail_level", "m1_access",
+                        "m1_admin")
 
 
 def invalidate_session_user(user_id) -> None:

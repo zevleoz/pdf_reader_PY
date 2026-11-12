@@ -204,6 +204,8 @@ class User(Base):
     student_scope = Column(String(10), default="")
     detail_level = Column(String(10), default="")
     m1_access = Column(Integer, nullable=True)
+    # 心有灵析管理（仅 advisor 有意义；生效值见 effective_account_settings）
+    m1_admin = Column(Integer, nullable=True)
 
 
 def init_db() -> None:
@@ -477,7 +479,8 @@ def _migrate_schema() -> None:
     # users 可见范围三列（管理员设置账号可见性）：存量库幂等补齐
     for col, ddl in (("student_scope", "VARCHAR(10) DEFAULT ''"),
                      ("detail_level", "VARCHAR(10) DEFAULT ''"),
-                     ("m1_access", "INTEGER")):
+                     ("m1_access", "INTEGER"),
+                     ("m1_admin", "INTEGER")):
         if col not in user_cols:
             try:
                 cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
@@ -2838,13 +2841,24 @@ ROLE_ACCOUNT_DEFAULTS = {
 _UNKNOWN_ROLE_ACCOUNT = ("own", "summary", 0)
 
 
+def _flag01(value) -> int:
+    try:
+        return 1 if int(value) else 0
+    except (TypeError, ValueError):
+        return 0
+
+
 def effective_account_settings(role, student_scope=None, detail_level=None,
-                               m1_access=None) -> Dict[str, Any]:
-    """角色 + 存储值 → 生效值。空值/非法值回落角色默认；admin 固定；viewer 的 M1 恒为 0。"""
+                               m1_access=None, m1_admin=None) -> Dict[str, Any]:
+    """角色 + 存储值 → 生效值。空值/非法值回落角色默认；admin 固定；viewer 的 M1 恒为 0。
+
+    m1_admin（心有灵析管理）：admin 恒为 1，viewer 恒为 0；advisor 取存储值，且仅在心有灵析打开时有效。
+    """
     defaults = ROLE_ACCOUNT_DEFAULTS.get(role)
     if defaults is None or role == "admin":
         scope, detail, m1 = defaults or _UNKNOWN_ROLE_ACCOUNT
-        return {"student_scope": scope, "detail_level": detail, "m1_access": m1}
+        return {"student_scope": scope, "detail_level": detail, "m1_access": m1,
+                "m1_admin": 1 if role == "admin" else 0}
     if m1_access in (None, ""):
         m1 = defaults[2]
     else:
@@ -2852,10 +2866,12 @@ def effective_account_settings(role, student_scope=None, detail_level=None,
             m1 = 1 if int(m1_access) else 0
         except (TypeError, ValueError):
             m1 = defaults[2]
+    m1 = 0 if role == "viewer" else m1
     return {
         "student_scope": student_scope if student_scope in VALID_STUDENT_SCOPES else defaults[0],
         "detail_level": detail_level if detail_level in VALID_DETAIL_LEVELS else defaults[1],
-        "m1_access": 0 if role == "viewer" else m1,
+        "m1_access": m1,
+        "m1_admin": _flag01(m1_admin) if (role == "advisor" and m1 == 1) else 0,
     }
 
 
@@ -2894,6 +2910,17 @@ def _account_values_to_store(role, advisor_name, student_scope, detail_level,
             "m1_access": m1}
 
 
+def _clean_m1_admin(value):
+    """心有灵析管理入参：None/"" → None（未设置）；其余必须是 0/1 或布尔。"""
+    if value is None or value == "":
+        return None
+    cleaned = {True: 1, False: 0, 1: 1, 0: 0, "1": 1, "0": 0}.get(
+        value if isinstance(value, (bool, int, str)) else None)
+    if cleaned is None:
+        raise ValueError("心有灵析管理的取值无效")
+    return cleaned
+
+
 def _row_to_user_dict(u: "User") -> Dict[str, Any]:
     """User ORM 对象 → 普通 dict（避免 detached instance）。"""
     return {
@@ -2904,7 +2931,8 @@ def _row_to_user_dict(u: "User") -> Dict[str, Any]:
         "display_name": u.display_name or "",
         "is_active": int(u.is_active or 0),
         "created_at": u.created_at.isoformat() if u.created_at else None,
-        **effective_account_settings(u.role, u.student_scope, u.detail_level, u.m1_access),
+        **effective_account_settings(u.role, u.student_scope, u.detail_level, u.m1_access,
+                                    u.m1_admin),
     }
 
 
@@ -2939,7 +2967,7 @@ def list_users() -> List[Dict[str, Any]]:
 def create_user(username: str, password: str, role: str,
                 advisor_name: str = "", display_name: str = "",
                 student_scope: Optional[str] = None, detail_level: Optional[str] = None,
-                m1_access: Any = None) -> int:
+                m1_access: Any = None, m1_admin: Any = None) -> int:
     """创建用户，返回 id。role 必须是 VALID_ROLES 之一，username 唯一。"""
     from werkzeug.security import generate_password_hash
     username = (username or "").strip()
@@ -2953,6 +2981,7 @@ def create_user(username: str, password: str, role: str,
     student_scope, detail_level, m1_access = _clean_account_settings(
         student_scope, detail_level, m1_access)
     account = _account_values_to_store(role, advisor_name, student_scope, detail_level, m1_access)
+    account["m1_admin"] = _clean_m1_admin(m1_admin) if role == "advisor" else None
     with Session(engine) as sess:
         if sess.execute(select(User).where(User.username == username)).first():
             raise ValueError(f"用户名已存在: {username}")
@@ -2975,7 +3004,7 @@ def update_user(user_id: int, password: Optional[str] = None,
                 display_name: Optional[str] = None,
                 is_active: Optional[int] = None,
                 student_scope: Optional[str] = None, detail_level: Optional[str] = None,
-                m1_access: Any = None) -> bool:
+                m1_access: Any = None, m1_admin: Any = None) -> bool:
     """更新用户可控字段（改密/改角色/停用/改名/可见范围）。返回是否更新成功。
 
     可见范围三项：None 不改，"" 恢复角色默认值。改角色且未同时提供时恢复新角色的默认值，
@@ -2983,6 +3012,7 @@ def update_user(user_id: int, password: Optional[str] = None,
     """
     student_scope, detail_level, m1_access = _clean_account_settings(
         student_scope, detail_level, m1_access)
+    m1_admin = _clean_m1_admin(m1_admin)
     values: Dict[str, Any] = {}
     if password:
         from werkzeug.security import generate_password_hash
@@ -2999,7 +3029,7 @@ def update_user(user_id: int, password: Optional[str] = None,
         values["is_active"] = int(bool(is_active))
     account_touched = (role is not None or advisor_name is not None or student_scope is not None
                        or detail_level is not None or m1_access is not None)
-    if not values and not account_touched:
+    if not values and not account_touched and m1_admin is None:
         return False
     with Session(engine) as sess:
         if account_touched:
@@ -3015,6 +3045,17 @@ def update_user(user_id: int, password: Optional[str] = None,
                 detail_level if detail_level is not None else ("" if reset else row.detail_level),
                 m1_access if m1_access is not None else (None if reset else row.m1_access),
             ))
+        if m1_admin is not None or role is not None:
+            row = sess.get(User, int(user_id))
+            if not row:
+                return False
+            new_role = role if role is not None else row.role
+            if new_role != "advisor":
+                values["m1_admin"] = None
+            elif m1_admin is not None:
+                values["m1_admin"] = m1_admin
+            elif role is not None and role != row.role:
+                values["m1_admin"] = None
         result = sess.execute(update(User).where(User.id == int(user_id)).values(**values))
         sess.commit()
         return result.rowcount > 0
