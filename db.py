@@ -88,6 +88,17 @@ class MeetingMinutes(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class Location(Base):
+    """预约办公室（上海/北京/深圳）。updated_at 在该办公室的预约或开放时段变化时刷新。"""
+    __tablename__ = "locations"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    assessor_label = Column(String(100), nullable=True)
+    active = Column(Integer, default=1)
+    sort = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Booking(Base):
     __tablename__ = "bookings"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -101,6 +112,7 @@ class Booking(Base):
     advisor_name = Column(String(100))
     school = Column(String(200))
     single_parent = Column(String(10), default="false")
+    location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -110,6 +122,7 @@ class Availability(Base):
     date = Column(Date, nullable=False)
     time_slot = Column(String(10), nullable=False)
     is_available = Column(Integer, default=1)
+    location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -225,6 +238,10 @@ def init_db() -> None:
         print(f"[DB] y4_jobs 补列失败 (非致命): {e}")
     _migrate_schema()
     try:
+        ensure_locations()
+    except Exception as e:
+        print(f"[DB] 办公室初始化失败 (非致命): {e}")
+    try:
         import questionnaire_store as _qstore
         _qstore.ensure_indexes()
     except Exception as e:
@@ -262,6 +279,7 @@ def _migrate_schema() -> None:
         ("school", "ALTER TABLE bookings ADD COLUMN school VARCHAR(200) DEFAULT ''"),
         ("single_parent", "ALTER TABLE bookings ADD COLUMN single_parent VARCHAR(10) DEFAULT 'false'"),
         ("student_id", "ALTER TABLE bookings ADD COLUMN student_id INTEGER"),
+        ("location_id", "ALTER TABLE bookings ADD COLUMN location_id INTEGER"),
     ]
     for col_name, sql in migrations:
         if col_name not in existing_cols:
@@ -270,6 +288,16 @@ def _migrate_schema() -> None:
                 conn.commit()
             except Exception:
                 pass
+
+    # availability.location_id（预约办公室）
+    cursor.execute("PRAGMA table_info(availability)")
+    avail_cols = {row[1] for row in cursor.fetchall()}
+    if avail_cols and "location_id" not in avail_cols:
+        try:
+            cursor.execute("ALTER TABLE availability ADD COLUMN location_id INTEGER")
+            conn.commit()
+        except Exception:
+            pass
 
     # Check existing columns in students table
     cursor.execute("PRAGMA table_info(students)")
@@ -937,14 +965,48 @@ def get_all_reports() -> List[Dict[str, Any]]:
 
 # ─── Booking CRUD ──────────────────────────────────────────────
 
+class SlotUnavailable(Exception):
+    """kind: 'full' 或 'closed'；booked 为当前人数。"""
+    def __init__(self, kind: str, booked: int = 0):
+        super().__init__(kind)
+        self.kind, self.booked = kind, booked
+
+
+def _lock_and_check_slot(sess: Session, location_id: Optional[int],
+                         appt_time: datetime, capacity: Optional[int]) -> None:
+    """在写事务内检查容量与关闭状态，使检查与插入原子。capacity 为 None 则跳过。
+    SQLite：BEGIN IMMEDIATE 拿写锁；其他库：锁住办公室行。"""
+    if capacity is None or location_id is None:
+        return
+    if str(engine.url).startswith("sqlite"):
+        sess.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    else:
+        sess.execute(select(Location.id).where(Location.id == location_id).with_for_update())
+    d, ts = appt_time.date(), appt_time.strftime("%H:%M")
+    av = sess.execute(select(Availability.is_available).where(
+        Availability.date == d, Availability.time_slot == ts,
+        Availability.location_id == location_id)).first()
+    if av is not None and not av[0]:
+        raise SlotUnavailable("closed")
+    booked = sess.execute(select(func.count(Booking.id)).where(
+        Booking.location_id == location_id, Booking.status != "cancelled",
+        Booking.appointment_time == appt_time)).scalar() or 0
+    if booked >= capacity:
+        raise SlotUnavailable("full", booked)
+
+
 def add_booking(student_name: str, appointment_time: datetime,
                 student_email: str = "", student_phone: str = "",
                 notes: str = "", advisor_name: str = "",
                 school: str = "", single_parent: str = "false",
-                student_id: Optional[int] = None) -> int:
-    """Create a booking. Returns booking id."""
+                student_id: Optional[int] = None,
+                location_id: Optional[int] = None,
+                capacity: Optional[int] = None) -> int:
+    """Create a booking. Returns booking id. capacity 给定时原子检查容量/关闭，失败抛 SlotUnavailable。"""
     with Session(engine) as sess:
+        _lock_and_check_slot(sess, location_id, appointment_time, capacity)
         stmt = insert(Booking).values(
+            location_id=location_id,
             student_name=student_name,
             student_email=student_email,
             student_phone=student_phone,
@@ -957,6 +1019,7 @@ def add_booking(student_name: str, appointment_time: datetime,
             single_parent=single_parent,
         )
         result = sess.execute(stmt)
+        _touch_location(sess, location_id)
         sess.commit()
         return result.lastrowid
 
@@ -964,13 +1027,21 @@ def add_booking(student_name: str, appointment_time: datetime,
 def create_booking_with_student(student_name: str, appointment_time: datetime,
                                 advisor_name: str = "", school: str = "",
                                 single_parent: str = "false",
-                                notes: str = "") -> tuple:
-    """Create student + booking in one transaction. Returns (student_id, booking_id)."""
+                                notes: str = "",
+                                location_id: Optional[int] = None,
+                                match_existing: bool = True,
+                                capacity: Optional[int] = None) -> tuple:
+    """Create student + booking in one transaction. Returns (student_id, booking_id).
+
+    match_existing=True（旧行为）按姓名复用已有学生；公开预约链接传 False，一律新建学生。
+    """
     for attempt in range(_CODE_ALLOC_RETRIES):
         with Session(engine) as sess:
             try:
+                _lock_and_check_slot(sess, location_id, appointment_time, capacity)
                 # 1. Find or create student
-                existing = sess.execute(select(Student).where(Student.name == student_name)).first()
+                existing = (sess.execute(select(Student).where(Student.name == student_name)).first()
+                            if match_existing else None)
                 if existing:
                     student = existing[0]
                     update_values = {}
@@ -997,8 +1068,10 @@ def create_booking_with_student(student_name: str, appointment_time: datetime,
                     student_name=student_name, student_id=student_id,
                     appointment_time=appointment_time, status="pending",
                     notes=notes, advisor_name=advisor_name,
-                    school=school, single_parent=single_parent))
+                    school=school, single_parent=single_parent,
+                    location_id=location_id))
                 booking_id = result.lastrowid
+                _touch_location(sess, location_id)
                 sess.commit()
                 return student_id, booking_id
             except IntegrityError:
@@ -1035,6 +1108,7 @@ def get_bookings(status: Optional[str] = None) -> List[Dict[str, Any]]:
                 "advisor_name": booking.advisor_name,
                 "school": booking.school,
                 "single_parent": booking.single_parent,
+                "location_id": booking.location_id,
                 "created_at": booking.created_at.isoformat() if booking.created_at else None,
                 "report_count": report_count,
             })
@@ -1043,6 +1117,8 @@ def get_bookings(status: Optional[str] = None) -> List[Dict[str, Any]]:
 
 def update_booking_status(booking_id: int, status: str) -> None:
     with Session(engine) as sess:
+        row = sess.execute(select(Booking.location_id).where(Booking.id == booking_id)).first()
+        _touch_location(sess, row[0] if row else None)
         stmt = update(Booking).where(Booking.id == booking_id).values(status=status)
         sess.execute(stmt)
         sess.commit()
@@ -1161,8 +1237,81 @@ def delete_report(report_id: int) -> None:
 def delete_booking(booking_id: int) -> None:
     """Delete a booking."""
     with Session(engine) as sess:
+        row = sess.execute(select(Booking.location_id).where(Booking.id == booking_id)).first()
+        _touch_location(sess, row[0] if row else None)
         sess.execute(delete(Booking).where(Booking.id == booking_id))
         sess.commit()
+
+
+# ─── Locations (预约办公室) ─────────────────────────────────────
+
+DEFAULT_LOCATIONS = ["上海", "北京", "深圳"]
+DEFAULT_LOCATION_NAME = "上海"
+
+
+def _touch_location(sess: Session, location_id: Optional[int]) -> None:
+    """该办公室的预约/开放时段有变化 → 刷新 updated_at（在调用方事务内）。"""
+    if location_id is None:
+        return
+    sess.execute(update(Location).where(Location.id == location_id)
+                 .values(updated_at=datetime.utcnow()))
+
+
+def ensure_locations() -> int:
+    """幂等：首次建表时写入上海/北京/深圳，并把 location_id 为空的预约与开放时段归到上海。
+    返回上海的 id。"""
+    with Session(engine) as sess:
+        if sess.execute(select(func.count(Location.id))).scalar() == 0:
+            for i, name in enumerate(DEFAULT_LOCATIONS):
+                sess.add(Location(name=name, active=1, sort=i, updated_at=datetime.utcnow()))
+            sess.flush()
+        default_id = _default_location_id(sess)
+        for model in (Booking, Availability):
+            sess.execute(update(model).where(model.location_id.is_(None))
+                         .values(location_id=default_id))
+        sess.commit()
+        return default_id
+
+
+def _default_location_id(sess: Session) -> int:
+    row = sess.execute(select(Location.id).where(Location.name == DEFAULT_LOCATION_NAME)
+                       .order_by(Location.id)).first()
+    if row is None:
+        row = sess.execute(select(Location.id).order_by(Location.sort, Location.id)).first()
+    return row[0]
+
+
+def get_default_location_id() -> int:
+    """未指定办公室时使用上海（旧链接兼容）。"""
+    with Session(engine) as sess:
+        if sess.execute(select(func.count(Location.id))).scalar():
+            return _default_location_id(sess)
+    return ensure_locations()
+
+
+def _location_dict(loc: "Location") -> Dict[str, Any]:
+    return {
+        "id": loc.id,
+        "name": loc.name,
+        "assessor_label": loc.assessor_label,
+        "active": bool(loc.active),
+        "updated_at": loc.updated_at.isoformat() if loc.updated_at else None,
+    }
+
+
+def list_locations(active_only: bool = True) -> List[Dict[str, Any]]:
+    get_default_location_id()  # 确保已初始化
+    with Session(engine) as sess:
+        stmt = select(Location).order_by(Location.sort, Location.id)
+        if active_only:
+            stmt = stmt.where(Location.active == 1)
+        return [_location_dict(r[0]) for r in sess.execute(stmt).all()]
+
+
+def get_location(location_id: int) -> Optional[Dict[str, Any]]:
+    with Session(engine) as sess:
+        loc = sess.get(Location, location_id)
+        return _location_dict(loc) if loc else None
 
 
 # ─── Availability CRUD ──────────────────────────────────────────
@@ -1174,10 +1323,17 @@ TIME_SLOTS = [
 ]
 
 
-def get_availability(date_val: date) -> List[Dict[str, Any]]:
-    """Get all availability entries for a given date."""
+def _loc_filter(model, location_id: Optional[int]):
+    """location_id 为 None 时不按办公室过滤（旧调用）。"""
+    return [] if location_id is None else [model.location_id == location_id]
+
+
+def get_availability(date_val: date, location_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Get all availability entries for a given date (and office, if given)."""
     with Session(engine) as sess:
-        stmt = select(Availability).where(Availability.date == date_val).order_by(Availability.time_slot)
+        stmt = (select(Availability).where(Availability.date == date_val,
+                                           *_loc_filter(Availability, location_id))
+                .order_by(Availability.time_slot))
         rows = sess.execute(stmt).all()
         result = []
         for row in rows:
@@ -1190,79 +1346,90 @@ def get_availability(date_val: date) -> List[Dict[str, Any]]:
         return result
 
 
-def set_availability(date_val: date, time_slot: str, is_available: bool) -> int:
+def _upsert_availability(sess: Session, date_val: date, time_slot: str,
+                         is_available: bool, location_id: Optional[int]) -> int:
+    existing = sess.execute(
+        select(Availability).where(
+            Availability.date == date_val,
+            Availability.time_slot == time_slot,
+            *_loc_filter(Availability, location_id),
+        )
+    ).first()
+    av = 1 if is_available else 0
+    if existing:
+        sess.execute(update(Availability).where(Availability.id == existing[0].id)
+                     .values(is_available=av))
+        return existing[0].id
+    result = sess.execute(insert(Availability).values(
+        date=date_val, time_slot=time_slot, is_available=av, location_id=location_id))
+    return result.lastrowid
+
+
+def set_availability(date_val: date, time_slot: str, is_available: bool,
+                     location_id: Optional[int] = None) -> int:
     """Create or update an availability entry. Returns the id."""
     with Session(engine) as sess:
-        existing = sess.execute(
-            select(Availability).where(
-                Availability.date == date_val,
-                Availability.time_slot == time_slot
-            )
-        ).first()
-        if existing:
-            sess.execute(
-                update(Availability).where(Availability.id == existing[0].id)
-                .values(is_available=1 if is_available else 0)
-            )
-            sess.commit()
-            return existing[0].id
-        else:
-            stmt = insert(Availability).values(
-                date=date_val,
-                time_slot=time_slot,
-                is_available=1 if is_available else 0,
-            )
-            result = sess.execute(stmt)
-            sess.commit()
-            return result.lastrowid
+        rid = _upsert_availability(sess, date_val, time_slot, is_available, location_id)
+        _touch_location(sess, location_id)
+        sess.commit()
+        return rid
 
 
-def batch_set_availability(date_val: date, slots: List[Dict[str, Any]]) -> None:
+def batch_set_availability(date_val: date, slots: List[Dict[str, Any]],
+                           location_id: Optional[int] = None) -> None:
     """Set availability for all time slots on a given date.
     slots is a list of {"time_slot": "09:00", "is_available": True/False}
     """
     with Session(engine) as sess:
         for slot in slots:
-            ts = slot["time_slot"]
-            av = 1 if slot.get("is_available", False) else 0
-            existing = sess.execute(
-                select(Availability).where(
-                    Availability.date == date_val,
-                    Availability.time_slot == ts
-                )
-            ).first()
-            if existing:
-                sess.execute(
-                    update(Availability).where(Availability.id == existing[0].id)
-                    .values(is_available=av)
-                )
-            else:
-                sess.execute(
-                    insert(Availability).values(
-                        date=date_val,
-                        time_slot=ts,
-                        is_available=av,
-                    )
-                )
+            _upsert_availability(sess, date_val, slot["time_slot"],
+                                 bool(slot.get("is_available", False)), location_id)
+        _touch_location(sess, location_id)
         sess.commit()
 
 
-def get_available_slots(date_val: date) -> List[str]:
+def bulk_set_availability(location_id: int,
+                          changes: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """批量开/关某办公室的时段。changes: [{"date": date, "time": "09:00", "open": bool}]。
+    已有非取消预约的时段不能关闭，返回 refused=[{date,time}]，其余照常生效。"""
+    refused: List[Dict[str, str]] = []
+    applied = False
+    with Session(engine) as sess:
+        for ch in changes:
+            d, t, want_open = ch["date"], ch["time"], bool(ch["open"])
+            if not want_open:
+                start = datetime.combine(d, datetime.strptime(t, "%H:%M").time())
+                n = sess.execute(select(func.count(Booking.id)).where(
+                    Booking.location_id == location_id,
+                    Booking.status != "cancelled",
+                    Booking.appointment_time == start)).scalar()
+                if n:
+                    refused.append({"date": d.isoformat(), "time": t})
+                    continue
+            _upsert_availability(sess, d, t, want_open, location_id)
+            applied = True
+        if applied:
+            _touch_location(sess, location_id)
+        sess.commit()
+    return refused
+
+
+def get_available_slots(date_val: date, location_id: Optional[int] = None) -> List[str]:
     """Get list of available time slot strings for a date."""
-    entries = get_availability(date_val)
+    entries = get_availability(date_val, location_id)
     return [e["time_slot"] for e in entries if e["is_available"]]
 
 
-def get_slot_booking_counts(date_val: date) -> Dict[str, int]:
+def get_slot_booking_counts(date_val: date, location_id: Optional[int] = None) -> Dict[str, int]:
     """Count non-cancelled bookings per time_slot for a given date.
     Returns {"09:00": 2, "10:00": 0, ...}
     """
-    from sqlalchemy import extract
     with Session(engine) as sess:
         stmt = select(Booking).where(
             Booking.status != "cancelled",
             Booking.appointment_time >= date_val,
             Booking.appointment_time < date_val + timedelta(days=1),
+            *_loc_filter(Booking, location_id),
         )
         rows = sess.execute(stmt).all()
         counts: Dict[str, int] = {}
@@ -1274,7 +1441,8 @@ def get_slot_booking_counts(date_val: date) -> Dict[str, int]:
         return counts
 
 
-def get_booking_counts_range(start_date: date, end_date: date) -> Dict[str, Dict[str, int]]:
+def get_booking_counts_range(start_date: date, end_date: date,
+                             location_id: Optional[int] = None) -> Dict[str, Dict[str, int]]:
     """Count non-cancelled bookings per time_slot for a date range.
     Returns {"2026-08-13": {"09:00": 2, "10:00": 1}, ...}
     """
@@ -1283,6 +1451,7 @@ def get_booking_counts_range(start_date: date, end_date: date) -> Dict[str, Dict
             Booking.status != "cancelled",
             Booking.appointment_time >= start_date,
             Booking.appointment_time < end_date + timedelta(days=1),
+            *_loc_filter(Booking, location_id),
         )
         rows = sess.execute(stmt).all()
         result: Dict[str, Dict[str, int]] = {}
@@ -1297,7 +1466,31 @@ def get_booking_counts_range(start_date: date, end_date: date) -> Dict[str, Dict
         return result
 
 
-def get_availability_range(start_date: date, end_date: date) -> Dict[str, List[Dict[str, Any]]]:
+def get_week_bookings(location_id: int, start_date: date, days: int = 7) -> List[Dict[str, Any]]:
+    """某办公室 [start_date, start_date+days) 内的非取消预约，附学生编号。"""
+    with Session(engine) as sess:
+        stmt = (select(Booking, Student.student_code)
+                .outerjoin(Student, Student.id == Booking.student_id)
+                .where(Booking.status != "cancelled",
+                       Booking.location_id == location_id,
+                       Booking.appointment_time >= start_date,
+                       Booking.appointment_time < start_date + timedelta(days=days))
+                .order_by(Booking.appointment_time, Booking.id))
+        out = []
+        for b, code in sess.execute(stmt).all():
+            out.append({
+                "id": b.id,
+                "student_name": b.student_name,
+                "student_code": code,
+                "status": b.status,
+                "advisor_name": b.advisor_name,
+                "appointment_time": b.appointment_time,
+            })
+        return out
+
+
+def get_availability_range(start_date: date, end_date: date,
+                           location_id: Optional[int] = None) -> Dict[str, List[Dict[str, Any]]]:
     """Get availability for a date range, grouped by date string.
     Returns {"2026-08-13": [{"time_slot": "09:00", "is_available": true}, ...], ...}
     Only returns dates that have at least one record.
@@ -1305,7 +1498,8 @@ def get_availability_range(start_date: date, end_date: date) -> Dict[str, List[D
     with Session(engine) as sess:
         stmt = select(Availability).where(
             Availability.date >= start_date,
-            Availability.date <= end_date
+            Availability.date <= end_date,
+            *_loc_filter(Availability, location_id),
         ).order_by(Availability.date, Availability.time_slot)
         rows = sess.execute(stmt).all()
         result: Dict[str, List[Dict[str, Any]]] = {}

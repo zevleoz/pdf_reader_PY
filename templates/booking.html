@@ -2,442 +2,268 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <title>预约测评 — Y4</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>预约测评 · 凭远 APP·ARK</title>
   <style>
-    /* 公开页头（与 landing.html 一致的轻量顶栏） */
-    .pub-nav {
-      position: sticky; top: 0; z-index: 100;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 40px;
-      background: rgba(250, 247, 242, 0.92);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--line-soft);
-    }
-    .pub-nav-brand { display: flex; align-items: center; gap: 11px; }
-    .pub-nav-brand img { height: 28px; width: auto; }
-    .pub-nav-brand span {
-      font-family: "Noto Serif SC", serif; font-weight: 600;
-      font-size: 15px; color: var(--ink); letter-spacing: 0.04em;
-    }
-    .pub-nav-links { display: flex; align-items: center; gap: 4px; }
-    .pub-nav-links a {
-      padding: 9px 16px; font-size: 13.5px; font-weight: 500;
-      color: var(--ink-2); border-radius: 4px; transition: color 0.2s var(--ease);
-    }
-    .pub-nav-links a:hover { color: var(--ink); }
-    .pub-nav-links a.is-active { color: var(--red); }
-    @media (max-width: 720px) {
-      .pub-nav { padding: 12px 16px; }
-      .pub-nav-links a { padding: 8px 10px; font-size: 13px; }
-    }
-    .calendly-layout { display: grid; grid-template-columns: 5fr 7fr; gap: 40px; align-items: start; }
-    .calendly-panel { background: var(--white); border: 1px solid var(--line-soft); border-radius: 14px; padding: 32px; }
-    .calendly-panel h3 { font-family: "Noto Serif SC", serif; font-size: 17px; font-weight: 600; margin-bottom: 20px; color: var(--ink); }
-    .date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 16px; }
-    .date-cell { aspect-ratio: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px solid var(--line-soft); border-radius: 10px; cursor: pointer; transition: all .2s var(--ease); background: var(--paper); }
-    .date-cell:hover:not(.disabled) { border-color: var(--ink); transform: translateY(-1px); }
-    .date-cell.selected { border-color: var(--red); background: var(--red); color: var(--white); }
-    .date-cell.disabled { opacity: .3; cursor: not-allowed; }
-    .date-cell .day { font-size: 18px; font-weight: 600; font-family: "Inter", sans-serif; }
-    .date-cell.selected .day { opacity: 1; }
-    .dow-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 10px; }
-    .dow-header div { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-    .time-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .time-slot-btn { padding: 16px 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--white); cursor: pointer; transition: all .2s var(--ease); text-align: center; font-family: "Inter", sans-serif; font-weight: 500; font-size: 16px; position: relative; }
-    .time-slot-btn:hover:not(.disabled) { border-color: var(--red); color: var(--red); transform: translateY(-1px); }
-    .time-slot-btn.selected { border-color: var(--red); background: var(--red); color: var(--white); }
-    .time-slot-btn.disabled { opacity: .35; cursor: not-allowed; text-decoration: line-through; }
-    .time-slot-btn .slot-count { display: block; font-size: 11px; font-weight: 600; margin-top: 4px; opacity: .8; color: var(--red); }
-    .time-slot-btn.selected .slot-count { opacity: 1; color: var(--white); }
-    .time-slot-btn.disabled .slot-count, .time-slot-btn.full .slot-count { color: var(--muted); }
-    .time-slot-btn.has-bookings { border-color: var(--red); border-width: 2px; }
-    .time-slot-btn.has-bookings.selected { border-color: var(--red); }
-    .time-slot-btn.full { border-color: var(--line); background: var(--paper-2); color: var(--muted); cursor: not-allowed; opacity: .5; }
-    .no-slots { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
-    .form-section { margin-top: 28px; display: none; }
-    .form-section.visible { display: block; animation: slideUp .4s var(--ease); }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-    .summary-bar { display: flex; align-items: center; gap: 32px; padding: 18px 24px; background: var(--paper-2); border-radius: 10px; margin-bottom: 24px; }
-    .summary-bar .label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 2px; }
-    .summary-bar .value { font-family: "Noto Serif SC", serif; font-size: 16px; font-weight: 600; color: var(--ink); }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .success-page { text-align: center; padding: 48px 32px; }
-    .success-icon { width: 64px; height: 64px; margin: 0 auto 24px; border-radius: 50%; background: var(--red); display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 32px; }
-    .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-    .month-label { font-family: "Noto Serif SC", serif; font-size: 16px; font-weight: 600; }
-    .nav-btn { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s var(--ease); font-size: 18px; color: var(--ink-2); flex-shrink: 0; }
-    .nav-btn:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
-    .nav-btn:disabled { opacity: .3; cursor: not-allowed; }
-    .timezone-note { font-size: 12px; color: var(--muted); margin-top: 16px; text-align: center; }
+    :root { --red:#E2001A; --ink:#111; --ink2:#333; --mute:#6B6B6B; --line:#E4E4E4; --sunk:#F4F4F4; }
+    * { box-sizing:border-box; }
+    html, body { margin:0; background:#fff; color:var(--ink);
+      font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+      font-size:15px; line-height:1.5; }
+    button, input, textarea { font:inherit; color:inherit; border-radius:0; }
+    button { cursor:pointer; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
 
-    /* ─── Mobile responsive ─── */
-    @media (max-width: 900px) {
-      .calendly-layout { grid-template-columns: 1fr; gap: 24px; }
-      .form-row { grid-template-columns: 1fr; }
-      .time-grid { grid-template-columns: repeat(2, 1fr); }
-      .calendly-panel { padding: 20px; }
-      .summary-bar { gap: 20px; padding: 14px 16px; flex-wrap: wrap; }
-    }
-    @media (max-width: 480px) {
-      .calendly-panel { padding: 16px; border-radius: 10px; }
-      .date-grid { gap: 4px; }
-      .dow-header { gap: 4px; }
-      .date-cell { border-radius: 6px; }
-      .date-cell .day { font-size: 16px; }
-      .time-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-      .time-slot-btn { padding: 12px 6px; font-size: 14px; }
-      .summary-bar { gap: 12px; padding: 12px; }
-      .summary-bar .value { font-size: 14px; }
-      .page-title { font-size: 22px; }
-      .container { padding: 20px 16px; }
-      .nav-btn { width: 32px; height: 32px; font-size: 16px; }
-      .month-label { font-size: 14px; }
+    .bar { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:2px solid var(--ink); }
+    .crest { width:32px; height:32px; background:var(--red); flex:none; display:flex; align-items:center; justify-content:center; }
+    .crest img { width:24px; height:24px; display:block; }
+    .bar b { font-size:15px; font-weight:800; letter-spacing:.02em; }
+    .bar .loc { margin-left:auto; font-size:13px; font-weight:600; color:var(--ink2); }
+
+    .wrap { max-width:560px; margin:0 auto; padding:20px 16px 40px; }
+    h1 { margin:0 0 4px; font-size:26px; font-weight:800; letter-spacing:-.01em; line-height:1.2; }
+    h2 { margin:20px 0 8px; font-size:13px; font-weight:700; color:var(--mute); letter-spacing:.04em; }
+    .sub { margin:0 0 16px; color:var(--mute); font-size:13px; }
+    .back { background:none; border:0; padding:8px 0; margin:0 0 4px; font-size:13px; font-weight:600; color:var(--ink2); min-height:44px; }
+
+    .opts { display:grid; gap:8px; margin-top:12px; }
+    .opt { display:flex; align-items:center; justify-content:space-between; min-height:56px; padding:0 14px; background:#fff;
+      border:1px solid var(--ink); font-size:17px; font-weight:700; text-align:left; }
+    .opt:hover { background:var(--sunk); }
+
+    .dstrip { display:flex; gap:4px; overflow-x:auto; padding-bottom:6px; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
+    .dstrip button { flex:none; width:54px; min-height:64px; padding:6px 0; background:#fff; border:1px solid var(--line);
+      text-align:center; font-size:12px; line-height:1.25; color:var(--mute); scroll-snap-align:start; }
+    .dstrip b { display:block; font-size:18px; color:var(--ink); font-weight:700; }
+    .dstrip small { display:block; font-size:12px; min-height:15px; color:var(--mute); }
+    .dstrip button.on { background:var(--ink); border-color:var(--ink); color:#fff; }
+    .dstrip button.on b, .dstrip button.on small { color:#fff; }
+    .dstrip button[disabled] { opacity:.35; cursor:not-allowed; }
+
+    .tms { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; }
+    .tms button { min-height:52px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2px;
+      background:#fff; border:1px solid var(--ink); font-size:15px; font-weight:700; line-height:1.2; }
+    .tms small { font-size:12px; font-weight:400; color:var(--mute); }
+    .tms button:hover:not([disabled]) { background:var(--sunk); }
+    .tms button.on { background:var(--red); border-color:var(--red); color:#fff; }
+    .tms button.on small { color:#fff; }
+    .tms button[disabled] { cursor:not-allowed; border-color:var(--line); color:var(--mute); background:#fff; }
+    .tms button.off[disabled] { background:repeating-linear-gradient(135deg, var(--line) 0 2px, #fff 2px 7px); }
+    .none { padding:20px 0; color:var(--mute); font-size:13px; }
+
+    .go { width:100%; min-height:50px; margin-top:18px; border:0; background:var(--red); color:#fff; font-size:16px; font-weight:700; }
+    .go[disabled] { opacity:.4; cursor:not-allowed; }
+
+    .sum { padding:12px 14px; margin:0 0 16px; border:1px solid var(--ink); font-weight:700; }
+    .sum small { display:block; font-weight:400; color:var(--mute); font-size:13px; }
+    label.f { display:block; margin:0 0 14px; font-size:13px; font-weight:600; color:var(--ink2); }
+    label.f input[type=text], label.f textarea { display:block; width:100%; margin-top:5px; padding:10px 12px; border:1px solid var(--ink);
+      background:#fff; font-size:16px; font-weight:400; color:var(--ink); }
+    label.f input[type=text] { min-height:46px; }
+    .req { color:var(--red); }
+    .chk { display:flex; align-items:center; gap:10px; min-height:44px; margin:0 0 14px; font-size:15px; }
+    .chk input { width:20px; height:20px; margin:0; accent-color:var(--red); }
+    .msg { margin:12px 0 0; padding:10px 12px; border:1px solid #F5C8C8; background:#FDECEC; color:#B3001B; font-size:13px; }
+
+    .ok { border-top:4px solid var(--red); padding-top:18px; }
+    .ok h1 { font-size:32px; }
+    .ok dl { margin:16px 0; border-top:1px solid var(--ink); }
+    .ok dl div { display:flex; justify-content:space-between; gap:16px; padding:10px 0; border-bottom:1px solid var(--line); }
+    .ok dt { color:var(--mute); font-size:13px; }
+    .ok dd { margin:0; font-weight:700; text-align:right; }
+    .ghost { width:100%; min-height:48px; background:#fff; border:1px solid var(--ink); font-size:15px; font-weight:700; }
+
+    @media (min-width:640px) {
+      .wrap { padding-top:36px; }
+      h1 { font-size:32px; }
+      .tms { grid-template-columns:repeat(4, minmax(0,1fr)); }
     }
   </style>
 </head>
 <body>
-  <nav class="pub-nav">
-    <a href="/" class="pub-nav-brand">
-      <img src="/branding/logo_inline.png" alt="凭远教育" onerror="this.style.display='none'" />
-      <span>凭远教育 · Y4</span>
-    </a>
-    <div class="pub-nav-links">
-      <a href="/booking" class="is-active">预约测评</a>
-      <a href="/">返回主页</a>
-    </div>
-  </nav>
+  <header class="bar">
+    <span class="crest"><img src="/m1/assets/login_crest_white.png" alt="" onerror="this.style.display='none'"></span>
+    <b>凭远 APP·ARK</b>
+    <span class="loc" id="locName"></span>
+  </header>
 
-  <main class="container">
-    <div id="bookingView">
-      <div class="page-header">
-        <h1 class="page-title">预约 Y4 测评</h1>
-        <p class="page-subtitle">选择合适的日期与时间，为学生预约一次 Y4 综合测评。</p>
-      </div>
-      <div class="hint" style="margin-bottom:24px;">需提前一天预约。每时段最多 4 人，所有时段默认开放。</div>
-
-      <div class="calendly-layout">
-        <!-- 左栏：日期选择 -->
-        <div class="calendly-panel">
-          <h3>选择日期</h3>
-          <div class="month-nav">
-            <button class="nav-btn" id="prevMonth" onclick="changeMonth(-1)">‹</button>
-            <span class="month-label" id="monthLabel"></span>
-            <button class="nav-btn" id="nextMonth" onclick="changeMonth(1)">›</button>
-          </div>
-          <div class="dow-header">
-            <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
-          </div>
-          <div class="date-grid" id="dateGrid"></div>
-          <div class="timezone-note">时区：中国标准时间 (UTC+8) · 可选未来 30 天</div>
-        </div>
-
-        <!-- 右栏：时间段 + 表单 -->
-        <div class="calendly-panel">
-          <h3 id="timePanelTitle">选择时间</h3>
-          <div id="timeContent">
-            <div class="no-slots">请先在左侧选择一个日期</div>
-          </div>
-
-          <div class="form-section" id="formSection">
-            <div class="summary-bar">
-              <div>
-                <div class="label">日期</div>
-                <div class="value" id="summaryDate">-</div>
-              </div>
-              <div>
-                <div class="label">时间</div>
-                <div class="value" id="summaryTime">-</div>
-              </div>
-            </div>
-
-            <div class="field">
-              <label class="field-label" for="studentName">学生姓名 <span class="required">*</span></label>
-              <input type="text" id="studentName" placeholder="请输入学生姓名" />
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label class="field-label" for="advisorName">顾问名字</label>
-                <input type="text" id="advisorName" placeholder="请输入顾问名字" />
-              </div>
-              <div class="field">
-                <label class="field-label" for="school">学校</label>
-                <input type="text" id="school" placeholder="请输入学校名称" />
-              </div>
-            </div>
-            <div class="field">
-              <label class="field-label" for="notes">备注</label>
-              <textarea id="notes" rows="2" placeholder="如有特殊要求请说明"></textarea>
-            </div>
-            <div class="field">
-              <div class="checkbox-row">
-                <input type="checkbox" id="singleParent" />
-                <label for="singleParent">单亲家庭/离异</label>
-              </div>
-            </div>
-            <button class="btn btn-primary btn-lg" id="submitBtn" onclick="submitBooking()" style="width:100%;margin-top:8px;">确认预约</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 成功页 -->
-    <div id="successView" style="display:none;">
-      <div class="calendly-panel success-page">
-        <div class="success-icon">✓</div>
-        <h2 style="font-family:'Noto Serif SC',serif;font-size:24px;font-weight:600;margin-bottom:8px;">预约成功</h2>
-        <p style="color:var(--muted);margin-bottom:28px;">学生档案已自动创建，Y4 报告生成后可在档案页查看。</p>
-        <div style="background:var(--paper-2);border-radius:10px;padding:24px;text-align:left;margin-bottom:28px;max-width:420px;margin-left:auto;margin-right:auto;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
-            <span style="color:var(--muted);font-size:13px;">学生</span>
-            <strong id="successName" style="font-size:14px;">-</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
-            <span style="color:var(--muted);font-size:13px;">时间</span>
-            <strong id="successTime" style="font-size:14px;">-</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between;">
-            <span style="color:var(--muted);font-size:13px;">顾问</span>
-            <strong id="successAdvisor" style="font-size:14px;">-</strong>
-          </div>
-        </div>
-        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-          <a href="/students" class="btn btn-secondary">查看学生档案</a>
-          <button class="btn btn-primary" onclick="resetBooking()">再预约一个</button>
-        </div>
-      </div>
-    </div>
-  </main>
+  <main class="wrap" id="app" aria-live="polite"></main>
 
   <script>
-    const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
-    const SLOT_CAPACITY = 4;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    // Rule: must book at least 1 day in advance; window = 30 days
-    const minDate = new Date(today);
-    minDate.setDate(minDate.getDate() + 1);
-    const maxDate = new Date(today);
-    maxDate.setDate(maxDate.getDate() + 29);
+    (function () {
+      var TIMES = ['09:00','09:30','10:00','10:30','11:00','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
+      var WD = ['周日','周一','周二','周三','周四','周五','周六'];
+      var app = document.getElementById('app');
+      var locNameEl = document.getElementById('locName');
+      var S = { offices: [], loc: null, fixedLoc: false, step: 'office', date: null, time: null,
+                slots: null, monthOk: {}, error: '', busy: false, done: null };
 
-    let currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    let selectedDate = null;
-    let selectedTime = null;
-    let slotData = []; // full slot data from API
+      function esc(v) { var d = document.createElement('div'); d.textContent = v == null ? '' : String(v); return d.innerHTML; }
+      function pad(n) { return (n < 10 ? '0' : '') + n; }
+      function dkey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+      function parseKey(k) { var p = k.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+      function human(k) { var d = parseKey(k); return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + WD[d.getDay()]; }
+      function locName() { return S.loc ? S.loc.name : ''; }
+      function getJSON(url) { return fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j.ok, data: j }; }); }); }
 
-    const dateGridEl = document.getElementById('dateGrid');
-    const monthLabelEl = document.getElementById('monthLabel');
-    const timeContentEl = document.getElementById('timeContent');
-    const formSectionEl = document.getElementById('formSection');
-    const timePanelTitle = document.getElementById('timePanelTitle');
-
-    function isSameDay(a, b) {
-      return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-    }
-
-    function dateToStr(d) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return y + '-' + m + '-' + day;
-    }
-
-    function renderCalendar() {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
-      const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-      monthLabelEl.textContent = year + '年 ' + monthNames[month];
-
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-      let startDay = firstDay.getDay();
-      if (startDay === 0) startDay = 7;
-      startDay -= 1;
-
-      dateGridEl.innerHTML = '';
-
-      for (let i = 0; i < startDay; i++) {
-        const empty = document.createElement('div');
-        empty.style.visibility = 'hidden';
-        dateGridEl.appendChild(empty);
+      function days() {
+        var out = [], t = new Date(); t.setHours(0, 0, 0, 0);
+        for (var i = 1; i <= 29; i++) { var d = new Date(t); d.setDate(t.getDate() + i); out.push(d); }
+        return out;
       }
 
-      for (let d = 1; d <= lastDay.getDate(); d++) {
-        const cellDate = new Date(year, month, d);
-        cellDate.setHours(0, 0, 0, 0);
-        const cell = document.createElement('div');
-        cell.className = 'date-cell';
-        cell.innerHTML = '<span class="day">' + d + '</span>';
+      function setStep(step) { S.step = step; S.error = ''; render(); window.scrollTo(0, 0); }
 
-        if (cellDate < minDate || cellDate > maxDate) {
-          cell.classList.add('disabled');
-        } else {
-          cell.onclick = function() { selectDate(cellDate, cell); };
-        }
-
-        if (selectedDate && isSameDay(cellDate, selectedDate)) {
-          cell.classList.add('selected');
-        }
-
-        dateGridEl.appendChild(cell);
-      }
-
-      // Enable prev month nav if minDate is in an earlier month
-      const minMonth = minDate.getFullYear() * 12 + minDate.getMonth();
-      const curMonth = year * 12 + month;
-      document.getElementById('prevMonth').disabled = (curMonth <= minMonth);
-      // Enable next month nav if maxDate is in a later month
-      const maxMonth = maxDate.getFullYear() * 12 + maxDate.getMonth();
-      document.getElementById('nextMonth').disabled = (curMonth >= maxMonth);
-    }
-
-    function changeMonth(delta) {
-      currentMonth.setMonth(currentMonth.getMonth() + delta);
-      renderCalendar();
-    }
-
-    async function selectDate(d, cellEl) {
-      document.querySelectorAll('.date-cell').forEach(function(c) { c.classList.remove('selected'); });
-      cellEl.classList.add('selected');
-      selectedDate = d;
-      selectedTime = null;
-      formSectionEl.classList.remove('visible');
-      sessionStorage.setItem('booking_date', dateToStr(d));
-
-      timePanelTitle.textContent = d.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' });
-      timeContentEl.innerHTML = '<div class="no-slots">加载中…</div>';
-
-      try {
-        const resp = await fetch('/api/availability?date=' + dateToStr(d));
-        const data = await resp.json();
-        slotData = [];
-        if (data.ok && data.slots) {
-          slotData = data.slots;
-        }
-        renderTimeSlots();
-      } catch (e) {
-        timeContentEl.innerHTML = '<div class="no-slots">加载失败，请重试</div>';
-      }
-    }
-
-    function renderTimeSlots() {
-      const openSlots = slotData.filter(function(s) { return s.is_open; });
-      if (openSlots.length === 0) {
-        timeContentEl.innerHTML = '<div class="no-slots">该日暂无可预约时间<br><span style="font-size:12px;">请联系管理员开放时段</span></div>';
-        return;
-      }
-
-      let html = '<div class="time-grid">';
-      slotData.forEach(function(s) {
-        const ts = s.time_slot;
-        const isOpen = s.is_open;
-        const isFull = s.booked_count >= s.capacity;
-        const hasBookings = s.booked_count > 0;
-
-        let cls = 'time-slot-btn';
-        let click = '';
-        if (!isOpen) {
-          cls += ' disabled';
-        } else if (isFull) {
-          cls += ' full';
-        } else {
-          click = ' onclick="selectTime(\'' + ts + '\')"';
-          if (selectedTime === ts) cls += ' selected';
-        }
-        if (hasBookings && !cls.includes('selected')) cls += ' has-bookings';
-
-        const countLabel = isOpen ? (s.booked_count + '/' + s.capacity + ' 已约') : '关闭';
-        html += '<div class="' + cls + '" data-time="' + ts + '"' + click + '>' + ts + '<span class="slot-count">' + countLabel + '</span></div>';
-      });
-      html += '</div>';
-      timeContentEl.innerHTML = html;
-    }
-
-    function selectTime(t) {
-      document.querySelectorAll('.time-slot-btn').forEach(function(b) { b.classList.remove('selected'); });
-      const btn = document.querySelector('.time-slot-btn[data-time="' + t + '"]');
-      if (btn) btn.classList.add('selected');
-      selectedTime = t;
-      sessionStorage.setItem('booking_time', t);
-
-      document.getElementById('summaryDate').textContent = selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
-      document.getElementById('summaryTime').textContent = t;
-      formSectionEl.classList.add('visible');
-      formSectionEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    async function submitBooking() {
-      const name = document.getElementById('studentName').value.trim();
-      const notes = document.getElementById('notes').value.trim();
-      const advisorName = document.getElementById('advisorName').value.trim();
-      const school = document.getElementById('school').value.trim();
-      const singleParent = document.getElementById('singleParent').checked;
-
-      if (!name) { alert('请填写学生姓名'); return; }
-      if (!selectedDate) { alert('请选择日期'); return; }
-      if (!selectedTime) { alert('请选择时间'); return; }
-
-      const btn = document.getElementById('submitBtn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span>提交中...';
-
-      const apptTime = dateToStr(selectedDate) + 'T' + selectedTime + ':00';
-
-      try {
-        const resp = await fetch('/api/booking', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            student_name: name,
-            appointment_time: apptTime,
-            notes: notes,
-            advisor_name: advisorName,
-            school: school,
-            single_parent: singleParent,
-          }),
+      function loadMonth() {
+        return getJSON('/api/availability/month?loc=' + S.loc.id).then(function (r) {
+          S.monthOk = {};
+          if (!r.ok) { return; }
+          var data = r.data.data || {}, booked = r.data.bookings || {};
+          days().forEach(function (d) {
+            var k = dkey(d), rec = {};
+            (data[k] || []).forEach(function (e) { rec[e.time_slot] = e.is_available; });
+            S.monthOk[k] = TIMES.some(function (t) {
+              var open = rec[t] === undefined ? true : rec[t];
+              return open && ((booked[k] || {})[t] || 0) < 4;
+            });
+          });
         });
-        const data = await resp.json();
-        if (!resp.ok || !data.ok) throw new Error(data.error || '提交失败');
-
-        document.getElementById('successName').textContent = name;
-        document.getElementById('successTime').textContent = selectedDate.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }) + ' ' + selectedTime;
-        document.getElementById('successAdvisor').textContent = advisorName || '-';
-
-        document.getElementById('bookingView').style.display = 'none';
-        document.getElementById('successView').style.display = 'block';
-
-        sessionStorage.removeItem('booking_date');
-        sessionStorage.removeItem('booking_time');
-      } catch (e) {
-        alert('提交失败：' + e.message);
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '确认预约';
       }
-    }
 
-    function resetBooking() {
-      document.getElementById('successView').style.display = 'none';
-      document.getElementById('bookingView').style.display = 'block';
-      document.getElementById('studentName').value = '';
-      document.getElementById('advisorName').value = '';
-      document.getElementById('school').value = '';
-      document.getElementById('notes').value = '';
-      document.getElementById('singleParent').checked = false;
-      selectedDate = null;
-      selectedTime = null;
-      formSectionEl.classList.remove('visible');
-      timeContentEl.innerHTML = '<div class="no-slots">请先在左侧选择一个日期</div>';
-      timePanelTitle.textContent = '选择时间';
-      renderCalendar();
-    }
+      function loadSlots() {
+        S.slots = null; render();
+        var k = S.date;
+        getJSON('/api/availability?date=' + k + '&loc=' + S.loc.id).then(function (r) {
+          if (S.date !== k) { return; }
+          if (!r.ok) { S.slots = []; S.error = (r.data && r.data.error) || '加载失败，请重试'; }
+          else { S.slots = r.data.slots || []; }
+          render();
+        }).catch(function () { if (S.date === k) { S.slots = []; S.error = '加载失败，请重试'; render(); } });
+      }
 
-    renderCalendar();
+      function chooseLoc(loc) {
+        S.loc = loc; S.date = null; S.time = null; S.slots = null;
+        locNameEl.textContent = loc.name;
+        loadMonth().then(function () { setStep('pick'); });
+      }
+
+      function viewOffice() {
+        return '<h1>预约测评</h1><p class="sub">请选择办公室。</p><div class="opts">' +
+          S.offices.map(function (o) { return '<button class="opt" data-act="loc" data-id="' + o.id + '">' + esc(o.name) + '<span aria-hidden="true">›</span></button>'; }).join('') +
+          '</div>';
+      }
+
+      function viewPick() {
+        var strip = days().map(function (d, i) {
+          var k = dkey(d), ok = S.monthOk[k] !== false;
+          var m = (i === 0 || d.getDate() === 1) ? (d.getMonth() + 1) + '月' : '';
+          return '<button data-act="date" data-k="' + k + '"' + (ok ? '' : ' disabled') + (S.date === k ? ' class="on"' : '') + '>' +
+            '<small>' + m + '</small>' + WD[d.getDay()] + '<b>' + d.getDate() + '</b></button>';
+        }).join('');
+        var times;
+        if (!S.date) { times = '<p class="none">请先选择日期。</p>'; }
+        else if (S.slots === null) { times = '<p class="none">加载中…</p>'; }
+        else if (!S.slots.length) { times = '<p class="none">当天没有可显示的时段。</p>'; }
+        else {
+          times = '<div class="tms">' + S.slots.map(function (s) {
+            var t = s.time_slot, full = s.is_open && s.booked_count >= s.capacity;
+            if (!s.is_open) { return '<button class="off" disabled>' + t + '<small>未开放</small></button>'; }
+            if (full) { return '<button disabled>' + t + '<small>已满</small></button>'; }
+            return '<button data-act="time" data-t="' + t + '"' + (S.time === t ? ' class="on"' : '') + '>' + t + '</button>';
+          }).join('') + '</div>';
+        }
+        return (S.fixedLoc ? '' : '<button class="back" data-act="toOffice">‹ 更换办公室</button>') +
+          '<h1>选择日期和时间</h1><p class="sub">需提前一天预约，可选未来 30 天。</p>' +
+          '<h2>日期</h2><div class="dstrip">' + strip + '</div><h2>时间</h2>' + times +
+          (S.error ? '<p class="msg" role="alert">' + esc(S.error) + '</p>' : '') +
+          '<button class="go" data-act="toForm"' + (S.date && S.time ? '' : ' disabled') + '>下一步</button>';
+      }
+
+      function viewForm() {
+        return '<button class="back" data-act="toPick">‹ 返回</button><h1>填写信息</h1>' +
+          '<p class="sum">' + esc(human(S.date)) + ' ' + esc(S.time) + '<small>' + esc(locName()) + '</small></p>' +
+          '<form id="f" novalidate>' +
+          '<label class="f" for="fName">学生姓名 <span class="req">*</span><input type="text" id="fName" autocomplete="off" maxlength="100"></label>' +
+          '<label class="f" for="fSchool">学校<input type="text" id="fSchool" autocomplete="off" maxlength="200"></label>' +
+          '<label class="f" for="fAdv">顾问<input type="text" id="fAdv" autocomplete="off" maxlength="100"></label>' +
+          '<label class="chk" for="fSingle"><input type="checkbox" id="fSingle"> 单亲家庭/离异</label>' +
+          '<label class="f" for="fNotes">备注<textarea id="fNotes" rows="2"></textarea></label>' +
+          (S.error ? '<p class="msg" role="alert">' + esc(S.error) + '</p>' : '') +
+          '<button class="go" type="submit"' + (S.busy ? ' disabled' : '') + '>' + (S.busy ? '提交中…' : '确认预约') + '</button></form>';
+      }
+
+      function viewDone() {
+        var d = S.done;
+        return '<div class="ok"><h1>已预约</h1><dl>' +
+          '<div><dt>办公室</dt><dd>' + esc(d.loc) + '</dd></div>' +
+          '<div><dt>日期</dt><dd>' + esc(human(d.date)) + '</dd></div>' +
+          '<div><dt>时间</dt><dd>' + esc(d.time) + '</dd></div>' +
+          '<div><dt>学生</dt><dd>' + esc(d.name) + '</dd></div></dl>' +
+          '<button class="ghost" data-act="again">再预约一位</button></div>';
+      }
+
+      function render() {
+        var keep = {};
+        ['fName', 'fSchool', 'fAdv', 'fNotes'].forEach(function (id) { var el = document.getElementById(id); if (el) { keep[id] = el.value; } });
+        var sg = document.getElementById('fSingle'); if (sg) { keep.fSingle = sg.checked; }
+        app.innerHTML = S.step === 'office' ? viewOffice() : S.step === 'pick' ? viewPick() : S.step === 'form' ? viewForm() : viewDone();
+        Object.keys(keep).forEach(function (id) { var el = document.getElementById(id); if (el) { if (id === 'fSingle') { el.checked = keep[id]; } else { el.value = keep[id]; } } });
+        var f = document.getElementById('f');
+        if (f) { f.addEventListener('submit', submit); }
+      }
+
+      function submit(e) {
+        e.preventDefault();
+        if (S.busy) { return; }
+        var name = document.getElementById('fName').value.trim();
+        if (!name) { S.error = '请填写学生姓名'; render(); return; }
+        var body = { student_name: name, school: document.getElementById('fSchool').value.trim(),
+          advisor_name: document.getElementById('fAdv').value.trim(), notes: document.getElementById('fNotes').value.trim(),
+          single_parent: document.getElementById('fSingle').checked, location_id: S.loc.id,
+          appointment_time: S.date + 'T' + S.time + ':00' };
+        S.busy = true; S.error = ''; render();
+        fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j.ok, data: j }; }); })
+          .then(function (r) {
+            S.busy = false;
+            if (!r.ok) {
+              S.error = (r.data && r.data.error) || '提交失败，请重试';
+              if (/已满|已关闭/.test(S.error)) { S.time = null; S.step = 'pick'; loadMonth().then(loadSlots); return; }
+              render(); return;
+            }
+            S.done = { loc: locName(), date: S.date, time: S.time, name: name };
+            S.step = 'done'; render(); window.scrollTo(0, 0);
+          })
+          .catch(function () { S.busy = false; S.error = '网络错误，请重试'; render(); });
+      }
+
+      app.addEventListener('click', function (e) {
+        var el = e.target.closest('[data-act]'); if (!el || el.disabled) { return; }
+        var a = el.getAttribute('data-act');
+        if (a === 'loc') {
+          var id = +el.getAttribute('data-id');
+          chooseLoc(S.offices.filter(function (o) { return o.id === id; })[0]);
+        } else if (a === 'date') { S.date = el.getAttribute('data-k'); S.time = null; S.error = ''; loadSlots(); }
+        else if (a === 'time') { S.time = el.getAttribute('data-t'); render(); }
+        else if (a === 'toForm') { setStep('form'); }
+        else if (a === 'toPick') { setStep('pick'); }
+        else if (a === 'toOffice') { S.loc = null; locNameEl.textContent = ''; setStep('office'); }
+        else if (a === 'again') {
+          S.date = null; S.time = null; S.slots = null; S.done = null;
+          loadMonth().then(function () { setStep('pick'); });
+        }
+      });
+
+      var want = new URLSearchParams(location.search).get('loc');
+      getJSON('/api/locations').then(function (r) {
+        S.offices = (r.ok && r.data.locations) || [];
+        if (!S.offices.length) { app.innerHTML = '<h1>预约测评</h1><p class="sub">暂时无法预约。</p>'; return; }
+        var pre = want ? S.offices.filter(function (o) { return String(o.id) === want; })[0] : null;
+        if (pre) { S.fixedLoc = true; chooseLoc(pre); }
+        else if (S.offices.length === 1) { S.fixedLoc = true; chooseLoc(S.offices[0]); }
+        else { render(); }
+      }).catch(function () { app.innerHTML = '<h1>预约测评</h1><p class="sub">加载失败，请刷新重试。</p>'; });
+    })();
   </script>
 </body>
 </html>

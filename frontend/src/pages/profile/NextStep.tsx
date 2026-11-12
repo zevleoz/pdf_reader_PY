@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 
 import type { PageData } from "./common";
 
-const NEXT_BUTTON: Record<string, { label: string; href: (id: number) => string }> = {
-  booking: { label: "去预约", href: () => "/booking" },
+const NEXT_BUTTON: Record<string, { label: string; href: (id: number, code: string) => string }> = {
+  booking: { label: "去预约", href: (_id, code) => "/app/booking?student=" + encodeURIComponent(code) },
   y4_report: { label: "去生成报告", href: () => "/generate" },
   interpretation: { label: "去写会议纪要", href: (id) => "/tools/transcript?student_id=" + id },
 };
@@ -33,7 +33,7 @@ export function NextAction({ data, onSixAm, only }: { data: PageData; onSixAm: (
   if (!b) return null;
   return (
     <Button asChild>
-      <a href={b.href(student.id)}>{b.label}</a>
+      <a href={b.href(student.id, student.code)}>{b.label}</a>
     </Button>
   );
 }
