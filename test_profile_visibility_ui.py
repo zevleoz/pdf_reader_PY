@@ -97,7 +97,7 @@ def test_profile_shows_m1_link_when_enabled(world, app):
     body = _body(_client(app, uid, "advisor"), "/students/Y4-9001")
     assert 'href="/m1?student=' in body
     assert "M1 会前准备" not in body
-    assert ">M1</a>" in body
+    assert ">心有灵析</a>" in body
 
 
 # ── 3. M1 关闭的顾问 / 只读 ─────────────────────────────────────

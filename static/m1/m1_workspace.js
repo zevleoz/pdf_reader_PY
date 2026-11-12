@@ -1,4 +1,4 @@
-/* M1 工作台：① 资料 ② 生成 ③ 审阅定稿。 */
+/* M1 工作台：① 资料 ② 审阅定稿。 */
 (function () {
   'use strict';
 
@@ -37,13 +37,6 @@
     first_touch_extra: 'First Touch 补充'
   };
 
-  var STATUS_LABELS = {
-    draft: { label: '草稿', cls: 'warn' },
-    generating: { label: '生成中', cls: 'info' },
-    review: { label: '待审阅', cls: 'brand' },
-    final: { label: '已定稿', cls: 'ok' }
-  };
-
   var docEl = document.getElementById('m1doc');
 
   function el(tag, cls, value) {
@@ -80,7 +73,13 @@
   }
 
   function fmtDT(value) {
-    return window.y4FmtDT ? window.y4FmtDT(value) : (value || '');
+    if (window.y4FmtDT) return window.y4FmtDT(value);
+    if (!value) return '';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return String(value).slice(0, 16).replace('T', ' ');
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+      ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
   function nowHM() {
@@ -97,33 +96,52 @@
   /* 步骤条                                                              */
   /* ------------------------------------------------------------------ */
   function setStep(step) {
+    var wantsGen = step === 'gen';
+    if (wantsGen) step = 'sources';
     state.step = step;
     document.getElementById('stepSources').hidden = step !== 'sources';
-    document.getElementById('stepGen').hidden = step !== 'gen';
     document.getElementById('stepReview').hidden = step !== 'review';
 
     var hasDoc = !!state.doc;
-    var order = ['sources', 'gen', 'review'];
-    var index = order.indexOf(step);
-    document.querySelectorAll('#stepper .step').forEach(function (btn) {
-      var key = btn.getAttribute('data-step');
-      var allowed = key === 'sources' ||
-        (key === 'gen' && state.status === 'generating') ||
-        (key === 'review' && hasDoc);
-      var done = order.indexOf(key) < index;
-      btn.disabled = !allowed;
-      btn.classList.toggle('on', key === step);
-      btn.classList.toggle('done', done);
-      btn.setAttribute('aria-current', key === step ? 'step' : 'false');
-      btn.querySelector('.n').textContent = done ? '✓' : String(order.indexOf(key) + 1);
+    document.querySelectorAll('#stepper a').forEach(function (link) {
+      var key = link.getAttribute('data-step');
+      link.classList.remove('d', 'n', 'x');
+      link.removeAttribute('aria-disabled');
+      link.removeAttribute('aria-current');
+      if (key === 'sources') {
+        link.classList.add(hasDoc && step !== 'sources' ? 'd' : 'n');
+      } else if (!hasDoc) {
+        link.classList.add('x');
+        link.setAttribute('aria-disabled', 'true');
+      } else if (step === 'review') {
+        link.classList.add('n');
+      }
+      if (key === step) link.setAttribute('aria-current', 'step');
     });
 
-    var pill = document.getElementById('statusPill');
-    var meta = STATUS_LABELS[state.status] || { label: state.status, cls: '' };
-    pill.className = 'pill ' + meta.cls;
-    pill.textContent = '';
-    if (meta.cls) pill.appendChild(el('span', 'dot'));
-    pill.appendChild(document.createTextNode(meta.label));
+    var tag = document.getElementById('wsTag');
+    tag.textContent = state.status === 'generating' ? '生成中'
+      : step === 'sources' ? '资料'
+      : state.status === 'final' ? '已定稿'
+      : hasDoc ? 'AI 初稿' : '资料';
+
+    var go = document.getElementById('genGo');
+    var box = document.getElementById('genBox');
+    var busy = wantsGen || (state.status === 'generating' && !!state.jobId);
+    go.hidden = busy;
+    box.hidden = !busy;
+
+    renderStepNote();
+  }
+
+  function renderStepNote() {
+    var hasDoc = !!state.doc;
+    var note = document.getElementById('stepSrcNote');
+    var when = hasDoc ? fmtDT((state.version || {}).ai_generated_at) : '';
+    note.textContent = hasDoc
+      ? '已生成' + (when && when !== '—' ? ' · ' + when.slice(5) : '')
+      : '确认后生成 AI 初稿';
+    document.getElementById('toConfirm').textContent = hasDoc ? '重新生成 AI 初稿' : '生成 AI 初稿';
   }
 
   /* ------------------------------------------------------------------ */
@@ -134,8 +152,9 @@
     document.getElementById('mdate').value = prep.meeting_date || '';
     document.getElementById('mentorBox').textContent = prep.mentor_name || '未指定';
     document.querySelectorAll('#durationSeg button').forEach(function (btn) {
-      btn.setAttribute('aria-pressed',
-        String(parseInt(btn.getAttribute('data-dur'), 10) === prep.duration));
+      var on = parseInt(btn.getAttribute('data-dur'), 10) === prep.duration;
+      btn.setAttribute('aria-pressed', String(on));
+      btn.classList.toggle('on', on);
     });
     document.getElementById('durHint').textContent = prep.duration === 60
       ? '标准版：探索 1–2 个事件' : '延长版：探索 2–3 个事件';
@@ -145,10 +164,10 @@
 
   function renderPeople() {
     var box = document.getElementById('peopleBox');
-    Array.prototype.slice.call(box.querySelectorAll('.tag')).forEach(function (n) { n.remove(); });
+    Array.prototype.slice.call(box.querySelectorAll('.chip:not(.add)')).forEach(function (n) { n.remove(); });
     var addBtn = document.getElementById('addPerson');
     (state.prep.attendees || []).forEach(function (person, index) {
-      var tag = el('span', 'tag', person);
+      var tag = el('span', 'chip', person);
       var remove = el('button', '', '×');
       remove.setAttribute('type', 'button');
       remove.setAttribute('aria-label', '移除 ' + person);
@@ -214,10 +233,8 @@
 
     /* Y4 */
     var y4Pill = document.getElementById('y4Pill');
-    y4Pill.className = 'pill ' + (y4.complete ? 'ok' : 'warn');
-    y4Pill.textContent = '';
-    y4Pill.appendChild(el('span', 'dot'));
-    y4Pill.appendChild(document.createTextNode(y4.complete ? '已获取' : '未取得'));
+    y4Pill.className = 'st ' + (y4.complete ? 's0' : 's1');
+    y4Pill.textContent = y4.complete ? '已获取' : '未取得';
     var y4Body = document.getElementById('y4Body');
     y4Body.textContent = '';
     var y4Facts = el('ul', 'facts');
@@ -239,10 +256,8 @@
 
     /* First Touch */
     var ftPill = document.getElementById('ftPill');
-    ftPill.className = 'pill ' + (ft.present ? 'ok' : 'warn');
-    ftPill.textContent = '';
-    if (ft.present) ftPill.appendChild(el('span', 'dot'));
-    ftPill.appendChild(document.createTextNode(ft.present ? '已获取' : '未取得'));
+    ftPill.className = 'st ' + (ft.present ? 's0' : 's1');
+    ftPill.textContent = ft.present ? '已获取' : '未取得';
     var ftBody = document.getElementById('ftBody');
     ftBody.textContent = '';
     var ftFacts = el('ul', 'facts');
@@ -254,7 +269,7 @@
       ftFacts.appendChild(el('li', '', '尚未取得 First Touch 会谈记录'));
     }
     ftBody.appendChild(ftFacts);
-    var ftBtn = el('button', 'btn sm', '补充其他会谈资料');
+    var ftBtn = el('button', 'btn s', '补充其他会谈资料');
     ftBtn.setAttribute('type', 'button');
     ftBtn.style.justifySelf = 'start';
     ftBtn.addEventListener('click', function () { pickFile('first_touch_extra'); });
@@ -269,11 +284,11 @@
     if (!textarea.value) textarea.value = parentText;
     var parentPill = document.getElementById('parentPill');
     var hasParent = parentUploads.length > 0 || textarea.value.trim().length > 0;
-    parentPill.className = 'pill ' + (hasParent ? 'ok' : '');
+    parentPill.className = 'st ' + (hasParent ? 's0' : 'sn');
     parentPill.textContent = hasParent ? '已提供' : '未提供';
     var parentFiles = document.getElementById('parentFiles');
     parentFiles.textContent = '';
-    var saveText = el('button', 'btn sm', '保存这段文字');
+    var saveText = el('button', 'btn s', '保存这段文字');
     saveText.setAttribute('type', 'button');
     saveText.style.justifySelf = 'start';
     saveText.addEventListener('click', function () {
@@ -291,7 +306,7 @@
     var qPill = document.getElementById('qPill');
     var completed = questionnaires.filter(function (q) { return q.status === '已完成'; }).length;
     var missing = questionnaires.filter(function (q) { return q.status === '未取得'; }).length;
-    qPill.className = 'pill ' + (missing ? 'warn' : completed ? 'ok' : '');
+    qPill.className = 'st ' + (missing ? 's1' : completed ? 's0' : 'sn');
     qPill.textContent = missing ? '部分信息' : completed ? '已获取' : '未触发';
     var qList = document.getElementById('qList');
     qList.textContent = '';
@@ -301,10 +316,10 @@
       questionnaires.forEach(function (q) {
         var qrow = el('div', 'qrow');
         var label = el('span', '', q.title || q.code || '');
-        label.appendChild(el('span', 'sub', q.date ? ' · ' + q.date : ''));
+        label.appendChild(el('span', 'mu', q.date ? ' · ' + q.date : ''));
         qrow.appendChild(label);
-        var cls = q.status === '已完成' ? 'ok' : q.status === '未取得' ? 'warn' : '';
-        qrow.appendChild(el('span', 'pill ' + cls, q.status_text || q.status));
+        var cls = q.status === '已完成' ? 's0' : q.status === '未取得' ? 's1' : 'sn';
+        qrow.appendChild(el('span', 'st ' + cls, q.status_text || q.status));
         qList.appendChild(qrow);
       });
       qList.appendChild(el('span', 'hint',
@@ -313,14 +328,14 @@
 
     /* Case Review / 其他 */
     var casePill = document.getElementById('casePill');
-    casePill.className = 'pill ' + (caseUploads.length ? 'ok' : '');
+    casePill.className = 'st ' + (caseUploads.length ? 's0' : 'sn');
     casePill.textContent = caseUploads.length ? '已提供 ' + caseUploads.length + ' 份' : '未提供';
     var caseFiles = document.getElementById('caseFiles');
     caseFiles.textContent = '';
     if (caseUploads.length) caseFiles.appendChild(renderFileList(caseUploads));
 
     var otherPill = document.getElementById('otherPill');
-    otherPill.className = 'pill ' + (otherUploads.length ? 'ok' : '');
+    otherPill.className = 'st ' + (otherUploads.length ? 's0' : 'sn');
     otherPill.textContent = otherUploads.length ? '已提供 ' + otherUploads.length + ' 份' : '未提供';
     var otherFiles = document.getElementById('otherFiles');
     otherFiles.textContent = '';
@@ -341,7 +356,7 @@
     rows.forEach(function (source) {
       var box = el('div', 'file');
       box.appendChild(el('span', 'nm', source.filename || source.label || '粘贴文字'));
-      box.appendChild(el('span', 'pill ok', source.status === 'partial' ? '部分识别' : '已识别'));
+      box.appendChild(el('span', 'st s0', source.status === 'partial' ? '部分识别' : '已识别'));
 
       var meta = el('div', 'meta');
       var catLabel = el('label', '', '类别 ');
@@ -371,7 +386,7 @@
       meta.appendChild(dateLabel);
 
       meta.appendChild(el('span', 'sp'));
-      var remove = el('button', 'btn ghost sm', '移除');
+      var remove = el('button', 'btn s g', '移除');
       remove.setAttribute('type', 'button');
       remove.addEventListener('click', function () { deleteSource(source.id); });
       meta.appendChild(remove);
@@ -388,20 +403,15 @@
 
   function renderSummary(info) {
     var box = document.getElementById('srcSummary');
-    box.textContent = '';
-    function pill(label, cls) {
-      var node = el('span', 'pill ' + (cls || ''), label);
-      if (cls === 'ok' || cls === 'warn') node.insertBefore(el('span', 'dot'), node.firstChild);
-      box.appendChild(node);
-    }
-    pill('Y4', info.y4.complete ? 'ok' : 'warn');
-    pill('First Touch', info.ft.present ? 'ok' : '');
-    pill('家长反馈', info.parent ? 'ok' : '');
-    var done = info.questionnaires.filter(function (q) { return q.status === '已完成'; }).length;
-    pill('补充问卷 ' + done + '/' + info.questionnaires.length,
-      info.questionnaires.some(function (q) { return q.status === '未取得'; }) ? 'warn' : '');
-    pill('Case Review ' + info.caseCount, info.caseCount ? 'ok' : '');
-    pill('其他 ' + info.otherCount, info.otherCount ? 'ok' : '');
+    var groups = [
+      info.y4.complete,
+      info.ft.present,
+      info.questionnaires.filter(function (q) { return q.status === '已完成'; }).length > 0,
+      info.parent,
+      info.caseCount > 0,
+      info.otherCount > 0
+    ].filter(Boolean).length;
+    box.textContent = '将使用 ' + groups + ' 项资料。只有 Y4 必需，缺的写“信息不足”。';
   }
 
   function pickFile(category) {
@@ -565,10 +575,11 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* ② 生成                                                              */
+  /* ① 生成                                                              */
   /* ------------------------------------------------------------------ */
   function generate() {
     state.status = 'generating';
+    document.getElementById('genOpen').hidden = true;
     setStep('gen');
     api('/api/m1/preps/' + state.prepId + '/generate', { method: 'POST' })
       .then(function (body) {
@@ -593,21 +604,20 @@
     api('/api/m1/jobs/' + state.jobId).then(function (body) {
       var job = body.job || body;
       var steps = job.steps || body.steps || [];
-      var rows = Array.prototype.slice.call(document.querySelectorAll('#genList .gen-row'));
+      var rows = Array.prototype.slice.call(document.querySelectorAll('#genList [data-i]'));
       if (Array.isArray(steps) && steps.length) {
         rows.forEach(function (row, index) {
           var step = steps[index] || {};
           var done = step.status === 'done' || step.status === 'ok' ||
             step.state === 'done';
           var running = step.status === 'running' || step.state === 'running';
-          row.className = 'gen-row' + (done ? ' ok' : running ? ' run' : '');
+          row.className = done ? 'ok' : running ? 'on' : '';
           var t = row.querySelector('[data-t]');
           if (t && step.seconds !== undefined) t.textContent = step.seconds + ' 秒';
         });
       } else if (typeof job.step === 'number') {
         rows.forEach(function (row, index) {
-          row.className = 'gen-row' +
-            (index < job.step ? ' ok' : index === job.step ? ' run' : '');
+          row.className = index < job.step ? 'ok' : index === job.step ? 'on' : '';
         });
       }
       var progress = job.progress !== undefined ? job.progress
@@ -642,8 +652,8 @@
     refresh().then(function () {
       state.status = (state.detail && state.detail.status) || 'review';
       if (state.doc) {
-        setStep('review');
-        renderReview();
+        setStep('gen');
+        document.getElementById('genOpen').hidden = false;
         toast('AI 初稿已生成', 'success');
       } else {
         toast('生成完成，但还没有草稿', 'error');
@@ -652,7 +662,7 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* ③ 审阅                                                              */
+  /* ② 审阅定稿                                                           */
   /* ------------------------------------------------------------------ */
   function renderReview() {
     var final = state.status === 'final';
@@ -666,6 +676,12 @@
       document.getElementById('stamp').textContent = '还没有 AI 初稿。先确认资料并生成。';
       document.getElementById('priList').textContent = '';
       document.getElementById('warnList').textContent = '';
+      document.getElementById('factList').textContent = '';
+      document.getElementById('factCount').textContent = '0';
+      document.getElementById('warnCount').textContent = '0';
+      document.getElementById('warnFold').hidden = true;
+      document.getElementById('okLine').hidden = true;
+      document.getElementById('priCount').textContent = '0 项';
       return;
     }
 
@@ -726,43 +742,41 @@
   }
 
   function renderFactFlags() {
-    var card = document.getElementById('factCard');
     var list = document.getElementById('factList');
-    if (!card || !list) return;
+    if (!list) return;
     var flags = state.status === 'final' ? [] : openFactFlags();
     list.textContent = '';
-    card.hidden = !flags.length;
-    document.getElementById('factTitle').textContent = '需要核对（' + flags.length + '）';
-    flags.forEach(function (flag) {
-      var row = el('div', 'warnline w');
-      row.appendChild(el('span', 'dot'));
-      var body = el('div');
-      body.style.display = 'grid';
-      body.style.gap = '4px';
+    document.getElementById('factCount').textContent = String(flags.length);
+    flags.forEach(function (flag, index) {
+      var row = el('div', 'chk');
+      if (flag.block_id) {
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+        row.addEventListener('click', function (event) {
+          if (event.target.closest('button')) return;
+          jumpToBlock(flag.block_id);
+        });
+        row.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          jumpToBlock(flag.block_id);
+        });
+      }
+      row.appendChild(el('span', 'n', String(index + 1)));
+      var body = el('span');
       body.appendChild(el('b', '', flag.sentence || ''));
       if (flag.problem && flag.problem !== flag.sentence) {
-        body.appendChild(el('span', '', flag.problem));
+        body.appendChild(el('small', '', flag.problem));
       }
-      if (flag.source_excerpt) {
-        body.appendChild(el('span', 'hint', '资料原文：' + flag.source_excerpt));
-      }
-      var actions = el('div');
-      actions.style.display = 'flex';
-      actions.style.gap = '8px';
-      if (flag.block_id) {
-        var jump = el('button', 'btn sm ghost', '定位到文档');
-        jump.setAttribute('type', 'button');
-        jump.addEventListener('click', function () { jumpToBlock(flag.block_id); });
-        actions.appendChild(jump);
-      }
-      var ack = el('button', 'btn sm', '已核对');
+      row.appendChild(body);
+      var ack = el('button', 'btn s g', '我已核对');
       ack.setAttribute('type', 'button');
       ack.addEventListener('click', function () { ackFactFlag(flag, ack); });
-      actions.appendChild(ack);
-      body.appendChild(actions);
-      row.appendChild(body);
+      row.appendChild(ack);
       list.appendChild(row);
     });
+    var warnCount = Number(document.getElementById('warnCount').textContent) || 0;
+    document.getElementById('okLine').hidden = flags.length > 0 || warnCount > 0;
   }
 
   function jumpToBlock(id) {
@@ -770,6 +784,9 @@
     for (var i = 0; i < nodes.length; i += 1) {
       if (nodes[i].getAttribute('data-bid') === id) {
         nodes[i].scrollIntoView({ block: 'center', behavior: 'smooth' });
+        nodes[i].classList.remove('flash');
+        void nodes[i].offsetWidth;
+        nodes[i].classList.add('flash');
         nodes[i].focus();
         return;
       }
@@ -799,22 +816,15 @@
   }
 
   function renderFinalizeState() {
-    var safety = ((state.doc.flags || {}).safety) || [];
-    var acked = !!state.prep.safety_ack_at;
     var btn = document.getElementById('finalizeBtn');
     var hint = document.getElementById('finalizeHint');
     if (state.status === 'final') return;
-    var facts = openFactFlags().length;
-    if (safety.length && !acked) {
+    if (!state.doc || state.status === 'generating') {
       btn.disabled = true;
-      hint.textContent = '先处理顶部的安全提示，才能定稿。';
-    } else if (facts) {
-      btn.disabled = true;
-      hint.textContent = '还有 ' + facts + ' 处内容需要核对，处理后才能定稿。';
-    } else {
-      btn.disabled = false;
-      hint.textContent = '点击文档里任何文字都可以直接修改。定稿后锁定这一版用于会议。';
+      return;
     }
+    btn.disabled = false;
+    hint.textContent = '点击文档里任何文字都可以直接修改。定稿后锁定这一版用于会议。';
   }
 
   function renderSafety() {
@@ -827,13 +837,13 @@
     banner.appendChild(el('b', '', '安全提示'));
     var message = '家长反馈中提到“' + safety.map(function (item) {
       return item.text || '';
-    }).join('”；“') + '”。请先按安全流程人工核实，必要时转介。M1 报告不会对此做任何判断。';
+    }).join('”；“') + '”。请先按安全流程人工核实，必要时转介。心有灵析报告不会对此做任何判断。';
     banner.appendChild(el('span', '', message));
     banner.appendChild(el('span', 'sp'));
     if (state.prep.safety_ack_at) {
-      banner.appendChild(el('span', 'pill ok', '已确认：已转交人工处理'));
+      banner.appendChild(el('span', 'st s0', '已确认：已转交人工处理'));
     } else {
-      var ack = el('button', 'btn sm', '我已知晓，已按流程处理');
+      var ack = el('button', 'btn s', '我已知晓，已按流程处理');
       ack.setAttribute('type', 'button');
       ack.addEventListener('click', function () {
         api('/api/m1/preps/' + state.prepId + '/safety-ack', { method: 'POST' })
@@ -863,7 +873,7 @@
       (state.prep.mentor_name || '') +
       '。这个版本已锁定，用于会议。'));
     bar.appendChild(el('span', 'sp'));
-    var reopen = el('button', 'btn sm', '基于此版本再修改');
+    var reopen = el('button', 'btn s', '基于此版本再修改');
     reopen.setAttribute('type', 'button');
     reopen.addEventListener('click', function () {
       api('/api/m1/preps/' + state.prepId + '/reopen', { method: 'POST' })
@@ -897,27 +907,23 @@
     priority.forEach(function (item) {
       var code = item.code;
       var ability = abilityInfo(code);
-      var label = el('label', 'ab');
-      var input = el('input');
-      input.type = 'checkbox';
-      input.checked = true;
-      input.setAttribute('data-pri', code);
-      if (final) input.disabled = true;
-      var text = el('span');
-      text.appendChild(el('b', '', code + ' ' + (ability ? ability.name : '')));
-      text.appendChild(el('small', '', (item.why && item.why.text) || '导师添加'));
-      label.appendChild(input);
-      label.appendChild(text);
-      input.addEventListener('change', function () {
+      var chip = el('span', 'chip');
+      chip.appendChild(el('code', '', code));
+      chip.appendChild(document.createTextNode(' ' + (ability ? ability.name : '')));
+      var remove = el('button', '', '×');
+      remove.setAttribute('type', 'button');
+      remove.setAttribute('aria-label', '移除 ' + code);
+      if (final) remove.disabled = true;
+      remove.addEventListener('click', function () {
         state.priorityPending = code;
         removePriority(code);
       });
-      list.appendChild(label);
+      chip.appendChild(remove);
+      list.appendChild(chip);
     });
 
     var count = document.getElementById('priCount');
     count.textContent = priority.length + ' 项';
-    count.className = 'pill' + (priority.length > 5 ? ' warn' : '');
 
     var hint = document.getElementById('priHint');
     hint.hidden = priority.length <= 5;
@@ -1018,7 +1024,7 @@
     box.appendChild(el('span', '',
       'Part 3 中仍有关于 ' + code + ' ' + (ability.name || '') + ' 的追问。要一并移除吗？'));
     var row = el('div', 'row');
-    var yes = el('button', 'btn sm', '一并移除');
+    var yes = el('button', 'btn s', '一并移除');
     yes.setAttribute('type', 'button');
     yes.addEventListener('click', function () {
       (state.doc.events || []).forEach(function (event) {
@@ -1029,7 +1035,7 @@
       scheduleSave();
       toast('已从 Part 3 移除相关追问', 'success');
     });
-    var no = el('button', 'btn sm ghost', '保留不动');
+    var no = el('button', 'btn s g', '保留不动');
     no.setAttribute('type', 'button');
     no.addEventListener('click', function () {
       state.sync = null;
@@ -1062,15 +1068,16 @@
       list.appendChild(line);
     });
     document.getElementById('warnCount').textContent = warnings.length;
+    document.getElementById('warnFold').hidden = warnings.length === 0;
+    var okLine = document.getElementById('okLine');
+    var flags = state.status === 'final' ? 0 : openFactFlags().length;
+    okLine.hidden = flags > 0 || warnings.length > 0;
   }
 
   function onBlockEdit() {
     var badge = document.getElementById('savedBadge');
-    badge.textContent = '';
-    var dot = el('span', 'dot');
-    dot.style.color = 'var(--warn)';
-    badge.appendChild(dot);
-    badge.appendChild(document.createTextNode('未保存 · ' + nowHM()));
+    badge.textContent = '未保存 · ' + nowHM();
+    badge.classList.add('unsaved');
     renderFactFlags();
     renderFinalizeState();
     scheduleSave();
@@ -1091,11 +1098,8 @@
     }).then(function (body) {
       state.rev = body.rev;
       var badge = document.getElementById('savedBadge');
-      badge.textContent = '';
-      var dot = el('span', 'dot');
-      dot.style.color = 'var(--ok)';
-      badge.appendChild(dot);
-      badge.appendChild(document.createTextNode('已自动保存 · ' + nowHM()));
+      badge.textContent = '已自动保存 · ' + nowHM();
+      badge.classList.remove('unsaved');
     }).catch(function (error) {
       if (error.status === 409) showConflict(error.body || {});
       else toast(error.message, 'error');
@@ -1124,7 +1128,7 @@
     area.value = local.join('\n\n');
     box.appendChild(area);
     var row = el('div');
-    var reload = el('button', 'btn sm', '载入最新版');
+    var reload = el('button', 'btn s', '载入最新版');
     reload.setAttribute('type', 'button');
     reload.addEventListener('click', function () {
       state.conflict = false;
@@ -1155,6 +1159,23 @@
         toast('已定稿，可以下载 PDF 用于会议', 'success');
       })
       .catch(function (error) { toast(error.message, 'error'); });
+  }
+
+  function openFinalizeConfirm() {
+    var flags = openFactFlags().length;
+    var safety = (((state.doc || {}).flags || {}).safety) || [];
+    var unacked = safety.length && !state.prep.safety_ack_at;
+    var lead = unacked ? '有 ' + safety.length + ' 条安全提示还没确认。' : '';
+    document.getElementById('finText').textContent = lead + (flags
+      ? '还有 ' + flags + ' 处需要核对，可以先定稿。定稿后锁定这一版用于会议，PDF 不再带“草稿”水印；需要改的话可以重新打开。'
+      : '定稿后锁定这一版用于会议，PDF 不再带“草稿”水印；需要改的话可以重新打开。');
+    var dialog = document.getElementById('finConfirm');
+    dialog.hidden = false;
+    document.getElementById('finOk').focus();
+  }
+
+  function closeFinalizeConfirm() {
+    document.getElementById('finConfirm').hidden = true;
   }
 
   function openPreview() {
@@ -1194,6 +1215,7 @@
       applyDetail(body);
       renderInfo();
       renderSources();
+      renderStepNote();
       if (state.step === 'review') renderReview();
       return body;
     });
@@ -1218,13 +1240,33 @@
   }
 
   /* ---------- 事件绑定 ---------- */
-  document.querySelectorAll('#stepper .step').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      if (btn.disabled) return;
-      var step = btn.getAttribute('data-step');
+  document.querySelectorAll('#stepper a').forEach(function (link) {
+    link.addEventListener('click', function (event) {
+      event.preventDefault();
+      if (link.getAttribute('aria-disabled') === 'true') return;
+      var step = link.getAttribute('data-step');
       setStep(step);
       if (step === 'review') renderReview();
+      history.replaceState(null, '', '#step=' + step);
     });
+  });
+
+  document.getElementById('genOpen').addEventListener('click', function (event) {
+    event.preventDefault();
+    setStep('review');
+    renderReview();
+    history.replaceState(null, '', '#step=review');
+  });
+
+  window.addEventListener('hashchange', function () {
+    var match = /step=(\w+)/.exec(window.location.hash || '');
+    if (!match) return;
+    var step = match[1] === 'export' ? 'review' : match[1];
+    if (step !== 'sources' && step !== 'review') return;
+    if (step === 'review' && !state.doc) return;
+    if (state.step === step) return;
+    setStep(step);
+    if (step === 'review') renderReview();
   });
 
   document.getElementById('mdate').addEventListener('change', function (event) {
@@ -1254,8 +1296,22 @@
   });
 
   document.getElementById('toConfirm').addEventListener('click', openConfirm);
-  document.getElementById('finalizeBtn').addEventListener('click', finalize);
+  document.getElementById('finalizeBtn').addEventListener('click', openFinalizeConfirm);
   document.getElementById('previewBtn').addEventListener('click', openPreview);
+
+  var finConfirm = document.getElementById('finConfirm');
+  finConfirm.addEventListener('click', function (event) {
+    if (event.target === finConfirm || event.target.closest('[data-close]')) {
+      closeFinalizeConfirm();
+    }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !finConfirm.hidden) closeFinalizeConfirm();
+  });
+  document.getElementById('finOk').addEventListener('click', function () {
+    closeFinalizeConfirm();
+    finalize();
+  });
 
   document.getElementById('addQ').addEventListener('click', function () {
     var textarea = document.getElementById('myQ');

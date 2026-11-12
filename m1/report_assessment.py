@@ -120,6 +120,7 @@ def resolve_assessment(raw: Any, evidence, code: str) -> Dict[str, Any]:
     规则：五种固定标签、最多两个；除「信息不足」外都要有可用证据；
     「确认发展需求」必须有发言明确的会议具体行为证据，否则降级；
     「积极资源」要有非假设性证据；「暂未发现」要有会议核实情境；
+    「可能存在」要有学生或家长本人的发言证据，导师和“待确认”不够；
     同一事件不能同时证明资源与需求。
     """
     raw = raw if isinstance(raw, dict) else {}
@@ -152,6 +153,20 @@ def resolve_assessment(raw: Any, evidence, code: str) -> Dict[str, Any]:
     if "积极资源" in candidates and not _positive(items, candidates["积极资源"]["evidence_ids"]):
         diagnostics.append("「积极资源」没有非假设性证据，已丢弃")
         candidates.pop("积极资源")
+    for tag in ("积极资源", "确认发展需求"):
+        candidate = candidates.get(tag)
+        if candidate is None:
+            continue
+        if any(items[eid].get("source") == "M1" for eid in candidate["evidence_ids"]):
+            continue
+        candidates.pop(tag)
+        if tag == "积极资源":
+            diagnostics.append("「积极资源」没有直接的会议证据，已丢弃")
+            continue
+        diagnostics.append("「确认发展需求」没有直接的会议证据，已降为「可能存在」")
+        candidates.setdefault("可能存在", {"tag": "可能存在",
+                                           "evidence_ids": candidate["evidence_ids"],
+                                           "events": candidate["events"]})
     if "暂未发现" in candidates and not _has_m1(items, candidates["暂未发现"]["evidence_ids"]):
         diagnostics.append("「暂未发现」没有会议核实情境，已丢弃")
         candidates.pop("暂未发现")
@@ -167,6 +182,13 @@ def resolve_assessment(raw: Any, evidence, code: str) -> Dict[str, Any]:
                                                "events": need["events"]})
         else:
             diagnostics.append("「确认发展需求」缺少发言明确的会议具体行为证据，已改为「信息不足」")
+
+    possible = candidates.get("可能存在")
+    if possible is not None and not any(
+            items[eid].get("speaker") in ("学生", "家长")
+            for eid in possible["evidence_ids"] if eid in items):
+        diagnostics.append("「可能存在」只有他人观察（导师或待确认），已改为「信息不足」")
+        candidates.pop("可能存在")
 
     kept: List[Dict[str, Any]] = []
     resource = candidates.get("积极资源")

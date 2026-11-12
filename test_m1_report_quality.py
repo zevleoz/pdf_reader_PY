@@ -17,7 +17,7 @@ from app_utils import BASE_DIR
 from growth_talk.analysis import AnalysisError
 from m1 import report_assessment, report_checks, report_kb, report_pipeline, report_prompts
 from test_m1_report_core import (Q_BODY, Q_HELP, Q_HIDE, Q_MENTOR, TRANSCRIPT,  # noqa: F401
-                                 _codes, _item, _mutate, client, fake, generate,
+                                 FakeModel, _codes, _item, _mutate, client, fake, generate,
                                  inline_jobs, rdb, url)
 from test_m1_store import m1db  # noqa: F401
 
@@ -282,8 +282,42 @@ def test_profile_prompt_plan_rules():
                  "不能只凭 Y4 或资料不足得出。没有这类能力时，如实写明目前没有确认的发展需求。",
                  "阶段目标必须针对学生尚未做到的行为；逐字稿已显示学生能做到的，不要作为目标。",
                  "综合画像不能与各能力的分析矛盾。",
-                 "goal、mentor、family、evidence 每格一句，不超过 40 字；review_advice 不超过 60 字。"):
+                 "goal、mentor、family、evidence 每格一句，建议不超过 70 字；"
+                 "review_advice 不超过 60 字。"):
         assert line in report_prompts.PROFILE_PROMPT
+
+
+# ---------------------------------------------------------------------------
+# 黄金样本抽象写作规则（不包含真实原文）
+# ---------------------------------------------------------------------------
+def test_golden_style_requires_fact_analysis_and_boundary():
+    for line in (
+            "每项能力优先写清三层：发生了什么具体事实；这与这项能力目前的关系；"
+            "证据能说明到什么程度、还需要观察什么。自然表达即可，不要求机械套用三段式。",
+            "单次事件只写这一次，不要写成稳定模式；证据不足时写清信息不足或仍待观察，"
+            "不要写成确定结论。",
+            "不要为了接近字数上限添加内容或扩写；写清就停，不要重复。",
+            "综合提炼，不要逐项复述各能力。"):
+        assert line in report_prompts.DIM_PROMPT
+    for line in (
+            "综合画像与核心发现要综合提炼，不逐项复述能力文字；"
+            "关键发现要区分资源、需求和仍待观察，不把证据不足写成确定问题。",
+            "阶段目标写学生尚未稳定做到、但可以通过后续真实行为观察的行为。",
+            "成长证据写真实行为记录与回顾方式，不承诺固定时间内一定达成。",
+            "不要为了接近字数上限扩写；证据不足时如实简短说明。"):
+        assert line in report_prompts.PROFILE_PROMPT
+
+
+def test_mentor_evaluation_never_becomes_student_judgement():
+    adjustments = []
+    raw = {"sentences": [{
+        "text": "导师认为学生很努力，学生也意识到自己需要改进。",
+        "evidence_ids": ["e1"], "kind": "fact"}]}
+    out = report_pipeline._sentences(raw, {"e1": "导师"}, ["dims", "R1"], adjustments, "R1")
+    assert out["text"] == ""
+    assert [a["message"] for a in adjustments] == [
+        "R1：事实句把导师或待确认的话写成学生自我判断，已删除"]
+    assert "导师或待确认发言人的评价只能作为他人观察" in report_prompts.DIM_PROMPT
 
 
 # ---------------------------------------------------------------------------
@@ -534,8 +568,109 @@ def test_dim_prompt_writing_lines():
     for line in ("按事情本身的样子写，先写发生了什么。",
                  "有会议证据的能力，meeting 必须据此写，不能留空。",
                  "不要照抄逐字稿，不要用第一人称，不要用分号把几件事串起来，"
-                 "不要把不同事件混在一起。每项能力写一两句完整的话。",
+                 "不要把不同事件混在一起。每项能力通常 2–3 句，写清为止。",
                  "Y4 的信任、沟通、亲近分数反映学生对关系的感受，不是次数或频率，"
                  "也不是学生自己说的。"):
         assert line in report_prompts.DIM_PROMPT
     assert "组织逻辑：具体情境与学生表达" not in report_prompts.DIM_PROMPT
+
+
+# ---------------------------------------------------------------------------
+# Task D：写作结构（role 只用于检查，不进入文档）
+# ---------------------------------------------------------------------------
+def test_dim_prompt_drops_the_one_event_limits():
+    for line in ("只写 1 件最有代表性的事", "每句只写一件事", "1–2 句，建议合计不超过 160 字"):
+        assert line not in report_prompts.DIM_PROMPT
+    assert "通常 2–3 句，写清为止，建议合计不超过 160 字" in report_prompts.DIM_PROMPT
+
+
+def test_dim_prompt_asks_for_sentence_roles():
+    for line in ("role：这句在做什么，只有 meeting 需要写。",
+                 "fact=发生了什么；relation=与该能力的关系；"
+                 "boundary=证据能说明到哪、还需要观察什么。",
+                 "有会议证据的能力，至少 1 句 role=fact；",
+                 "标签为“可能存在”或“信息不足”时，必须有 1 句 role=boundary。"):
+        assert line in report_prompts.DIM_PROMPT
+
+
+def test_core_finding_names_resources_needs_and_situations():
+    assert "同时写出该维度的积极资源与发展需求，并点明二者分别出现在什么情境" \
+        in report_prompts.DIM_PROMPT
+
+
+def test_core_finding_allows_two_to_four_sentences():
+    assert "通常 2–4 句，写清为止，不超过 180 字" in report_prompts.DIM_PROMPT
+    assert "1–2 句" not in report_prompts.DIM_PROMPT
+
+
+def test_profile_findings_and_plan_cite_matching_tags():
+    for line in ("resources 必须引用至少一项标签为“积极资源”的能力；",
+                 "needs 必须引用至少一项标签为“确认发展需求”或“可能存在”的能力；",
+                 "open 必须引用至少一项标签为“暂未发现”或“信息不足”的能力。",
+                 "plan 的 goal 必须对应 needs 中的能力。"):
+        assert line in report_prompts.PROFILE_PROMPT
+
+
+def test_meeting_role_is_parsed_then_discarded():
+    adjustments = []
+    raw = {"sentences": [
+        {"text": "学生周一去了学校。", "evidence_ids": ["e1"], "kind": "fact", "role": "fact"},
+        {"text": "这一点可能还需要了解。", "evidence_ids": [], "kind": "inference",
+         "role": "boundary"},
+        {"text": "学生周二也去了学校。", "evidence_ids": ["e1"], "kind": "fact"},
+        {"text": "学生周三去了学校。", "evidence_ids": ["e1"], "kind": "fact",
+         "role": "其他"}]}
+    out = report_pipeline._sentences(raw, {"e1": "学生"}, ["dims", "R1"], adjustments,
+                                     "R1", keep_role=True)
+    assert [row["role"] for row in out["sentences"]] == ["fact", "boundary", "", ""]
+    report_pipeline._structure_notes(out, "R1.1", ["信息不足"], True,
+                                     ["dims", "R1"], adjustments)
+    assert adjustments == []
+    assert "role" not in json.dumps(out, ensure_ascii=False)
+
+
+def test_structure_notes_flag_missing_fact_and_boundary():
+    field = {"text": "这一点可能还需要了解。", "src": "ai", "sentences": [
+        {"text": "这一点可能还需要了解。", "evidence_ids": [], "kind": "inference",
+         "role": "relation"}]}
+    adjustments = []
+    report_pipeline._structure_notes(field, "R1.1", ["信息不足"], True,
+                                     ["dims", "R1", "abilities", "R1.1", "meeting"],
+                                     adjustments)
+    assert [a["message"] for a in adjustments] == [
+        "R1.1：有直接会议证据，但没有写事实句（role=fact）",
+        "R1.1：标签为信息不足，但没有写证据边界（role=boundary）"]
+    assert adjustments[0]["path"] == ["dims", "R1", "abilities", "R1.1", "meeting"]
+    assert "role" not in field["sentences"][0]
+
+
+def test_structure_notes_skip_sentences_without_roles():
+    field = {"text": "学生周一去了学校。", "src": "ai", "sentences": [
+        {"text": "学生周一去了学校。", "evidence_ids": ["e1"], "kind": "fact"}]}
+    adjustments = []
+    report_pipeline._structure_notes(field, "R1.1", ["信息不足"], True, ["dims", "R1"],
+                                     adjustments)
+    assert adjustments == []
+
+
+class _RoleModel(FakeModel):
+    """给 R1.1 的会议句加上 role：第一句不是 fact，另加一句 boundary。"""
+
+    def _dim(self, prompt):
+        out = super()._dim(prompt)
+        for row in out["abilities"]:
+            if row["code"] == "R1.1" and row["meeting"]["sentences"]:
+                row["meeting"]["sentences"][0]["role"] = "relation"
+                row["meeting"]["sentences"].append(
+                    {"text": "这一点可能还需要在别的场合观察。", "evidence_ids": [],
+                     "kind": "inference", "role": "boundary"})
+        return out
+
+
+def test_role_never_reaches_the_saved_doc(rdb, monkeypatch):
+    monkeypatch.setattr(report_pipeline, "call_model", _RoleModel())
+    _report, version = generate(rdb)
+    meeting = version["doc"]["dims"]["R1"]["abilities"]["R1.1"]["meeting"]
+    assert "role" not in json.dumps(meeting, ensure_ascii=False)
+    assert any("R1.1：有直接会议证据，但没有写事实句" in item["message"]
+               for item in version["manifest"]["adjustments"])

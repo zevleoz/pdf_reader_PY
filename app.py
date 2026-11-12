@@ -86,6 +86,7 @@ def create_app() -> Flask:
     INPUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    import m1.plan_store  # noqa: F401  发展计划的表须在 init_db 的 create_all 之前注册
     import m1.report_store  # noqa: F401  会后报告的表须在 init_db 的 create_all 之前注册
     _db.init_db()
 
@@ -241,6 +242,7 @@ def create_app() -> Flask:
     from blueprints.growth_talk import bp as growth_talk_bp
     from blueprints.insights import bp as insights_bp
     from blueprints.m1 import bp as m1_bp
+    from blueprints.m1_plan import bp as m1_plan_bp
     from blueprints.m1_report import bp as m1_report_bp
     from blueprints.questionnaires import bp as questionnaires_bp
     from blueprints.reports import bp as reports_bp
@@ -251,7 +253,7 @@ def create_app() -> Flask:
 
     for _bp in (auth_bp, workspace_bp, students_bp, reports_bp,
                 growth_talk_bp, copilot_bp, questionnaires_bp,
-                insights_bp, m1_bp, m1_report_bp, tools_bp, system_bp,
+                insights_bp, m1_bp, m1_plan_bp, m1_report_bp, tools_bp, system_bp,
                 app_shell_bp, api_v1_bp):
         app.register_blueprint(_bp)
 

@@ -278,7 +278,7 @@ def test_m1_turned_off_applies_without_relogin(world, app):
     app_utils.invalidate_session_user(uid)
     response = client.get("/api/m1/preps")
     assert response.status_code == 403
-    assert response.get_json()["error"] == "当前账号没有 M1 权限"
+    assert response.get_json()["error"] == "当前账号没有心有灵析权限"
 
 
 def test_disabled_account_gets_401(world, app):

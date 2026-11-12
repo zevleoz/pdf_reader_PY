@@ -1,213 +1,164 @@
-{% extends "layouts/admin_v2.html" %}
-{% block title %}{{ prep.student_name }} · 会后报告{% endblock %}
-{% block page_title %}会后报告{% endblock %}
-{% block body_attrs %}class="m1-platform"{% endblock %}
-{% block crumb_up %}凭远 APP·ARK{% endblock %}
-
-{% block brand %}
-<a class="side-brand" href="/m1">
-  <img src="/branding/logo_red.png" alt="凭远教育盾徽">
-  <span class="txt">
-    <div class="name">M1</div>
-    <div class="sub">凭远 APP·ARK</div>
-  </span>
-</a>
-{% endblock %}
-
+{% extends "m1/_layout.html" %}
+{% block title %}{{ prep.student_name }} · 会后报告 · 心有灵析{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/m1/assets/m1.css">
 <link rel="stylesheet" href="/m1/assets/report_workspace.css">
+{% endblock %}
+{% block crumbs %}
+<div class="cr"><a href="/m1">会议</a><span>/</span><a href="/m1/preps/{{ prep.id }}">{{ prep.student_name }}</a><span>/</span><b>会后报告</b></div>
 {% endblock %}
 
 {% block content %}
 <div class="m1 r4-review" id="r4Review" data-prep-id="{{ prep.id }}"
      data-student="{{ prep.student_name }}">
-  <div class="m1-main">
-    <div class="page-h">
-      <div style="min-width:0">
-        <div class="crumb"><a href="/m1">M1</a> / {{ prep.student_name }} / 会后报告</div>
-        <h1>{{ prep.student_name }} · 首次情绪力分析报告</h1>
-      </div>
-      <span class="sp"></span>
-      <span class="sub" id="r4Saved" aria-live="polite"></span>
-      <span class="pill" id="r4StatusPill"><span class="dot"></span><span id="r4StatusLabel">…</span></span>
+  <div class="head th">
+    <div>
+      <h1>会后报告<span id="r4Tag">逐字稿</span></h1>
+      <p class="sub"><a class="link" href="/m1/preps/{{ prep.id }}">{{ prep.student_name }}</a>
+        {%- if prep.grade %} · {{ prep.grade }}{% endif %}
+        {%- if prep.meeting_date %} · First Meeting {{ prep.meeting_date }}{% endif %}
+        {%- if prep.mentor_name %} · {{ prep.mentor_name }}{% endif %}</p>
     </div>
+  </div>
 
-    <div class="m1-parts" role="tablist" aria-label="M1 部分">
-      <a class="part" role="tab" aria-selected="false"
-         href="/m1/preps/{{ prep.id }}">会前准备</a>
-      <span class="part on" role="tab" aria-selected="true" aria-current="page">会后报告</span>
-    </div>
+  <nav class="track k2" id="r4StepNav" aria-label="报告步骤">
+    <a class="n" data-step="sources" href="#step=sources" aria-current="step"><b>① 逐字稿</b><small id="r4SrcNote">上传后生成报告</small></a>
+    <a data-step="review" href="#step=review"><b>② 核对并发布</b><small>直接改报告 · 导出 PDF</small></a>
+  </nav>
 
-    <nav class="r4-stepnav" id="r4StepNav" aria-label="报告步骤">
-      <button type="button" data-step="sources" aria-current="step">① 资料</button>
-      <button type="button" data-step="review">② 核对</button>
-      <button type="button" data-step="export">③ 导出</button>
-    </nav>
-
-    {# ---------------- 资料 ---------------- #}
-    <section class="surface" id="r4Sources" data-step="sources">
-      <div class="head"><h2>资料</h2></div>
-      <div class="body r4-src">
-        <div class="r4-row">
-          <span class="r4-k">Y4</span>
-          <div class="r4-v">
-            <span class="pill" id="r4Y4Pill">读取中…</span>
-            <span class="sub" id="r4Y4Note"></span>
-          </div>
-        </div>
-        <div class="r4-row">
-          <span class="r4-k">First Touch</span>
-          <div class="r4-v">
-            <span class="pill" id="r4FtPill">读取中…</span>
-            <span class="sub" id="r4FtNote"></span>
-          </div>
-        </div>
-        <div class="r4-row r4-transcript">
-          <span class="r4-k">M1 First Meeting 逐字稿</span>
-          <div class="r4-v">
-            <div class="r4-tmeta">
-              <span class="pill danger">必需</span>
-              <span class="sub" id="r4TranscriptMeta">未上传</span>
-            </div>
-            <div class="r4-upload">
-              <div class="r4-fileline">
-                <input class="inp" type="file" id="r4TranscriptFile"
-                       accept=".txt,.md,.docx,.pdf" aria-label="上传逐字稿">
-              </div>
-              <textarea class="inp" id="r4TranscriptText"
-                        placeholder="或粘贴逐字稿文字"></textarea>
-            </div>
-            <span class="hint">选好文件或粘贴文字后自动保存。暂不支持音频，请上传转写文字（txt、docx、pdf）。</span>
-          </div>
-        </div>
-        <div class="r4-row">
-          <span class="r4-k">其他资料</span>
-          <div class="r4-v">
-            <div id="r4Others" class="r4-others"></div>
-            <a class="sub r4-inline-link" href="/m1/preps/{{ prep.id }}">到会前准备修改</a>
-          </div>
-        </div>
+  {# ---------------- ① 逐字稿 ---------------- #}
+  <div class="wk2" id="r4StepSources" data-step="sources" style="margin-top:22px">
+    <div id="r4Sources" style="min-width:0">
+      <h3 class="h2">心有灵析 First Meeting 逐字稿<span class="req">必需</span></h3>
+      <label class="drop big" id="r4Drop">
+        <b>拖入逐字稿文件</b>
+        <span>txt、docx、pdf。暂不支持音频，请先转成文字。</span>
+        <span class="btn s">选择文件</span>
+        <input type="file" id="r4TranscriptFile" hidden accept=".txt,.md,.docx,.pdf">
+      </label>
+      <div class="file" id="r4TranscriptLine" hidden>
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>
+        <span id="r4TranscriptName"></span>
+        <span class="mu" id="r4TranscriptMeta"></span>
+        <button type="button" class="btn s g" id="r4TranscriptReplace">替换</button>
       </div>
-    </section>
-
-    {# ---------------- 封面 ---------------- #}
-    <section class="surface" id="r4Cover" data-step="sources">
-      <details class="r4-fold"><summary><h2>封面信息</h2><span class="sub">学生、日期等，通常不用改</span></summary>
-      <div class="body r4-cover">
-        <label class="field">
-          <span>学生</span>
-          <input class="inp" id="r4MetaStudent" readonly>
-        </label>
-        <label class="field">
-          <span>年级</span>
-          <input class="inp" data-meta="grade">
-        </label>
-        <label class="field">
-          <span>学校</span>
-          <input class="inp" data-meta="school">
-        </label>
-        <label class="field">
-          <span>Y4 测评日期</span>
-          <input class="inp" type="date" data-meta="y4_date">
-        </label>
-        <label class="field">
-          <span>首次会议</span>
-          <input class="inp" type="date" data-meta="meeting_date">
-        </label>
-        <label class="field">
-          <span>报告日期</span>
-          <input class="inp" type="date" data-meta="report_date">
-        </label>
-        <label class="field r4-cover-wide">
-          <span>证据来源</span>
-          <input class="inp" data-meta="evidence_sources">
-        </label>
-      </div>
+      <details class="fold" id="r4PasteFold" style="margin-top:6px">
+        <summary>或者粘贴文字</summary>
+        <textarea class="ta" id="r4TranscriptText" style="min-height:140px" placeholder="粘贴逐字稿全文"></textarea>
+        <span class="hint">自动保存。不用标注谁在说话，生成时会自动识别学生、导师和家长。</span>
       </details>
-    </section>
 
-    {# ---------------- 生成 ---------------- #}
-    <section class="surface" id="r4GenerateCard" data-step="sources">
-      <div class="head"><h2>生成</h2><span class="sp"></span></div>
-      <div class="body">
-        <div class="r4-genbar">
-          <button type="button" class="btn pri lg" id="r4Generate">生成报告</button>
-          <span class="sub" id="r4GenerateReason"></span>
-        </div>
-        <div class="gen r4-steps" id="r4Steps" hidden></div>
+      <h3 class="h2" style="margin-top:28px">其他资料<small>只用于会后报告，和会前准备分开</small></h3>
+      <div class="rows" id="r4Auto"></div>
+      <div id="r4Others" style="margin-top:10px"></div>
+      <div class="drop" id="r4OtherDrop" style="margin-top:10px">
+        还有其他资料可以在这里上传；没有可以不传
+        <span class="btn s">上传文件</span>
+        <input type="file" id="r4OtherFile" hidden accept=".txt,.md,.docx,.pdf,.csv,.xlsx,.png,.jpg,.jpeg">
       </div>
-    </section>
 
-    {# ---------------- 发言人 ---------------- #}
-    <section class="surface" id="r4Speakers" data-step="review">
-      <div class="head"><h2>发言人</h2><span class="sp"></span>
-        <span class="sub" id="r4SpkLine">生成报告时会自动识别发言人。</span></div>
-      <details class="r4-fold" id="r4SpkMore" hidden>
-        <summary><span class="sub">查看或修改</span></summary>
-        <div id="r4SpkLabels" class="r4-spk-labels"></div>
-        <label class="r4-spk-filter"><input type="checkbox" id="r4SpkOnlyUnsure"> 只看待确认</label>
-        <div id="r4SpkTurns" class="r4-spk-turns"></div>
-        <div class="r4-fileline">
-          <button type="button" class="btn sm pri" id="r4SpkSave">保存修改</button>
-          <span class="sub">修改后重新生成报告才会生效。</span>
+      <details class="fold" id="r4Cover" style="margin-top:22px">
+        <summary>封面信息（学生、日期等，通常不用改）</summary>
+        <div class="fm" style="margin-top:8px">
+          <label>学生<input class="inp" id="r4MetaStudent" readonly></label>
+          <label>年级<input class="inp" data-meta="grade"></label>
+          <label>学校<input class="inp" data-meta="school"></label>
+          <label>Y4 测评日期<input class="inp" type="date" data-meta="y4_date"></label>
+          <label>首次会议<input class="inp" type="date" data-meta="meeting_date"></label>
+          <label>报告日期<input class="inp" type="date" data-meta="report_date"></label>
+          <label class="w">证据来源<input class="inp" data-meta="evidence_sources"></label>
         </div>
       </details>
-    </section>
+    </div>
 
-    <section class="surface" id="r4PreviewCard" data-step="review">
-      <div class="head"><h2>预览与修改</h2><span class="sp"></span>
-        <span class="sub">直接在报告里改文字；黄色框是报告还不完整的地方。</span>
-        <button type="button" class="btn sm" id="r4Regenerate">重新生成</button></div>
+    <aside class="rail">
+      <div class="go" id="r4GenerateCard">
+        <b>生成会后报告</b>
+        <div id="r4GenerateBody" style="display:contents">
+          <span class="hint" id="r4GenerateReason" style="color:var(--ink2)">先上传或粘贴逐字稿。</span>
+          <button type="button" class="btn p" id="r4Generate">生成报告</button>
+          <span class="hint">约 1–2 分钟。可以离开这个页面，生成会在后台继续。</span>
+        </div>
+        <div id="r4GenBox" hidden>
+          <div class="meter"><i id="r4Meter"></i></div>
+          <div class="gen" id="r4Steps" style="margin-top:10px"></div>
+          <a class="btn p" id="r4GenOpen" href="#step=review" hidden style="margin-top:12px;width:100%">打开报告<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  {# ---------------- ② 核对并发布 ---------------- #}
+  <div class="wk2 wide" id="r4StepReview" data-step="review" hidden style="margin-top:22px">
+    <div style="min-width:0">
+      <div class="dbar">
+        <span class="saved" id="r4Saved" aria-live="polite"></span>
+        <span class="sp"></span>
+        <button type="button" class="btn s" id="r4Regenerate">重新生成</button>
+      </div>
       <div class="safety" id="r4Safety" hidden>
         <div id="r4SafetyItems" class="r4-safety-items"></div>
       </div>
-      <iframe id="r4Preview" class="r4-preview" title="报告预览与修改"></iframe>
+      <div class="desk">
+        <iframe id="r4Preview" class="r4-preview" title="报告预览与修改"></iframe>
+      </div>
       <p class="sub" id="r4PreviewEmpty" hidden>还没有生成报告。请回到「① 资料」生成。</p>
-      <div class="r4-next"><button type="button" class="btn pri" id="r4ToExport">下一步：导出</button></div>
-    </section>
-
-    <div id="r4Legacy" hidden>
-      {# ---------------- 需要处理 ---------------- #}
-      <section class="surface" id="r4Todo">
-        <div class="head"><h2>需要处理</h2></div>
-        <div class="body r4-todo">
-          <div class="r4-checks" id="r4Checks"></div>
-          <details class="r4-fold" id="r4ChecksMoreWrap" hidden>
-            <summary><span class="sub" id="r4ChecksMoreLabel">其他提示</span></summary>
-            <div class="r4-checks" id="r4ChecksMore"></div>
-          </details>
-        </div>
-      </section>
-
-      {# ---------------- 报告内容 ---------------- #}
-      <section class="surface" id="r4Content">
-        <div class="head"><h2>报告内容</h2><span class="sp"></span>
-          <span class="sub" id="r4ContentHint"></span></div>
-        <div class="r4-tabs" role="tablist" aria-label="报告内容" id="r4Tabs"></div>
-        <div class="r4-panels" id="r4Panels"></div>
-      </section>
     </div>
 
-    {# ---------------- 导出 ---------------- #}
-    <section class="surface" id="r4Export" data-step="export">
-      <div class="head"><h2>导出</h2></div>
-      <div class="body">
-        <p class="r4-export-state" id="r4ExportState"></p>
-        <p class="hint">正式发布前导出的 PDF 带“草稿”水印。</p>
+    <aside class="rail">
+      <div class="go" id="r4Export">
+        <b id="r4ExportTitle">正式发布</b>
+        <p class="hint" id="r4ExportState" style="margin:0;color:var(--ink2)"></p>
+        <button type="button" class="btn p" id="r4Publish" hidden>正式发布</button>
         <div class="r4-actions" id="r4Actions">
-          <a class="btn pri" id="r4Print" href="/m1/preps/{{ prep.id }}/report/print?print=1"
-             target="_blank" rel="noopener" hidden>导出 PDF</a>
-          <a class="btn" id="r4Evidence" href="/m1/preps/{{ prep.id }}/report/evidence"
-             target="_blank" rel="noopener" hidden>内部证据记录</a>
-          <button type="button" class="btn pri" id="r4Publish" hidden>正式发布</button>
-          <button type="button" class="btn" id="r4Reopen" hidden>重新打开</button>
+          <a class="btn s" id="r4Print" href="/m1/preps/{{ prep.id }}/report/print?print=1"
+             target="_blank" rel="noopener" hidden style="flex:1">导出 PDF</a>
+          <a class="btn s" id="r4Evidence" href="/m1/preps/{{ prep.id }}/report/evidence"
+             target="_blank" rel="noopener" hidden style="flex:1">内部证据记录</a>
         </div>
-
-        <div class="r4-published" id="r4PublishedNote" hidden>
-          已正式发布。如需修改，请先重新打开。
-        </div>
+        <button type="button" class="btn p" id="r4Reopen" hidden>重新打开</button>
+        <p class="hint">正式发布前导出的 PDF 带“草稿”水印。</p>
+        <p class="hint" id="r4PublishedNote" hidden>已正式发布。如需修改，请先重新打开。</p>
       </div>
+
+      <section id="r4NeedCard">
+        <h3 class="h2">需要补全<small id="r4NeedCount">0</small></h3>
+        <p class="hint" id="r4NeedText"></p>
+        <details class="fold" id="r4TipsFold">
+          <summary>其他提示 <span id="r4TipCount">0</span> 条（仅供参考）</summary>
+          <div class="r4-checks" id="r4ChecksMore"></div>
+        </details>
+      </section>
+
+      <section id="r4Speakers">
+        <h3 class="h2">发言人<small>自动识别</small></h3>
+        <span class="hint" id="r4SpkLine">生成报告时会自动识别发言人。</span>
+        <details class="fold" id="r4SpkMore" hidden>
+          <summary><span>查看或修改</span></summary>
+          <div id="r4SpkLabels" class="r4-spk-labels"></div>
+          <label class="r4-spk-filter"><input type="checkbox" id="r4SpkOnlyUnsure"> 只看待确认</label>
+          <div id="r4SpkTurns" class="r4-spk-turns"></div>
+          <div class="r4-fileline">
+            <button type="button" class="btn s p" id="r4SpkSave">保存修改</button>
+            <span class="hint">修改后重新生成报告才会生效。</span>
+          </div>
+        </details>
+      </section>
+    </aside>
+  </div>
+
+  {# 旧版内容面板保持隐藏，脚本仍在更新它。 #}
+  <div id="r4Legacy" hidden>
+    <section id="r4Todo">
+      <div class="head"><h2>需要处理</h2></div>
+      <div class="body r4-todo">
+        <div class="r4-checks" id="r4Checks"></div>
+      </div>
+    </section>
+    <section id="r4Content">
+      <div class="head"><h2>报告内容</h2><span class="sp"></span>
+        <span class="sub" id="r4ContentHint"></span></div>
+      <div class="r4-tabs" role="tablist" aria-label="报告内容" id="r4Tabs"></div>
+      <div class="r4-panels" id="r4Panels"></div>
     </section>
   </div>
 </div>

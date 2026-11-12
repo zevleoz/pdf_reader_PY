@@ -1,0 +1,197 @@
+/* M1 发展计划：资料与目标 / 内部版审阅 / 打印 */
+
+.plan-step[hidden]{display:none!important}
+
+/* 只读提示 */
+.plan-ro{margin:-6px 0 16px;color:var(--mute);font-size:13px}
+
+/* 标题与步骤条沿用 ark.css 的 .head.th / .track.k3 */
+
+/* ---- ① 资料与目标 ---- */
+.plan-page .src{margin-top:0}
+.plan-page .src .st{white-space:nowrap}
+.plan-page .fm{margin-bottom:22px}
+.plan-page .fm input[type="date"]{height:34px;border:1px solid var(--line);border-radius:var(--r2);
+  padding:0 8px;background:var(--surface);font-size:13.5px;color:var(--ink);min-width:0}
+.plan-page .fm input[disabled]{opacity:.6}
+
+.pwarn{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin:0 0 12px;
+  background:#FFF8E6;border:1px solid #E7C27A;border-radius:var(--r2);font-size:13px;color:#7A5A00}
+.pwarn b{font-weight:700}
+.pwarn .sp{flex:1}
+
+.ai{display:inline-flex;align-items:center;height:18px;padding:0 5px;margin-left:6px;
+  font-size:10.5px;font-weight:700;letter-spacing:.02em;color:var(--hl);
+  background:color-mix(in srgb,var(--hl) 12%,#fff);border-radius:2px;vertical-align:1px}
+.ai[hidden]{display:none}
+
+.plan-page .ddtext{display:block;min-height:22px}
+.plan-page .gcard dd[contenteditable]{background:var(--sunk);padding:5px 7px;border-radius:3px;outline:0}
+.plan-page .gcard dd[contenteditable]:focus{box-shadow:0 0 0 2px var(--hl)}
+.plan-page .gcard dd.busy{color:var(--mute)}
+.plan-page .gcard dd.busy::after{content:" · AI 生成中…";font-size:11.5px;color:var(--hl)}
+.plan-page .gcard .gt .st{margin-left:2px}
+.plan-page .gcard .gt .btn{margin-left:auto}
+.plan-page .gcard .gt .chip{background:var(--sunk)}
+
+.chips .chip.dim{opacity:.55}
+.chips .chip.add{cursor:pointer}
+.chips .chip .plus{font-weight:700;color:var(--hl)}
+
+.pfile{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px solid var(--line)}
+.pfile .mu{margin-left:auto}
+.pfile .del{color:var(--mute);font-size:12.5px;font-weight:600}
+.pfile .del:hover{color:#B91C1C}
+
+/* WB 参考课 */
+.wbc{padding:9px 0;border-top:var(--headrule);font-size:12.5px;color:var(--mute);line-height:1.5}
+.wbc b{display:block;color:var(--ink);font-size:13.5px;font-weight:700}
+.wbc .bd{margin-top:3px;color:var(--ink2)}
+
+/* 生成进度 */
+.plan-page .gen{margin-top:10px}
+.plan-page .gen>div small{display:block;font-weight:400;color:var(--mute);font-size:11.5px}
+
+/* ---- ② 内部版 ---- */
+.plan-page .dbar .saved.err::before{background:#B91C1C}
+.plan-page .dbar .saved.busy::before{background:#B45309}
+.plan-page .desk{padding:22px 14px}
+.plan-page .a4{max-width:780px;padding:40px 46px 52px}
+.plan-page .a4[contenteditable="false"]{cursor:default}
+.plan-page .a4 .pf{white-space:pre-wrap;display:inline}
+.plan-page .a4 .pf.block{display:block}
+.plan-page .a4 .pf.ro{background:none!important;box-shadow:none!important}
+.plan-page .a4 .pf:empty::before{content:"（空）";color:#B9B7B2}
+.plan-page .a4 .pf.flash{background:#FFF6CC;box-shadow:inset 3px 0 0 #E0A800}
+
+.phead th{width:92px}
+.phead td,.phead th{font-size:12.5px}
+.plan-page .a4 .mu{color:#787774}
+
+.pfocus{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:4px 0 8px;font-size:12.5px;color:var(--mute)}
+.pfocus label{display:flex;align-items:center;gap:6px}
+.pfocus .selx{height:30px;font-size:12.5px;background-color:#fff}
+
+.sess{display:flex;align-items:center;gap:10px;margin:30px 0 8px;padding-top:14px;border-top:1px solid #E3E3E0}
+.sess h2{margin:0;flex:1;min-width:0}
+.sess .regen{flex:none}
+
+.act{border:1px solid #E8E8E5;border-left:3px solid #E0DFDB;border-radius:2px;
+  padding:9px 12px 10px;margin:10px 0 12px;background:#FCFCFB}
+.act.review{background:#F7F6F3;border-left-color:#C9C6BF}
+.act-h{display:flex;align-items:flex-start;gap:8px}
+.act-h h4{margin:0;font-size:14px;line-height:1.5;flex:1;min-width:0}
+.act-tools{display:flex;gap:4px;flex:none}
+.act-tools button{height:24px;padding:0 7px;font-size:11.5px;font-weight:600;color:var(--mute);
+  border:1px solid #E3E3E0;border-radius:2px;background:#fff}
+.act-tools button:hover{color:var(--ink);border-color:#C9C6BF}
+.act-tools button[disabled]{opacity:.35;cursor:not-allowed}
+.act .meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0 6px;font-size:12px;color:var(--mute)}
+.act .meta .inp{width:58px;height:28px;padding:0 6px;font-size:12.5px}
+.act .meta .selx{height:28px;font-size:12px;background-color:#fff}
+.act .meta .srcl{color:var(--ink);font-weight:600}
+.act .meta .oth{width:150px;height:28px;padding:0 7px;border:1px solid var(--line);border-radius:2px;background:#fff;font-size:12px}
+.act .steps{white-space:pre-wrap;margin:4px 0 6px;font-size:13.5px;line-height:1.7}
+.act .steps.ro{color:#4A4A46}
+.act p{margin:0 0 5px;font-size:13.5px}
+.act .lbl{font-weight:700}
+
+.prac{border-top:1px dashed #E3E3E0;padding:9px 0 6px;margin-top:8px}
+.prac:first-of-type{border-top:0}
+.prac .line{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px}
+.prac .line .selx{height:28px;font-size:12px;background-color:#fff}
+.prac .line .del{color:var(--mute);font-size:12px;font-weight:600;margin-left:auto}
+.prac .line .del:hover{color:#B91C1C}
+.prac .task{margin-top:4px;font-size:13px}
+.padd{margin:10px 0 4px}
+
+.pcnt{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:600;color:var(--mute);vertical-align:2px}
+.pcnt.over{color:#B91C1C}
+
+.plan-page .rail .go .hint{color:var(--ink2)}
+.plan-page .rail section .chk{border-bottom:1px solid var(--line)}
+.plan-page .rail .fold{border-top:var(--headrule);padding-top:8px;margin-top:6px}
+.plan-page .rail .fold summary{cursor:pointer;font-size:12.5px;color:var(--mute)}
+.plan-page .rail .fold p{margin:6px 0 0}
+.plan-page .rail .okline{font-size:13px;color:var(--ink2);margin:0}
+.plan-page .rail .approve-meta{font-size:12.5px;color:var(--mute)}
+
+.versions{display:flex;flex-direction:column;gap:0;max-height:340px;overflow:auto}
+.versions .vrow{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:baseline;
+  padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.versions .vrow b{font-weight:700}
+.versions .vrow small{color:var(--mute);font-size:12px}
+.versions .part{font-size:11px;font-weight:700;color:var(--mute)}
+
+/* ---- ③ 家长版 ---- */
+.plan-page .pp-edit{font-size:13px}
+.plan-page .pp-edit h1{font-size:30px;line-height:1.3;margin-bottom:4px}
+.plan-page .pp-edit .pen{margin:0 0 12px;font-size:11px;letter-spacing:.06em;color:#8A857D}
+.plan-page .pp-edit .pp-intro{margin:16px 0 4px;font-size:13px;line-height:1.9}
+.plan-page .pp-sect{margin-top:20px;padding-top:12px;border-top:1px solid #E3E3E0}
+.plan-page .pp-sect h2{font-size:15px;margin:0 0 8px}
+.plan-page .pp-goals{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.plan-page .pp-goal{padding:9px 11px;background:#FCFCFB;border:1px solid #E8E8E5;border-top:2px solid #C9C6BF}
+.plan-page .pp-goal b{display:block;font-size:12px;margin-bottom:4px}
+.plan-page .pp-goal .pf{font-size:12.5px;line-height:1.7;color:#4A4A46}
+.plan-page .pp-sess3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.plan-page .pp-sess b{display:block;font-size:10.5px;letter-spacing:.08em;color:#9A7B4F;margin-bottom:3px}
+.plan-page .pp-sess .pf{font-size:12px;line-height:1.7}
+.plan-page .pp-sess .pf+.pf{color:#787774;margin-top:3px}
+.plan-page .pp-trans{margin:10px 0 0;font-size:12px;line-height:1.7;color:#4A4A46}
+.plan-page .pp-prac{margin:0 0 8px;padding:8px 10px;border:1px solid #E8E8E5;border-left:3px solid #C9C6BF;background:#FCFCFB}
+.plan-page .pp-prac .line{margin:0 0 4px;font-size:10.5px;letter-spacing:.05em;color:#8A857D}
+.plan-page .pp-prac p{margin:0 0 4px;font-size:12.5px;line-height:1.65}
+.plan-page .pp-prac .mu{font-size:11px;color:#8A857D}
+.plan-page .pp-fam{list-style:none;margin:0;padding:0}
+.plan-page .pp-fam li{position:relative;padding-left:14px;margin:0 0 7px;font-size:12.5px;line-height:1.7}
+.plan-page .pp-fam li::before{content:"";position:absolute;left:0;top:.72em;width:4px;height:4px;border-radius:50%;background:#A6804B}
+.plan-page .pp-review{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.plan-page .pp-rv{position:relative;padding:8px 10px;border:1px solid #E8E8E5;background:#FCFCFB}
+.plan-page .pp-rv .pf:first-child{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#9A7B4F}
+.plan-page .pp-rv .pf.block{margin-top:3px;font-size:12px;line-height:1.65;color:#4A4A46}
+.plan-page .pp-rv .del{position:absolute;right:6px;top:6px;font-size:11px;font-weight:600;color:var(--mute)}
+.plan-page .pp-close{margin:18px 0 0;padding-top:10px;border-top:1px solid #E3E3E0;font-size:10.5px;line-height:1.7;color:#A29B92}
+.plan-page .pp-pick{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.plan-page .pp-pick input{margin-top:3px}
+.plan-page .pp-pick b{display:block;font-size:12.5px;font-weight:600}
+.plan-page .pp-pick small{display:block;font-size:11px;color:var(--mute)}
+.plan-page .rail #ppChecks .chk{width:100%}
+.plan-page .rail #ppChecks .btn{margin:-4px 0 8px auto;display:block}
+.plan-page .pp-frame{position:absolute;left:-20000px;top:0;width:900px;height:1700px;border:0;visibility:hidden;pointer-events:none}
+@media (max-width:980px){
+  .plan-page .pp-sess3{grid-template-columns:1fr}
+  .plan-page .pp-review{grid-template-columns:1fr}
+}
+
+/* ---- 打印 ---- */
+.plan-print .print-desk{padding:20px 16px 40px}
+.plan-print .a4{max-width:800px;padding:38px 46px 50px;font-size:13px;line-height:1.75}
+.plan-print .a4 h1{font-size:22px;margin:0 0 12px;line-height:1.35}
+.plan-print .a4 h2{font-size:16px;margin:24px 0 6px}
+.plan-print .a4 h3{font-size:13.5px;margin:14px 0 4px}
+.plan-print .a4 p{margin:3px 0}
+.plan-print .a4 table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0 10px}
+.plan-print .a4 th,.plan-print .a4 td{border:1px solid #DDDCD8;padding:5px 7px;vertical-align:top;text-align:left}
+.plan-print .a4 th{background:#F4F3F0;font-weight:600}
+.plan-print .a4 .mu{color:#787774}
+.plan-print .a4 .pp-sess{margin-top:22px;padding-top:12px;border-top:1px solid #DDDCD8}
+.plan-print .a4 .pp-sess h2{margin-top:0}
+.plan-print .a4 .pp-act{margin:7px 0 9px;padding:7px 10px;background:#FAFAF8;border-left:2px solid #DDDCD8}
+.plan-print .a4 .pp-act b{font-weight:700}
+.plan-print .a4 .pp-act .meta{font-size:11px;color:#787774;margin:2px 0 4px}
+.plan-print .a4 .pp-sess h2,.plan-print .a4 .pp-act>h4{page-break-after:avoid}
+.plan-print .a4 .pp-act{page-break-inside:avoid}
+.pp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+@media (max-width:980px){
+  .plan-page .wk2,.plan-page .wk2.wide{grid-template-columns:minmax(0,1fr)}
+  .plan-page .rail{position:static}
+}
+@media (max-width:640px){
+  .plan-page .head h1{font-size:34px}
+  .plan-page .desk{padding:10px 6px}
+  .plan-page .a4{padding:24px 18px 32px}
+  .plan-page .track.k3{grid-template-columns:minmax(0,1fr)}
+  .plan-print .a4{padding:24px 18px}
+}

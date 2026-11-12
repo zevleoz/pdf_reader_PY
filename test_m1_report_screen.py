@@ -73,12 +73,13 @@ def test_report_page_renders_for_admin(client, m1db):
     resp = client.get(f"/m1/preps/{prep['id']}/report")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert 'class="m1-platform"' in html
+    assert 'data-platform="m1"' in html
+    assert "/m1/assets/ark.css" in html
     assert 'id="r4TranscriptFile"' in html
     for label in ("导出 PDF", "内部证据记录", "正式发布", "重新打开"):
         assert label in html
     assert "审核通过" not in html     # M1R-P7：不再有单独的审核步骤
-    assert "暂不支持音频，请上传转写文字（txt、docx、pdf）。" in html
+    assert "暂不支持音频，请先转成文字。" in html
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +100,9 @@ def test_workspace_links_to_report(client, m1db):
     _login(client, m1db.admin_id, "admin")
     prep = m1db.prep()
     html = client.get(f"/m1/preps/{prep['id']}").get_data(as_text=True)
-    assert f'href="/m1/preps/{prep["id"]}/report"' in html
+    assert 'id="m1ReportCard"' in html
+    js = client.get("/m1/assets/m1_student.js").get_data(as_text=True)
+    assert "'/m1/preps/' + prep.id + '/report'" in js
     assert 'title="即将上线">会后报告' not in html
 
 
@@ -110,7 +113,7 @@ def test_report_part_is_enabled():
     parts = {part["key"]: part for part in M1_PARTS}
     assert parts["report"]["enabled"] is True
     assert parts["report"]["href_suffix"] == "/report"
-    assert parts["prep"]["href_suffix"] == ""
+    assert parts["prep"]["href_suffix"] == "/prep"
 
 
 # ---------------------------------------------------------------------------

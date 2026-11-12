@@ -60,7 +60,7 @@ def test_home_is_m1_not_profiling(client, m1db):
     resp = client.get("/m1")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert "<h1>M1</h1>" in html
+    assert '<h1 id="m1Count">学生<span>' in html
     assert "M1 会前准备" not in html
 
 
@@ -68,7 +68,7 @@ def test_home_nav_is_m1_and_other_platforms_only(client, m1db):
     _login(client, m1db.admin_id, "admin")
     html = client.get("/m1").get_data(as_text=True)
     assert "学生 Profiling" in html
-    assert ">M1<" in html
+    assert ">心有灵析<" in html
     assert "报告生成" not in html
     assert "学生档案" not in html
 
@@ -87,7 +87,7 @@ def test_advisor_without_m1_access_gets_403_on_page_and_api(client, m1db):
     assert client.get("/m1").status_code == 403
     resp = client.get("/api/m1/preps")
     assert resp.status_code == 403
-    assert resp.get_json()["error"] == "当前账号没有 M1 权限"
+    assert resp.get_json()["error"] == "当前账号没有心有灵析权限"
 
 
 # ---------------------------------------------------------------------------
@@ -109,13 +109,14 @@ def test_advisor_with_all_scope_creates_prep_for_other_advisor_student(client, m
 def test_workspace_shows_report_part_link(client, m1db):
     _login(client, m1db.alice_id, "advisor", "Alice")
     prep = _seed_doc(m1db)
-    html = client.get(f"/m1/preps/{prep['id']}").get_data(as_text=True)
-    assert '<div class="m1-parts"' in html
-    assert "会前准备" in html
-    assert "会后报告" in html
-    assert f'href="/m1/preps/{prep["id"]}/report"' in html
-    assert ('<span class="part off" role="tab" aria-selected="false" '
-            'aria-disabled="true" title="即将上线">会后报告</span>') not in html
+    html = client.get(f"/m1/preps/{prep['id']}/prep").get_data(as_text=True)
+    assert 'class="track k2"' in html
+    assert "① 资料" in html
+    assert "② 审阅定稿" in html
+    student = client.get(f"/m1/preps/{prep['id']}").get_data(as_text=True)
+    assert 'id="m1ReportCard"' in student
+    js = client.get("/m1/assets/m1_student.js").get_data(as_text=True)
+    assert "'/m1/preps/' + prep.id + '/report'" in js
 
 
 # ---------------------------------------------------------------------------
@@ -153,4 +154,4 @@ def test_print_keeps_framework_title(client, m1db):
     _login(client, m1db.alice_id, "advisor", "Alice")
     prep = _seed_doc(m1db)
     html = client.get(f"/m1/preps/{prep['id']}/print").get_data(as_text=True)
-    assert "M1 FM会前准备框架" in html
+    assert "心有灵析 FM会前准备框架" in html

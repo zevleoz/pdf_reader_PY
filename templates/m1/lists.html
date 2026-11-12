@@ -1,0 +1,82 @@
+{% extends "m1/_layout.html" %}
+{% set meta = {
+  'preps': {'title': '会前准备', 'lead': 'First Meeting 前给导师用的提纲。按会议时间排。'},
+  'reports': {'title': '会后报告', 'lead': 'First Meeting 后给家长的《首次情绪力分析报告》。发布后才能开始发展计划。'},
+  'plans': {'title': '发展计划', 'lead': '每个 Block 一行：三节课的内部版，和给家长的两页 PDF。会后报告发布后可以新建。'}
+} %}
+{% set info = meta[kind] %}
+{% block title %}{{ info.title }}{% endblock %}
+
+{% block crumbs %}<div class="cr"><b>{{ info.title }}</b></div>{% endblock %}
+
+{% block content %}
+<div id="m1Lists" data-kind="{{ kind }}" data-me-name="{{ current_display_name }}">
+  <div class="head">
+    <div>
+      <h1 id="m1Count">{{ info.title }}<span>0</span></h1>
+      <p class="sub">{{ info.lead }}</p>
+    </div>
+    <div class="acts">
+      {% if kind == 'plans' %}<button class="btn p" type="button" id="newPlan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>新建计划</button>{% endif %}
+    </div>
+  </div>
+
+  <div class="tool">
+    <div class="vw" role="tablist" style="margin:0;border:0;flex:1;min-width:0">
+      {% if kind == 'preps' %}
+      <button class="on" type="button" data-view="all">全部<em>0</em></button>
+      <button type="button" data-view="none">待生成<em>0</em></button>
+      <button type="button" data-view="draft">待定稿<em>0</em></button>
+      <button type="button" data-view="final">已定稿<em>0</em></button>
+      {% elif kind == 'reports' %}
+      <button class="on" type="button" data-view="all">全部<em>0</em></button>
+      <button type="button" data-view="upload">待上传逐字稿<em>0</em></button>
+      <button type="button" data-view="publish">待发布<em>0</em></button>
+      <button type="button" data-view="published">已发布<em>0</em></button>
+      {% else %}
+      <button class="on" type="button" data-view="all">全部<em>0</em></button>
+      <button type="button" data-view="internal">待批准内部版<em>0</em></button>
+      <button type="button" data-view="parent">待确认家长版<em>0</em></button>
+      <button type="button" data-view="exported">已导出<em>0</em></button>
+      {% endif %}
+    </div>
+    <div class="seg" role="group" aria-label="添加人">
+      <button class="on" type="button" data-who="mine" aria-pressed="true">我添加的</button>
+      <button type="button" data-who="all" aria-pressed="false">全部</button>
+    </div>
+    <label class="fld" style="width:220px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="m1Search" placeholder="搜索姓名或 Y4 编号" aria-label="搜索"></label>
+  </div>
+
+  <div class="panel list" id="m1List"></div>
+  {% if kind == 'plans' %}<p class="hint" id="m1Eligible" style="margin-top:10px"></p>{% endif %}
+</div>
+{% endblock %}
+
+{% block overlay %}
+{% if kind == 'plans' %}
+<div class="pal dlg" id="planDlg" role="dialog" aria-modal="true" aria-labelledby="planDlgH" hidden><div>
+  <div class="dh"><b id="planDlgH">新建计划</b><button class="x" type="button" id="planDlgX" aria-label="关闭">×</button></div>
+  <div class="db">
+    <div class="fm">
+      <label class="w">学生<select class="inp" id="planStudent"></select></label>
+      <label>Block<input class="inp" id="planBlock" type="number" min="1" step="1"></label>
+      <label>阶段开始<input class="inp" id="planStart" type="date"></label>
+      <label>阶段结束<input class="inp" id="planEnd" type="date"></label>
+      <label>学分<input class="inp" id="planCredits" placeholder="如 3"></label>
+      <label>计划课次<input class="inp" id="planSessions" value="3 节" readonly></label>
+      <label class="w" id="planGradeWrap" hidden>参考年级<select class="inp" id="planGrade"><option value="G5">G5</option><option value="G6">G6</option><option value="G7">G7</option><option value="G8">G8</option><option value="G9">G9</option></select></label>
+    </div>
+    <p class="hint">本轮固定 3 节课。Block 编号默认接着这位学生的上一个 Block。</p>
+    <p class="hint" id="planMentor" hidden></p>
+  </div>
+  <div class="df"><span class="hint">只能为会后报告已发布的学生新建</span>
+    <button class="btn" type="button" id="planCancel">取消</button>
+    <button class="btn p" type="button" id="planGo" disabled>新建并打开</button>
+  </div>
+</div></div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/m1/assets/m1_lists.js" defer></script>
+{% endblock %}

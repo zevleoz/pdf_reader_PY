@@ -87,9 +87,9 @@ def test_nav_item_visible_to_admin_and_advisor_only():
 def test_home_shell_renders(client, m1db):
     login_as(client, m1db.alice_id, "advisor", "Alice")
     html = client.get("/m1").get_data(as_text=True)
-    assert "<h1>M1</h1>" in html
-    assert "新建 M1" in html
-    assert 'id="prepRows"' in html
+    assert 'id="m1Count"' in html
+    assert 'id="addStudent"' in html
+    assert 'id="m1List"' in html
     assert "/m1/assets/m1_home.js" in html
 
 
@@ -97,7 +97,7 @@ def test_home_passes_student_query_to_picker(alice, m1db):
     """360 页的 ?student=<id> 入口：ID 必须传到前端，才能跳草稿或预选学生。"""
     html = alice.get(f"/m1?student={m1db.student_id}").get_data(as_text=True)
     assert f'data-student-id="{m1db.student_id}"' in html
-    assert 'id="m1ModalHost"' in html
+    assert 'id="addDlg"' in html
 
 
 # ---------------------------------------------------------------------------
@@ -105,11 +105,12 @@ def test_home_passes_student_query_to_picker(alice, m1db):
 # ---------------------------------------------------------------------------
 def test_workspace_renders_shell_for_fixture_doc(alice, m1db):
     prep = _seed_doc(m1db)
-    html = alice.get(f"/m1/preps/{prep['id']}").get_data(as_text=True)
+    html = alice.get(f"/m1/preps/{prep['id']}/prep").get_data(as_text=True)
 
-    assert "林晓雨 · First Meeting" in html
+    assert "林晓雨" in html
+    assert "First Meeting" in html
     assert 'id="m1doc"' in html
-    assert 'class="stepper"' in html
+    assert 'class="track k2"' in html
     assert 'data-status="review"' in html
     assert "M1_CTX" in html
 
@@ -120,14 +121,14 @@ def test_workspace_renders_shell_for_fixture_doc(alice, m1db):
 
 def test_workspace_without_doc_still_renders(alice, m1db):
     prep = m1db.prep()
-    resp = alice.get(f"/m1/preps/{prep['id']}")
+    resp = alice.get(f"/m1/preps/{prep['id']}/prep")
     assert resp.status_code == 200
     assert 'id="m1doc"' in resp.get_data(as_text=True)
 
 
 def test_workspace_hides_other_advisors_prep(alice, m1db):
     other = m1db.prep(m1db.other_student_id, m1db.bob_id)
-    assert alice.get(f"/m1/preps/{other['id']}").status_code == 403
+    assert alice.get(f"/m1/preps/{other['id']}/prep").status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +138,7 @@ def test_print_page_has_footer_and_no_markers(alice, m1db):
     prep = _seed_doc(m1db, status="final")
     html = alice.get(f"/m1/preps/{prep['id']}/print").get_data(as_text=True)
 
-    assert "M1 FM会前准备框架 · 林晓雨" in html
+    assert "心有灵析 FM会前准备框架 · 林晓雨" in html
     assert "counter(page)" in html
     assert 'class="mk' not in html
     assert "contenteditable" not in html
@@ -197,7 +198,7 @@ def test_student_360_has_m1_button(s360_client, qdb):
 
     login(s360_client, qdb)
     html = s360_client.get("/students/Y4-9201").get_data(as_text=True)
-    assert ">M1</a>" in html
+    assert ">心有灵析</a>" in html
     assert '/m1?student=' in html
 
 

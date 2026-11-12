@@ -1,0 +1,56 @@
+{% macro parent_pages(view, fixed, plan, period, grade, wm=False) -%}
+<div class="pp">
+  <section class="pg{% if wm %} wm{% endif %}">
+    {% set head = fixed.header_left.split(' / ') %}
+    {% set title = fixed.title %}
+    <div class="top"><span><b>{{ head[0] }}</b> / {{ head[1] if head|length > 1 else '' }}</span><span>{{ fixed.header_right_p1 }}</span></div>
+    <div class="kick">{{ fixed.kicker }}</div>
+    <h1>{{ title[:3] }}<span>{{ title[3:] }}</span></h1><div class="en">{{ fixed.title_en }}</div>
+    <div class="info" data-sec="学生信息">
+      <div><span>学生 Student</span>{{ plan.student_name }}</div>
+      <div><span>年级 Grade</span>{{ grade or '—' }}</div>
+      <div><span>阶段 Period</span>{{ period }}</div>
+      <div><span>导师 Mentor</span>{{ plan.mentor_name }}</div>
+    </div>
+    {% if view.intro %}<p class="intro" data-sec="开场介绍">{{ view.intro }}</p>{% endif %}
+
+    <div class="sec" data-sec="01 {{ fixed.sections[0].title }}"><span class="no">{{ fixed.sections[0].no }}</span><h2>{{ fixed.sections[0].title }}</h2><span class="tag">{{ fixed.sections[0].tag }}</span></div>
+    {% for g in view.goals %}
+    <div class="goal c{{ loop.index }}"><span class="n">{{ '%02d'|format(loop.index) }}</span><div><b>{{ g.name }}</b>{{ g.text }}</div></div>
+    {% endfor %}
+
+    <div class="sec" data-sec="02 {{ fixed.sections[1].title }}"><span class="no">{{ fixed.sections[1].no }}</span><h2>{{ fixed.sections[1].title }}</h2><span class="tag">{{ fixed.sections[1].tag }}</span></div>
+    <p class="lead">{{ fixed.approach_lead }}</p>
+    <div class="sess">
+      {% for s in view.sessions %}
+      <div><small>SESSION {{ '%02d'|format(s.n) }}</small><b>{{ s.title }}</b>{{ s.summary }}</div>
+      {% endfor %}
+    </div>
+    {% if view.transition %}<p class="trans">{{ view.transition }}</p>{% endif %}
+    <div class="foot"><span>{{ fixed.footer_p1 }}　Block {{ plan.block_no }}</span><span>01 / 02</span></div>
+  </section>
+
+  <section class="pg{% if wm %} wm{% endif %}">
+    <div class="top"><span><b>{{ head[0] }}</b> / {{ head[1] if head|length > 1 else '' }}</span><span>{{ fixed.header_right_p2 }}</span></div>
+    <div class="quote"><i>✧</i><span>{{ fixed.quote }}</span></div>
+
+    <div class="sec" data-sec="03 {{ fixed.sections[2].title }}"><span class="no">{{ fixed.sections[2].no }}</span><h2>{{ fixed.sections[2].title }}</h2><span class="tag">{{ fixed.sections[2].tag }}</span></div>
+    {% for p in view.practice_cards %}
+    <div class="prac"><span class="n">{{ '%02d'|format(loop.index) }}</span><div><b>{{ p.title }}</b>{{ p.text }}<small>{{ p.frequency }}{% if p.platform and p.platform != '无' %} · {{ p.platform }}{% endif %}</small></div></div>
+    {% endfor %}
+
+    <div class="sec" data-sec="04 {{ fixed.sections[3].title }}"><span class="no">{{ fixed.sections[3].no }}</span><h2>{{ fixed.sections[3].title }}</h2><span class="tag">{{ fixed.sections[3].tag }}</span></div>
+    <div class="fam"><ul>
+      {% for line in view.family %}<li>{{ line }}</li>{% endfor %}
+    </ul></div>
+
+    <div class="sec" data-sec="05 {{ fixed.sections[4].title }}"><span class="no">{{ fixed.sections[4].no }}</span><h2>{{ fixed.sections[4].title }}</h2><span class="tag">{{ fixed.sections[4].tag }}</span></div>
+    <div class="obs">
+      {% for r in view.review %}<div class="rv"><b>{{ r.label }}</b>{{ r.text }}</div>{% endfor %}
+    </div>
+
+    <p class="close">{{ fixed.closing }}</p>
+    <div class="foot"><span>{{ fixed.footer_p2 }}</span><span>02 / 02</span></div>
+  </section>
+</div>
+{%- endmacro %}
