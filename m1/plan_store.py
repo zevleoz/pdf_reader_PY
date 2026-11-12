@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -48,6 +49,9 @@ PARTS = ("internal", "parent")
 KINDS = ("ai_draft", "edit")
 SOURCE_TYPES = ("ai_original", "world_bank", "other")
 _SRC_VALUES = ("ai", "edited", "mentor")
+# 有 AI 草稿就能开始发展计划（owner 11-12）；draft / generating 还不行。
+READY_REPORT_STATUSES = ("ai_draft", "needs_check", "reviewing", "approved",
+                         "published")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _UPLOAD_ROOT = Path(__file__).resolve().parent.parent / "uploads" / "m1_plans"
 
@@ -249,6 +253,27 @@ def _student(sess: Session, student_id: int):
     return sess.get(_db.Student, int(student_id))
 
 
+def report_ready(report) -> bool:
+    """会后报告有 AI 草稿即可读取（owner 11-12）；无报告、draft、generating 不行。"""
+    return bool(report) and report.get("status") in READY_REPORT_STATUSES
+
+
+def _report_fingerprint(doc) -> str:
+    """版本文档的指纹：规范化 JSON（键排序）的 sha1，用来发现导师的原位修改。"""
+    payload = json.dumps(doc if doc is not None else {}, sort_keys=True,
+                         ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+
+def _version_fingerprint(version_id) -> Optional[str]:
+    if not version_id:
+        return None
+    version = rstore.get_version(int(version_id))
+    if version is None:
+        return None
+    return _report_fingerprint((version or {}).get("doc"))
+
+
 def _user_name(sess: Session, user_id) -> str:
     if not user_id:
         return ""
@@ -362,7 +387,7 @@ def create_plan(student_id: int, *, prep_id: int, report_id: int,
                 block_no: int, period_start: str, period_end: str,
                 credits: str = "", sessions: int = 3,
                 wb_grade: Optional[int], created_by=None) -> Dict[str, Any]:
-    """新建计划（D2/D7）。报告必须已发布，Block 不能重复，课次固定 3。"""
+    """新建计划（D2/D7）。报告有 AI 草稿即可，Block 不能重复，课次固定 3。"""
     if isinstance(sessions, bool) or int(sessions) != 3:
         raise ValueError("本轮计划课次固定为 3 节")
     if isinstance(block_no, bool) or not isinstance(block_no, int) or block_no < 1:
@@ -374,11 +399,11 @@ def create_plan(student_id: int, *, prep_id: int, report_id: int,
     report = rstore.get_report_by_id(report_id)
     if not report or int(report["prep_id"]) != int(prep_id):
         raise ValueError("会后报告不存在")
-    if report["status"] != "published":
-        raise ValueError("会后报告还没有正式发布")
+    if not report_ready(report):
+        raise ValueError("会后报告还没有生成 AI 草稿")
     version_id = report_version_id or report.get("current_version_id")
     if not version_id:
-        raise ValueError("会后报告还没有正式发布")
+        raise ValueError("会后报告还没有生成 AI 草稿")
     with Session(_engine()) as sess:
         if not _student(sess, student_id):
             raise NotFound("学生不存在")
@@ -397,7 +422,8 @@ def create_plan(student_id: int, *, prep_id: int, report_id: int,
                 "strengths": _field(""), "needs": _field(""),
                 "context": _field(""), "interests": _field(""),
                 "read_at": datetime.utcnow().isoformat(),
-                "report_status_at_read": "published",
+                "report_status_at_read": report.get("status") or "",
+                "report_fingerprint": _version_fingerprint(version_id),
             }),
             goals=_dumps([]),
             personal=_dumps({"notes": "", "summary": _field("")}),
@@ -497,11 +523,13 @@ def save_inputs_ai(plan_id: int, values: Dict[str, Any]) -> Dict[str, Any]:
         if row is None:
             raise NotFound("发展计划不存在")
         inputs = _loads(row.inputs, {}) or {}
+        report = rstore.get_report_by_id(row.report_id) if row.report_id else None
         for key in ("strengths", "needs", "context", "interests"):
             if key in values:
                 inputs[key] = _field(values.get(key), "ai")
         inputs["read_at"] = datetime.utcnow().isoformat()
-        inputs["report_status_at_read"] = "published"
+        inputs["report_status_at_read"] = (report or {}).get("status") or ""
+        inputs["report_fingerprint"] = _version_fingerprint(row.report_version_id)
         row.inputs = _dumps(inputs)
         _bump(row)
         sess.commit()
@@ -604,15 +632,17 @@ def save_goal_ai(plan_id: int, code: str, start, expected) -> Dict[str, Any]:
 
 
 def mark_report_read(plan_id: int, report_version_id: int) -> Dict[str, Any]:
-    """读取会后报告后记下所读版本（D2）。"""
+    """读取会后报告后记下所读版本、当时的报告状态与文字指纹（D2 / owner 11-12）。"""
     with Session(_engine()) as sess:
         row = sess.get(M1Plan, int(plan_id))
         if row is None:
             raise NotFound("发展计划不存在")
         row.report_version_id = int(report_version_id)
+        report = rstore.get_report_by_id(row.report_id) if row.report_id else None
         inputs = _loads(row.inputs, {}) or {}
         inputs["read_at"] = datetime.utcnow().isoformat()
-        inputs["report_status_at_read"] = "published"
+        inputs["report_status_at_read"] = (report or {}).get("status") or ""
+        inputs["report_fingerprint"] = _version_fingerprint(report_version_id)
         row.inputs = _dumps(inputs)
         _bump(row)
         sess.commit()
@@ -759,20 +789,27 @@ def save_parent(plan_id: int, rev: int, doc, checks=None,
 # 状态机
 # ---------------------------------------------------------------------------
 def report_state(plan_or_id) -> Dict[str, Any]:
-    """会后报告当前状态与计划所读版本是否一致（Q2）。"""
+    """会后报告当前状态与计划所读内容是否一致（Q2 / owner 11-12）。"""
     plan = plan_or_id if isinstance(plan_or_id, dict) else get_plan(plan_or_id)
     if not plan:
         raise NotFound("发展计划不存在")
     report = rstore.get_report_by_id(plan["report_id"]) if plan.get("report_id") else None
-    fresh = bool(report) and report.get("status") == "published" \
+    inputs = plan.get("inputs") or {}
+    same_version = bool(report) \
         and int(report.get("current_version_id") or 0) == int(plan.get("report_version_id") or 0)
+    # 状态变化（审核、发布）不改文字，不算过期；只有同一版本的文字变了才过期。
+    stored = inputs.get("report_fingerprint")
+    same_text = (not stored) or (same_version and stored == _version_fingerprint(
+        (report or {}).get("current_version_id")))
+    fresh = report_ready(report) and same_version and same_text
     return {
         "status": (report or {}).get("status", ""),
         "label": (report or {}).get("label", ""),
         "current_version_id": (report or {}).get("current_version_id"),
         "report_version_id": plan.get("report_version_id"),
-        "fresh": fresh,
-        "read_at": (plan.get("inputs") or {}).get("read_at", ""),
+        "fresh": bool(fresh),
+        "read_at": inputs.get("read_at", ""),
+        "status_at_read": inputs.get("report_status_at_read", ""),
     }
 
 
@@ -1302,13 +1339,13 @@ def _next_block(sess: Session, student_id: int) -> int:
 
 
 def eligible_students(user=None) -> List[Dict[str, Any]]:
-    """会后报告已发布、当前账号可见的学生，附 prep 与下一个可用 Block。"""
+    """会后报告已有 AI 草稿、当前账号可见的学生，附 prep 与下一个可用 Block。"""
     preps = store.list_preps(user=user)
     statuses = rstore.list_statuses([prep["id"] for prep in preps])
     chosen: Dict[int, Dict[str, Any]] = {}
     for prep in preps:
         found = statuses.get(prep["id"]) or {}
-        if found.get("status") != "published":
+        if not report_ready(found):
             continue
         if int(prep["student_id"]) in chosen:
             continue

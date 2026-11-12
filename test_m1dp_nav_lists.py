@@ -108,7 +108,7 @@ def test_reports_list_page(client, m1db):
     login_as(client, m1db.alice_id, "advisor", "Alice")
     html = client.get("/m1/reports").get_data(as_text=True)
     assert '<div class="cr"><b>会后报告</b></div>' in html
-    assert "发布后才能开始发展计划" in html
+    assert "生成 AI 草稿后就可以开始发展计划" in html
     assert 'data-kind="reports"' in html
     for tab in ("全部", "待上传逐字稿", "待发布", "已发布"):
         assert ">%s<" % tab in html
@@ -118,7 +118,7 @@ def test_plans_list_page(client, m1db):
     login_as(client, m1db.alice_id, "advisor", "Alice")
     html = client.get("/m1/plans").get_data(as_text=True)
     assert '<div class="cr"><b>发展计划</b></div>' in html
-    assert "会后报告发布后可以新建" in html
+    assert "会后报告生成 AI 草稿后可以新建" in html
     assert 'data-kind="plans"' in html
     for tab in ("全部", "待批准内部版", "待确认家长版", "已导出"):
         assert ">%s<" % tab in html
@@ -213,13 +213,19 @@ def test_next_step_one_case_per_row(client, m1db):
 # ---------------------------------------------------------------------------
 # 学生页 overview
 # ---------------------------------------------------------------------------
-def test_student_overview_lists_plans_and_publish_state(client, m1db):
+def test_student_overview_lists_plans_and_report_state(client, m1db):
     login_as(client, m1db.alice_id, "advisor", "Alice")
     prep = _final_prep(m1db)
 
     before = client.get("/api/m1/preps/%d/overview" % prep["id"]).get_json()
     assert before["can_create_plan"] is False
     assert before["plans"] == []
+
+    drafted = report_store.get_or_create_report(prep["id"], m1db.alice_id)
+    report_store.add_version(drafted["id"], y4_ratings={}, evidence=[], ai_doc={},
+                             doc={}, checks=[], manifest={}, status="ai_draft")
+    mid = client.get("/api/m1/preps/%d/overview" % prep["id"]).get_json()
+    assert mid["can_create_plan"] is True
 
     report = _published_report(m1db, prep)
     after = client.get("/api/m1/preps/%d/overview" % prep["id"]).get_json()
@@ -260,16 +266,22 @@ def test_plan_list_scope_respects_visibility(client, m1db):
     assert other["id"] not in ids
 
 
-def test_eligible_requires_published_report(client, m1db):
+def test_eligible_requires_ai_draft_report(client, m1db):
     login_as(client, m1db.alice_id, "advisor", "Alice")
     published = _final_prep(m1db)
     _published_report(m1db, published)
+    drafted = _final_prep(m1db, student_id=m1db.other_student_id)
+    drafted_report = report_store.get_or_create_report(drafted["id"], m1db.alice_id)
+    report_store.add_version(drafted_report["id"], y4_ratings={}, evidence=[],
+                             ai_doc={}, doc={}, checks=[], manifest={},
+                             status="ai_draft")
     pending = m1db.prep(m1db.incomplete_student_id)
     report_store.get_or_create_report(pending["id"], m1db.alice_id)
 
     students = client.get("/api/m1/plans/eligible").get_json()["students"]
     ids = [row["student_id"] for row in students]
     assert published["student_id"] in ids
+    assert drafted["student_id"] in ids
     assert pending["student_id"] not in ids
 
 

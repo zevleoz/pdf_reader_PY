@@ -24,6 +24,14 @@ def _published_prep(db, *, student_id=None, mentor_id=None):
     return prep, report_store.get_report(prep["id"])
 
 
+def _drafted_prep(db, *, student_id=None):
+    prep = db.prep(student_id or db.student_id, db.alice_id)
+    report = report_store.get_or_create_report(prep["id"], db.alice_id)
+    report_store.add_version(report["id"], y4_ratings={}, evidence=[], ai_doc={},
+                             doc={}, checks=[], manifest={}, status="ai_draft")
+    return prep, report_store.get_report(prep["id"])
+
+
 def _create(db, prep, report, **overrides):
     data = dict(prep_id=prep["id"], report_id=report["id"],
                 report_version_id=report.get("current_version_id"),
@@ -70,11 +78,18 @@ def test_plan_tables_created(plan_db):
     assert {"m1_plans", "m1_plan_versions", "m1_plan_files"} <= names
 
 
-def test_create_requires_published_report(plan_db):
+def test_create_requires_ai_draft_report(plan_db):
     prep = plan_db.prep()
     report = report_store.get_or_create_report(prep["id"])
-    with pytest.raises(ValueError, match="还没有正式发布"):
+    with pytest.raises(ValueError, match="还没有生成 AI 草稿"):
         _create(plan_db, prep, report)
+
+
+def test_create_from_ai_draft_report(plan_db):
+    prep, report = _drafted_prep(plan_db)
+    plan = _create(plan_db, prep, report)
+    assert plan["report_version_id"] == report["current_version_id"]
+    assert plan["inputs"]["report_status_at_read"] == "ai_draft"
 
 
 def test_create_refuses_duplicate_block(plan_db):
@@ -277,10 +292,21 @@ def test_plan_fixed_kb_rejects_empty_text():
         plan_kb.validate_fixed(bad)
 
 
-def test_report_reopened_blocks_generation_unless_old_report(plan_db):
+def test_report_status_change_keeps_plan_fresh(plan_db):
     plan = _approved_plan(plan_db)
     report = report_store.get_report_by_id(plan["report_id"])
     report_store.reopen(report["id"])
+    plan = pstore.get_plan(plan["id"])
+    assert pstore.report_state(plan)["fresh"] is True
+    assert not any("会后报告已更新" in item for item in pstore.generate_blockers(plan))
+
+
+def test_report_edit_marks_plan_stale(plan_db):
+    prep, report = _drafted_prep(plan_db)
+    plan = _create(plan_db, prep, report)
+    assert pstore.report_state(plan)["fresh"] is True
+    report_store.save_version(report["id"], report["rev"],
+                              doc={"overview": {"text": "导师改了"}})
     plan = pstore.get_plan(plan["id"])
     assert pstore.report_state(plan)["fresh"] is False
     blockers = pstore.generate_blockers(plan)

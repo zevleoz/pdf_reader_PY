@@ -117,7 +117,7 @@
     var plan = (data.plans || [])[0];
     var block = plan ? 'Block ' + plan.block_no : 'Block 1';
     if (!plan) {
-      return { sentence: '会后报告已发布，可以新建 ' + block + ' 发展计划',
+      return { sentence: '可以新建 ' + block + ' 发展计划',
         button: '新建发展计划', href: '/m1/plans?new=' + prep.id };
     }
     if (plan.status === 'inputs') {
@@ -303,7 +303,7 @@
     title.appendChild(chip(reportChip(part)));
     host.appendChild(title);
     host.appendChild(el('p', null,
-      '给家长的《首次情绪力分析报告》。发展计划从这份已发布的报告读取学生资料。'));
+      '给家长的《首次情绪力分析报告》。发展计划从这份报告读取学生资料，有 AI 草稿就可以开始。'));
 
     var dl = el('dl', 'kv');
     dl.appendChild(el('dt', null, '逐字稿'));
