@@ -552,10 +552,12 @@ def _session_doc(raw: Dict[str, Any], n: int, goals: List[Dict[str, Any]],
         for value in raw.get("review") or []:
             text = _text(value)
             if text:
-                reviews.append(text)
+                reviews.append(_field(text))
         reviews = reviews[:3]
         if len(reviews) < 2:
-            reviews.extend(["上次的课后实践完成得怎么样？", "哪一次练习最有帮助？"][len(reviews):2])
+            filler = ["上次的课后实践完成得怎么样？", "哪一次练习最有帮助？"]
+            while len(reviews) < 2:
+                reviews.append(_field(filler[len(reviews)]))
             adjustments.append({"path": ["sessions", n - 1, "review"],
                                 "label": "Session %d · 回顾" % n,
                                 "text": "Session %d：上次实践回顾不足 2 个问题，已补上固定问题，请核对"

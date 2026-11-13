@@ -348,7 +348,7 @@ def _version_row(sess: Session, row: M1PlanVersion) -> Dict[str, Any]:
         "n": int(row.n or 1),
         "kind": row.kind,
         "ai_doc": _loads(row.ai_doc, None),
-        "doc": _loads(row.doc, None),
+        "doc": normalize_doc_shape(_loads(row.doc, None)),
         "checks": _loads(row.checks, []) or [],
         "manifest": _loads(row.manifest, {}) or {},
         "source_version_id": row.source_version_id,
@@ -1085,6 +1085,30 @@ def delete_file(file_id: int) -> Dict[str, Any]:
 def _need_field(value, label: str) -> None:
     if not _is_field(value):
         raise ValueError("%s格式不正确" % label)
+
+
+def normalize_doc_shape(doc):
+    """把旧 AI 初稿里 ``review`` 的纯字符串补成 ``{text, src}`` 字段。
+
+    DP3 流水线早期把“上次实践回顾”问题写成了字符串，而 DP1 的校验和编辑器
+    都按字段（``.text``）读写；这里在读和保存时统一形状，旧数据不必迁移。
+    """
+    if not isinstance(doc, dict):
+        return doc
+    sessions = doc.get("sessions")
+    if not isinstance(sessions, list):
+        return doc
+    for session in sessions:
+        if not isinstance(session, dict):
+            continue
+        review = session.get("review")
+        if not isinstance(review, list):
+            continue
+        session["review"] = [
+            {"text": item, "src": "ai"} if isinstance(item, str) else item
+            for item in review
+        ]
+    return doc
 
 
 def validate_internal_doc(plan: Dict[str, Any], doc) -> None:

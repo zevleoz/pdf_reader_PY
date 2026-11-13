@@ -35,6 +35,12 @@
     parentTimer: null
   };
 
+  /* 页面载入时服务器上的内部版内容；与 S.doc 比对判断有没有未保存的改动 */
+  var DOC_BASE = JSON.stringify(S.doc || null);
+  function docChanged() {
+    return !!S.doc && JSON.stringify(S.doc) !== DOC_BASE;
+  }
+
   /* ---------------------------------------------------------------- utils */
   function toast(message) {
     var host = document.getElementById('toasts');
@@ -573,9 +579,11 @@
     if (!S.step2 || !S.doc) return Promise.resolve();
     setSave('busy');
     return queue(function () {
+      var sent = JSON.stringify(S.doc);
       return request('PUT', API + '/internal', {rev: S.rev, doc: S.doc}).then(function (data) {
         S.rev = data.rev;
         S.checks = data.checks || [];
+        DOC_BASE = sent;
         renderChecks();
         setSave('ok');
         if (reload) location.reload();
@@ -866,22 +874,38 @@
   if (approveBtn) {
     approveBtn.addEventListener('click', function () {
       renderChecks();
+      setApproveError('');
       openDialog('approveDlg', approveBtn);
     });
+  }
+
+  function setApproveError(message) {
+    var el = document.getElementById('approveErr');
+    if (!el) return;
+    el.textContent = message || '';
+    el.hidden = !message;
   }
 
   var approveOk = document.getElementById('approveOk');
   if (approveOk) {
     approveOk.addEventListener('click', function () {
       approveOk.disabled = true;
+      setApproveError('');
       clearTimeout(S.docTimer);
-      var pending = S.doc && S.step2 ? saveDoc(false) : Promise.resolve();
+      /* 没有改动就不再空写一次（写失败会把批准一起挡住） */
+      var pending = docChanged() && S.step2 ? saveDoc(false) : Promise.resolve();
       pending.then(function () {
         return request('POST', API + '/approve', {});
       }).then(function () {
         location.reload();
       }).catch(function (err) {
         approveOk.disabled = false;
+        setApproveError(err.message || '请求失败');
+        if (err.status === 409) {
+          /* rev 已过期：本地内容比服务器旧，刷新后重新批准 */
+          setApproveError((err.message || '计划已在别处更新') + '，正在刷新页面…');
+          setTimeout(function () { location.reload(); }, 1200);
+        }
         toast(err.message);
       });
     });
