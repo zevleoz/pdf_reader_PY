@@ -206,34 +206,6 @@ def create_app() -> Flask:
     # 时间戳过滤器：模板用 {{ iso|dt_short }} 统一到分钟（面板/学生端共用）
     app.add_template_filter(dt_short, "dt_short")
 
-    # --- CSRF 全局校验（session 认证面；before_request 比逐路由装饰器更难漏） ---
-    import hmac as _hmac
-    CSRF_EXEMPT_PREFIXES = (
-        "/api/v1/",           # Bearer token 面，无 cookie，豁免
-        "/q/",                # 一次性 token 端点（/q/<token>/submit），靠不可枚举 token 防 CSRF
-    )
-    CSRF_EXEMPT_PATHS = {
-        "/api/booking",      # 公开预约，无 session 可劫持
-        "/student/login",    # pre-auth 提交端点（由登录限流保护）；管理端登录态下同一浏览器
-                             # 提交学生登录也不应被 CSRF 误拒
-    }
-
-    @app.before_request
-    def _csrf_protect():
-        if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
-            return
-        path = request.path
-        if any(path.startswith(p) for p in CSRF_EXEMPT_PREFIXES) or path in CSRF_EXEMPT_PATHS:
-            return
-        if not (session.get("user_id") or session.get("student_account_id")):
-            # 未登录的公开端点（登录、公开预约等）不走 CSRF；登录面由限流保护
-            return
-        sent = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token", "")
-        if not sent or not _hmac.compare_digest(sent, session.get("_csrf_token", "")):
-            if path.startswith("/api/"):
-                return jsonify({"ok": False, "error": "CSRF 校验失败，请刷新页面重试"}), 403
-            abort(403)
-
     # --- 注册蓝图（导入放在 create_app 内，避免与 app_utils 形成导入环） ---
     from blueprints.api_v1 import bp as api_v1_bp
     from blueprints.app_shell import bp as app_shell_bp
