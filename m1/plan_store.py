@@ -832,8 +832,10 @@ def generate_blockers(plan_or_id, *, use_old_report: bool = False) -> List[str]:
         blockers.append("需要 1 到 3 项已锁定目标")
     elif any(not item.get("locked") for item in goals):
         blockers.append("目标需要先锁定")
-    if any(not ((item.get("goal") or {}).get("text") or "").strip() for item in goals):
-        blockers.append("目标还不能为空")
+    missing = [str(item.get("code") or "") for item in goals
+               if not ((item.get("goal") or {}).get("text") or "").strip()]
+    if missing:
+        blockers.append("%s 的发展目标还没写" % "、".join(missing))
     inputs = plan.get("inputs") or {}
     if not any(((inputs.get(key) or {}).get("text") or "").strip()
                for key in ("strengths", "needs", "context", "interests")):

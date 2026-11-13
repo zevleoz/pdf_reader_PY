@@ -271,6 +271,37 @@
     return S.goals.filter(function (goal) { return goal.code === code; })[0];
   }
 
+  function goalEmpty(goal) {
+    return !((goal && goal.goal && goal.goal.text) || '').trim();
+  }
+
+  /* 已锁定且发展目标为空：框用警告色并显示提示行 */
+  function refreshGoalWarn(code) {
+    var goal = findGoal(code);
+    var field = document.querySelector('[data-goal-text="' + code + '"]');
+    var warn = document.querySelector('[data-goal-warn="' + code + '"]');
+    var missing = !!goal && !!goal.locked && goalEmpty(goal);
+    if (field) { if (missing) field.setAttribute('data-missing', '1'); else field.removeAttribute('data-missing'); }
+    if (warn) warn.hidden = !missing;
+  }
+
+  /* 生成原因行：只在客户端重算「发展目标还没写」这一条，其余原因沿用页面载入时的结果 */
+  var GOAL_BLOCKER = /的发展目标还没写$/;
+  function refreshGenReason() {
+    var btn = document.getElementById('genBtn');
+    var hint = document.getElementById('genHint');
+    if (!btn || !hint || !S.step1) return;
+    var rest = (CFG.blockers || []).filter(function (item) {
+      if (GOAL_BLOCKER.test(item)) return false;
+      if (S.useOld && item.indexOf('会后报告已更新') === 0) return false;
+      return true;
+    });
+    var missing = S.goals.filter(goalEmpty).map(function (goal) { return goal.code; });
+    if (missing.length) rest.unshift(missing.join('、') + ' 的发展目标还没写');
+    hint.textContent = rest.length ? rest.join('；') : (S.useOld ? '使用旧版会后报告生成。' : '约 1–3 分钟，可以离开页面。');
+    btn.disabled = rest.length > 0;
+  }
+
   document.querySelectorAll('[data-goal-text]').forEach(function (field) {
     var code = field.getAttribute('data-goal-text');
     if (!S.step1) return;
@@ -278,6 +309,9 @@
       var goal = findGoal(code);
       if (!goal) return;
       goal.goal = {text: field.textContent || '', src: 'mentor'};
+      if (!field.textContent) field.innerHTML = '';
+      refreshGoalWarn(code);
+      refreshGenReason();
       clearTimeout(S.goalTimer);
       S.goalTimer = setTimeout(saveGoals, 700);
     });
@@ -306,6 +340,12 @@
       var goal = findGoal(code);
       if (!goal || !S.step1) return;
       var locking = button.getAttribute('data-locked') === '1';
+      if (locking && goalEmpty(goal)) {
+        var gf = document.querySelector('[data-goal-text="' + code + '"]');
+        if (gf) gf.focus();
+        toast('先写这一项的发展目标，再锁定。');
+        return;
+      }
       goal.locked = locking;
       button.disabled = true;
       saveGoals().then(function () {
@@ -493,12 +533,7 @@
       S.useOld = true;
       var warn = document.getElementById('reportWarn');
       if (warn) warn.remove();
-      var rest = (CFG.blockers || []).filter(function (item) {
-        return item.indexOf('会后报告已更新') !== 0;
-      });
-      var hint = document.getElementById('genHint');
-      if (hint) hint.textContent = rest.length ? rest.join('；') : '使用旧版会后报告生成。';
-      if (genBtn) genBtn.disabled = rest.length > 0;
+      refreshGenReason();
       toast('已选择继续使用旧版会后报告');
     });
   }

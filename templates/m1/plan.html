@@ -143,7 +143,8 @@
         </div>
         <dl>
           <dt>发展目标</dt>
-          <dd><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false"{% endif %} data-goal-text="{{ g.code }}">{{ g.goal_text }}</span></dd>
+          <dd><span class="pf block gtext"{% if step1_editable %} contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true" aria-label="{{ g.code }} 发展目标" data-placeholder="写这一项的发展目标（必填）"{% endif %} data-goal-text="{{ g.code }}"{% if step1_editable and g.locked and not (g.goal_text or '').strip() %} data-missing="1"{% endif %}>{{ g.goal_text }}</span>
+            {%- if step1_editable %}<span class="gwarn" data-goal-warn="{{ g.code }}"{% if not (g.locked and not (g.goal_text or '').strip()) %} hidden{% endif %}>还没写发展目标，生成前要补上。</span>{% endif %}</dd>
           <dt>当前起点{% if g.start.src == 'ai' %}<span class="ai" data-goal-ai="{{ g.code }}-start">AI</span>{% endif %}</dt>
           <dd data-goal-field="{{ g.code }}-start"><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false"{% endif %} data-goal-value="{{ g.code }}-start">{{ g.start.text }}</span></dd>
           <dt>阶段预期进展{% if g.expected.src == 'ai' %}<span class="ai" data-goal-ai="{{ g.code }}-expected">AI</span>{% endif %}</dt>
