@@ -65,7 +65,7 @@ const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
 
 /** 读取状态 + 轮询；有任务时每 3 秒刷新，读完后刷新 Y4 数值。 */
 export function useY4Upload() {
-  const { code, cache } = useProfile();
+  const { code, cache, data } = useProfile();
   const base = "/students/" + encodeURIComponent(code) + "/api/y4";
   const [status, setStatus] = React.useState<Y4Status | null>(null);
   const [error, setError] = React.useState("");
@@ -113,7 +113,7 @@ export function useY4Upload() {
 
   // 指标 → 所属资料（source_pdf）与已保存的 AI 解读；该接口不可用时只是不显示这两项。
   React.useEffect(() => {
-    if (!reportId) {
+    if (!reportId || !data.permissions.full) {
       setCodeSlot({});
       setInterpretation("");
       return;
@@ -135,7 +135,7 @@ export function useY4Upload() {
     return () => {
       live = false;
     };
-  }, [reportId, dataVersion]);
+  }, [reportId, dataVersion, data.permissions.full]);
 
   return { status, error, load, codeSlot, interpretation, setInterpretation, base, bump: () => setDataVersion((v) => v + 1) };
 }
