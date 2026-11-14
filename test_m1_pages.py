@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 from datetime import datetime
 
 import pytest
@@ -209,3 +211,33 @@ def test_student_360_hides_m1_button_for_viewer(s360_client, qdb):
           display_name="观察员", user_id=qdb.alice_id)
     html = s360_client.get("/students/Y4-9201").get_data(as_text=True)
     assert "M1 会前准备" not in html
+
+
+def test_renderer_uses_current_assigned_mentor_without_mutating_doc():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js unavailable")
+    script = r"""
+const fs = require('fs');
+const vm = require('vm');
+const source = fs.readFileSync('static/m1/m1_doc.js', 'utf8');
+const context = {window: {}, document: {}};
+vm.runInNewContext(source, context);
+const doc = {meta: {mentor: '管理员'}};
+const current = context.window.M1Doc.metaOf(doc, {mentor_name: 'Cici'});
+const unknown = context.window.M1Doc.metaOf(doc, {mentor_name: ''});
+const alias = context.window.M1Doc.metaOf(doc, {mentor: 'Cici'});
+if (current.mentor !== 'Cici' || unknown.mentor !== '' || alias.mentor !== 'Cici' ||
+    doc.meta.mentor !== '管理员') process.exit(1);
+"""
+    subprocess.run([node, "-e", script], check=True, capture_output=True, text=True)
+
+
+def test_print_payload_and_workspace_renderer_receive_current_prep(client, alice, m1db):
+    prep = _seed_doc(m1db)
+    # _seed_doc assigns Alice as the current mentor; the saved narrative may retain another value.
+    html = alice.get(f"/m1/preps/{prep['id']}/print").get_data(as_text=True)
+    assert 'mentor_name\": \"Alice\"' in html
+    workspace_js = (BASE_DIR / "static" / "m1" / "m1_workspace.js").read_text(encoding="utf-8")
+    assert "prep: state.prep" in workspace_js
+    assert "if (state.detail) state.detail.prep = body.prep" in workspace_js

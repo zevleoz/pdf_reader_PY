@@ -189,6 +189,15 @@ def test_wb_id_outside_candidates_becomes_ai_original_with_check(ready, monkeypa
     assert any("不在本次提供的 WB 参考课里" in item["text"] for item in version["checks"])
 
 
+def test_generated_draft_passes_internal_validation(ready, monkeypatch):
+    """AI 初稿必须能原样保存/批准：回顾问题要写成字段，不能是纯字符串。"""
+    _db, plan = ready
+    _generate(plan, monkeypatch, FakeModel())
+    plan = pstore.get_plan(plan["id"])
+    version = pstore.current_version(plan["id"], "internal")
+    pstore.validate_internal_doc(plan, version["doc"])
+
+
 def test_session_three_ends_with_one_kb_block_review(ready, monkeypatch):
     _db, plan = ready
     fake = FakeModel()

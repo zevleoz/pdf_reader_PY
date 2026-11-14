@@ -26,6 +26,8 @@
 .ai[hidden]{display:none}
 
 .plan-page .ddtext{display:block;min-height:22px}
+.dlg .derr{margin:8px 0 0;font-size:13px;line-height:1.5;color:#B91C1C}
+.dlg .derr[hidden]{display:none}
 .plan-page .gcard dd[contenteditable]{background:var(--sunk);padding:5px 7px;border-radius:3px;outline:0}
 .plan-page .gcard dd[contenteditable]:focus{box-shadow:0 0 0 2px var(--hl)}
 .plan-page .gcard .gtext[contenteditable]{display:block;min-height:1.6em;padding:5px 7px;border:1px solid var(--line);border-radius:3px;background:#fff;white-space:pre-wrap;outline:0}

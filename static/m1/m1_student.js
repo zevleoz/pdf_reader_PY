@@ -99,32 +99,41 @@
     var prepPart = data.prep_part;
     var reportPart = data.report_part;
     var base = '/m1/preps/' + prep.id;
-    if (!prepPart.has_doc) {
-      return { sentence: '生成会前准备 AI 初稿', button: '开始会前准备', href: base + '/prep' };
-    }
-    if (prepPart.status !== 'final') {
-      return { sentence: '审阅并定稿会前准备', button: '去定稿',
-        href: base + '/prep#step=review' };
-    }
-    if (!reportPart.started) {
+    var plan = (data.plans || [])[0];
+    if (!plan) {
+      if (reportPart.started) {
+        if (reportPart.status === 'published') {
+          return { sentence: '可以新建 Block 1 发展计划',
+            button: '新建发展计划', href: '/m1/plans?new=' + prep.id };
+        }
+        if (reportPart.status === 'generating') {
+          return { sentence: '会后报告正在生成', button: '查看生成进度', href: base + '/report' };
+        }
+        if (reportPart.status === 'draft') {
+          return { sentence: '继续准备并生成会后报告', button: '继续会后报告', href: base + '/report' };
+        }
+        return { sentence: '核对并正式发布会后报告', button: '核对发布',
+          href: base + '/report#step=review' };
+      }
+      if (!prepPart.has_doc) {
+        return { sentence: '生成会前准备 AI 初稿', button: '开始会前准备', href: base + '/prep' };
+      }
+      if (prepPart.status !== 'final') {
+        return { sentence: '审阅并定稿会前准备', button: '去定稿',
+          href: base + '/prep#step=review' };
+      }
       return { sentence: '上传 First Meeting 逐字稿，生成会后报告', button: '开始会后报告',
         href: base + '/report' };
     }
-    if (reportPart.status !== 'published') {
-      return { sentence: '核对并正式发布会后报告', button: '核对发布',
-        href: base + '/report#step=review' };
-    }
-    var plan = (data.plans || [])[0];
-    var block = plan ? 'Block ' + plan.block_no : 'Block 1';
-    if (!plan) {
-      return { sentence: '可以新建 ' + block + ' 发展计划',
-        button: '新建发展计划', href: '/m1/plans?new=' + prep.id };
-    }
+    var block = 'Block ' + plan.block_no;
     if (plan.status === 'inputs') {
       return { sentence: '确认 ' + block + ' 发展目标，生成内部教学计划',
         button: '继续发展计划', href: plan.step_url };
     }
-    if (plan.status === 'generating' || plan.status === 'review') {
+    if (plan.status === 'generating') {
+      return { sentence: block + ' 内部版正在生成', button: '查看生成进度', href: plan.step_url };
+    }
+    if (plan.status === 'review') {
       return { sentence: '审阅并批准 ' + block + ' 内部版', button: '审阅内部版',
         href: plan.step_url };
     }
@@ -142,7 +151,7 @@
     }
     if (plan.parent_status === 'exported') {
       return { sentence: block + ' 发展计划已导出', button: '打开发展计划',
-        href: '/m1/plans/' + plan.id };
+        href: plan.step_url };
     }
     return { sentence: block + ' 家长版已确认', button: '导出家长版',
       href: plan.step_url };

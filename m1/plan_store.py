@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -348,7 +349,7 @@ def _version_row(sess: Session, row: M1PlanVersion) -> Dict[str, Any]:
         "n": int(row.n or 1),
         "kind": row.kind,
         "ai_doc": _loads(row.ai_doc, None),
-        "doc": _loads(row.doc, None),
+        "doc": _activity_text_view(normalize_doc_shape(_loads(row.doc, None))),
         "checks": _loads(row.checks, []) or [],
         "manifest": _loads(row.manifest, {}) or {},
         "source_version_id": row.source_version_id,
@@ -617,8 +618,8 @@ def save_personal_summary(plan_id: int, summary) -> Dict[str, Any]:
         return _plan_row(sess, row)
 
 
-def save_goal_ai(plan_id: int, code: str, start, expected) -> Dict[str, Any]:
-    """生成子进程填一个目标的当前起点与阶段预期进展。"""
+def save_goal_ai(plan_id: int, code: str, start, expected, *, goal=None) -> Dict[str, Any]:
+    """补全目标，保留非空目标及导师编辑；以写入时的最新值为准。"""
     with Session(_engine()) as sess:
         row = sess.get(M1Plan, int(plan_id))
         if row is None:
@@ -627,8 +628,14 @@ def save_goal_ai(plan_id: int, code: str, start, expected) -> Dict[str, Any]:
         found = False
         for item in goals:
             if item.get("code") == code:
-                item["start"] = _field(start, "ai")
-                item["expected"] = _field(expected, "ai")
+                for key, value in (("goal", goal), ("start", start), ("expected", expected)):
+                    current = _field(item.get(key), "mentor" if key == "goal" else "ai")
+                    if key == "goal":
+                        replace = not current["text"].strip()
+                    else:
+                        replace = current["src"] == "ai"
+                    if replace and _field(value, "ai")["text"].strip():
+                        item[key] = _field(value, "ai")
                 found = True
         if not found:
             raise NotFound("没有该目标")
@@ -1085,6 +1092,67 @@ def delete_file(file_id: int) -> Dict[str, Any]:
 def _need_field(value, label: str) -> None:
     if not _is_field(value):
         raise ValueError("%s格式不正确" % label)
+
+
+def _legacy_list_text(value):
+    """Decode only serialized lists of strings / text fields; leave prose intact."""
+    if not isinstance(value, str) or not value.strip().startswith("[") or not value.strip().endswith("]"):
+        return value
+    try:
+        parsed = json.loads(value)
+    except (ValueError, TypeError):
+        try:
+            parsed = ast.literal_eval(value.strip())
+        except (ValueError, SyntaxError, TypeError, RecursionError):
+            return value
+    if not isinstance(parsed, list) or not all(
+        isinstance(item, str) or (isinstance(item, dict) and isinstance(item.get("text"), str))
+        for item in parsed
+    ):
+        return value
+    return "\n".join(text for item in parsed
+                     if (text := (item if isinstance(item, str) else item["text"]).strip()))
+
+
+def _activity_text_view(doc):
+    """Read-time compatibility only: never rewrite persisted version snapshots."""
+    if not isinstance(doc, dict):
+        return doc
+    for session in doc.get("sessions") or []:
+        if not isinstance(session, dict):
+            continue
+        for activity in session.get("activities") or []:
+            if not isinstance(activity, dict):
+                continue
+            for key in ("steps", "questions"):
+                field = activity.get(key)
+                if isinstance(field, dict):
+                    field["text"] = _legacy_list_text(field.get("text"))
+    return doc
+
+
+def normalize_doc_shape(doc):
+    """把旧 AI 初稿里 ``review`` 的纯字符串补成 ``{text, src}`` 字段。
+
+    DP3 流水线早期把“上次实践回顾”问题写成了字符串，而 DP1 的校验和编辑器
+    都按字段（``.text``）读写；这里在读和保存时统一形状，旧数据不必迁移。
+    """
+    if not isinstance(doc, dict):
+        return doc
+    sessions = doc.get("sessions")
+    if not isinstance(sessions, list):
+        return doc
+    for session in sessions:
+        if not isinstance(session, dict):
+            continue
+        review = session.get("review")
+        if not isinstance(review, list):
+            continue
+        session["review"] = [
+            {"text": item, "src": "ai"} if isinstance(item, str) else item
+            for item in review
+        ]
+    return doc
 
 
 def validate_internal_doc(plan: Dict[str, Any], doc) -> None:

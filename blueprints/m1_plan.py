@@ -423,6 +423,7 @@ def api_plan_internal_save(plan_id: int):
     doc = body.get("doc")
     if doc is None:
         return _err("缺少内部版内容", 400)
+    doc = pstore.normalize_doc_shape(doc)
     try:
         pstore.validate_internal_doc(plan, doc)
     except ValueError as exc:

@@ -19,7 +19,7 @@
   <article class="a4 notion{% if plan.status != 'approved' %} draftmark{% endif %}">
     {% if plan.status != 'approved' %}<span class="pp-sr">草稿</span>{% endif %}
     {% set doc = internal.doc %}
-    {% set grade_label = (grade_text ~ ('（G' ~ plan.wb_grade ~ '）' if plan.wb_grade else '')) or '—' %}
+    {% set grade_label = grade_text or '—' %}
     <h1>{{ plan.student_name }} · 情绪力阶段发展与教学计划（内部版）</h1>
     <table>
       <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级 / 年龄</th><td>{{ grade_label }}</td></tr>
@@ -71,7 +71,8 @@
       <h3>B｜核心学习内容</h3>
       {% set content = session.get('content') or {} %}
       <p><b>Mindsets：</b>{{ (content.get('mindsets') or {}).get('text') or '' }}</p>
-      <p><b>Path：</b>{{ (content.get('path') or {}).get('text') or '' }}</p>
+      {% set path_value = content.get('path') or {} %}
+      {% if (path_value.get('text') if path_value is mapping else path_value)|string|trim %}<p><b>Path：</b>{{ path_value.get('text') if path_value is mapping else path_value }}</p>{% endif %}
       <p><b>Skills：</b>{{ (content.get('skills') or {}).get('text') or '' }}</p>
       <p><b>Techniques：</b>{{ (content.get('techniques') or {}).get('text') or '' }}</p>
 

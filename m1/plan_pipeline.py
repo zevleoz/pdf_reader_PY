@@ -56,6 +56,8 @@ def _ask(prompt: str) -> Dict[str, Any]:
 def _text(value) -> str:
     if isinstance(value, dict):
         value = value.get("text")
+    if isinstance(value, list):
+        return "\n".join(text for item in value if (text := _text(item)))
     return str(value or "").strip()
 
 
@@ -344,7 +346,7 @@ def read_report(plan_id: int, *, progress=None, actor_id=None) -> Dict[str, Any]
 
 
 def fill_goal(plan_id: int, code: str, *, progress=None, actor_id=None) -> Dict[str, Any]:
-    """为一项发展目标填写当前起点与阶段预期进展。"""
+    """为一项发展目标补全目标、当前起点与阶段预期进展。"""
     plan = pstore.get_plan(plan_id)
     if not plan:
         raise PlanError("发展计划不存在")
@@ -355,15 +357,20 @@ def fill_goal(plan_id: int, code: str, *, progress=None, actor_id=None) -> Dict[
     data = {
         "goal": {"code": code, "name": _goal_name(code), "goal": _text(goal.get("goal"))},
         "report_lines": _ability_lines(doc, code),
+        "report_plan_suggestions": [
+            {"ability": code, "goal": _text(row.get("goal"))}
+            for row in doc.get("plan") or []
+            if isinstance(row, dict) and row.get("ability") == code
+        ],
     }
     if progress:
         progress("goal", "active")
     result = _ask(plan_prompts.GOAL_PROMPT % (plan_prompts.SHARED_RULES, _json(data)))
     start = _text(result.get("start"))
     expected = _text(result.get("expected"))
-    if not start or not expected:
-        raise PlanError("AI 没有写完这项的当前起点和阶段预期进展，请重试")
-    pstore.save_goal_ai(plan_id, code, start, expected)
+    if (not _text(goal.get("goal")) and not _text(result.get("goal"))) or not start or not expected:
+        raise PlanError("AI 没有写完这项的发展目标、当前起点和阶段预期进展，请重试")
+    pstore.save_goal_ai(plan_id, code, start, expected, goal=result.get("goal"))
     if progress:
         progress("goal", "done")
     return pstore.get_plan(plan_id) or plan
@@ -552,10 +559,12 @@ def _session_doc(raw: Dict[str, Any], n: int, goals: List[Dict[str, Any]],
         for value in raw.get("review") or []:
             text = _text(value)
             if text:
-                reviews.append(text)
+                reviews.append(_field(text))
         reviews = reviews[:3]
         if len(reviews) < 2:
-            reviews.extend(["上次的课后实践完成得怎么样？", "哪一次练习最有帮助？"][len(reviews):2])
+            filler = ["上次的课后实践完成得怎么样？", "哪一次练习最有帮助？"]
+            while len(reviews) < 2:
+                reviews.append(_field(filler[len(reviews)]))
             adjustments.append({"path": ["sessions", n - 1, "review"],
                                 "label": "Session %d · 回顾" % n,
                                 "text": "Session %d：上次实践回顾不足 2 个问题，已补上固定问题，请核对"

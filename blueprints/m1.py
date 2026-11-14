@@ -453,25 +453,46 @@ def _is_past(value) -> bool:
 def _next_step(prep: dict, report: dict | None, plan: dict | None):
     """列表里的「下一步」：顺序固定，返回 None 表示没有可点的动作。"""
     base = "/m1/preps/%d" % prep["id"]
+    if plan:
+        status = plan.get("status")
+        parent = plan.get("parent_status")
+        if status == "inputs":
+            label = "继续发展计划"
+        elif status == "generating":
+            label = "查看生成进度"
+        elif status == "review":
+            label = "审阅内部版"
+        elif status != "approved":
+            label = "打开发展计划"
+        elif parent == "generating":
+            label = "查看家长版生成"
+        elif parent == "draft":
+            label = "确认家长版"
+        elif parent == "confirmed":
+            label = "导出家长版"
+        elif parent == "exported":
+            label = "打开发展计划"
+        else:
+            label = "生成家长版"
+        return {"label": label, "href": _plan_step_url(plan), "primary": True}
+    if (report or {}).get("started"):
+        status = report.get("status")
+        if status == "published":
+            return {"label": "新建发展计划", "href": "/m1/plans?new=%d" % prep["id"],
+                    "primary": True}
+        if status == "generating":
+            label, suffix = "查看生成进度", "/report"
+        elif status == "draft":
+            label, suffix = "继续会后报告", "/report"
+        else:
+            label, suffix = "核对发布", "/report#step=review"
+        return {"label": label, "href": base + suffix, "primary": True}
     if not prep.get("current_version_id"):
         return {"label": "生成", "href": base + "/prep", "primary": False}
     if prep.get("status") != "final":
         return {"label": "去定稿", "href": base + "/prep#step=review", "primary": True}
-    if not (report or {}).get("started"):
-        return {"label": "上传逐字稿", "href": base + "/report",
-                "primary": _is_past(prep.get("meeting_date"))}
-    if (report or {}).get("status") != "published":
-        return {"label": "核对发布", "href": base + "/report#step=review", "primary": True}
-    if not plan:
-        return {"label": "新建发展计划", "href": "/m1/plans?new=%d" % prep["id"],
-                "primary": True}
-    if plan.get("status") == "inputs":
-        return {"label": "继续发展计划", "href": _plan_step_url(plan), "primary": True}
-    if plan.get("status") in ("generating", "review"):
-        return {"label": "审阅内部版", "href": _plan_step_url(plan), "primary": True}
-    if plan.get("parent_status") == "draft":
-        return {"label": "确认家长版", "href": _plan_step_url(plan), "primary": True}
-    return None
+    return {"label": "上传逐字稿", "href": base + "/report",
+            "primary": _is_past(prep.get("meeting_date"))}
 
 
 @bp.route("/api/m1/students")

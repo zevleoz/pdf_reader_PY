@@ -66,3 +66,21 @@ def test_lock_handler_checks_goal_text_before_saving():
     assert check < block.index("/fill")
     assert "先写这一项的发展目标，再锁定。" in block
     assert ".focus()" in block[check:block.index("saveGoals()")]
+
+
+def test_prefill_control_and_generated_goal_badge(page_client, m1db, monkeypatch):  # noqa: F811
+    from m1 import plan_pipeline
+    prep, report = _published_prep(m1db)
+    plan = _create(m1db, prep, report)
+    pstore.save_goals(plan['id'], plan['rev'], [_goal('R1.1', text='')])
+    _mentor(page_client, m1db)
+    def unexpected_call(*args, **kwargs):
+        raise AssertionError('GET must not call the model')
+    monkeypatch.setattr(plan_pipeline, 'call_model', unexpected_call)
+    assert 'data-fill-goal="R1.1"' in _page(page_client, plan['id'])
+    pstore.save_goal_ai(plan['id'], 'R1.1', '起点', '预期', goal='生成目标')
+    html = _page(page_client, plan['id'])
+    assert 'data-goal-ai="R1.1-goal">AI</span>' in html
+    assert '生成目标' in html
+    assert '导师选择能力；AI 起草“发展目标”“当前起点”和“阶段预期进展”，由导师编辑并确认。' in html
+    assert 'AI 只填' not in html

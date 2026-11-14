@@ -390,6 +390,19 @@ def test_internal_doc_validation_returns_400(plan_client, m1db, mutate, message)
     assert pstore.get_plan(plan["id"])["current_version_id"] == plan["current_version_id"]
 
 
+def test_internal_save_accepts_legacy_string_reviews(plan_client, m1db):
+    """旧 AI 初稿把回顾问题写成字符串，保存时也要能补成字段（否则批准会被挡住）。"""
+    plan, doc = _new_plan_with_version(m1db)
+    _login(plan_client, m1db.alice_id, "advisor", "Alice")
+    legacy = copy.deepcopy(doc)
+    for session in legacy["sessions"][1:]:
+        session["review"] = [item["text"] for item in session["review"]]
+    res = plan_client.put("/api/m1/plans/%d/internal" % plan["id"],
+                          json={"rev": plan["rev"], "doc": legacy})
+    assert res.status_code == 200, res.get_json()
+    assert plan_client.post("/api/m1/plans/%d/approve" % plan["id"]).status_code == 200
+
+
 def test_internal_save_and_rev_conflict(plan_client, m1db):
     plan, doc = _new_plan_with_version(m1db)
     _login(plan_client, m1db.alice_id, "advisor", "Alice")
