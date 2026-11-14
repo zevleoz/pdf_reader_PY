@@ -26,6 +26,7 @@ import {
   type Y4Data,
 } from "./common";
 import { NextAction } from "./NextStep";
+import { useY4Upload, Y4_SLOTS } from "./Y4Upload";
 import { dimName, reviewText, useSixAm } from "./SixAmTab";
 import type { QResp } from "./QuestionnaireTab";
 
@@ -45,46 +46,34 @@ function bookingTone(s: string): "strong" | "plain" | "alert" {
   return "plain";
 }
 
-const DIM_BG = ["bg-d1", "bg-d2", "bg-d3", "bg-d4"];
 const SIGNAL_NAMES = ["强干预", "弱干预", "强潜能", "弱潜能"];
 
-function pctText(n: number): string {
-  return String(Number(n));
-}
-
-function DimCards({ y4 }: { y4: Y4Data }) {
-  const { setTab, setY4Dim } = useProfile();
-  return (
-    <div className="mb-[26px] grid grid-cols-2 border-t-2 border-rule md:grid-cols-4">
-      {y4.dims.map((d, i) => (
-        <button
-          key={d.name}
-          type="button"
-          onClick={() => {
-            setY4Dim(d.name);
-            setTab("y4");
-          }}
-          className="min-w-0 border-l border-line px-3.5 pb-3.5 pt-3 text-left first:border-l-0 hover:bg-sunk max-md:odd:border-l-0"
-        >
-          <b className="block text-[14.5px] font-bold">{d.name}</b>
-          {d.total === 0 ? (
-            <div className="text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[38px]">—</div>
-          ) : (
-            <>
-              <div className="text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[38px]">
-                {pctText(d.healthy)}
-                <small className="ml-0.5 text-sm font-medium tracking-normal text-mute">%</small>
-              </div>
-              <div className="my-2 h-1.5 overflow-hidden bg-sunk">
-                <i className={cn("block h-full", DIM_BG[i % 4])} style={{ width: Math.max(0, Math.min(100, d.healthy)) + "%" }} />
-              </div>
-            </>
-          )}
-          <small className="block text-[12.5px] leading-snug text-ink-2">健康度</small>
-        </button>
-      ))}
+function Y4SourceStatus() {
+  const { setTab } = useProfile();
+  const up = useY4Upload();
+  const labels: Record<string, string> = {
+    empty: "未上传", queued: "排队中", reading: "读取中", done: "已读取", failed: "读取失败",
+  };
+  return <section className="mb-[26px] border-y border-line" aria-label="Y4 测评资料">
+    <div className="flex items-center justify-between gap-3 px-3 py-2">
+      <h2 className="text-sm font-semibold">Y4 测评资料</h2>
+      <button type="button" onClick={() => setTab("y4")} className="text-xs underline underline-offset-4">查看资料</button>
     </div>
-  );
+    {up.error ? <div className="flex items-center gap-3 px-3 pb-2 text-sm" role="alert">
+      <span>资料状态加载失败</span><button type="button" className="underline" onClick={() => void up.load()}>重试</button>
+    </div> : null}
+    <div className="grid grid-cols-2 border-t border-line md:grid-cols-4">
+      {Y4_SLOTS.map(slot => {
+        const state = up.status?.slots[slot.key]?.state;
+        return <button key={slot.key} type="button" onClick={() => setTab("y4")}
+          aria-label={slot.label + " · " + (up.error ? "状态暂不可用" : state ? labels[state] : "加载中")}
+          className="flex items-center justify-between gap-3 border-l border-line px-3 py-3 text-left first:border-l-0 hover:bg-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink max-md:odd:border-l-0">
+          <b className="text-sm">{slot.key}</b>
+          <span className="text-xs text-mute">{up.error ? "—" : state ? labels[state] : "加载中…"}</span>
+        </button>;
+      })}
+    </div>
+  </section>;
 }
 
 function Signals({ y4 }: { y4: Y4Data }) {
@@ -286,11 +275,10 @@ export default function OverviewTab() {
   const y4 = useY4Data();
   return (
     <div>
+      <Y4SourceStatus />
       <Gate res={y4}>
         {(d) =>
-          d.report ? (
-            <DimCards y4={d} />
-          ) : (
+          d.report ? null : (
             <EmptyPanel title="这位学生还没有 Y4 报告">
               <NextAction data={data} onSixAm={() => setTab("six_am")} only={["booking", "y4_report"]} />
             </EmptyPanel>
