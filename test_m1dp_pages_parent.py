@@ -339,6 +339,7 @@ def test_parent_print_without_a_grade_shows_the_grade_text_alone(page_client, m1
     body = page_client.get("/m1/plans/%d/parent/print" % plan["id"]).get_data(as_text=True)
     assert "GNone" not in body and "（G）" not in body
     assert "初二" in body
+    assert "初二（G9）" not in body
 
 
 def test_parent_print_404_without_parent(page_client, m1db):

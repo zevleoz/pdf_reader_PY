@@ -186,7 +186,7 @@ def test_next_step_one_case_per_row(client, m1db):
 
     report = report_store.get_or_create_report(prep["id"], m1db.alice_id)
     report_store.set_transcript(report["id"], text="逐字稿内容")
-    assert next_of(prep["id"])["label"] == "核对发布"
+    assert next_of(prep["id"])["label"] == "继续会后报告"
 
     report_store.add_version(report["id"], y4_ratings={}, evidence=[], ai_doc={},
                              doc={}, checks=[], manifest={}, status="approved")
@@ -207,7 +207,7 @@ def test_next_step_one_case_per_row(client, m1db):
 
     pstore.confirm_parent(plan["id"], m1db.alice_id)
     pstore.export_parent(plan["id"], m1db.alice_id)
-    assert next_of(prep["id"]) is None
+    assert next_of(prep["id"])["label"] == "打开发展计划"
 
 
 # ---------------------------------------------------------------------------
@@ -328,3 +328,103 @@ def test_list_sorting_helpers():
     assert result["preps"] == [3, 2, 4, 1]
     assert result["reports"] == [2, 3, 1]
     assert result["dup"] == [2, 3]
+
+
+@pytest.mark.parametrize("prep_status,version", [("draft", None), ("ai_draft", 10)])
+@pytest.mark.parametrize("status,parent,label,step", [
+    ("inputs", "none", "继续发展计划", "inputs"),
+    ("generating", "none", "查看生成进度", "internal"),
+    ("review", "none", "审阅内部版", "internal"),
+    ("approved", "none", "生成家长版", "parent"),
+    ("approved", "generating", "查看家长版生成", "parent"),
+    ("approved", "draft", "确认家长版", "parent"),
+    ("approved", "confirmed", "导出家长版", "parent"),
+    ("approved", "exported", "打开发展计划", "parent"),
+])
+def test_next_step_resumes_plan_before_old_prep(prep_status, version, status, parent, label, step):
+    from blueprints.m1 import _next_step
+    prep = {"id": 7, "status": prep_status, "current_version_id": version}
+    plan = {"id": 9, "status": status, "parent_status": parent}
+    action = _next_step(prep, {"started": True, "status": "published"}, plan)
+    assert action["label"] == label
+    assert action["href"] == "/m1/plans/9#step=" + step
+    assert _next_step(prep, None, plan) == action
+
+
+@pytest.mark.parametrize("status,label,suffix", [
+    ("draft", "继续会后报告", "/report"),
+    ("generating", "查看生成进度", "/report"),
+    ("ai_draft", "核对发布", "/report#step=review"),
+    ("published", "新建发展计划", None),
+])
+def test_next_step_resumes_report_before_old_prep(status, label, suffix):
+    from blueprints.m1 import _next_step
+    action = _next_step({"id": 7, "status": "ai_draft"},
+                        {"started": True, "status": status}, None)
+    assert action["label"] == label
+    assert action["href"] == ("/m1/preps/7" + suffix if suffix else "/m1/plans?new=7")
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 未安装")
+def test_student_next_step_downstream_priority_and_labels():
+    source = (BASE_DIR / "static/m1/m1_student.js").read_text()
+    function = source[source.index("  function nextStep(data)"):source.index("  function renderHead(data)")]
+    script = function + """
+const assert = require('assert');
+const data = {prep:{id:7}, prep_part:{has_doc:true,status:'ai_draft'},
+  report_part:{started:true,status:'published'}, plans:[]};
+assert.equal(nextStep(data).button, '新建发展计划');
+for (const [status, parent_status, button] of [
+  ['inputs','none','继续发展计划'], ['generating','none','查看生成进度'],
+  ['review','none','审阅内部版'], ['approved','generating','查看生成进度'],
+  ['approved','none','生成家长版'], ['approved','draft','确认家长版'],
+  ['approved','confirmed','导出家长版'], ['approved','exported','打开发展计划']]) {
+  data.plans = [{id:9,block_no:1,status,parent_status,step_url:'/m1/plans/9#step=current'}];
+  assert.equal(nextStep(data).button, button);
+  assert.equal(nextStep(data).href, data.plans[0].step_url);
+}
+data.plans = [];
+for (const [status,button] of [['draft','继续会后报告'],['generating','查看生成进度'],['ai_draft','核对发布']]) {
+  data.report_part.status = status;
+  assert.equal(nextStep(data).button,button);
+}
+data.report_part.started = false;
+assert.equal(nextStep(data).button,'去定稿');
+data.prep_part.has_doc = false;
+assert.equal(nextStep(data).button,'开始会前准备');
+"""
+    subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node 未安装")
+def test_list_row_destinations_and_nested_controls():
+    source = (BASE_DIR / "static/m1/m1_lists.js").read_text()
+    action = source[source.index("  function planAction("):source.index("  function planRow(")]
+    row = source[source.index("  function makeRow("):source.index("  function headerRow(")]
+    routing = source[source.index("      var href = kind === 'plans'"):source.index("      listHost.appendChild(makeRow")]
+    script = action + row + """
+const assert = require('assert');
+function destination(kind, row) {
+""" + routing + """
+return href;
+}
+assert.equal(destination('reports',{id:7,report:{status:'published'}}),'/m1/preps/7/report');
+assert.equal(destination('preps',{id:7,status:'final',current_version_id:1}),'/m1/preps/7/prep');
+assert.equal(destination('preps',{id:7,status:'ai_draft',current_version_id:1}),'/m1/preps/7/prep#step=review');
+assert.equal(destination('plans',{id:9,next:{hash:'#step=internal'}}),'/m1/plans/9#step=internal');
+assert.equal(destination('plans',{id:9,next:{hash:'#step=parent'}}),'/m1/plans/9#step=parent');
+let handlers = {};
+function el() {return {dataset:{},setAttribute(){},appendChild(){},addEventListener(k,v){handlers[k]=v;}};}
+const window = {location:{href:''}};
+const node = makeRow({student_name:'Test'},[], '/workflow');
+handlers.click({target:{closest(){return true;}}});
+assert.equal(window.location.href,'');
+handlers.keydown({target:{},key:'Enter',preventDefault(){throw Error('nested control intercepted');}});
+assert.equal(window.location.href,'');
+handlers.keydown({target:node,key:'Enter',preventDefault(){}});
+assert.equal(window.location.href,'/workflow');
+window.location.href='';
+handlers.click({target:{closest(){return null;}}});
+assert.equal(window.location.href,'/workflow');
+"""
+    subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)

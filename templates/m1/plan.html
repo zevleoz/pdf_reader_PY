@@ -28,7 +28,7 @@
 {% set s2 = 'x' if st == 'inputs' else ('d' if st == 'approved' else 'n') %}
 {% set s3 = 'd' if plan.parent_status in ('confirmed', 'exported') else ('n' if st == 'approved' or plan.parent_status in ('generating', 'draft') else 'x') %}
 {% set internal = internal_version %}
-{% set grade_label = (grade_text ~ ('（G' ~ plan.wb_grade ~ '）' if plan.wb_grade else '')) or '—' %}
+{% set grade_label = grade_text or '—' %}
 
 <div class="plan-page" id="m1Plan" data-plan-id="{{ plan.id }}" data-status="{{ st }}"
      data-default-step="{{ default_step }}" data-job-id="{{ job_id or '' }}"
@@ -136,13 +136,14 @@
           <span class="st {{ 's0' if g.locked else 'sn' }}">{{ '已锁定' if g.locked else '未锁定' }}</span>
           <span class="r">
             {% if step1_editable %}
+              <button class="btn s" data-fill-goal="{{ g.code }}">AI 补全 / 重试</button>
               {% if g.locked %}<button class="btn s g" data-lock="{{ g.code }}" data-locked="0">解锁</button>
               {% else %}<button class="btn s" data-lock="{{ g.code }}" data-locked="1">锁定</button>{% endif %}
             {% endif %}
           </span>
         </div>
         <dl>
-          <dt>发展目标</dt>
+          <dt>发展目标{% if g.goal.src == 'ai' and g.goal_text %}<span class="ai" data-goal-ai="{{ g.code }}-goal">AI</span>{% endif %}</dt>
           <dd><span class="pf block gtext"{% if step1_editable %} contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true" aria-label="{{ g.code }} 发展目标" data-placeholder="写这一项的发展目标（必填）"{% endif %} data-goal-text="{{ g.code }}"{% if step1_editable and g.locked and not (g.goal_text or '').strip() %} data-missing="1"{% endif %}>{{ g.goal_text }}</span>
             {%- if step1_editable %}<span class="gwarn" data-goal-warn="{{ g.code }}"{% if not (g.locked and not (g.goal_text or '').strip()) %} hidden{% endif %}>还没写发展目标，生成前要补上。</span>{% endif %}</dd>
           <dt>当前起点{% if g.start.src == 'ai' %}<span class="ai" data-goal-ai="{{ g.code }}-start">AI</span>{% endif %}</dt>
@@ -166,7 +167,7 @@
         {% endfor %}
       </select>
       {% endif %}
-      <p class="hint" style="margin:6px 0 0">能力和目标由导师选、导师写；AI 只填“当前起点”和“阶段预期进展”，导师可以改。</p>
+      <p class="hint" style="margin:6px 0 0">导师选择能力；AI 起草“发展目标”“当前起点”和“阶段预期进展”，由导师编辑并确认。</p>
 
       <h3 class="h2" style="margin-top:28px">个性化需求<small>可选</small></h3>
       <div class="src">
@@ -331,7 +332,8 @@
           <h3>B｜核心学习内容</h3>
           {% set content = session.get('content') or {} %}
           <p><b class="k">Mindsets：</b>{{ txt(content.get('mindsets') or {}, sbase ~ '.content.mindsets.text', 90) }}</p>
-          <p><b class="k">Path：</b>{{ txt(content.get('path') or {}, sbase ~ '.content.path.text', 90) }}</p>
+          {% set path_value = content.get('path') or {} %}
+          {% if (path_value.text if path_value is mapping else path_value)|string|trim %}<p><b class="k">Path：</b>{{ txt(path_value, sbase ~ '.content.path.text', 90) }}</p>{% endif %}
           <p><b class="k">Skills：</b>{{ txt(content.get('skills') or {}, sbase ~ '.content.skills.text', 90) }}</p>
           <p><b class="k">Techniques：</b>{{ txt(content.get('techniques') or {}, sbase ~ '.content.techniques.text', 90) }}</p>
 

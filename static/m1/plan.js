@@ -315,6 +315,8 @@
       var goal = findGoal(code);
       if (!goal) return;
       goal.goal = {text: field.textContent || '', src: 'mentor'};
+      var badge = document.querySelector('[data-goal-ai="' + code + '-goal"]');
+      if (badge) badge.hidden = true;
       if (!field.textContent) field.innerHTML = '';
       refreshGoalWarn(code);
       refreshGenReason();
@@ -367,6 +369,24 @@
     });
   });
 
+  function fillGoal(code, button) {
+    clearTimeout(S.goalTimer);
+    if (button) button.disabled = true;
+    function failed() {
+      if (button) { button.disabled = false; button.textContent = 'AI 补全失败，重试'; }
+      else location.reload(); // 已保存的空目标会显示补全 / 重试按钮
+    }
+    saveGoals().then(function () {
+      startJob(API + '/goals/' + code + '/fill', function () { location.reload(); }, failed);
+    }).catch(failed);
+  }
+
+  document.querySelectorAll('[data-fill-goal]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (S.step1) fillGoal(button.getAttribute('data-fill-goal'), button);
+    });
+  });
+
   function addGoal(code) {
     if (!S.step1) return;
     if (!code) return;
@@ -378,10 +398,8 @@
       start: {text: '', src: 'ai'},
       expected: {text: '', src: 'ai'}
     });
-    saveGoals().then(function () {
-      toast('已添加目标，AI 正在填写起点和预期进展');
-      startJob(API + '/goals/' + code + '/fill', function () { location.reload(); });
-    }).catch(function () {});
+    toast('已添加目标，AI 正在填写发展目标、起点和预期进展');
+    fillGoal(code);
   }
 
   document.querySelectorAll('[data-add-goal]').forEach(function (button) {

@@ -265,8 +265,12 @@
     node.dataset.href = href;
     cells.forEach(function (cell) { node.appendChild(cell); });
     function go() { window.location.href = href; }
-    node.addEventListener('click', go);
+    node.addEventListener('click', function (event) {
+      if (event.target.closest('a, button, input, select, textarea')) return;
+      go();
+    });
     node.addEventListener('keydown', function (event) {
+      if (event.target !== node) return;
       if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
         event.preventDefault();
         go();
@@ -393,7 +397,9 @@
     }
     listHost.appendChild(headerRow());
     rows.forEach(function (row) {
-      var href = kind === 'plans' ? '/m1/plans/' + row.id : '/m1/preps/' + row.id;
+      var href = kind === 'plans' ? planAction(row).href
+        : '/m1/preps/' + row.id + (kind === 'reports' ? '/report'
+          : (row.current_version_id && row.status !== 'final' ? '/prep#step=review' : '/prep'));
       listHost.appendChild(makeRow(row, rowFor(row), href));
     });
   }

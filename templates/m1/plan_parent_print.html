@@ -19,7 +19,7 @@
 <div class="print-desk">
   <div class="pp-banner" id="ppBanner" role="status"></div>
   <div id="ppPages">
-    {{ parent_pages(parent_view, parent_fixed, plan, period, (grade_text ~ ('（G' ~ plan.wb_grade ~ '）' if plan.wb_grade else '')) or '—', wm) }}
+    {{ parent_pages(parent_view, parent_fixed, plan, period, grade_text or '—', wm) }}
   </div>
 </div>
 

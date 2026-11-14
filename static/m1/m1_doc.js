@@ -199,7 +199,13 @@
     ['student', 'grade', 'school', 'meeting_date', 'mentor', 'duration', 'people']
       .forEach(function (key) {
         var fromDoc = meta[key];
-        if (fromDoc === undefined || fromDoc === null || fromDoc === '' ||
+        var currentMentor = prep && (prep.mentor_name || prep.mentor);
+        if (key === 'mentor' && prep &&
+            (Object.prototype.hasOwnProperty.call(prep, 'mentor_name') ||
+             Object.prototype.hasOwnProperty.call(prep, 'mentor'))) {
+          // Assignment is authoritative when present, including an unknown/empty assignment.
+          merged[key] = currentMentor || '';
+        } else if (fromDoc === undefined || fromDoc === null || fromDoc === '' ||
             (Array.isArray(fromDoc) && !fromDoc.length)) {
           merged[key] = prep ? (prep[key] !== undefined ? prep[key] : '') : '';
         } else {

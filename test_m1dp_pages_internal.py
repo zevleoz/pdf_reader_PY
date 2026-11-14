@@ -146,11 +146,13 @@ def test_no_grade_plan_never_prints_gnone(page_client, m1db):
     html = page_client.get("/m1/plans/%d" % plan["id"]).get_data(as_text=True)
     assert "GNone" not in html and "（G）" not in html
     assert "初二" in html
+    assert "初二（G9）" not in html
     assert "未填年级，按 G9 课程参考 · 只作思路" in html
 
     printed = page_client.get("/m1/plans/%d/print" % plan["id"]).get_data(as_text=True)
     assert "GNone" not in printed and "（G）" not in printed
     assert "初二" in printed
+    assert "初二（G9）" not in printed
 
 
 def test_approved_page_is_locked(page_client, m1db):
@@ -358,3 +360,18 @@ def test_print_404_without_internal_or_access(page_client, m1db):
     plan = _plan_with_internal(m1db)
     _login(page_client, m1db.bob_id, "advisor", "Bob")
     assert page_client.get("/m1/plans/%d/print" % plan["id"]).status_code == 404
+
+
+def test_empty_path_rows_are_hidden_but_existing_values_remain(page_client, m1db):
+    doc = _internal_doc()
+    doc["sessions"][0]["content"]["path"] = _field("")
+    doc["sessions"][1]["content"]["path"] = _field("A saved Path")
+    doc["sessions"][2]["content"]["path"] = _field("  ")
+    plan = _plan_with_internal(m1db, doc=doc)
+    _mentor(page_client, m1db)
+
+    html = page_client.get("/m1/plans/%d" % plan["id"]).get_data(as_text=True)
+    printed = page_client.get("/m1/plans/%d/print" % plan["id"]).get_data(as_text=True)
+    assert html.count("<b class=\"k\">Path：</b>") == 1
+    assert printed.count("<b>Path：</b>") == 1
+    assert "A saved Path" in html and "A saved Path" in printed
