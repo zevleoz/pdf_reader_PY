@@ -189,6 +189,29 @@ def _rule_attachment_close(num: float) -> Optional[str]:
     return "偏低"
 
 
+def attachment_level(dimension: str, score: Any) -> str:
+    """Report tiers derived from scores, never from potentially stale OCR labels."""
+    rules = {"信任": (50, _rule_attachment_trust),
+             "沟通": (45, _rule_attachment_comm),
+             "亲近": (30, _rule_attachment_close)}
+    if dimension not in rules:
+        return ""
+    maximum, rule = rules[dimension]
+    try:
+        number = float(score)
+    except (TypeError, ValueError):
+        return ""
+    if not 0 <= number <= maximum:
+        return ""
+    return rule(number)
+
+
+def normalize_bmi_level(level: Any) -> str:
+    """Normalize source wording only; do not apply adult BMI cutoffs to children."""
+    value = str(level or "").strip()
+    return {"偏低": "偏瘦", "偏轻": "偏瘦"}.get(value, value)
+
+
 def _rule_self_concept_subitem(num: float) -> Optional[str]:
     """053-058 自我概念细分。"""
     if num >= 8:

@@ -26,6 +26,10 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parent
+if str(PROJECT) not in sys.path:
+    sys.path.insert(0, str(PROJECT))
+from evaluation_rules import attachment_level, normalize_bmi_level
+
 DATA_PATH = PROJECT / "data" / "report_data.json"
 
 TEMPLATE_NAME = "report_v2.html"
@@ -170,11 +174,13 @@ def build_context(student, d, slots=SLOTS):
         for i, who in enumerate(["母亲", "父亲", "同伴"]):
             sc_raw = d[str(int(base_s) + i).zfill(3)]
             sc = to_float(sc_raw)
-            lv = d[str(int(base_l) + i).zfill(3)]
+            # Numeric thresholds are authoritative, including for old snapshots.
+            level = attachment_level(zh, sc_raw)
+            lv = {"偏低": "低", "不低": "中", "高": "高"}.get(level, "")
             rows.append({
                 "who": who, "pct": round(sc / maxv * 100, 1),
                 "sc": fnum(sc_raw), "max": fnum(maxv),
-                "lv": lv, "lv_text": lv_text(lv),
+                "lv": lv, "lv_text": lv_text(lv) or "-",
             })
         at_dims.append({"zh": zh, "en": en, "rows": rows})
     ctx["attachment"] = {"cards": cards, "dims": at_dims}
@@ -244,7 +250,7 @@ def build_context(student, d, slots=SLOTS):
     }
 
     # ---- P10 体质健康 ----
-    level = d["042"]
+    level = normalize_bmi_level(d["042"])
     shapes = [
         {"zh": "偏瘦", "en": "LOW", "scale": 0.88, "active": level == "偏瘦"},
         {"zh": "正常", "en": "NORMAL", "scale": 1.0, "active": level == "正常"},

@@ -39,6 +39,7 @@ from typing import Any, Dict, List, Optional
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from data_points import POINT_META, USER_DATA, apply_report_data, student_meta, mean_val
+from evaluation_rules import attachment_level, normalize_bmi_level
 
 
 # ======================================================================
@@ -553,28 +554,7 @@ def build_page_5() -> Dict[str, Any]:
 
 # ---------------- P06 依恋关系（020-040） ----------------
 def _attachment_level(dim_name: str, score: float) -> str:
-    if dim_name == "信任":
-        if score >= 35:
-            return "高"
-        elif score >= 18:
-            return "不低"
-        else:
-            return "偏低"
-    elif dim_name == "沟通":
-        if score >= 31:
-            return "高"
-        elif score >= 16:
-            return "不低"
-        else:
-            return "偏低"
-    elif dim_name == "亲近":
-        if score >= 21:
-            return "高"
-        elif score >= 11:
-            return "不低"
-        else:
-            return "偏低"
-    return ""
+    return attachment_level(dim_name, score)
 
 def build_page_6() -> Dict[str, Any]:
     types = [
@@ -760,7 +740,7 @@ def build_page_10() -> Dict[str, Any]:
         {"label": "运动习惯", "en": "Exercise", "score": fmt(v("049")), "level": fmt(v("050"))},
     ]
     # BMI 四格
-    bmi_level_val = fmt(v("042"))
+    bmi_level_val = fmt(normalize_bmi_level(v("042")))
     figures = []
     level_map = [("偏瘦", "Low", "#F4A261", 0.9), ("正常", "Normal", "#2A9D8F", 1.0),
                  ("超重", "Overweight", "#E76F51", 1.05), ("肥胖", "Obesity", "#B33A3A", 1.1)]
