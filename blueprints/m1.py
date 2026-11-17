@@ -24,6 +24,7 @@ import db as _db
 import m1.plan_collaboration as plan_collab
 import m1.plan_store as pstore
 import m1.report_store as rstore
+import m1.roster as roster
 import m1.sources as sources
 import m1.store as store
 from app_utils import BASE_DIR, page_login_required, role_required
@@ -538,6 +539,40 @@ def api_preps():
     return jsonify({"ok": True, "me": user.get("user_id"), "preps": rows})
 
 
+@bp.route("/api/m1/roster")
+@role_required(*_WRITE_ROLES)
+def api_roster():
+    """Student discovery only; team membership does not grant raw-source access."""
+    user = _user()
+    try:
+        rows = roster.visible_sources(user)
+    except OperationalError:
+        pstore.ensure_tables()
+        rows = roster.visible_sources(user)
+    reports = rstore.list_overview([row["prep"]["id"] for row in rows if row["prep"]])
+    for row in rows:
+        prep, plan = row["prep"], row["plan"]
+        report = reports.get(prep["id"]) if prep else None
+        row["hub_url"] = "/m1/students/%d" % row["student_id"]
+        # Navigation remains available after completion. A team assignment with
+        # no plan is pending work, even when the user has no creation action.
+        row["workflow_state"] = ("done" if plan and plan.get("status") == "approved"
+                                 and plan.get("parent_status") == "exported"
+                                 and not plan.get("parent_stale") else "todo")
+        # _next_step only uses the prep ID for prep/report actions. No fabricated
+        # prep is passed when discovery came solely from a plan or team.
+        if prep:
+            row["next"] = _next_step(prep, report, plan)
+            prep["has_doc"] = bool(prep.pop("current_version_id"))
+            prep["report"] = ({k: report[k] for k in ("status", "label", "started")}
+                              if report else {"status": "draft", "label": "未开始", "started": False})
+        else:
+            row["next"] = ({"label": "打开发展计划", "href": _plan_step_url(plan), "primary": True}
+                           if plan else None)
+        row["plan"] = _plan_cell(plan)
+    return jsonify({"ok": True, "me": user.get("user_id"), "students": rows})
+
+
 @bp.route("/api/m1/mentors")
 @role_required(*_WRITE_ROLES)
 def api_mentors():
@@ -1032,7 +1067,8 @@ def _student_overview_payload(student_id: int) -> dict:
 
 def _can_view_student_hub(student_id: int) -> bool:
     return (store.can_access_student(_user(), student_id)
-            or pstore.is_team_member(_user(), student_id))
+            or pstore.is_team_member(_user(), student_id)
+            or bool(store.list_preps(user=_user(), student_id=student_id, limit=1)))
 
 
 @bp.route('/api/m1/students/<int:student_id>/overview')

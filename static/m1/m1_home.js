@@ -14,8 +14,7 @@
   var durationSeg = document.getElementById('addDuration');
 
   var state = {
-    preps: [],
-    me: null,
+    roster: [],
     who: 'mine',
     view: 'all',
     q: '',
@@ -25,7 +24,7 @@
     openedFrom: null
   };
 
-  // 添加人筛选：我添加的（默认）/ 全部，选择记在 localStorage['m1.list.who']。
+  // 参与筛选：我参与的（默认）/ 全部；旧 mine 值沿用新的参与语义。选择记在 localStorage['m1.list.who']。
   try {
     var savedWho = window.localStorage.getItem('m1.list.who');
     if (savedWho === 'all' || savedWho === 'mine') state.who = savedWho;
@@ -72,12 +71,12 @@
   }
 
   function isPast(prep) {
-    return !!prep.meeting_date && prep.meeting_date < localToday();
+    return !!prep.prep.meeting_date && prep.prep.meeting_date < localToday();
   }
 
   function matchesWho(prep) {
     if (state.who === 'all') return true;
-    return state.me !== null && prep.created_by === state.me;
+    return !!prep.participating;
   }
 
   function matchesQuery(prep) {
@@ -88,15 +87,15 @@
   }
 
   function inView(prep, view) {
-    if (view === 'todo') return !!prep.next;
-    if (view === 'done') return !prep.next;
+    if (view === 'todo') return prep.workflow_state === 'todo';
+    if (view === 'done') return prep.workflow_state === 'done';
     return true;
   }
 
   function prepChip(prep) {
     if (prep.status === 'generating') return ['s1', '生成中'];
     if (prep.status === 'final') return ['s0', '已定稿'];
-    if (prep.current_version_id) return ['s1', 'AI 初稿 · 待定稿'];
+    if (prep.has_doc) return ['s1', 'AI 初稿 · 待定稿'];
     return ['sn', '待生成'];
   }
 
@@ -119,24 +118,29 @@
     row.setAttribute('role', 'link');
     row.tabIndex = 0;
     row.setAttribute('aria-label', prep.student_name + ' 的学生页');
-    row.dataset.href = '/m1/students/' + prep.student_id;
+    row.dataset.href = prep.hub_url;
 
     var nameCell = el('span', 'nm');
     nameCell.appendChild(el('b', null, prep.student_name || '未命名学生'));
     nameCell.appendChild(el('small', null,
       [prep.student_code, prep.grade].filter(Boolean).join(' · ')));
+    var roleLabels = {primary: '负责导师', co_mentor: '共同导师', advisor: '所属顾问', creator: '我创建的'};
+    (prep.roles || []).forEach(function (role) {
+      nameCell.appendChild(el('small', 'st sn', roleLabels[role] || role));
+    });
     row.appendChild(nameCell);
 
-    var timeCell = el('span', 'c-t', dateLabel(prep.meeting_date));
-    if (prep.mentor_name) timeCell.appendChild(el('small', null, prep.mentor_name));
+    var visiblePrep = prep.prep;
+    var timeCell = el('span', 'c-t', visiblePrep ? dateLabel(visiblePrep.meeting_date) : '—');
+    if (visiblePrep && visiblePrep.mentor_name) timeCell.appendChild(el('small', null, visiblePrep.mentor_name));
     row.appendChild(timeCell);
 
-    var prepPair = prepChip(prep);
+    var prepPair = visiblePrep ? prepChip(visiblePrep) : ['sn', '未共享'];
     var prepCell = el('span', 'c-s mu');
     prepCell.appendChild(el('span', 'st ' + prepPair[0], prepPair[1]));
     row.appendChild(prepCell);
 
-    var reportPair = reportChip(prep);
+    var reportPair = visiblePrep ? reportChip(visiblePrep) : ['sn', '未共享'];
     var reportCell = el('span', 'c-p');
     reportCell.appendChild(el('em', null, '会后报告'));
     reportCell.appendChild(el('span', 'st ' + reportPair[0], reportPair[1]));
@@ -160,6 +164,7 @@
     function go() { window.location.href = row.dataset.href; }
     row.addEventListener('click', go);
     row.addEventListener('keydown', function (event) {
+      if (event.target !== row) return;
       if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
         event.preventDefault();
         go();
@@ -192,20 +197,26 @@
   function renderList(rows) {
     listHost.innerHTML = '';
 
-    var upcoming = rows.filter(function (prep) { return !isPast(prep); });
-    var past = rows.filter(isPast);
+    var meetings = rows.filter(function (row) { return !!row.prep; });
+    var standalone = rows.filter(function (row) { return !row.prep; });
+    var upcoming = meetings.filter(function (prep) { return !isPast(prep); });
+    var past = meetings.filter(isPast);
     upcoming.sort(function (a, b) {
-      if (!a.meeting_date) return 1;
-      if (!b.meeting_date) return -1;
-      return a.meeting_date < b.meeting_date ? -1 : a.meeting_date > b.meeting_date ? 1 : 0;
+      if (!a.prep.meeting_date) return 1;
+      if (!b.prep.meeting_date) return -1;
+      return a.prep.meeting_date < b.prep.meeting_date ? -1 : a.prep.meeting_date > b.prep.meeting_date ? 1 : 0;
     });
     past.sort(function (a, b) {
-      return a.meeting_date < b.meeting_date ? 1 : a.meeting_date > b.meeting_date ? -1 : 0;
+      return a.prep.meeting_date < b.prep.meeting_date ? 1 : a.prep.meeting_date > b.prep.meeting_date ? -1 : 0;
     });
 
     if (upcoming.length) {
       listHost.appendChild(groupBlock('接下来的会议',
         upcoming.length + ' · 按时间先后', upcoming));
+    }
+    if (standalone.length) {
+      listHost.appendChild(groupBlock('计划与团队学生',
+        standalone.length + ' · 无可见 First Meeting', standalone));
     }
     if (past.length) {
       listHost.appendChild(groupBlock('已开过的会议',
@@ -228,7 +239,7 @@
   }
 
   function render() {
-    var scoped = state.preps.filter(function (prep) {
+    var scoped = state.roster.filter(function (prep) {
       return matchesWho(prep) && matchesQuery(prep);
     });
     ['all', 'todo', 'done'].forEach(function (view) {
@@ -242,7 +253,7 @@
       if (span) span.textContent = String(scoped.length);
     }
 
-    if (!state.preps.length) {
+    if (!state.roster.length) {
       listHost.innerHTML = '';
       listHost.appendChild(emptyState('还没有学生', '点右上角「添加学生」开始。'));
       return;
@@ -302,7 +313,11 @@
     });
     found = groups[0].concat(groups[1], groups[2]).slice(0, 40);
 
-    if (!found.length) pickHost.appendChild(el('p', 'hint', '没有匹配的学生。'));
+    if (!found.length) pickHost.appendChild(el('p', 'hint', q
+      ? '没有匹配的学生。'
+      : '暂无可添加 First Meeting 的学生。已共享的学生请在首页或学生页的团队与发展计划区域查看。'));
+    else if (!found.some(selectable)) pickHost.appendChild(el('p', 'hint',
+      '当前没有符合条件的 First Meeting 学生。共享计划请在首页或学生页的团队与发展计划区域查看。'));
 
     found.forEach(function (student) {
       var ok = selectable(student);
@@ -430,20 +445,19 @@
   if (addGo) addGo.addEventListener('click', submit);
 
   Promise.all([
-    api('/api/m1/preps'),
+    api('/api/m1/roster'),
     api('/api/m1/students').catch(function () { return { students: [] }; })
   ]).then(function (results) {
-    state.preps = results[0].preps || [];
-    state.me = results[0].me == null ? null : Number(results[0].me);
+    state.roster = results[0].students || [];
     state.students = results[1].students || [];
     setWho(state.who);
     setView(state.view);
 
     var wanted = Number(root.dataset.studentId || 0);
     if (wanted) {
-      var listed = state.preps.filter(function (prep) { return prep.student_id === wanted; })[0];
+      var listed = state.roster.filter(function (prep) { return prep.student_id === wanted; })[0];
       if (listed) {
-        window.location.replace('/m1/preps/' + listed.id);
+        window.location.replace(listed.hub_url);
         return;
       }
       openDialog(wanted);
