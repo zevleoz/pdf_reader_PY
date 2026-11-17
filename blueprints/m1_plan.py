@@ -14,7 +14,9 @@ from pathlib import Path
 from flask import Blueprint, abort, jsonify, request
 
 import app_utils
+import db as _db
 import m1.kb as kb
+import m1.plan_collaboration as collab
 import m1.plan_kb as plan_kb
 import m1.plan_store as pstore
 import m1.report_store as rstore
@@ -65,6 +67,8 @@ def _run(callable_):
     """把数据层的异常翻译成 API 语义。"""
     try:
         return callable_(), None
+    except collab.CollaborationError as exc:
+        return None, (jsonify(exc.payload()), exc.status)
     except pstore.NotFound as exc:
         return None, _err(str(exc), 404)
     except pstore.RevConflict as exc:
@@ -81,6 +85,27 @@ def _rev(body: dict):
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _legacy_section(plan: dict, section: str, patch: dict, body: dict):
+    """Narrow legacy write: revision CAS + foreign-lease refusal + section version.
+
+    The rich editor moves to ``PATCH /sections/<key>``; these endpoints stay for
+    compatibility but can no longer bypass an active collaborator's lease.
+    """
+    token = body.get("lease_token")
+    if token is not None and not isinstance(token, str):
+        return None, _err("lease_token 格式不正确", 400)
+    rev = _rev(body)
+    if rev is None:
+        return None, _err("缺少 rev", 400)
+    _, error = _run(lambda: collab.apply_section(
+        plan["id"], section, patch, _user(), expected_version=None,
+        document_version_value=None, lease_token=token, require_lease=False,
+        expected_rev=rev))
+    if error:
+        return None, error
+    return pstore.get_plan(plan["id"]), None
 
 
 def _audit(action: str, plan: dict, **details) -> None:
@@ -145,6 +170,7 @@ def _payload(plan: dict) -> dict:
     parent = pstore.current_version(plan["id"], "parent")
     return {
         "plan": plan,
+        "next_action": pstore.next_action(plan),
         "goals": _goal_rows(plan),
         "personal": {"notes": (plan.get("personal") or {}).get("notes", ""),
                      "summary": (plan.get("personal") or {}).get("summary")
@@ -153,9 +179,15 @@ def _payload(plan: dict) -> dict:
         "internal": internal,
         "parent": parent,
         "parent_stale": plan["parent_stale"],
+        "parent_family": [{"hash": item["hash"], "seen": bool(item["seen"])}
+                          for item in collab.family_state((parent or {}).get("doc") or {})]
+                         if parent else [],
         "report": pstore.report_state(plan),
         "can_generate": pstore.generate_blockers(plan),
         "can_edit": pstore.can_edit_plan(_user(), plan),
+        "can_approve": pstore.can_approve_plan(_user(), plan),
+        "can_manage_team": pstore.can_manage_team(_user()),
+        "collaboration": collab.plan_summary(plan, _user()),
         "wb": {"installed": pstore._wb_installed(),
                "candidates": _wb_candidates(plan)},
         "abilities": [{"code": item.get("code"), "name": item.get("name"),
@@ -196,19 +228,30 @@ def api_plans():
     if scope not in ("mine", "all"):
         return _err("scope 只能是 mine 或 all", 400)
     rows = pstore.list_plans(_user(), scope=scope)
+    student_ids = sorted({int(row["student_id"]) for row in rows
+                          if row.get("student_id") is not None})
+    teams = collab.team_views(student_ids) if student_ids else {}
     for row in rows:
+        team = teams.get(int(row.get("student_id") or 0)) or {}
+        row["team"] = {"primaries": team.get("primaries") or [],
+                       "co_mentors": team.get("co_mentors") or []}
         row["next"] = _next_action(row)
     return jsonify({"ok": True, "plans": rows})
 
 
 @bp.route("/api/m1/plans/eligible")
 def api_plans_eligible():
-    return jsonify({"ok": True, "students": pstore.eligible_students(_user())})
+    rows, error = _run(lambda: pstore.eligible_students(_user(), request.args.get("source_mode", "report")))
+    return error if error else jsonify({"ok": True, "students": rows})
 
 
 @bp.route("/api/m1/plans", methods=["POST"])
 def api_plan_create():
     body = _json_body()
+    if body.get("source_mode", "report") == "mentor_inputs":
+        return _create_direct(body)
+    if body.get("source_mode", "report") != "report":
+        return _err("source_mode 只能是 report 或 mentor_inputs", 400)
     try:
         student_id = int(body.get("student_id"))
         prep_id = int(body.get("prep_id"))
@@ -275,7 +318,7 @@ def api_plan_header(plan_id: int):
             fields["block_no"] = int(fields["block_no"])
         except (TypeError, ValueError):
             return _err("Block 编号需为 1 或以上", 400)
-    updated, error = _run(lambda: pstore.update_header(plan["id"], rev, **fields))
+    updated, error = _legacy_section(plan, "header", fields, body)
     if error:
         return error
     return jsonify({"ok": True, "plan": updated})
@@ -293,7 +336,7 @@ def api_plan_goals(plan_id: int):
     rev = _rev(body)
     if rev is None:
         return _err("缺少 rev", 400)
-    updated, error = _run(lambda: pstore.save_goals(plan["id"], rev, body.get("goals")))
+    updated, error = _legacy_section(plan, "goals", {"goals": body.get("goals")}, body)
     if error:
         return error
     return jsonify({"ok": True, "plan": updated, "goals": _goal_rows(updated)})
@@ -312,7 +355,7 @@ def api_plan_inputs(plan_id: int):
     if not isinstance(values, dict):
         values = {key: body[key] for key in ("strengths", "needs", "context", "interests")
                   if key in body}
-    updated, error = _run(lambda: pstore.save_inputs(plan["id"], rev, values))
+    updated, error = _legacy_section(plan, "inputs", values, body)
     if error:
         return error
     return jsonify({"ok": True, "plan": updated})
@@ -338,8 +381,12 @@ def api_plan_personal(plan_id: int):
         return _err("缺少 notes", 400)
     if summary is not None and not isinstance(summary, str):
         return _err("summary 必须是文字", 400)
-    updated, error = _run(lambda: pstore.save_personal(
-        plan["id"], rev, None if notes is None else str(notes), summary))
+    patch = {}
+    if notes is not None:
+        patch["notes"] = notes
+    if summary is not None:
+        patch["summary"] = summary
+    updated, error = _legacy_section(plan, "personal", patch, body)
     if error:
         return error
     return jsonify({"ok": True, "plan": updated})
@@ -426,11 +473,13 @@ def api_plan_internal_save(plan_id: int):
     doc = pstore.normalize_doc_shape(doc)
     try:
         pstore.validate_internal_doc(plan, doc)
+        from m1.plan_quality import validate_additions
+        validate_additions(doc)
     except ValueError as exc:
         return _err(str(exc), 400)
     checks = _internal_checks(plan, doc)
-    result, error = _run(lambda: pstore.save_internal(
-        plan["id"], rev, doc, checks, actor_id=_user_id()))
+    result, error = _run(lambda: collab.save_document(
+        plan["id"], "internal", rev, doc, checks, _user()))
     if error:
         return error
     return jsonify({"ok": True, "rev": result["rev"],
@@ -443,11 +492,19 @@ def api_plan_approve(plan_id: int):
     plan, error = _plan_or_error(plan_id, edit=True)
     if error:
         return error
-    updated, error = _run(lambda: pstore.approve(plan["id"], _user_id()))
+    if not pstore.can_approve_plan(_user(), plan):
+        return _err("只有负责导师或管理员可以批准内部版", 403)
+    body = _json_body()
+    rev = _rev(body)
+    if rev is None:
+        return _err("缺少 rev", 400)
+    result, error = _run(lambda: collab.approve_plan(
+        plan["id"], _user(), rev, version_id=body.get("version_id")))
     if error:
         return error
-    _audit("m1.plan_approve", updated)
-    return jsonify({"ok": True, "plan": updated})
+    updated = result["plan"]
+    return jsonify({"ok": True, "plan": updated,
+                    "document_version": result["document_version"]})
 
 
 @bp.route("/api/m1/plans/<int:plan_id>/reopen", methods=["POST"])
@@ -455,11 +512,18 @@ def api_plan_reopen(plan_id: int):
     plan, error = _plan_or_error(plan_id, edit=True)
     if error:
         return error
-    updated, error = _run(lambda: pstore.reopen(plan["id"], _user_id()))
+    if not pstore.can_approve_plan(_user(), plan):
+        return _err("只有负责导师或管理员可以重新打开内部版", 403)
+    body = _json_body()
+    rev = _rev(body)
+    if rev is None:
+        return _err("缺少 rev", 400)
+    result, error = _run(lambda: collab.reopen_plan(plan["id"], _user(), rev))
     if error:
         return error
-    _audit("m1.plan_reopen", updated)
-    return jsonify({"ok": True, "plan": updated})
+    updated = result["plan"]
+    return jsonify({"ok": True, "plan": updated,
+                    "document_version": result["document_version"]})
 
 
 # ---------------------------------------------------------------------------
@@ -481,8 +545,8 @@ def api_plan_parent_save(plan_id: int):
         pstore.validate_parent_doc(plan, doc)
     except ValueError as exc:
         return _err(str(exc), 400)
-    result, error = _run(lambda: pstore.save_parent(
-        plan["id"], rev, doc, None, actor_id=_user_id()))
+    result, error = _run(lambda: collab.save_document(
+        plan["id"], "parent", rev, doc, None, _user()))
     if error:
         return error
     updated = pstore.get_plan(plan["id"])
@@ -501,17 +565,22 @@ def api_plan_parent_confirm(plan_id: int):
     plan, error = _plan_or_error(plan_id, edit=True)
     if error:
         return error
+    if not pstore.can_approve_plan(_user(), plan):
+        return _err("只有负责导师或管理员可以确认家长版", 403)
+    body = _json_body()
+    rev = _rev(body)
+    if rev is None:
+        return _err("缺少 rev", 400)
     parent = pstore.current_version(plan["id"], "parent")
     internal = pstore.current_version(plan["id"], "internal")
     blocking = _parent_blocking(plan, parent.get("doc") if parent else None,
                                 internal.get("doc") if internal else None)
     if blocking:
         return _err("还有 %d 项需要处理" % len(blocking), 409, blocking=blocking)
-    updated, error = _run(lambda: pstore.confirm_parent(plan["id"], _user_id()))
+    result, error = _run(lambda: collab.confirm_parent_action(plan["id"], _user(), rev))
     if error:
         return error
-    _audit("m1.plan_parent_confirm", updated)
-    return jsonify({"ok": True, "plan": updated})
+    return jsonify({"ok": True, "plan": result["plan"]})
 
 
 @bp.route("/api/m1/plans/<int:plan_id>/parent/export", methods=["POST"])
@@ -519,22 +588,24 @@ def api_plan_parent_export(plan_id: int):
     plan, error = _plan_or_error(plan_id, edit=True)
     if error:
         return error
-    body = _json_body()
-    if body.get("fits") is not True:
-        return _err("PDF 超过两页，请先缩短内容再导出", 409)
+    if not pstore.can_approve_plan(_user(), plan):
+        return _err("只有负责导师或管理员可以导出家长版", 403)
     if plan.get("parent_status") not in ("confirmed", "exported"):
         return _err("请先确认家长版", 409)
+    body = _json_body()
+    rev = _rev(body)
+    if rev is None:
+        return _err("缺少 rev", 400)
     parent = pstore.current_version(plan["id"], "parent")
     internal = pstore.current_version(plan["id"], "internal")
     blocking = _parent_blocking(plan, parent.get("doc") if parent else None,
                                 internal.get("doc") if internal else None)
     if blocking:
         return _err("还有 %d 项需要处理" % len(blocking), 409, blocking=blocking)
-    updated, error = _run(lambda: pstore.export_parent(plan["id"], _user_id()))
+    result, error = _run(lambda: collab.export_parent_action(plan["id"], _user(), rev))
     if error:
         return error
-    _audit("m1.plan_parent_export", updated)
-    return jsonify({"ok": True, "plan": updated,
+    return jsonify({"ok": True, "plan": result["plan"],
                     "print_url": "/m1/plans/%d/parent/print" % plan["id"]})
 
 
@@ -556,6 +627,12 @@ def _editable_plan(plan_id: int):
     plan, error = _plan_or_error(plan_id, edit=True)
     if error:
         return None, error
+    if plan.get('source_mode') == 'mentor_inputs':
+        rev = _json_body().get('rev')
+        if type(rev) is not int:
+            return None, _err('缺少整数 rev', 400)
+        if rev != plan['rev']:
+            return None, _err('计划已在别处更新，请刷新后重试', 409, rev=plan['rev'])
     if plan["status"] in ("approved", "generating"):
         return None, _err("内部版已批准或正在生成，请先重新打开", 409)
     return plan, None
@@ -566,6 +643,8 @@ def _start_job(plan: dict, kind: str, *, part: str = "internal", previous=None,
     """拉起子进程；启动失败时还原生成前状态。"""
     from m1 import plan_jobs
 
+    if kind in ('plan_brief', 'plan_inputs', 'plan_goal', 'plan_personal'):
+        kwargs['expected_rev'] = plan['rev']
     try:
         job_id = plan_jobs.launch_job(
             plan["id"], kind, actor_id=_user_id(), previous_status=previous, **kwargs)
@@ -614,10 +693,15 @@ def api_plan_generate(plan_id: int):
     if error:
         return error
     body = _json_body()
+    if plan.get('source_mode') == 'mentor_inputs':
+        if type(body.get('rev')) is not int:
+            return _err('缺少整数 rev', 400)
+        if body['rev'] != plan['rev']:
+            return _err('计划已在别处更新，请刷新后重试', 409, rev=plan['rev'])
     use_old_report = bool(body.get("use_old_report"))
     blockers = pstore.generate_blockers(plan, use_old_report=use_old_report)
     if blockers:
-        return _err(blockers[0], 409, blockers=blockers)
+        return _err(blockers[0], 409, blockers=blockers, next_action=pstore.next_action(plan))
     previous, error = _run(lambda: pstore.begin_generation(plan["id"], "internal"))
     if error:
         return error
@@ -792,6 +876,8 @@ def _parent_view(plan: dict, doc, internal_doc) -> dict:
     cards.sort(key=lambda row: order.get(row["ref"], 99))
     family = [_field_text(line) for line in doc.get("family") or []]
     seen = doc.get("family_seen") if isinstance(doc.get("family_seen"), list) else []
+    family_ack = [{"hash": item["hash"], "seen": bool(item["seen"])}
+                  for item in collab.family_state(doc)]
     review = []
     for item in doc.get("review") or []:
         if not isinstance(item, dict):
@@ -803,6 +889,7 @@ def _parent_view(plan: dict, doc, internal_doc) -> dict:
             "family": family,
             "family_seen": [bool(seen[i]) if i < len(seen) else False
                             for i in range(len(family))],
+            "family_ack": family_ack,
             "review": review,
             "intro": _field_text(doc.get("intro")),
             "transition": _field_text(doc.get("transition"))}
@@ -951,14 +1038,19 @@ def _plan_page_context(plan: dict) -> dict:
                            parent_status in ("draft", "confirmed", "exported"))
     page_state = {
         "planId": plan["id"], "status": plan["status"], "rev": plan["rev"],
+        "userId": user.get("user_id"), "userName": _user_name(user.get("user_id")),
         "canEdit": can_edit, "step1": step1, "step2": step2,
+        "canApprove": pstore.can_approve_plan(user, plan),
+        "canManageTeam": pstore.can_manage_team(user),
+        "collaboration": collab.plan_summary(plan, user),
         "defaultStep": _default_step(plan),
         "jobId": job_id,
         "doc": doc, "checks": checks, "reportFresh": report["fresh"],
         "blockers": blockers,
         "parent": {"doc": parent_doc, "status": parent_status,
                    "stale": bool(plan.get("parent_stale")),
-                   "editable": parent_editable},
+                   "editable": parent_editable,
+                   "family": collab.family_state(parent_doc)},
         "parentBlocking": parent_blocking,
         "sessionCandidates": session_candidates,
         "goals": [{"code": g["code"], "locked": bool(g.get("locked")),
@@ -988,6 +1080,7 @@ def _plan_page_context(plan: dict) -> dict:
         "wb_groups": _wb_groups(goals, candidates),
         "session_candidates": session_candidates,
         "source_labels": plan_kb.source_labels(),
+        "activity_limits": plan_kb.ACTIVITY_LIMITS,
         "block_review": plan_kb.block_review(),
         "cites": _doc_cites(doc),
         "period": _period(plan),
@@ -1050,3 +1143,284 @@ def page_plan_parent_print(plan_id: int):
                         auto_print=request.args.get("print") == "1" and not wm,
                         **ctx)
 
+
+
+def _create_direct(body):
+    try:
+        if type(body.get('student_id')) is not int or type(body.get('block_no')) is not int:
+            raise ValueError()
+        student_id = body['student_id']
+        mentor_id = body.get('mentor_user_id', _user_id())
+        if type(mentor_id) is not int:
+            raise ValueError()
+    except (ValueError, TypeError):
+        return _err('学生、Block 和负责导师需要整数', 400)
+    if not store.can_access_student(_user(), student_id):
+        return _err('学生不存在', 404)
+    if mentor_id != _user_id() and not store.is_m1_admin(_user()):
+        return _err('只有管理员可以指定其他负责导师', 403)
+    if any(body.get(k) is not None for k in ('prep_id', 'report_id', 'report_version_id')):
+        return _err('直接计划不能关联会前准备或报告', 400)
+    plan, error = _run(lambda: pstore.create_plan(
+        student_id, source_mode='mentor_inputs', mentor_user_id=mentor_id,
+        block_no=body['block_no'], period_start=body.get('period_start', ''),
+        period_end=body.get('period_end', ''), credits=body.get('credits', ''),
+        sessions=body.get('sessions', 3), wb_grade=body.get('wb_grade'), created_by=_user_id()))
+    if error:
+        return error
+    _audit('m1.plan_create', plan, source_mode='mentor_inputs')
+    return jsonify({'ok': True, 'plan': plan, 'next_action': pstore.next_action(plan)}), 201
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/brief', methods=['PUT'])
+@bp.route('/api/m1/plans/<int:plan_id>/brief/confirm', methods=['POST'])
+@bp.route('/api/m1/plans/<int:plan_id>/durations', methods=['PUT'])
+def api_plan_context_save(plan_id):
+    plan, error = _plan_or_error(plan_id, edit=True)
+    if error:
+        return error
+    body = _json_body()
+    if type(body.get('rev')) is not int:
+        return _err('缺少整数 rev', 400)
+    if request.path.endswith('/confirm'):
+        result, error = _run(lambda: collab.confirm_brief_action(
+            plan_id, _user(), body['rev']))
+        saved = (result or {}).get('plan')
+    elif request.path.endswith('/durations'):
+        saved, error = _legacy_section(
+            plan, "durations", {"session_durations": body.get('session_durations')}, body)
+    else:
+        saved, error = _legacy_section(
+            plan, "brief", {"teaching_brief": body.get('teaching_brief')}, body)
+    if error:
+        return error
+    return jsonify({'ok': True, 'plan': saved, 'next_action': pstore.next_action(saved)})
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/extract-inputs', methods=['POST'])
+@bp.route('/api/m1/plans/<int:plan_id>/brief/extract', methods=['POST'])
+def api_plan_extract_inputs(plan_id):
+    plan, error = _editable_plan(plan_id)
+    if error:
+        return error
+    body = _json_body()
+    if type(body.get('rev')) is not int:
+        return _err('缺少整数 rev', 400)
+    if body['rev'] != plan['rev']:
+        return _err('计划已在别处更新，请刷新后重试', 409, rev=plan['rev'])
+    return _start_job(plan, 'plan_brief')
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/activity-proposals', methods=['POST'])
+def api_activity_proposal_create(plan_id):
+    from m1 import plan_activity_proposals as proposals
+    from m1.plan_quality import require_teachable_budget
+    plan, error = _plan_or_error(plan_id, edit=True)
+    if error:
+        return error
+    body = _json_body()
+    rev, version_id, activity_id = body.get('rev'), body.get('source_version_id'), body.get('activity_id')
+    _, error = _run(lambda: proposals.source(plan_id, rev, version_id, activity_id))
+    if error:
+        return error
+    _, error = _run(lambda: require_teachable_budget(plan))
+    if error:
+        return error
+    blockers = pstore.generate_blockers(plan)
+    if blockers:
+        return _err('；'.join(blockers), 409)
+    return _start_job(plan, 'plan_activity_proposal', expected_rev=rev,
+                      source_version_id=version_id, activity_id=activity_id)
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/activity-proposals/<proposal_id>', methods=['GET'])
+def api_activity_proposal_get(plan_id, proposal_id):
+    from m1 import plan_activity_proposals as proposals
+    _, error = _plan_or_error(plan_id)
+    if error:
+        return error
+    result, error = _run(lambda: proposals.get(plan_id, proposal_id))
+    if error:
+        return error
+    return jsonify(ok=True, proposal=result)
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/activity-proposals/<proposal_id>/accept', methods=['POST'])
+def api_activity_proposal_accept(plan_id, proposal_id):
+    from m1 import plan_activity_proposals as proposals
+    plan, error = _plan_or_error(plan_id, edit=True)
+    if error:
+        return error
+    body = _json_body()
+    if type(body.get('rev')) is not int or type(body.get('source_version_id')) is not int or not isinstance(body.get('activity_id'), str):
+        return _err('需要整数rev/source_version_id和活动编号', 400)
+    result, error = _run(lambda: proposals.accept(plan_id, proposal_id, body['rev'],
+        body['source_version_id'], body['activity_id'], actor_id=_user_id()))
+    if error:
+        return error
+    return jsonify(ok=True, plan=pstore.get_plan(plan_id), **result)
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/activity-proposals/<proposal_id>/cancel', methods=['POST'])
+def api_activity_proposal_cancel(plan_id, proposal_id):
+    from m1 import plan_activity_proposals as proposals
+    _, error = _plan_or_error(plan_id, edit=True)
+    if error:
+        return error
+    result, error = _run(lambda: proposals.cancel(plan_id, proposal_id))
+    if error:
+        return error
+    return jsonify(ok=True, proposal=result)
+
+
+# ---------------------------------------------------------------------------
+# DP13：学生团队、在线状态、编辑租约与分段保存
+# ---------------------------------------------------------------------------
+@bp.route('/api/m1/plans/<int:plan_id>/collaboration')
+def api_plan_collaboration(plan_id):
+    plan, error = _plan_or_error(plan_id)
+    if error:
+        return error
+    result, error = _run(lambda: collab.snapshot(plan, _user()))
+    if error:
+        return error
+    return jsonify(ok=True, **result)
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/presence', methods=['GET', 'POST'])
+def api_plan_presence(plan_id):
+    plan, error = _plan_or_error(plan_id)
+    if error:
+        return error
+    if request.method == 'GET':
+        result, error = _run(lambda: collab.snapshot(plan, _user()))
+    else:
+        body = _json_body()
+        tab_id = body.get('tab_id')
+        state = body.get('state', 'viewing')
+        if not isinstance(state, str):
+            return _err('state 格式不正确', 400)
+        result, error = _run(lambda: collab.heartbeat(
+            plan['id'], _user(), tab_id, state=state,
+            editing_section=str(body.get('editing_section') or '')))
+    return error if error else jsonify(ok=True, **result)
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/leases/acquire', methods=['POST'])
+def api_plan_lease_acquire(plan_id):
+    plan, error = _plan_or_error(plan_id, edit=True)
+    if error:
+        return error
+    body = _json_body()
+    result, error = _run(lambda: collab.acquire_lease(
+        plan['id'], str(body.get('section') or ''), _user(),
+        body.get('tab_id')))
+    return error if error else jsonify(ok=True, **result)
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/leases/renew', methods=['POST'])
+def api_plan_lease_renew(plan_id):
+    plan, error = _plan_or_error(plan_id, edit=True)
+    if error:
+        return error
+    body = _json_body()
+    result, error = _run(lambda: collab.renew_lease(
+        plan['id'], str(body.get('section') or ''), str(body.get('token') or ''),
+        _user(), body.get('tab_id') or ''))
+    return error if error else jsonify(ok=True, **result)
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/leases/release', methods=['POST'])
+def api_plan_lease_release(plan_id):
+    plan, error = _plan_or_error(plan_id)
+    if error:
+        return error
+    body = _json_body()
+    result, error = _run(lambda: collab.release_lease(
+        plan['id'], str(body.get('section') or ''), str(body.get('token') or ''),
+        _user()))
+    return error if error else jsonify(ok=True, **result)
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/leases/takeover', methods=['POST'])
+def api_plan_lease_takeover(plan_id):
+    plan, error = _plan_or_error(plan_id, edit=True)
+    if error:
+        return error
+    if not pstore.can_manage_team(_user()):
+        return _err('只有管理员可以接管编辑权', 403)
+    body = _json_body()
+    result, error = _run(lambda: collab.takeover_lease(
+        plan['id'], str(body.get('section') or ''), _user(),
+        body.get('tab_id'), str(body.get('reason') or '')))
+    return error if error else jsonify(ok=True, **result)
+
+
+@bp.route('/api/m1/plans/<int:plan_id>/sections/<section>', methods=['PATCH'])
+def api_plan_section_patch(plan_id, section):
+    plan, error = _plan_or_error(plan_id, edit=True)
+    if error:
+        return error
+    body = _json_body()
+    for key in ('expected_version', 'document_version', 'lease_token',
+                'idempotency_key'):
+        if body.get(key) is None:
+            return _err('缺少 %s' % key, 400)
+    if type(body.get('expected_version')) is not int:
+        return _err('expected_version 必须是整数', 400)
+    if type(body.get('document_version')) is not int:
+        return _err('document_version 必须是整数', 400)
+    if not isinstance(body.get('lease_token'), str):
+        return _err('lease_token 格式不正确', 400)
+    if not isinstance(body.get('idempotency_key'), str):
+        return _err('idempotency_key 格式不正确', 400)
+    result, error = _run(lambda: collab.apply_section(
+        plan['id'], section, body.get('patch'), _user(),
+        expected_version=body['expected_version'],
+        document_version_value=body['document_version'],
+        lease_token=body['lease_token'],
+        idempotency_key=body['idempotency_key'],
+        require_lease=True))
+    if error:
+        return error
+    return jsonify(ok=True, plan=pstore.get_plan(plan['id']), **result)
+
+
+def _student_or_error(student_id: int):
+    student = _db.get_student(student_id)
+    if not student:
+        return None, _err('学生不存在', 404)
+    if not collab.can_view_student_plans(_user(), student_id):
+        return None, _err('学生不存在', 404)
+    return student, None
+
+
+@bp.route('/api/m1/students/<int:student_id>/team')
+def api_student_team(student_id):
+    _, error = _student_or_error(student_id)
+    if error:
+        return error
+    result, error = _run(lambda: collab.team_view(student_id))
+    return error if error else jsonify(ok=True, team=result)
+
+
+@bp.route('/api/m1/students/<int:student_id>/team', methods=['POST'])
+def api_student_team_add(student_id):
+    if not pstore.can_manage_team(_user()):
+        return _err('只有管理员可以管理团队', 403)
+    body = _json_body()
+    if type(body.get('user_id')) is not int:
+        return _err('user_id 必须是整数', 400)
+    result, error = _run(lambda: collab.add_team_member(
+        student_id, body['user_id'], _user()))
+    return error if error else jsonify(ok=True, team=result)
+
+
+@bp.route('/api/m1/students/<int:student_id>/team/<int:user_id>',
+          methods=['DELETE'])
+def api_student_team_remove(student_id, user_id):
+    if not pstore.can_manage_team(_user()):
+        return _err('只有管理员可以管理团队', 403)
+    result, error = _run(lambda: collab.remove_team_member(
+        student_id, user_id, _user()))
+    return error if error else jsonify(ok=True, team=result)

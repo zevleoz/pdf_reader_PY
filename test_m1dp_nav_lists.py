@@ -291,7 +291,7 @@ def test_new_plan_dialog_grade_can_be_blank_and_says_what_is_missing():
     second = script.index("填好阶段开始和结束后就可以新建")
     third = script.index("会后报告生成 AI 草稿后就可以新建")
     assert first < second < third
-    assert "if (gradeValue) body.wb_grade" in script
+    assert "if (values.wbGrade != null && values.wbGrade !== '')" in script
 
     html = (BASE_DIR / "templates" / "m1" / "lists.html").read_text(encoding="utf-8")
     assert "参考年级（可不填）" in html

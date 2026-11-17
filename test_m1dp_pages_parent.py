@@ -1,8 +1,7 @@
-"""DP6：家长版（步③ 编辑/确认/导出 + 两页 PDF 打印）。"""
+"""DP6：家长版（步③ 编辑/确认/导出 + 自然 A4 分页 PDF）。"""
 from __future__ import annotations
 
-import html as html_lib
-import json
+import os
 import re
 import shutil
 import subprocess
@@ -19,6 +18,13 @@ from test_m1dp_pages_internal import _internal_doc
 from test_m1dp_store import _create, _goal, _published_prep
 
 _BLOCK = [0]
+
+
+@pytest.fixture(autouse=True)
+def _reset_block_counter():
+    """DP13 测试会复用本模块的 _with_parent，Block 编号必须按测试独立。"""
+    _BLOCK[0] = 0
+    yield
 
 
 def _plan_with_internal(db, wb_grade=9):
@@ -235,16 +241,25 @@ def test_parent_step_counters_use_shared_limits(page_client, m1db):
     assert not re.search(r'data-limit="\d', source)
 
 
-def test_parent_confirm_blocked_by_over_limit_family(page_client, m1db):
+def test_parent_confirm_and_export_allow_over_suggestion_length(page_client, m1db):
     doc = _parent_doc(seen=(True, True))
-    doc["family"][0] = _field("练" * (plan_kb.PARENT_LIMITS["family"] + 1))
+    doc["family"][0] = _field("练" * (plan_kb.PARENT_LIMITS["family"] + 40))
     plan = _with_parent(m1db, doc)
     _mentor(page_client, m1db)
-    response = page_client.post("/api/m1/plans/%d/parent/confirm" % plan["id"])
-    assert response.status_code == 409
-    assert any(item["text"] == "04 家庭协作与支持 · 第 1 项 · 超过 %d 字，请缩短"
-               % plan_kb.PARENT_LIMITS["family"]
-               for item in response.get_json()["blocking"])
+
+    confirm = page_client.post("/api/m1/plans/%d/parent/confirm" % plan["id"],
+                               json={"rev": plan["rev"]})
+    assert confirm.status_code == 200, confirm.get_json()
+    assert confirm.get_json()["plan"]["parent_status"] == "confirmed"
+
+    body = page_client.get("/m1/plans/%d" % plan["id"]).get_data(as_text=True)
+    assert "超过建议长度" in body
+    assert "仅供参考" in body
+
+    export = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"],
+                              json={"rev": confirm.get_json()["plan"]["rev"]})
+    assert export.status_code == 200, export.get_json()
+    assert export.get_json()["plan"]["parent_status"] == "exported"
 
 
 def _worst_parent_doc():
@@ -271,36 +286,96 @@ def _worst_parent_doc():
     }
 
 
-def test_parent_worst_case_prints_two_pages(page_client, m1db, tmp_path):
-    chrome = ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-              shutil.which("google-chrome"), shutil.which("chromium"))
-    browser = next((path for path in chrome if path and shutil.which(path)), None)
+def _oversized_parent_doc():
+    doc = _parent_doc(goals=3, picks=("s1p1", "s2p1", "s3p1"), reviews=4, seen=(True, True))
+    doc["practice_options"][0]["text"] = _field("这是一段很长的练习说明，需要跨页续排。" * 260)
+    doc["goals"][1]["text"] = _field("这一条目标说明很长，用来检查目标卡片内跨页。" * 120)
+    doc["sessions"][1]["summary"] = _field("这一段课程小结也会超过一页，需要自然拆开。" * 260)
+    doc["review"][0]["text"] = _field("这一条成长观察很长，用来检查卡片内跨页。" * 240)
+    doc["family"][0] = _field("这一条家庭建议很长，用来检查列表项跨页。" * 220)
+    return doc
+
+
+def _chrome():
+    candidates = ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                  shutil.which("google-chrome"), shutil.which("chromium"))
+    return next((path for path in candidates if path and os.path.exists(path)), None)
+
+
+def _render_parent_pdf(page_client, plan, tmp_path, name):
     fitz = pytest.importorskip("fitz")
+    browser = _chrome()
     if not browser:
         pytest.skip("Chrome 不可用")
-
-    plan = _with_parent(m1db, _worst_parent_doc())
-    _mentor(page_client, m1db)
     body = page_client.get("/m1/plans/%d/parent/print" % plan["id"]).get_data(as_text=True)
-    for name in ("m1.css", "plan_parent.css"):
-        css = page_client.get("/m1/assets/%s" % name).get_data(as_text=True)
-        body = re.sub(r'<link rel="stylesheet" href="[^"]*%s[^"]*">' % re.escape(name),
+    for css_name in ("m1.css", "plan_parent.css"):
+        css = page_client.get("/m1/assets/%s" % css_name).get_data(as_text=True)
+        body = re.sub(r'<link rel="stylesheet" href="[^"]*%s[^"]*">' % re.escape(css_name),
                       "<style>%s</style>" % css, body)
-    page = tmp_path / "worst.html"
+    page = tmp_path / ("%s.html" % name)
     page.write_text(body, encoding="utf-8")
-    pdf = tmp_path / "worst.pdf"
+    pdf = tmp_path / ("%s.pdf" % name)
     subprocess.run([browser, "--headless=new", "--no-pdf-header-footer",
-                    "--print-to-pdf=%s" % pdf, page.as_uri()],
-                   check=True, capture_output=True)
+                    "--virtual-time-budget=3000", "--print-to-pdf=%s" % pdf,
+                    page.as_uri()], check=True, capture_output=True)
+    return fitz.open(pdf)
 
-    doc = fitz.open(pdf)
-    assert doc.page_count == 2
-    for index, sheet in enumerate(doc):
-        # 底部 70px 留白 + 24px 余量，按 A4 高度换算成 pt；页脚文字不参与。
-        limit = (1123 - 70 - 24) * 72 / 96
-        bottoms = [block[3] for block in sheet.get_text("blocks")
-                   if block[3] <= 800]
-        assert bottoms and max(bottoms) <= limit, "第 %d 页内容离底部太近" % (index + 1)
+
+def _norm(text):
+    return re.sub(r"\s+", "", text)
+
+
+def _expected_lines(doc):
+    picked = set(doc.get("practice") or [])
+    lines = [doc["intro"]["text"], doc["transition"]["text"]]
+    lines += [goal["text"]["text"] for goal in doc["goals"]]
+    for session in doc["sessions"]:
+        lines += [session["title"]["text"], session["summary"]["text"]]
+    for option in doc["practice_options"]:
+        if option["ref"] in picked:
+            lines += [option["title"]["text"], option["text"]["text"],
+                      option["frequency"]["text"]]
+    lines += [line["text"] for line in doc["family"]]
+    for review in doc["review"]:
+        lines += [review["label"]["text"], review["text"]["text"]]
+    return lines
+
+
+def _assert_pdf_complete(pdf, doc):
+    # 草稿水印是固定定位，会出现在每一页；比较正文时去掉它。
+    full = _norm("".join(page.get_text() for page in pdf)).replace("草稿", "")
+    for line in _expected_lines(doc):
+        assert _norm(line) in full, "内容缺失或被截断：%s" % line[:24]
+    assert full.count(_norm(plan_kb.parent()["footer_p2"])) == 1
+    tail = _norm(pdf[-1].get_text()).replace("草稿", "")
+    assert len(tail) > 40, "最后一页只有页脚，没有正文"
+    section_titles = [section["title"] for section in plan_kb.parent()["sections"]]
+    for index, page in enumerate(pdf):
+        assert page.get_text().strip(), "第 %d 页是空白页" % (index + 1)
+        width, height = page.rect.width, page.rect.height
+        blocks = page.get_text("blocks")
+        for block in blocks:
+            x0, y0, x1, y1 = block[:4]
+            assert x0 >= 34 and x1 <= width - 34, "第 %d 页左右越界：%s" % (index + 1, block[4][:20])
+            assert y0 >= 38 and y1 <= height - 48, "第 %d 页上下越界：%s" % (index + 1, block[4][:20])
+        last = _norm(blocks[-1][4]) if blocks else ""
+        assert not any(last == _norm(title) or last.startswith(_norm(title))
+                       for title in section_titles), "第 %d 页末尾只剩章节标题" % (index + 1)
+
+
+@pytest.mark.parametrize("name,min_pages,builder", [
+    ("typical", 1, lambda: _parent_doc(seen=(True, True))),
+    ("worst", 1, _worst_parent_doc),
+    ("oversized", 2, _oversized_parent_doc),
+])
+def test_parent_long_content_paginates_completely(page_client, m1db, tmp_path,
+                                                  name, min_pages, builder):
+    doc = builder()
+    plan = _with_parent(m1db, doc)
+    _mentor(page_client, m1db)
+    pdf = _render_parent_pdf(page_client, plan, tmp_path, name)
+    assert pdf.page_count >= min_pages
+    _assert_pdf_complete(pdf, doc)
 
 
 def test_parent_print_has_no_placeholders(page_client, m1db):
@@ -320,17 +395,19 @@ def test_parent_print_has_no_placeholders(page_client, m1db):
     assert body.count('class="rv"') == 3
 
 
-def test_parent_print_header_and_footer_are_fixed(page_client, m1db):
+def test_parent_print_header_and_footer_stay_in_the_flow(page_client, m1db):
     plan = _with_parent(m1db)
     _mentor(page_client, m1db)
     body = page_client.get("/m1/plans/%d/parent/print" % plan["id"]).get_data(as_text=True)
     assert "APP · ARK" in body
     assert "EMOTIONAL &amp; RELATIONAL" in body
-    assert "GROW THROUGH PRACTICE" in body
     assert "心有灵析 · PERSONALIZED DEVELOPMENT" in body
     assert "ONE STEP AT A TIME · TOGETHER WE GROW" in body
-    assert "01 / 02" in body and "02 / 02" in body
+    assert "Block 1" in body
     assert "草稿" in body
+    # 不再写死每页页码，也不再有固定页脚绝对定位。
+    assert "01 / 02" not in body and "02 / 02" not in body
+    assert "pp-foot" not in body
 
 
 def test_parent_print_without_a_grade_shows_the_grade_text_alone(page_client, m1db):
@@ -348,48 +425,24 @@ def test_parent_print_404_without_parent(page_client, m1db):
     assert page_client.get("/m1/plans/%d/parent/print" % plan["id"]).status_code == 404
 
 
-def test_parent_css_keeps_a4_layout_in_print():
+def test_parent_css_uses_natural_a4_pagination():
     css = (BASE_DIR / "static" / "m1" / "plan_parent.css").read_text(encoding="utf-8")
-    assert "@media (max-width" not in css
-    assert "height:296.5mm" in css
+    assert "size:A4" in css
+    assert "@page" in css
+    assert "height:296.5mm" not in css
+    assert "page-break-after" not in css
+    assert "@media (max-width" not in css  # 窄屏样式必须限定在 screen
+    assert "@media screen and (max-width" in css
 
 
-def test_parent_overflow_names_the_section(tmp_path):
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node 不可用")
-    script = tmp_path / "measure.js"
-    script.write_text(
-        "global.window = {};\n"
-        "window.getComputedStyle = function () { return {paddingTop: '0px', paddingBottom: '0px'}; };\n"
-        "require(%s);\n"
-        "function pg(marks, scrollHeight) {\n"
-        "  return {scrollHeight: scrollHeight,\n"
-        "    getBoundingClientRect: function () { return {top: 0}; },\n"
-        "    querySelectorAll: function () {\n"
-        "      return marks.map(function (m) {\n"
-        "        return {getBoundingClientRect: function () { return {top: m[1]}; },\n"
-        "                getAttribute: function () { return m[0]; }};\n"
-        "      });\n"
-        "    }};\n"
-        "}\n"
-        "function run(marks, scrollHeight) {\n"
-        "  var root = {querySelectorAll: function () { return [pg(marks, scrollHeight)]; }};\n"
-        "  return window.M1ParentFit.measure(root);\n"
-        "}\n"
-        "var goal = run([['学生信息', 0], ['开场介绍', 120], ['01 阶段成长目标', 300],\n"
-        "                ['02 成长支持路径', 1200]], 1200);\n"
-        "var intro = run([['学生信息', 0], ['开场介绍', 200]], 1160);\n"
-        "var unknown = run([], 1300);\n"
-        "console.log(JSON.stringify({goal: goal, intro: intro, unknown: unknown}));\n"
-        % json.dumps(str(BASE_DIR / "static" / "m1" / "plan_parent.js")),
-        encoding="utf-8")
-    output = subprocess.run([node, str(script)], capture_output=True, text=True, check=True)
-    result = json.loads(output.stdout)
-    assert result["goal"]["fits"] is False
-    assert result["goal"]["section"] == "01 阶段成长目标"
-    assert result["intro"]["section"] == "开场介绍"
-    assert result["unknown"]["section"] == ""
+def test_parent_preview_has_no_fit_measurement():
+    pages = (BASE_DIR / "templates" / "m1" / "_parent_pages.html").read_text(encoding="utf-8")
+    plan_html = (BASE_DIR / "templates" / "m1" / "plan.html").read_text(encoding="utf-8")
+    plan_js = (BASE_DIR / "static" / "m1" / "plan.js").read_text(encoding="utf-8")
+    assert pages.count('class="pp-doc"') == 1
+    assert "pp-frame" not in plan_html and "ppFrame" not in plan_html
+    assert "M1ParentFit" not in plan_js and "measureParentFits" not in plan_js
+    assert not (BASE_DIR / "static" / "m1" / "plan_parent.js").exists()
 
 
 def test_edit_after_confirm_returns_to_draft_and_keeps_internal(page_client, m1db):
@@ -397,7 +450,8 @@ def test_edit_after_confirm_returns_to_draft_and_keeps_internal(page_client, m1d
     _mentor(page_client, m1db)
     internal_before = pstore.current_version(plan["id"], "internal")
 
-    confirm = page_client.post("/api/m1/plans/%d/parent/confirm" % plan["id"])
+    confirm = page_client.post("/api/m1/plans/%d/parent/confirm" % plan["id"],
+                               json={"rev": plan["rev"]})
     assert confirm.status_code == 200
     assert confirm.get_json()["plan"]["parent_status"] == "confirmed"
 
@@ -415,45 +469,36 @@ def test_export_is_refused_for_each_reason(page_client, m1db):
     _mentor(page_client, m1db)
 
     plan = _with_parent(m1db, _parent_doc(seen=(True, True)))
-    pstore.confirm_parent(plan["id"], m1db.alice_id)
-    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"], json={})
-    assert response.status_code == 409
-    assert "超过两页" in response.get_json()["error"]
-
-    plan = _with_parent(m1db, _parent_doc(seen=(True, True)))
-    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"], json={"fits": True})
+    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"],
+                                json={"rev": plan["rev"]})
     assert response.status_code == 409
     assert "请先确认" in response.get_json()["error"]
 
-    plan = _with_parent(m1db, _parent_doc(seen=(True, True)))
-    pstore.confirm_parent(plan["id"], m1db.alice_id)
-    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"], json={"fits": False})
-    assert response.status_code == 409
-    assert "超过两页" in response.get_json()["error"]
-
     plan = _with_parent(m1db, _parent_doc(seen=(False, False)))
-    pstore.confirm_parent(plan["id"], m1db.alice_id)
-    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"], json={"fits": True})
+    plan = pstore.confirm_parent(plan["id"], m1db.alice_id)
+    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"],
+                                json={"rev": plan["rev"]})
     assert response.status_code == 409
     assert "还有" in response.get_json()["error"]
     assert any(item["path"][0] == "family_seen"
                for item in response.get_json()["blocking"])
 
     plan = _with_parent(m1db, _parent_doc(picks=(), seen=(True, True)))
-    pstore.confirm_parent(plan["id"], m1db.alice_id)
+    plan = pstore.confirm_parent(plan["id"], m1db.alice_id)
     assert page_client.post("/api/m1/plans/%d/parent/export" % plan["id"],
-                            json={"fits": True}).status_code == 409
+                            json={"rev": plan["rev"]}).status_code == 409
 
     plan = _with_parent(m1db, _parent_doc(picks=("s1p1", "s2p1", "s3p1"),
                                           seen=(True, True)))
-    pstore.confirm_parent(plan["id"], m1db.alice_id)
+    plan = pstore.confirm_parent(plan["id"], m1db.alice_id)
     assert page_client.post("/api/m1/plans/%d/parent/export" % plan["id"],
-                            json={"fits": True}).status_code == 409
+                            json={"rev": plan["rev"]}).status_code == 409
 
     plan = _with_parent(m1db, _parent_doc(seen=(True, True)))
-    pstore.confirm_parent(plan["id"], m1db.alice_id)
-    pstore.reopen(plan["id"], m1db.alice_id)
-    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"], json={"fits": True})
+    plan = pstore.confirm_parent(plan["id"], m1db.alice_id)
+    plan = pstore.reopen(plan["id"], m1db.alice_id)
+    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"],
+                                json={"rev": plan["rev"]})
     assert response.status_code == 409
     stale = [item for item in response.get_json()["blocking"] if item["id"] == "parent-stale"]
     assert stale and "重新生成" in stale[0]["text"]
@@ -462,8 +507,11 @@ def test_export_is_refused_for_each_reason(page_client, m1db):
 def test_export_success_marks_exported(page_client, m1db):
     plan = _with_parent(m1db, _parent_doc(seen=(True, True)))
     _mentor(page_client, m1db)
-    page_client.post("/api/m1/plans/%d/parent/confirm" % plan["id"])
-    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"], json={"fits": True})
+    page_client.post("/api/m1/plans/%d/parent/confirm" % plan["id"],
+                     json={"rev": plan["rev"]})
+    plan = pstore.get_plan(plan["id"])
+    response = page_client.post("/api/m1/plans/%d/parent/export" % plan["id"],
+                                json={"rev": plan["rev"]})
     assert response.status_code == 200
     assert response.get_json()["plan"]["parent_status"] == "exported"
     assert response.get_json()["print_url"].endswith("/parent/print")

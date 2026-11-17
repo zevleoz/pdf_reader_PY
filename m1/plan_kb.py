@@ -12,9 +12,8 @@ from typing import Any, Dict, List
 
 _FIXED_PATH = Path(__file__).resolve().parent / "kb" / "plan_fixed.json"
 
-# 家长版每个字段的字数上限（DP6-c）。步③计数、流水线截断与提示词都读这一份。
-# 数值由最坏情况真实打印得出：3 个目标、2 项实践、4 个观察点、两条家庭建议，
-# 每个字段写满全角汉字，A4 打印仍为 2 页且每页至少留 24 px。
+# 家长版每个字段的建议长度（DP13-A）。只用于编辑页计数和提示，不阻断确认/导出，
+# 也不截断生成内容；页数随内容自然延续。数值为家长快速阅读的编辑参考。
 PARENT_LIMITS = {
     "intro": 90,
     "goal": 40,
@@ -28,6 +27,9 @@ PARENT_LIMITS = {
     "review_text": 65,
     "family": 45,
 }
+
+# 技术载荷上限：与编辑建议无关，只防止异常超大的文档进入存储/渲染。
+PARENT_PAYLOAD_LIMIT = 50000
 
 _PARENT_TEXT_KEYS = ("title", "title_en", "kicker", "header_left", "header_right_p1",
                      "header_right_p2", "footer_p1", "footer_p2", "quote", "closing",
@@ -129,3 +131,23 @@ def parent() -> Dict[str, Any]:
 
 # 导入即校验：缺键或空值在启动时就暴露，不留到渲染时。
 fixed()
+
+
+# Provisional internal authoring limits; review with mentor samples before Task 4.
+# Unlike parent PDF limits these flag output, never delete instructions.
+ACTIVITY_LIMITS = {"name": 100, "purpose": 600, "personalization": 1000,
+                   "steps": 4000, "student_action": 1500, "questions": 1500,
+                   "materials": 1000, "expected_attempt": 1000,
+                   "support": 1500, "extension": 1500}
+INTERNAL_RESPONSE_LIMIT = 50000
+RICH_ACTIVITY_FIELDS = ("purpose", "personalization", "student_action",
+                        "expected_attempt", "support", "extension")
+
+def timing_budget(n, duration):
+    """Non-overlapping segments; fixed Block Review is an activity, counted once."""
+    review = 5 if n > 1 else 0
+    summary = int(block_review()["minutes"]) if n == 3 else 0
+    transition = 2
+    return {"duration_minutes": duration, "review_minutes": review,
+            "transition_minutes": transition, "block_review_minutes": summary,
+            "teaching_minutes": duration - review - transition - summary}

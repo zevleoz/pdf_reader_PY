@@ -2,7 +2,7 @@
 {% set meta = {
   'preps': {'title': '会前准备', 'lead': 'First Meeting 前给导师用的提纲。按会议时间排。'},
   'reports': {'title': '会后报告', 'lead': 'First Meeting 后给家长的《首次情绪力分析报告》。生成 AI 草稿后就可以开始发展计划。'},
-  'plans': {'title': '发展计划', 'lead': '每个 Block 一行：三节课的内部版，和给家长的两页 PDF。会后报告生成 AI 草稿后可以新建。'}
+  'plans': {'title': '发展计划', 'lead': '每个 Block 一行：三节课的内部版，和给家长的 PDF。可以从会后报告创建，也可以直接创建。'}
 } %}
 {% set info = meta[kind] %}
 {% block title %}{{ info.title }}{% endblock %}
@@ -10,7 +10,9 @@
 {% block crumbs %}<div class="cr"><b>{{ info.title }}</b></div>{% endblock %}
 
 {% block content %}
-<div id="m1Lists" data-kind="{{ kind }}" data-me-name="{{ current_display_name }}" data-default-who="{{ 'all' if m1_manager else 'mine' }}">
+<div id="m1Lists" data-kind="{{ kind }}" data-me-name="{{ current_display_name }}"
+     data-default-who="{{ 'all' if m1_manager else 'mine' }}"
+     data-can-assign-mentor="{{ 1 if m1_manager else 0 }}">
   <div class="head">
     <div>
       <h1 id="m1Count">{{ info.title }}<span>0</span></h1>
@@ -55,10 +57,16 @@
 {% block overlay %}
 {% if kind == 'plans' %}
 <div class="pal dlg" id="planDlg" role="dialog" aria-modal="true" aria-labelledby="planDlgH" hidden><div>
-  <div class="dh"><b id="planDlgH">新建计划</b><button class="x" type="button" id="planDlgX" aria-label="关闭">×</button></div>
+  <div class="dh"><b id="planDlgH">新建发展计划</b><button class="x" type="button" id="planDlgX" aria-label="关闭">×</button></div>
   <div class="db">
+    <div class="seg" id="planMode" role="radiogroup" aria-label="创建方式">
+      <button class="on" type="button" role="radio" aria-checked="true" data-mode="report">从会后报告创建</button>
+      <button type="button" role="radio" aria-checked="false" data-mode="direct">直接创建教案</button>
+    </div>
     <div class="fm">
       <label class="w">学生<select class="inp" id="planStudent"></select></label>
+      <label class="w" id="planMentorWrap" hidden>负责导师<select class="inp" id="planMentorUser"></select></label>
+      <label class="w" id="planMentorSelfWrap" hidden>负责导师<input class="inp" id="planMentorSelf" readonly></label>
       <label>Block<input class="inp" id="planBlock" type="number" min="1" step="1"></label>
       <label>阶段开始<input class="inp" id="planStart" type="date"></label>
       <label>阶段结束<input class="inp" id="planEnd" type="date"></label>
@@ -66,8 +74,10 @@
       <label>计划课次<input class="inp" id="planSessions" value="3 节" readonly></label>
       <label class="w" id="planGradeWrap" hidden>参考年级（可不填）<select class="inp" id="planGrade"><option value="">不填</option><option value="G5">G5</option><option value="G6">G6</option><option value="G7">G7</option><option value="G8">G8</option><option value="G9">G9</option></select></label>
     </div>
+    <p class="hint" id="planModeNote">会后报告生成 AI 草稿后可以新建；也可以直接创建教案，不需要会后报告。</p>
     <p class="hint">本轮固定 3 节课。Block 编号默认接着这位学生的上一个 Block。</p>
     <p class="hint" id="planMentor" hidden></p>
+    <p class="hint" id="planError" role="alert" hidden></p>
   </div>
   <div class="df"><span class="hint" id="planHint">会后报告生成 AI 草稿后就可以新建</span>
     <button class="btn" type="button" id="planCancel">取消</button>

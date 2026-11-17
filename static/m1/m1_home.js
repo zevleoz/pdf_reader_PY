@@ -118,8 +118,8 @@
     var row = el('div', 'lr m1l');
     row.setAttribute('role', 'link');
     row.tabIndex = 0;
-    row.setAttribute('aria-label', prep.student_name + ' 的 First Meeting');
-    row.dataset.href = '/m1/preps/' + prep.id;
+    row.setAttribute('aria-label', prep.student_name + ' 的学生页');
+    row.dataset.href = '/m1/students/' + prep.student_id;
 
     var nameCell = el('span', 'nm');
     nameCell.appendChild(el('b', null, prep.student_name || '未命名学生'));
@@ -440,12 +440,13 @@
     setView(state.view);
 
     var wanted = Number(root.dataset.studentId || 0);
-    if (!wanted) return;
-    var listed = state.preps.filter(function (prep) { return prep.student_id === wanted; })[0];
-    if (listed) {
-      window.location.replace('/m1/preps/' + listed.id);
-      return;
+    if (wanted) {
+      var listed = state.preps.filter(function (prep) { return prep.student_id === wanted; })[0];
+      if (listed) {
+        window.location.replace('/m1/preps/' + listed.id);
+        return;
+      }
+      openDialog(wanted);
     }
-    openDialog(wanted);
   });
 })();

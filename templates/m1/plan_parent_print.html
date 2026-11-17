@@ -16,42 +16,20 @@
   <a class="btn" href="/m1/plans/{{ plan.id }}#step=parent">返回</a>
 </div>
 
-<div class="print-desk">
-  <div class="pp-banner" id="ppBanner" role="status"></div>
-  <div id="ppPages">
-    {{ parent_pages(parent_view, parent_fixed, plan, period, grade_text or '—', wm) }}
-  </div>
+<div class="print-desk" id="ppPages">
+  {{ parent_pages(parent_view, parent_fixed, plan, period, grade_text or '—', wm) }}
 </div>
 
-<script src="{{ url_for('m1.m1_asset', filename='plan_parent.js') }}"></script>
 <script>
 (function () {
-  var banner = document.getElementById('ppBanner');
-  var printBtn = document.getElementById('ppPrint');
-
-  function check() {
-    var result = window.M1ParentFit.measure(document.getElementById('ppPages'));
-    if (!result.fits) {
-      banner.className = 'pp-banner on';
-      banner.textContent = '第 ' + result.overflowPage + ' 页超出，请缩短：'
-        + (result.section || '页面内容');
-    } else {
-      banner.className = 'pp-banner';
-      banner.textContent = '';
-    }
-    return result;
-  }
-
-  printBtn.addEventListener('click', function () {
-    if (check().fits) window.print();
+  document.getElementById('ppPrint').addEventListener('click', function () {
+    window.print();
   });
-
+  {% if auto_print %}
   window.addEventListener('load', function () {
-    var result = check();
-    {% if auto_print %}
-    if (result.fits) setTimeout(function () { window.print(); }, 300);
-    {% endif %}
+    setTimeout(function () { window.print(); }, 300);
   });
+  {% endif %}
 })();
 </script>
 </body>

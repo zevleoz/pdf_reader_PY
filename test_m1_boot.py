@@ -19,9 +19,13 @@ def test_fresh_boot_creates_m1_tables(tmp_path):
     code = ("import app, db, sqlalchemy as sa; "
             "print(sorted(t for t in sa.inspect(db.engine).get_table_names() "
             "if t.startswith('m1_')))")
-    out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env,
+    for _ in range(2):  # fresh boot, then idempotent boot against the same database
+        out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env,
                          capture_output=True, text=True, timeout=120)
-    assert out.returncode == 0, out.stderr[-2000:]
-    assert ("['m1_plan_files', 'm1_plan_versions', 'm1_plans', 'm1_preps', "
-            "'m1_report_speakers', 'm1_report_versions', 'm1_reports', "
-            "'m1_sources', 'm1_versions']") in out.stdout
+        assert out.returncode == 0, out.stderr[-2000:]
+        assert ("['m1_plan_activity_proposals', 'm1_plan_collab_state', "
+                "'m1_plan_edit_leases', 'm1_plan_files', 'm1_plan_patch_log', "
+                "'m1_plan_presence', 'm1_plan_section_versions', "
+                "'m1_plan_team_members', 'm1_plan_versions', 'm1_plans', 'm1_preps', "
+                "'m1_report_speakers', 'm1_report_versions', 'm1_reports', "
+                "'m1_sources', 'm1_versions']") in out.stdout
