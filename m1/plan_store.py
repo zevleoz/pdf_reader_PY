@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (Column, DateTime, ForeignKey, Index, Integer, String,
-                        Text, select)
+                        Text, or_, select)
 from sqlalchemy.orm import Session
 
 import db as _db
@@ -65,8 +65,14 @@ class M1Plan(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
-    prep_id = Column(Integer, ForeignKey("m1_preps.id"), nullable=False)
-    report_id = Column(Integer, ForeignKey("m1_reports.id"), nullable=False)
+    prep_id = Column(Integer, ForeignKey("m1_preps.id"), nullable=True)
+    report_id = Column(Integer, ForeignKey("m1_reports.id"), nullable=True)
+    source_mode = Column(String(20), nullable=False, default="report", server_default="report")
+    teaching_brief = Column(Text, nullable=False, default="{}", server_default="{}")
+    brief_revision = Column(Integer, nullable=False, default=0, server_default="0")
+    brief_confirmed_revision = Column(Integer)
+    brief_confirmed_by = Column(Integer)
+    session_durations = Column(Text, nullable=False, default="[60,60,60]", server_default="[60,60,60]")
     report_version_id = Column(Integer)
     mentor_user_id = Column(Integer, ForeignKey("users.id"))
     block_no = Column(Integer, nullable=False, default=1)
@@ -155,8 +161,15 @@ class StatusError(Exception):
 
 def ensure_tables(engine=None) -> None:
     """幂等建表（主要给生成子进程与命令行用；正常启动由 ``init_db`` 建）。"""
-    Base.metadata.create_all(engine or _db.engine, tables=[
+    from m1.plan_migration import migrate
+    target = engine or _db.engine
+    migrate(target)
+    Base.metadata.create_all(target, tables=[
         M1Plan.__table__, M1PlanVersion.__table__, M1PlanFile.__table__])
+    from m1.plan_activity_proposals import ensure_table
+    ensure_table(target)
+    from m1.plan_collaboration import ensure_tables as ensure_collaboration
+    ensure_collaboration(target)
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +224,11 @@ def _date_ok(value) -> bool:
 def _check_dates(start: str, end: str) -> None:
     if not _date_ok(start) or not _date_ok(end):
         raise ValueError("阶段周期格式不对")
+    try:
+        datetime.strptime(start, "%Y-%m-%d")
+        datetime.strptime(end, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError("阶段周期日期不存在")
     if end < start:
         raise ValueError("阶段结束日期不能早于开始日期")
 
@@ -308,6 +326,12 @@ def _plan_row(sess: Session, row: M1Plan) -> Dict[str, Any]:
         "grade": getattr(student, "grade", "") or "",
         "school": getattr(student, "school", "") or "",
         "advisor_name": getattr(student, "advisor_name", "") or "",
+        "source_mode": row.source_mode or "report",
+        "teaching_brief": _loads(row.teaching_brief, {}),
+        "brief_revision": row.brief_revision,
+        "brief_confirmed_revision": row.brief_confirmed_revision,
+        "brief_confirmed_by": row.brief_confirmed_by,
+        "session_durations": _loads(row.session_durations, [60, 60, 60]),
         "prep_id": row.prep_id,
         "report_id": row.report_id,
         "report_version_id": row.report_version_id,
@@ -368,6 +392,12 @@ def _bump(row: M1Plan) -> None:
     _touch(row)
 
 
+def _bump_document(sess: Session, plan_id: int, actor_id=None) -> int:
+    """Lifecycle change: invalidate offline section editors (document epoch)."""
+    from m1.plan_collaboration import bump_document_in_session
+    return bump_document_in_session(sess, plan_id, actor_id)
+
+
 def _check_rev(row: M1Plan, rev) -> None:
     if int(rev) != int(row.rev or 1):
         raise RevConflict(int(row.rev or 1))
@@ -389,11 +419,12 @@ def get_plan(plan_id: int) -> Optional[Dict[str, Any]]:
         return _plan_row(sess, row) if row else None
 
 
-def create_plan(student_id: int, *, prep_id: int, report_id: int,
-                report_version_id: Optional[int], mentor_user_id,
+def create_plan(student_id: int, *, prep_id=None, report_id=None,
+                report_version_id=None, mentor_user_id,
                 block_no: int, period_start: str, period_end: str,
                 credits: str = "", sessions: int = 3,
-                wb_grade: Optional[int], created_by=None) -> Dict[str, Any]:
+                wb_grade: Optional[int] = None, created_by=None,
+                source_mode="report") -> Dict[str, Any]:
     """新建计划（D2/D7）。报告有 AI 草稿即可，Block 不能重复，课次固定 3。"""
     if isinstance(sessions, bool) or int(sessions) != 3:
         raise ValueError("本轮计划课次固定为 3 节")
@@ -404,25 +435,45 @@ def create_plan(student_id: int, *, prep_id: int, report_id: int,
                                  or not 5 <= wb_grade <= 9):
         raise ValueError("参考年级需在 G5–G9 之间")
     _check_dates(period_start, period_end)
-    report = rstore.get_report_by_id(report_id)
-    if not report or int(report["prep_id"]) != int(prep_id):
-        raise ValueError("会后报告不存在")
-    if not report_ready(report):
-        raise ValueError("会后报告还没有生成 AI 草稿")
-    version_id = report_version_id or report.get("current_version_id")
-    if not version_id:
-        raise ValueError("会后报告还没有生成 AI 草稿")
+    if source_mode not in ("report", "mentor_inputs"):
+        raise ValueError("source_mode 只能是 report 或 mentor_inputs")
+    report, version_id = {}, None
+    if source_mode == "report":
+        report = rstore.get_report_by_id(report_id) if report_id else None
+        if not report or int(report["prep_id"]) != int(prep_id or 0):
+            raise ValueError("会后报告不存在")
+        prep = store.get_prep(prep_id)
+        if not prep or int(prep["student_id"]) != int(student_id):
+            raise ValueError("学生与会前准备不匹配")
+        if not report_ready(report):
+            raise ValueError("会后报告还没有生成 AI 草稿")
+        version_id = report_version_id or report.get("current_version_id")
+        version = rstore.get_version(version_id) if version_id else None
+        if not version or int(version.get("report_id") or 0) != int(report_id):
+            raise ValueError("会后报告还没有生成 AI 草稿")
+    elif any(v is not None for v in (prep_id, report_id, report_version_id)):
+        raise ValueError("直接计划不能关联会前准备或报告")
     with Session(_engine()) as sess:
         if not _student(sess, student_id):
             raise NotFound("学生不存在")
+        if source_mode == "mentor_inputs":
+            mentor = sess.get(_db.User, int(mentor_user_id)) if mentor_user_id else None
+            if not mentor or mentor.role not in ("admin", "advisor"):
+                raise ValueError("请选择有效的负责导师")
+            settings = _db.effective_account_settings(mentor.role, mentor.student_scope,
+                mentor.detail_level, mentor.m1_access, mentor.m1_admin)
+            if not settings['m1_access']:
+                raise ValueError("负责导师没有心有灵析权限")
+            if not store.can_access_student(mentor, student_id):
+                raise ValueError("负责导师没有该学生的访问权限")
         existing = sess.execute(select(M1Plan).where(
             M1Plan.student_id == int(student_id),
             M1Plan.block_no == int(block_no))).scalars().first()
         if existing is not None:
             raise ValueError("该 Block 已有发展计划")
         row = M1Plan(
-            student_id=int(student_id), prep_id=int(prep_id),
-            report_id=int(report_id), report_version_id=int(version_id),
+            student_id=int(student_id), source_mode=source_mode, prep_id=prep_id,
+            report_id=report_id, report_version_id=version_id,
             mentor_user_id=int(mentor_user_id) if mentor_user_id is not None else None,
             block_no=int(block_no), period_start=period_start, period_end=period_end,
             credits=str(credits or "").strip()[:20], sessions=3,
@@ -477,6 +528,8 @@ def update_header(plan_id: int, rev: int, **fields) -> Dict[str, Any]:
         if "credits" in fields:
             row.credits = str(fields.get("credits") or "").strip()[:20]
         _bump(row)
+        from m1.plan_collaboration import bump_section_in_session
+        bump_section_in_session(sess, plan_id, "header")
         sess.commit()
         sess.refresh(row)
         return _plan_row(sess, row)
@@ -520,17 +573,35 @@ def save_goals(plan_id: int, rev: int, goals) -> Dict[str, Any]:
         _check_rev(row, rev)
         row.goals = _dumps(cleaned)
         _bump(row)
+        from m1.plan_collaboration import bump_section_in_session
+        bump_section_in_session(sess, plan_id, "goals")
         sess.commit()
         sess.refresh(row)
         return _plan_row(sess, row)
 
 
-def save_inputs_ai(plan_id: int, values: Dict[str, Any]) -> Dict[str, Any]:
+def save_inputs_ai(plan_id: int, values: Dict[str, Any], *, expected_rev=None,
+                   actor_id=None) -> Dict[str, Any]:
     """生成子进程写四个 Development Input 字段（``src: ai``）。"""
+    if expected_rev is not None:
+        plan = get_plan(plan_id)
+        if plan is None:
+            raise NotFound("发展计划不存在")
+        inputs = _loads(plan.get("inputs"), {}) or {}
+        report = rstore.get_report_by_id(plan["report_id"]) if plan.get("report_id") else None
+        for key in ("strengths", "needs", "context", "interests"):
+            if key in values:
+                inputs[key] = _field(values.get(key), "ai")
+        inputs["read_at"] = datetime.utcnow().isoformat()
+        inputs["report_status_at_read"] = (report or {}).get("status") or ""
+        inputs["report_fingerprint"] = _version_fingerprint(plan.get("report_version_id"))
+        return _save_context(plan_id, expected_rev, {"inputs": _dumps(inputs)},
+                             sections=("inputs",), actor_id=actor_id)
     with Session(_engine()) as sess:
         row = sess.get(M1Plan, int(plan_id))
         if row is None:
             raise NotFound("发展计划不存在")
+        _ensure_editable(row)
         inputs = _loads(row.inputs, {}) or {}
         report = rstore.get_report_by_id(row.report_id) if row.report_id else None
         for key in ("strengths", "needs", "context", "interests"):
@@ -541,6 +612,8 @@ def save_inputs_ai(plan_id: int, values: Dict[str, Any]) -> Dict[str, Any]:
         inputs["report_fingerprint"] = _version_fingerprint(row.report_version_id)
         row.inputs = _dumps(inputs)
         _bump(row)
+        from m1.plan_collaboration import bump_section_in_session
+        bump_section_in_session(sess, plan_id, "inputs", actor_id)
         sess.commit()
         sess.refresh(row)
         return _plan_row(sess, row)
@@ -572,6 +645,8 @@ def save_inputs(plan_id: int, rev: int, values: Dict[str, Any]) -> Dict[str, Any
                 inputs[key] = {"text": incoming["text"], "src": "edited"}
         row.inputs = _dumps(inputs)
         _bump(row)
+        from m1.plan_collaboration import bump_section_in_session
+        bump_section_in_session(sess, plan_id, "inputs")
         sess.commit()
         sess.refresh(row)
         return _plan_row(sess, row)
@@ -597,33 +672,50 @@ def save_personal(plan_id: int, rev: int, notes, summary=None) -> Dict[str, Any]
         personal.setdefault("summary", _field(""))
         row.personal = _dumps(personal)
         _bump(row)
+        from m1.plan_collaboration import bump_section_in_session
+        bump_section_in_session(sess, plan_id, "personal")
         sess.commit()
         sess.refresh(row)
         return _plan_row(sess, row)
 
 
-def save_personal_summary(plan_id: int, summary) -> Dict[str, Any]:
+def save_personal_summary(plan_id: int, summary, *, expected_rev=None,
+                          actor_id=None) -> Dict[str, Any]:
     """生成子进程写个性化需求总结。"""
+    if expected_rev is not None:
+        plan = get_plan(plan_id)
+        if plan is None:
+            raise NotFound("发展计划不存在")
+        personal = _loads(plan.get("personal"), {}) or {}
+        personal["summary"] = _field(summary, "ai")
+        personal.setdefault("notes", "")
+        return _save_context(plan_id, expected_rev, {"personal": _dumps(personal)},
+                             sections=("personal",), actor_id=actor_id)
     with Session(_engine()) as sess:
         row = sess.get(M1Plan, int(plan_id))
         if row is None:
             raise NotFound("发展计划不存在")
+        _ensure_editable(row)
         personal = _loads(row.personal, {}) or {}
         personal["summary"] = _field(summary, "ai")
         personal.setdefault("notes", "")
         row.personal = _dumps(personal)
         _bump(row)
+        from m1.plan_collaboration import bump_section_in_session
+        bump_section_in_session(sess, plan_id, "personal", actor_id)
         sess.commit()
         sess.refresh(row)
         return _plan_row(sess, row)
 
 
-def save_goal_ai(plan_id: int, code: str, start, expected, *, goal=None) -> Dict[str, Any]:
+def save_goal_ai(plan_id: int, code: str, start, expected, *, goal=None,
+                 expected_rev=None, actor_id=None) -> Dict[str, Any]:
     """补全目标，保留非空目标及导师编辑；以写入时的最新值为准。"""
     with Session(_engine()) as sess:
         row = sess.get(M1Plan, int(plan_id))
         if row is None:
             raise NotFound("发展计划不存在")
+        _ensure_editable(row)
         goals = _loads(row.goals, []) or []
         found = False
         for item in goals:
@@ -639,15 +731,34 @@ def save_goal_ai(plan_id: int, code: str, start, expected, *, goal=None) -> Dict
                 found = True
         if not found:
             raise NotFound("没有该目标")
+        if expected_rev is not None:
+            _check_rev(row, expected_rev)
+            return _save_context(plan_id, expected_rev, {'goals': _dumps(goals)},
+                                 sections=('goals',), actor_id=actor_id)
         row.goals = _dumps(goals)
         _bump(row)
+        from m1.plan_collaboration import bump_section_in_session
+        bump_section_in_session(sess, plan_id, "goals", actor_id)
         sess.commit()
         sess.refresh(row)
         return _plan_row(sess, row)
 
 
-def mark_report_read(plan_id: int, report_version_id: int) -> Dict[str, Any]:
+def mark_report_read(plan_id: int, report_version_id: int, *,
+                     expected_rev=None, actor_id=None) -> Dict[str, Any]:
     """读取会后报告后记下所读版本、当时的报告状态与文字指纹（D2 / owner 11-12）。"""
+    if expected_rev is not None:
+        plan = get_plan(plan_id)
+        if plan is None:
+            raise NotFound("发展计划不存在")
+        report = rstore.get_report_by_id(plan["report_id"]) if plan.get("report_id") else None
+        inputs = _loads(plan.get("inputs"), {}) or {}
+        inputs["read_at"] = datetime.utcnow().isoformat()
+        inputs["report_status_at_read"] = (report or {}).get("status") or ""
+        inputs["report_fingerprint"] = _version_fingerprint(report_version_id)
+        return _save_context(plan_id, expected_rev, {
+            "report_version_id": int(report_version_id),
+            "inputs": _dumps(inputs)}, sections=("inputs",), actor_id=actor_id)
     with Session(_engine()) as sess:
         row = sess.get(M1Plan, int(plan_id))
         if row is None:
@@ -660,6 +771,8 @@ def mark_report_read(plan_id: int, report_version_id: int) -> Dict[str, Any]:
         inputs["report_fingerprint"] = _version_fingerprint(report_version_id)
         row.inputs = _dumps(inputs)
         _bump(row)
+        from m1.plan_collaboration import bump_section_in_session
+        bump_section_in_session(sess, plan_id, "inputs", actor_id)
         sess.commit()
         sess.refresh(row)
         return _plan_row(sess, row)
@@ -735,55 +848,74 @@ def list_versions(plan_id: int) -> List[Dict[str, Any]]:
                 for row in rows]
 
 
+def _prepare_part(sess: Session, plan: M1Plan, part: str, doc, checks,
+                  actor_id=None) -> Dict[str, Any]:
+    """Create or update the editable version for ``part`` without touching the plan row.
+
+    Callers hold the plan write lock (collaboration) or a revision CAS (legacy
+    save). ``ai_doc`` is never modified.
+    """
+    if part == "internal":
+        _ensure_editable(plan)
+        version_id = plan.current_version_id
+    else:
+        if plan.parent_version_id is None:
+            raise StatusError("家长版还没有生成")
+        if plan.parent_status == "generating":
+            raise StatusError("正在生成，请稍后再改")
+        version_id = plan.parent_version_id
+    if not version_id:
+        raise StatusError("内部版还没有生成")
+    current = sess.get(M1PlanVersion, int(version_id))
+    if current is None:
+        raise NotFound("计划版本不存在")
+    if current.kind == "edit":
+        current.doc = _dumps(doc)
+        if checks is not None:
+            current.checks = _dumps(checks)
+        sess.flush()
+        return {"version_id": current.id, "ai_doc": _loads(current.ai_doc, None)}
+    row = M1PlanVersion(
+        plan_id=int(plan.id), part=part, n=int(current.n or 1) + 1,
+        kind="edit", ai_doc=current.ai_doc, doc=_dumps(doc),
+        checks=_dumps(checks) if checks is not None else current.checks,
+        manifest=current.manifest, source_version_id=current.source_version_id,
+        created_by=actor_id if actor_id is not None else current.created_by,
+    )
+    sess.add(row)
+    sess.flush()
+    return {"version_id": row.id, "ai_doc": _loads(row.ai_doc, None)}
+
+
 def _save_part(plan_id: int, rev: int, part: str, doc, checks,
                actor_id=None) -> Dict[str, Any]:
+    from sqlalchemy import update
     with Session(_engine()) as sess:
         plan = sess.get(M1Plan, int(plan_id))
         if plan is None:
             raise NotFound("发展计划不存在")
-        if part == "internal":
-            _ensure_editable(plan)
-            version_id = plan.current_version_id
-        else:
-            if plan.parent_version_id is None:
-                raise StatusError("家长版还没有生成")
-            if plan.parent_status == "generating":
-                raise StatusError("正在生成，请稍后再改")
-            version_id = plan.parent_version_id
-        if not version_id:
-            raise StatusError("内部版还没有生成")
         _check_rev(plan, rev)
-        current = sess.get(M1PlanVersion, int(version_id))
-        if current is None:
-            raise NotFound("计划版本不存在")
-        if current.kind == "edit":
-            current.doc = _dumps(doc)
-            if checks is not None:
-                current.checks = _dumps(checks)
-            version_id = current.id
-            ai_doc = _loads(current.ai_doc, None)
+        prepared = _prepare_part(sess, plan, part, doc, checks, actor_id)
+        values = {"rev": int(rev) + 1, "updated_at": datetime.utcnow()}
+        if part == "internal":
+            values["current_version_id"] = prepared["version_id"]
         else:
-            row = M1PlanVersion(
-                plan_id=int(plan_id), part=part, n=int(current.n or 1) + 1,
-                kind="edit", ai_doc=current.ai_doc, doc=_dumps(doc),
-                checks=_dumps(checks) if checks is not None else current.checks,
-                manifest=current.manifest, source_version_id=current.source_version_id,
-                created_by=actor_id if actor_id is not None else current.created_by,
-            )
-            sess.add(row)
-            sess.flush()
-            version_id = row.id
-            ai_doc = _loads(row.ai_doc, None)
-            if part == "internal":
-                plan.current_version_id = row.id
-            else:
-                plan.parent_version_id = row.id
-        if part == "parent" and plan.parent_status in ("confirmed", "exported"):
-            plan.parent_status = "draft"
-        _bump(plan)
-        result = {"rev": int(plan.rev), "version_id": version_id,
-                  "status": plan.status, "parent_status": plan.parent_status,
-                  "ai_doc": ai_doc}
+            values["parent_version_id"] = prepared["version_id"]
+            if plan.parent_status in ("confirmed", "exported"):
+                values["parent_status"] = "draft"
+        conditions = [M1Plan.id == int(plan_id), M1Plan.rev == int(rev)]
+        if part == "internal":
+            conditions.append(M1Plan.status.in_(("inputs", "review")))
+        result = sess.execute(update(M1Plan).where(*conditions).values(**values),
+                              execution_options={"synchronize_session": False})
+        if result.rowcount != 1:
+            sess.rollback()
+            fresh = get_plan(plan_id)
+            raise RevConflict(int((fresh or {}).get("rev") or rev))
+        result = {"rev": int(rev) + 1, "version_id": prepared["version_id"],
+                  "status": plan.status,
+                  "parent_status": values.get("parent_status", plan.parent_status),
+                  "ai_doc": prepared["ai_doc"]}
         sess.commit()
         return result
 
@@ -808,6 +940,9 @@ def report_state(plan_or_id) -> Dict[str, Any]:
     plan = plan_or_id if isinstance(plan_or_id, dict) else get_plan(plan_or_id)
     if not plan:
         raise NotFound("发展计划不存在")
+    if plan.get("source_mode") == "mentor_inputs":
+        return {"applicable": False, "fresh": True, "status": "", "label": "导师输入",
+                "current_version_id": None, "report_version_id": None}
     report = rstore.get_report_by_id(plan["report_id"]) if plan.get("report_id") else None
     inputs = plan.get("inputs") or {}
     same_version = bool(report) \
@@ -843,6 +978,15 @@ def generate_blockers(plan_or_id, *, use_old_report: bool = False) -> List[str]:
                if not ((item.get("goal") or {}).get("text") or "").strip()]
     if missing:
         blockers.append("%s 的发展目标还没写" % "、".join(missing))
+    if plan.get("source_mode") == "mentor_inputs":
+        brief = plan.get("teaching_brief") or {}
+        if plan.get("brief_confirmed_revision") != plan.get("brief_revision") or not plan.get("brief_revision"):
+            blockers.append("请确认当前教学简报")
+        for key, label in (("learning_need", "明确的学习需要"), ("current_situation", "具体的当前情境"), ("current_response", "学生当前反应或起点")):
+            item = brief.get(key) or {}
+            if not item.get("text", "").strip() or not item.get("use_for_teaching"):
+                blockers.append("请补充并授权用于教学：" + label)
+        return blockers
     inputs = plan.get("inputs") or {}
     if not any(((inputs.get(key) or {}).get("text") or "").strip()
                for key in ("strengths", "needs", "context", "interests")):
@@ -876,6 +1020,7 @@ def begin_generation(plan_id: int, part: str = "internal") -> str:
             plan.parent_status = "generating"
         plan.gen_prev = previous
         _bump(plan)
+        _bump_document(sess, plan_id)
         sess.commit()
         return previous
 
@@ -901,6 +1046,7 @@ def finish_generation(plan_id: int, part: str = "internal", *,
             plan.parent_status = status if status in ("draft", "confirmed") else "draft"
         plan.gen_prev = None
         _bump(plan)
+        _bump_document(sess, plan_id)
         sess.commit()
         sess.refresh(plan)
         return _plan_row(sess, plan)
@@ -926,6 +1072,7 @@ def fail_generation(plan_id: int, part: str = "internal",
             plan.parent_status = fallback
         plan.gen_prev = None
         _bump(plan)
+        _bump_document(sess, plan_id)
         sess.commit()
         sess.refresh(plan)
         return _plan_row(sess, plan)
@@ -943,6 +1090,7 @@ def approve(plan_id: int, user_id=None) -> Dict[str, Any]:
         plan.approved_by = int(user_id) if user_id is not None else None
         plan.approved_at = datetime.utcnow()
         _bump(plan)
+        _bump_document(sess, plan_id, user_id)
         sess.commit()
         sess.refresh(plan)
         return _plan_row(sess, plan)
@@ -974,6 +1122,7 @@ def reopen(plan_id: int, user_id=None) -> Dict[str, Any]:
         plan.approved_by = None
         plan.approved_at = None
         _bump(plan)
+        _bump_document(sess, plan_id, user_id)
         sess.commit()
         sess.refresh(plan)
         return _plan_row(sess, plan)
@@ -1268,6 +1417,9 @@ def validate_parent_doc(plan: Dict[str, Any], doc) -> None:
     """DP1 §2.5 的形状；目标编号与顺序必须和计划一致。"""
     if not isinstance(doc, dict):
         raise ValueError("家长版格式不正确")
+    if len(json.dumps(doc, ensure_ascii=False)) > plan_kb.PARENT_PAYLOAD_LIMIT:
+        raise ValueError("家长版内容超过 %d 字符技术上限，请精简后保存；内容未截断"
+                         % plan_kb.PARENT_PAYLOAD_LIMIT)
     _need_field(doc.get("intro"), "开场介绍")
     _need_field(doc.get("transition"), "过渡句")
     codes = [item.get("code") for item in plan.get("goals") or []]
@@ -1322,6 +1474,17 @@ def validate_parent_doc(plan: Dict[str, Any], doc) -> None:
     if not isinstance(seen, list) or len(seen) != 2 \
             or any(not isinstance(flag, bool) for flag in seen):
         raise ValueError("家庭建议的已看过标记格式不正确")
+    ack = doc.get("family_ack")
+    if ack is not None:
+        if not isinstance(ack, list) or len(ack) != 2:
+            raise ValueError("家庭建议的确认绑定格式不正确")
+        for item in ack:
+            if not isinstance(item, dict) or set(item) - {"hash", "seen"}:
+                raise ValueError("家庭建议的确认绑定格式不正确")
+            if not isinstance(item.get("hash"), str) or not item.get("hash"):
+                raise ValueError("家庭建议的确认绑定缺少文字指纹")
+            if not isinstance(item.get("seen"), bool):
+                raise ValueError("家庭建议的确认绑定状态不正确")
     review = doc.get("review")
     if not isinstance(review, list) or not 2 <= len(review) <= 4:
         raise ValueError("成长观察需要 2 到 4 项")
@@ -1335,19 +1498,53 @@ def validate_parent_doc(plan: Dict[str, Any], doc) -> None:
 # ---------------------------------------------------------------------------
 # 权限
 # ---------------------------------------------------------------------------
+def is_team_member(user, student_id) -> bool:
+    """该账号是否是这位学生 M1 计划团队的共同导师（账号须启用）。"""
+    if student_id is None:
+        return False
+    from m1.plan_collaboration import _is_team_member
+    return _is_team_member(store._user_dict(user), student_id)
+
+
 def can_view_plan(user, plan) -> bool:
-    """与 ``store.can_access_prep`` 同一条规则；不存在返回 False。"""
+    """原有学生 / 会前准备可见范围，或该学生计划团队的共同导师。不存在返回 False。"""
     if plan is None:
         return False
     if isinstance(plan, int):
         plan = get_plan(plan)
     if not plan:
         return False
-    return store.can_access_prep(user, plan.get("prep_id"))
+    if plan.get("source_mode") == "mentor_inputs":
+        allowed = store.can_access_student(user, plan["student_id"])
+    else:
+        allowed = store.can_access_prep(user, plan.get("prep_id"))
+    if allowed:
+        return True
+    return is_team_member(user, plan.get("student_id"))
 
 
 def can_edit_plan(user, plan) -> bool:
-    """admin、心有灵析管理账号，或该计划从 prep 复制来的 Mentor 本人（D6）。"""
+    """admin、心有灵析管理账号、负责导师本人，或该学生计划团队的共同导师。"""
+    if plan is None:
+        return False
+    if isinstance(plan, int):
+        plan = get_plan(plan)
+    if not plan:
+        return False
+    u = store._user_dict(user)
+    if plan.get("source_mode") == "mentor_inputs" and not can_view_plan(u, plan):
+        return False
+    if u.get("role") == "admin" or store.is_m1_admin(u):
+        return True
+    mentor_id = plan.get("mentor_user_id")
+    if mentor_id is not None and u.get("user_id") is not None \
+            and int(mentor_id) == int(u.get("user_id")):
+        return True
+    return is_team_member(u, plan.get("student_id"))
+
+
+def can_approve_plan(user, plan) -> bool:
+    """批准 / 重新打开 / 确认家长版 / 导出：负责导师或 M1/全局管理员。"""
     if plan is None:
         return False
     if isinstance(plan, int):
@@ -1357,20 +1554,28 @@ def can_edit_plan(user, plan) -> bool:
     u = store._user_dict(user)
     if u.get("role") == "admin" or store.is_m1_admin(u):
         return True
+    uid = u.get("user_id")
     mentor_id = plan.get("mentor_user_id")
-    if mentor_id is None or u.get("user_id") is None:
-        return False
-    return int(mentor_id) == int(u.get("user_id"))
+    return uid is not None and mentor_id is not None and int(mentor_id) == int(uid)
+
+
+def can_manage_team(user=None) -> bool:
+    from m1.plan_collaboration import can_manage_team as _can_manage
+    return _can_manage(user)
 
 
 # ---------------------------------------------------------------------------
 # 列表 / 可新建
 # ---------------------------------------------------------------------------
 def _visible(user: dict, plan: Dict[str, Any]) -> bool:
+    if plan.get("source_mode") == "mentor_inputs":
+        return can_view_plan(user, plan)
     if user.get("role") == "admin":
         return True
     if user.get("role") != "advisor":
         return False
+    if is_team_member(user, plan.get("student_id")):
+        return True
     if store._sees_all_students(user):
         return True
     if plan.get("mentor_user_id") is not None and user.get("user_id") is not None \
@@ -1381,14 +1586,18 @@ def _visible(user: dict, plan: Dict[str, Any]) -> bool:
 
 
 def list_plans(user=None, scope: str = "all", limit: int = 500) -> List[Dict[str, Any]]:
-    """发展计划列表；``mine`` 只看自己负责的，``all`` 看可见学生的全部。"""
+    """发展计划列表；``mine`` 看负责或共同负责的，``all`` 看可见学生的全部。"""
     u = store._user_dict(user)
     with Session(_engine()) as sess:
         stmt = (select(M1Plan)
                 .order_by(M1Plan.updated_at.desc(), M1Plan.id.desc())
                 .limit(int(limit)))
         if scope == "mine" and u.get("user_id") is not None:
-            stmt = stmt.where(M1Plan.mentor_user_id == int(u["user_id"]))
+            from m1.plan_collaboration import PlanTeamMember
+            team_ids = select(PlanTeamMember.student_id).where(
+                PlanTeamMember.user_id == int(u["user_id"]))
+            stmt = stmt.where(or_(M1Plan.mentor_user_id == int(u["user_id"]),
+                                  M1Plan.student_id.in_(team_ids)))
         rows = [_plan_row(sess, row) for row in sess.execute(stmt).scalars().all()]
     return [row for row in rows if _visible(u, row)]
 
@@ -1416,8 +1625,18 @@ def _next_block(sess: Session, student_id: int) -> int:
     return max([int(value or 0) for value in used] or [0]) + 1
 
 
-def eligible_students(user=None) -> List[Dict[str, Any]]:
+def eligible_students(user=None, source_mode="report") -> List[Dict[str, Any]]:
     """会后报告已有 AI 草稿、当前账号可见的学生，附 prep 与下一个可用 Block。"""
+    if source_mode == "mentor_inputs":
+        with Session(_engine()) as sess:
+            return [{"student_id": row.id, "name": row.name or "",
+                     "grade": row.grade or "", "student_code": row.student_code or "",
+                     "mentor_user_id": store._user_dict(user).get("user_id"),
+                     "source_mode": "mentor_inputs", "next_block": _next_block(sess, row.id)}
+                    for row in sess.execute(select(_db.Student).order_by(_db.Student.name)).scalars()
+                    if store.can_access_student(user, row.id)]
+    if source_mode != "report":
+        raise ValueError("source_mode 只能是 report 或 mentor_inputs")
     preps = store.list_preps(user=user)
     statuses = rstore.list_statuses([prep["id"] for prep in preps])
     chosen: Dict[int, Dict[str, Any]] = {}
@@ -1454,3 +1673,104 @@ def eligible_students(user=None) -> List[Dict[str, Any]]:
             })
     rows.sort(key=lambda item: item["name"])
     return rows
+
+
+# DP12 writes use a compare-and-swap at UPDATE time, not only a stale-read check.
+def _save_context(plan_id, rev, changes, *, sections=(), actor_id=None):
+    from sqlalchemy import update
+    with Session(_engine()) as sess:
+        row = sess.get(M1Plan, int(plan_id))
+        if row is None:
+            raise NotFound("发展计划不存在")
+        _check_rev(row, rev)
+        _ensure_editable(row)
+        result = sess.execute(update(M1Plan).where(
+            M1Plan.id == int(plan_id), M1Plan.rev == int(rev),
+            M1Plan.status.in_(("inputs", "review"))).values(
+                **changes, rev=int(rev) + 1, updated_at=datetime.utcnow()),
+            execution_options={"synchronize_session": False})
+        if result.rowcount != 1:
+            sess.rollback()
+            raise RevConflict(get_plan(plan_id)["rev"])
+        from m1.plan_collaboration import bump_section_in_session
+        for section in sections:
+            bump_section_in_session(sess, plan_id, section, actor_id)
+        sess.commit()
+    return get_plan(plan_id)
+
+
+def save_brief(plan_id, rev, brief, actor_id=None):
+    from m1.plan_context import validate_brief
+    clean = validate_brief(brief)
+    plan = get_plan(plan_id)
+    if not plan:
+        raise NotFound("发展计划不存在")
+    # Reject forged file/report references; free-form mentor/student attribution is allowed.
+    file_ids = {str(f['id']) for f in list_files(plan_id)}
+    for item in clean.values():
+        if item['provenance'] == 'file' and item['source_ref'] not in file_ids:
+            raise ValueError("文件来源不属于该计划")
+        if item['provenance'] == 'report' and (plan['source_mode'] != 'report' or item['source_ref'] != str(plan['report_version_id'])):
+            raise ValueError("报告来源不属于该计划")
+    return _save_context(plan_id, rev, {
+        'teaching_brief': _dumps(clean), 'brief_revision': plan['brief_revision'] + 1,
+        'brief_confirmed_revision': None, 'brief_confirmed_by': None},
+        sections=('brief',), actor_id=actor_id)
+
+
+def confirm_brief(plan_id, rev, user_id):
+    plan = get_plan(plan_id)
+    if not plan:
+        raise NotFound("发展计划不存在")
+    if not plan['brief_revision']:
+        raise ValueError("请先填写教学简报")
+    return _save_context(plan_id, rev, {'brief_confirmed_revision': plan['brief_revision'],
+                                        'brief_confirmed_by': user_id},
+                         sections=('brief',), actor_id=user_id)
+
+
+def save_durations(plan_id, rev, durations, actor_id=None):
+    if not isinstance(durations, list) or len(durations) != 3 or any(
+            type(n) is not int or not 15 <= n <= 180 for n in durations):
+        raise ValueError("session_durations 需要三个 15–180 分钟的整数")
+    return _save_context(plan_id, rev, {'session_durations': _dumps(durations)},
+                         sections=('durations',), actor_id=actor_id)
+
+
+def next_action(plan):
+    if plan['status'] == 'generating':
+        return {'action': 'poll_job', 'href': '/api/m1/plans/%d' % plan['id']}
+    if plan['status'] == 'review':
+        return {'action': 'review_internal', 'href': '/api/m1/plans/%d' % plan['id']}
+    if plan['status'] == 'approved':
+        action = {'none': 'generate_parent', 'generating': 'poll_job', 'draft': 'confirm_parent',
+                  'confirmed': 'export_parent', 'exported': 'view_parent'}.get(plan['parent_status'], 'generate_parent')
+        return {'action': action, 'href': '/api/m1/plans/%d' % plan['id']}
+    blockers = generate_blockers(plan)
+    if plan.get('source_mode') == 'mentor_inputs' and (not plan['brief_revision'] or plan['brief_confirmed_revision'] != plan['brief_revision']):
+        action = 'confirm_brief' if plan['brief_revision'] else 'supply_brief'
+    elif blockers:
+        action = 'complete_inputs_and_goals'
+    else:
+        action = 'generate_internal'
+    return {'action': action, 'href': '/api/m1/plans/%d' % plan['id'], 'blockers': blockers}
+
+
+def save_extracted_context(plan_id, rev, inputs, brief, actor_id=None):
+    # Validate references using the same path as manual updates, then atomically
+    # persist profile and brief together (one revision, never overwrite concurrent edits).
+    from m1.plan_context import validate_brief
+    clean = validate_brief(brief)
+    files = {str(f['id']) for f in list_files(plan_id)}
+    plan = get_plan(plan_id)
+    if not plan:
+        raise NotFound('发展计划不存在')
+    for item in clean.values():
+        if item['provenance'] == 'file' and item['source_ref'] not in files:
+            raise ValueError('AI 返回了未授权来源')
+        if item['provenance'] == 'report' and (plan['source_mode'] != 'report' or item['source_ref'] != str(plan['report_version_id'])):
+            raise ValueError('AI 返回了未授权来源')
+    return _save_context(plan_id, rev, {'inputs': _dumps(inputs), 'teaching_brief': _dumps(clean),
+                                      'brief_revision': plan['brief_revision'] + 1,
+                                      'brief_confirmed_revision': None, 'brief_confirmed_by': None},
+                         sections=('inputs', 'brief'), actor_id=actor_id)

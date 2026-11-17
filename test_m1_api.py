@@ -25,6 +25,10 @@ from test_m1_store import _doc, m1db  # noqa: F401  复用临时库与文档构�
 def client(m1db, monkeypatch):  # noqa: F811
     import app_utils
     from blueprints import m1 as m1_api
+    import m1.plan_store as pstore
+
+    # Student rows now include plan summaries, as on real application startup.
+    pstore.ensure_tables(m1db.engine)
 
     # 只跳过「session 用户是否仍有效」的检查；角色与 advisor 归属走真实实现
     monkeypatch.setattr(app_utils, "is_authenticated", lambda: True)

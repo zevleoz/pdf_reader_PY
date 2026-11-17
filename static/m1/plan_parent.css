@@ -1,19 +1,22 @@
-/* M1 家长版 PDF：两页 A4（作用域 .pp，样式对齐参考页 14） */
+/* M1 家长版 PDF：自然 A4 分页（作用域 .pp，样式对齐参考页 14） */
 
 .pp{
   --bg:#FBF9F6;--ink:#2B2B2B;--mute:#7A7570;--green:#5E8A6E;--mauve:#9C5F8B;
   --gold:#B08A3E;--g1:#EEF5F0;--m1c:#F8EEF5;--y1:#FBF6EA;--line:#E6E0DA;
   color:var(--ink);
   font:13px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  overflow-wrap:break-word;
+  word-break:break-word;
 }
 .pp *{box-sizing:border-box}
-.pp .pg{
+/* 屏上一张连续纸张，高度随内容；打印时由浏览器按 A4 自然分页 */
+.pp-doc{
   width:794px;min-height:1123px;margin:16px auto;background:var(--bg);
   position:relative;padding:56px 72px 70px;box-shadow:0 10px 30px -16px rgba(0,0,0,.35);
 }
-.pp .pg::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;
+.pp-doc::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;
   background:linear-gradient(90deg,#8FB59B,#C9A6C0,#E8C9D8)}
-.pp .pg.wm::after{content:"草稿";position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) rotate(-18deg);
+.pp.wm .pp-doc::after{content:"草稿";position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) rotate(-18deg);
   font-size:92px;font-weight:700;letter-spacing:.2em;color:rgba(156,95,139,.10);pointer-events:none;white-space:nowrap}
 
 .pp .top{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.14em;color:var(--mute)}
@@ -53,11 +56,8 @@
 .pp .sess b{display:block;margin:4px 0}
 .pp .trans{margin-top:12px;color:#555}
 
-.pp .foot{position:absolute;left:72px;right:72px;bottom:28px;display:flex;justify-content:space-between;
-  border-top:1px solid var(--line);padding-top:8px;font-size:10.5px;letter-spacing:.12em;color:var(--mute)}
-
 .pp .quote{display:flex;gap:16px;align-items:center;background:var(--m1c);border-radius:10px;
-  padding:18px 20px;margin-top:22px}
+  padding:18px 20px;margin-top:26px}
 .pp .quote i{width:34px;height:34px;border-radius:50%;background:#fff;display:grid;place-items:center;
   color:var(--mauve);font-style:normal;flex:none}
 
@@ -66,30 +66,60 @@
 .pp .prac .n{background:var(--g1);color:var(--green);border-radius:6px;width:30px;height:30px;
   display:grid;place-items:center;font-weight:700;flex:none}
 .pp .prac small{display:block;color:var(--mute);margin-top:4px}
+.pp .prac b::after{content:"："}
 .pp .fam{background:var(--g1);border-left:3px solid var(--green);border-radius:0 10px 10px 0;padding:10px 18px}
 .pp .fam ul{margin:0;padding-left:18px}
 .pp .obs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pp .obs div{background:var(--m1c);border-radius:10px;padding:12px 14px}
 .pp .obs b{display:block;color:var(--mauve);font-size:12.5px}
-.pp .close{border-top:1px solid var(--line);margin-top:24px;padding-top:10px;color:#555;font-size:12px}
+.pp .close{display:block;border-top:1px solid var(--line);margin-top:24px;padding-top:10px;color:#555;font-size:12px}
+.pp .close .note{display:block}
+.pp .foot{display:flex;justify-content:space-between;gap:16px;margin-top:8px;
+  font-size:10.5px;letter-spacing:.12em;color:var(--mute)}
 
 /* 打印页外壳 */
 body.pp-print{background:#E9E6E2;margin:0}
 .pp-print .print-bar{position:sticky;top:0;z-index:5;background:#1E1C19;color:#F5F2ED}
 .pp-print .print-desk{padding:22px 16px 46px;overflow-x:auto}
-.pp-banner{display:none;max-width:794px;margin:0 auto 14px;padding:10px 12px;border-radius:3px;
-  background:#FFF8E6;border:1px solid #E7C27A;color:#7A5A00;font-size:13px;line-height:1.6}
-.pp-banner.on{display:block}
+
+/* 窄屏只影响屏上预览，不改变打印排版 */
+@media screen and (max-width:820px){
+  .pp-doc{width:auto;margin:12px 8px;padding:36px 26px 48px;min-height:0}
+  .pp .kick{margin-top:28px}
+  .pp h1{font-size:28px}
+  .pp .sess,.pp .obs{grid-template-columns:1fr}
+}
 
 @media print{
-  @page{size:A4;margin:0}
-  html,body.pp-print{background:#FBF9F6}
-  .pp-print .print-bar,.pp-print .pp-banner{display:none !important}
+  /* 一张 A4 一个页面框，正文在页边距内自然续排；不生成固定高度、不写死页码 */
+  @page{size:A4;margin:16mm 14mm 18mm}
+  html,body.m1.print-page.pp-print{background:#fff !important}
+  .pp-print .print-bar{display:none !important}
   .pp-print .print-desk{padding:0;overflow:visible}
-  .pp .pg{margin:0;box-shadow:none;min-height:0;width:210mm;height:296.5mm;
-    page-break-after:always;break-after:page;
+  .pp-doc{width:auto;min-height:0;margin:0;padding:0;box-shadow:none;background:transparent !important;
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .pp .pg:last-child{page-break-after:auto;break-after:auto}
-  .pp .goal,.pp .prac,.pp .obs div,.pp .sess div{break-inside:avoid}
-  .pp .pg::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pp-doc::before{display:none}
+  .pp.wm .pp-doc::after{position:fixed;top:46%;white-space:nowrap}
+  /* 标题跟着后文；普通卡片尽量整块保留，超过一页的卡片由浏览器在段落/行间拆开 */
+  .pp .sec{break-after:avoid;break-inside:avoid}
+  .pp h1,.pp .en,.pp .top,.pp .kick,.pp .info,.pp .quote,.pp .close{break-inside:avoid}
+  .pp .goal,.pp .prac,.pp .fam li{break-inside:avoid}
+  /* 打印时网格/弹性容器改为块级，内容才能跨页续排 */
+  .pp .sess,.pp .obs{display:block}
+  .pp .sess>div,.pp .obs>div{margin-bottom:8px;break-inside:avoid}
+  .pp .goal,.pp .prac{display:block}
+  .pp .goal .n,.pp .prac .n{display:inline-block;float:none;vertical-align:top;margin:0 10px 2px 0}
+  .pp .goal b{display:inline;margin-right:6px}
+  .pp p{orphans:2;widows:2}
+  /* 收紧打印留白；页脚与说明同属一块，随正文流动，不会单独占一页 */
+  .pp .sec{margin:14px 0 7px}
+  .pp .goal{padding:9px 13px;margin-bottom:7px}
+  .pp .sess>div{padding:9px 11px}
+  .pp .prac{padding:9px 13px}
+  .pp .prac small{display:inline;margin:0}
+  .pp .prac small::before{content:"　"}
+  .pp .quote{padding:11px 15px;margin-top:14px}
+  .pp .fam{padding:7px 13px}
+  .pp .obs>div{padding:9px 11px}
+  .pp .close{margin-top:14px}
 }

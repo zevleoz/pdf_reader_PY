@@ -223,7 +223,7 @@ def test_non_mentor_can_read_but_not_write(plan_client, m1db, monkeypatch):
     assert plan_client.put(path + "/parent",
                            json={"rev": plan["rev"], "doc": {}}).status_code == 403
     assert plan_client.post(path + "/parent/confirm").status_code == 403
-    assert plan_client.post(path + "/parent/export", json={"fits": True}).status_code == 403
+    assert plan_client.post(path + "/parent/export").status_code == 403
 
 
 def test_other_advisor_gets_404(plan_client, m1db):
@@ -400,7 +400,8 @@ def test_internal_save_accepts_legacy_string_reviews(plan_client, m1db):
     res = plan_client.put("/api/m1/plans/%d/internal" % plan["id"],
                           json={"rev": plan["rev"], "doc": legacy})
     assert res.status_code == 200, res.get_json()
-    assert plan_client.post("/api/m1/plans/%d/approve" % plan["id"]).status_code == 200
+    assert plan_client.post("/api/m1/plans/%d/approve" % plan["id"],
+                            json={"rev": res.get_json()["rev"]}).status_code == 200
 
 
 def test_internal_save_and_rev_conflict(plan_client, m1db):
@@ -453,10 +454,9 @@ def test_export_refused_when_not_confirmed_or_stale(plan_client, m1db):
     _login(plan_client, m1db.alice_id, "advisor", "Alice")
     path = "/api/m1/plans/%d/parent" % plan["id"]
 
-    assert plan_client.post(path + "/export", json={"fits": False}).status_code == 409
-
-    pstore.reopen(plan["id"])
-    assert plan_client.post(path + "/export", json={"fits": True}).status_code == 409
+    plan = pstore.reopen(plan["id"])
+    assert plan_client.post(path + "/export",
+                            json={"rev": plan["rev"]}).status_code == 409
 
     # 未确认（草稿）时导出同样被拒
     plan = pstore.get_plan(plan["id"])
@@ -464,16 +464,27 @@ def test_export_refused_when_not_confirmed_or_stale(plan_client, m1db):
     plan = pstore.get_plan(plan["id"])
     updated = plan_client.put(path, json={"rev": plan["rev"], "doc": parent}).get_json()
     assert updated["plan"]["parent_status"] == "draft"
-    res = plan_client.post(path + "/export", json={"fits": True})
+    res = plan_client.post(path + "/export", json={"rev": updated["plan"]["rev"]})
     assert res.status_code == 409
     assert "确认" in res.get_json()["error"]
+
+
+def test_export_ignores_browser_fit_claims(plan_client, m1db):
+    plan, parent = _confirmed_plan(m1db)
+    _login(plan_client, m1db.alice_id, "advisor", "Alice")
+    path = "/api/m1/plans/%d/parent" % plan["id"]
+    # 浏览器不再参与分页判断；显式传 fits=false 也不能阻断导出。
+    res = plan_client.post(path + "/export",
+                           json={"rev": plan["rev"], "fits": False})
+    assert res.status_code == 200, res.get_json()
+    assert res.get_json()["plan"]["parent_status"] == "exported"
 
 
 def test_confirm_and_export_happy_path(plan_client, m1db):
     plan, _parent = _confirmed_plan(m1db)
     _login(plan_client, m1db.alice_id, "advisor", "Alice")
     path = "/api/m1/plans/%d/parent" % plan["id"]
-    res = plan_client.post(path + "/export", json={"fits": True})
+    res = plan_client.post(path + "/export", json={"rev": plan["rev"]})
     assert res.status_code == 200, res.get_json()
     assert res.get_json()["plan"]["parent_status"] == "exported"
     assert res.get_json()["print_url"].endswith("/parent/print")
@@ -514,7 +525,9 @@ def test_activity_list_shows_create_and_approve_with_actor(plan_client, m1db):
     version = pstore.add_version(plan["id"], part="internal", kind="ai_draft",
                                  ai_doc=_internal_doc(), doc=_internal_doc(), checks=[])
     pstore.finish_generation(plan["id"], "internal", version_id=version["id"])
-    assert plan_client.post("/api/m1/plans/%d/approve" % plan["id"]).status_code == 200
+    plan = pstore.get_plan(plan["id"])
+    assert plan_client.post("/api/m1/plans/%d/approve" % plan["id"],
+                            json={"rev": plan["rev"]}).status_code == 200
 
     rows = store.list_activity(prep["id"], m1db.student_id)
     assert [row["text"] for row in rows] == ["批准内部教学计划", "新建发展计划"]

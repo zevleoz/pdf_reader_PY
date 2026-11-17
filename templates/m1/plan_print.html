@@ -29,7 +29,17 @@
 
     <h2>A｜学生当前状态</h2>
     {% set inputs = plan.inputs or {} %}
-    {% if (inputs.get('strengths') or {}).get('text') or (inputs.get('needs') or {}).get('text') or (inputs.get('context') or {}).get('text') or (inputs.get('interests') or {}).get('text') %}
+    {% if plan.source_mode == 'mentor_inputs' %}
+      {% set brief = plan.teaching_brief or {} %}
+      {% for key, label in [('learning_need', '学习需要'), ('current_situation', '当前情境'), ('current_response', '当前反应')] %}
+        {% set entry = brief.get(key) or {} %}
+        {% set text = entry.get('text') if entry is mapping else entry %}
+        {% if text %}<p><b>{{ label }}：</b>{{ text }}</p>{% endif %}
+      {% endfor %}
+      {% if not (brief.get('learning_need') and ((brief.get('learning_need').get('text') if brief.get('learning_need') is mapping else brief.get('learning_need')))) %}
+      <p class="mu">直接创建：学生资料来自导师填写或上传的材料。</p>
+      {% endif %}
+    {% elif (inputs.get('strengths') or {}).get('text') or (inputs.get('needs') or {}).get('text') or (inputs.get('context') or {}).get('text') or (inputs.get('interests') or {}).get('text') %}
       {% for key, label in [('strengths', '可利用的积极资源'), ('needs', '主要发展需求'), ('context', '关键生活情境'), ('interests', '兴趣与学习偏好')] %}
       <p><b>{{ label }}：</b>{{ (inputs.get(key) or {}).get('text') or '—' }}</p>
       {% endfor %}
@@ -47,8 +57,10 @@
       </tbody>
     </table>
 
+    {% if plan.source_mode != 'mentor_inputs' %}
     <h2>C｜个性化需求总结</h2>
     <p>{{ (personal.summary or {}).get('text') or '—' }}</p>
+    {% endif %}
 
     <h2>Block Overview｜总体目标与教学策略</h2>
     <p>{{ (doc.get('overview') or {}).get('text') or '' }}</p>
@@ -56,6 +68,9 @@
     {% for session in doc.get('sessions') or [] %}
     <div class="pp-sess">
       <h2>Session {{ session.n }}｜{{ (session.get('title') or {}).get('text') or '' }}</h2>
+      {% set timing = session.get('timing') if session.get('timing') is mapping else none %}
+      {% set duration = (plan.session_durations or [60, 60, 60])[loop.index0] %}
+      <p class="mu">本节 {{ duration }} 分钟{% if timing %} · 上次回顾 {{ timing.get('review_minutes', 0) }} 分钟 · 转换 {{ timing.get('transition_minutes', 0) }} 分钟{% endif %}</p>
       {% if session.get('review') %}
       <p class="mu"><b>上次课后实践回顾</b></p>
       <ul style="margin:2px 0 8px;padding-left:18px">
@@ -96,6 +111,11 @@
         <p style="white-space:pre-wrap">{{ (activity.get('steps') or {}).get('text') or '' }}</p>
         <p><b>引导问题：</b>{{ (activity.get('questions') or {}).get('text') or '' }}</p>
         <p><b>所需材料：</b>{{ (activity.get('materials') or {}).get('text') or '' }}</p>
+        {% for key, label in [('purpose', '教学目标与理由'), ('personalization', '针对这名学生的设计'), ('student_action', '学生要做什么'), ('expected_attempt', '可观察的尝试'), ('support', '学生卡住时'), ('extension', '学生准备好时')] %}
+          {% set value = activity.get(key) %}
+          {% set text = value.get('text') if value is mapping else value %}
+          {% if text %}<p><b>{{ label }}：</b>{{ text }}</p>{% endif %}
+        {% endfor %}
       </div>
       {% endif %}
       {% endfor %}

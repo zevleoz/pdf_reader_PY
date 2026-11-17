@@ -1,0 +1,56 @@
+{% extends "m1/_layout.html" %}
+{% block title %}{{ student.name or '未命名学生' }} · 心有灵析{% endblock %}
+
+{% block crumbs %}
+<div class="cr"><a href="/m1">学生</a><span>/</span><b>{{ student.name or '未命名学生' }}</b></div>
+{% endblock %}
+
+{% block content %}
+<div id="m1StudentHub" data-student-id="{{ student.id }}">
+  <div class="ph" id="m1HubHead">
+    <div>
+      <h1>{{ student.name or '未命名学生' }}</h1>
+      <p class="sub">{{ [student.student_code, student.grade, student.school]|select|join(' · ') }}</p>
+    </div>
+    <div class="nx">
+      <small>下一步</small>
+      <b id="m1HubNextText">正在载入…</b>
+      <a class="btn p" id="m1HubNextBtn"
+         href="/m1/plans?new_student={{ student.id }}&amp;mode=direct">直接创建教案</a>
+    </div>
+  </div>
+
+  <p class="hint" style="margin-top:14px">
+    发展计划是独立文档：没有 First Meeting 或会后报告，也可以直接创建。
+  </p>
+
+  <section style="margin-top:26px">
+    <h3 class="h2">发展计划
+      <span class="r">
+        <a class="btn s" href="/m1/plans?new_student={{ student.id }}&amp;mode=direct">+ 直接创建教案</a>
+      </span>
+    </h3>
+    <div id="m1HubPlans"></div>
+  </section>
+
+  <section style="margin-top:26px">
+    <h3 class="h2">导师团队
+      <span class="r" id="m1HubTeamAction"></span>
+    </h3>
+    <div id="m1HubTeam"></div>
+  </section>
+
+  <section style="margin-top:30px">
+    <h3 class="h2">First Meeting
+      <span class="r">
+        <a class="btn s" href="/m1?student={{ student.id }}">+ 新建 First Meeting</a>
+      </span>
+    </h3>
+    <div class="cols2" id="m1HubPreps"></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/m1/assets/m1_student_hub.js" defer></script>
+{% endblock %}

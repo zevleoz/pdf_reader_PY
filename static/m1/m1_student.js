@@ -357,7 +357,7 @@
     title.appendChild(chip(planCardChip(plan)));
     card.appendChild(title);
     card.appendChild(el('p', null,
-      '三节课的内部教学计划，批准后生成给家长的《情绪力阶段成长计划》（两页 PDF）。'));
+      '三节课的内部教学计划，批准后生成给家长的《情绪力阶段成长计划》（PDF）。'));
 
     var dl = el('dl', 'kv');
     dl.appendChild(el('dt', null, '阶段'));

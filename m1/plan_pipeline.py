@@ -22,7 +22,7 @@ INPUT_KEYS = ("strengths", "needs", "context", "interests")
 SESSION_COUNT = 3
 TITLE_LIMIT = 20
 FOCUS_LIMIT = 40
-STEPS_LIMIT = 400
+STEPS_LIMIT = 4000
 QUESTIONS_LIMIT = 200
 EVIDENCE_LIMIT = 80
 TASK_LIMIT = 120
@@ -30,25 +30,24 @@ OVERVIEW_LIMIT = 250
 
 _SENTENCE_RE = re.compile(r"(?<=[。！？!?])")
 
-
 class PlanError(Exception):
     """可读的生成失败原因。"""
 
 
-def _ask(prompt: str) -> Dict[str, Any]:
+def _ask(prompt: str, *, attempts=2) -> Dict[str, Any]:
     """调用模型并解析 JSON；解析失败重试一次，再失败抛 ``PlanError``。"""
-    for attempt in range(2):
+    for attempt in range(attempts):
         try:
             result = call_model(prompt)
             if isinstance(result, str):
                 result = json.loads(result)
         except json.JSONDecodeError:
-            if attempt:
+            if attempt == attempts - 1:
                 raise PlanError("AI 返回格式无效，请重试")
             continue
         if isinstance(result, dict):
             return result
-        if attempt:
+        if attempt == attempts - 1:
             break
     raise PlanError("AI 返回格式无效，请重试")
 
@@ -88,6 +87,26 @@ def _cap(field: Dict[str, str], limit: int, label: str, path: List[Any],
 
 def _json(value) -> str:
     return json.dumps(value, ensure_ascii=False)
+
+
+def _note_long(field, limit: int, label: str, path: List[Any],
+               adjustments: List[Dict[str, Any]]) -> None:
+    """记录编辑建议超长；保留全文，不截断。"""
+    text = str(field.get("text") or "") if isinstance(field, dict) else str(field or "")
+    if len(text) <= limit:
+        return
+    adjustments.append({
+        "path": path, "label": label, "level": "hint",
+        "text": "%s：超过建议长度 %d 字，可酌情精简；内容已完整保留" % (label, limit),
+    })
+
+
+def _require_parent_payload(doc: Dict[str, Any]) -> None:
+    """技术载荷上限：超限明确报错，绝不静默截断。"""
+    size = len(json.dumps(doc, ensure_ascii=False))
+    if size > plan_kb.PARENT_PAYLOAD_LIMIT:
+        raise PlanError("家长版内容超过 %d 字符技术上限，请精简后重试；内容未截断"
+                        % plan_kb.PARENT_PAYLOAD_LIMIT)
 
 
 def _inputs_payload(plan: Dict[str, Any], report_doc: Dict[str, Any]) -> Dict[str, Any]:
@@ -276,16 +295,41 @@ def _candidate_payload(candidates: List[Dict[str, Any]]) -> str:
     return _json(rows)
 
 
+def _teaching_inputs(plan):
+    if plan.get("source_mode") != "mentor_inputs":
+        return {key: _text((plan.get("inputs") or {}).get(key)) for key in INPUT_KEYS}
+    from m1.plan_context import approved_brief
+    brief = approved_brief(plan)
+    return {"strengths": (brief.get("strengths") or {}).get("text", ""),
+            "needs": (brief.get("learning_need") or {}).get("text", ""),
+            "context": " / ".join((brief.get(k) or {}).get("text", "") for k in ("current_situation", "current_response")),
+            "interests": (brief.get("interests") or {}).get("text", "")}
+
+
+def _teaching_context(plan):
+    from m1.plan_context import teaching_payload
+    return teaching_payload(plan)
+
+
+def _grounding_refs(plan):
+    from m1.plan_quality import grounding_refs
+    return grounding_refs(plan)
+
+
 def _session_prompt(n: int, plan: Dict[str, Any], overview: str, entry: Dict[str, Any],
                     candidates: List[Dict[str, Any]], previous: List[Dict[str, Any]],
                     goals: List[Dict[str, Any]]) -> str:
     data = {
+        "duration_minutes": (plan.get("session_durations") or [60,60,60])[n - 1],
+        "timing_budget": plan_kb.timing_budget(n, (plan.get("session_durations") or [60,60,60])[n - 1]),
+        "grounding_refs": _grounding_refs(plan),
         "session": n,
         "session_count": SESSION_COUNT,
         "student": {"name": plan.get("student_name") or "", "grade": plan.get("grade") or ""},
-        "inputs": {key: _text((plan.get("inputs") or {}).get(key)) for key in INPUT_KEYS},
+        "inputs": _teaching_inputs(plan),
         "goals": _goal_view(goals),
-        "personal_summary": _personal_text(plan),
+        "personal_summary": _personal_text(plan) if plan.get("source_mode") != "mentor_inputs" else "",
+        "teaching_context": _teaching_context(plan),
         "overview": overview,
         "session_plan": entry,
         "previous_sessions": previous,
@@ -297,11 +341,11 @@ def _session_prompt(n: int, plan: Dict[str, Any], overview: str, entry: Dict[str
 
 
 def _report_doc_for(plan: Dict[str, Any]) -> Dict[str, Any]:
-    version_id = plan.get("report_version_id")
-    version = rstore.get_version(version_id) if version_id else None
-    if not version:
-        raise PlanError("会后报告还没有生成内容，请先完成会后报告")
-    return version.get("doc") or {}
+    from m1.plan_context import build_context
+    try:
+        return build_context(plan)["report_doc"]
+    except ValueError as exc:
+        raise PlanError(str(exc)) from exc
 
 
 def _require_goals(plan: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -311,11 +355,15 @@ def _require_goals(plan: Dict[str, Any]) -> List[Dict[str, Any]]:
     return goals
 
 
-def read_report(plan_id: int, *, progress=None, actor_id=None) -> Dict[str, Any]:
+def read_report(plan_id: int, *, progress=None, actor_id=None,
+                expected_rev=None) -> Dict[str, Any]:
     """读取会后报告当前版本，提取四项资料。"""
     plan = pstore.get_plan(plan_id)
     if not plan:
         raise PlanError("发展计划不存在")
+    if plan.get("source_mode") == "mentor_inputs":
+        return extract_mentor_inputs(plan, progress=progress, actor_id=actor_id,
+                                     expected_rev=expected_rev)
     report = rstore.get_report_by_id(plan["report_id"])
     if not report:
         raise PlanError("没有找到会后报告")
@@ -329,23 +377,27 @@ def read_report(plan_id: int, *, progress=None, actor_id=None) -> Dict[str, Any]
         raise PlanError("会后报告版本不存在")
     if progress:
         progress("read", "done")
-    pstore.mark_report_read(plan_id, version_id)
+    marked = pstore.mark_report_read(plan_id, version_id,
+                                     expected_rev=expected_rev, actor_id=actor_id)
     doc = version.get("doc") or {}
     if not doc:
-        pstore.save_inputs_ai(plan_id, {key: "" for key in INPUT_KEYS})
+        pstore.save_inputs_ai(plan_id, {key: "" for key in INPUT_KEYS},
+                              expected_rev=marked["rev"], actor_id=actor_id)
         return pstore.get_plan(plan_id) or plan
     if progress:
         progress("inputs", "active")
     prompt = plan_prompts.INPUTS_PROMPT % (
         plan_prompts.SHARED_RULES, _json(_inputs_payload(plan, doc)))
     data = _ask(prompt)
-    pstore.save_inputs_ai(plan_id, {key: _text(data.get(key)) for key in INPUT_KEYS})
+    pstore.save_inputs_ai(plan_id, {key: _text(data.get(key)) for key in INPUT_KEYS},
+                          expected_rev=marked["rev"], actor_id=actor_id)
     if progress:
         progress("inputs", "done")
     return pstore.get_plan(plan_id) or plan
 
 
-def fill_goal(plan_id: int, code: str, *, progress=None, actor_id=None) -> Dict[str, Any]:
+def fill_goal(plan_id: int, code: str, *, progress=None, actor_id=None,
+              expected_rev=None) -> Dict[str, Any]:
     """为一项发展目标补全目标、当前起点与阶段预期进展。"""
     plan = pstore.get_plan(plan_id)
     if not plan:
@@ -354,8 +406,12 @@ def fill_goal(plan_id: int, code: str, *, progress=None, actor_id=None) -> Dict[
     if not goal:
         raise PlanError("没有这项发展目标")
     doc = _report_doc_for(plan)
+    if plan.get("source_mode") == "mentor_inputs" and not _teaching_context(plan)["teaching_brief"]:
+        raise PlanError("请先确认教学简报，再根据已授权资料补全目标")
     data = {
         "goal": {"code": code, "name": _goal_name(code), "goal": _text(goal.get("goal"))},
+        "teaching_context": _teaching_context(plan),
+        "inputs": _teaching_inputs(plan),
         "report_lines": _ability_lines(doc, code),
         "report_plan_suggestions": [
             {"ability": code, "goal": _text(row.get("goal"))}
@@ -370,13 +426,17 @@ def fill_goal(plan_id: int, code: str, *, progress=None, actor_id=None) -> Dict[
     expected = _text(result.get("expected"))
     if (not _text(goal.get("goal")) and not _text(result.get("goal"))) or not start or not expected:
         raise PlanError("AI 没有写完这项的发展目标、当前起点和阶段预期进展，请重试")
-    pstore.save_goal_ai(plan_id, code, start, expected, goal=result.get("goal"))
+    pstore.save_goal_ai(plan_id, code, start, expected, goal=result.get("goal"),
+                        expected_rev=(expected_rev if expected_rev is not None
+                                      else (plan["rev"] if plan.get("source_mode") == "mentor_inputs" else None)),
+                        actor_id=actor_id)
     if progress:
         progress("goal", "done")
     return pstore.get_plan(plan_id) or plan
 
 
-def personal_summary(plan_id: int, *, progress=None, actor_id=None) -> Dict[str, Any]:
+def personal_summary(plan_id: int, *, progress=None, actor_id=None,
+                     expected_rev=None) -> Dict[str, Any]:
     """把个性化需求与会议记录文字整理成一段总结。"""
     plan = pstore.get_plan(plan_id)
     if not plan:
@@ -397,7 +457,8 @@ def personal_summary(plan_id: int, *, progress=None, actor_id=None) -> Dict[str,
     summary = _text(result.get("summary"))
     if not summary:
         raise PlanError("AI 没有写出个性化需求总结，请重试")
-    pstore.save_personal_summary(plan_id, summary)
+    pstore.save_personal_summary(plan_id, summary, expected_rev=expected_rev,
+                                 actor_id=actor_id)
     if progress:
         progress("personal", "done")
     return pstore.get_plan(plan_id) or plan
@@ -451,9 +512,15 @@ def _activity(raw: Dict[str, Any], n: int, index: int, codes: List[str],
         "source": {"type": kind, "wb_id": wb_id, "text": ""},
         "block_review": False,
     }
-    _cap(row["steps"], STEPS_LIMIT, label_base + " · 教学流程", path + ["steps"], adjustments)
-    _cap(row["questions"], QUESTIONS_LIMIT, label_base + " · 引导问题",
-         path + ["questions"], adjustments)
+    for key in plan_kb.RICH_ACTIVITY_FIELDS:
+        row[key] = _field(raw.get(key))
+    row["input_refs"] = copy.deepcopy(raw.get("input_refs", []))
+    if source.get("type") not in ("ai_original", "world_bank") or (source.get("type") == "world_bank" and source.get("wb_id") not in candidate_ids):
+        row["source_issue"] = copy.deepcopy(source)
+    for key, limit in plan_kb.ACTIVITY_LIMITS.items():
+        if len(_text(row.get(key))) > limit:
+            adjustments.append({"path": path + [key], "label": label_base,
+                                "text": "%s超过%d字符，内容未截断，请精简" % (key, limit)})
     return row
 
 
@@ -580,6 +647,8 @@ def _session_doc(raw: Dict[str, Any], n: int, goals: List[Dict[str, Any]],
                                 "text": "Session %d：缺少下次课准备，已补一句固定文字，请核对" % n})
     session = {
         "n": n,
+        "teaching_schema": 2,
+        "timing": copy.deepcopy(raw.get("timing", {"review_minutes": 0 if n == 1 else 5, "transition_minutes": 2})),
         "title": title,
         "review": reviews,
         "focus": focus,
@@ -602,6 +671,8 @@ def _append_block_review(session: Dict[str, Any], n: int) -> Dict[str, Any]:
     review = plan_kb.block_review()
     parts = review.get("parts") or []
     steps = "\n".join("%s：%s" % (part.get("label"), part.get("text")) for part in parts)
+    if any(a.get("block_review") for a in session["activities"]):
+        return session
     session["activities"].append({
         "name": _field(review.get("name")),
         "minutes": int(review.get("minutes") or 10),
@@ -619,9 +690,9 @@ def _assign_ids(doc: Dict[str, Any]) -> None:
     for session in doc.get("sessions") or []:
         n = int(session.get("n") or 1)
         for index, activity in enumerate(session.get("activities") or [], 1):
-            activity["id"] = "s%da%d" % (n, index)
+            activity.setdefault("id", "s%da%d" % (n, index))
         for index, practice in enumerate(session.get("practice") or [], 1):
-            practice["id"] = "s%dp%d" % (n, index)
+            practice.setdefault("id", "s%dp%d" % (n, index))
 
 
 def _adjustment_items(adjustments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -629,7 +700,7 @@ def _adjustment_items(adjustments: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     for index, adj in enumerate(adjustments, 1):
         items.append({
             "id": "adj-%d" % index,
-            "level": "review",
+            "level": adj.get("level") or "review",
             "path": adj.get("path") or [],
             "label": adj.get("label") or "生成修正",
             "text": adj.get("text") or "",
@@ -642,16 +713,70 @@ def _version_checks(plan: Dict[str, Any], doc: Dict[str, Any],
     return plan_checks.run_checks(plan, doc) + _adjustment_items(adjustments)
 
 
+def _repair_once(plan, doc, goals, cmap, sections=None):
+    """One targeted model call for the entire draft, never once per session."""
+    review = plan_checks.run_checks
+    issues = [c for c in review(plan, doc) if c['level'] == 'review']
+    record = {"attempts": 0, "issues_before": [c['id'] for c in issues]}
+    if sections is not None:
+        issues = [c for c in issues if len(c["path"]) >= 2 and c["path"][0] == "sessions" and c["path"][1] + 1 in sections]
+        record["issues_before"] = [c["id"] for c in issues]
+    if not issues:
+        return doc, record
+    record['attempts'] = 1
+    payload = {"checks": issues, "draft": doc, "grounding_refs": _grounding_refs(plan),
+               "teaching_context": _teaching_context(plan),
+               "budgets": [plan_kb.timing_budget(n, (plan.get('session_durations') or [60,60,60])[n-1]) for n in (1,2,3)],
+               "candidates": {str(n): _session_candidates({'primary': doc['sessions'][n-1]['focus']['primary'], 'supporting': doc['sessions'][n-1]['focus'].get('supporting')}, n, goals, cmap) for n in (1,2,3)}}
+    try:
+        raw = _ask(plan_prompts.REPAIR_PROMPT % (plan_prompts.SHARED_RULES, _json(payload)), attempts=1)
+        if not isinstance(raw.get('sessions'), list) or len(raw['sessions']) != 3:
+            raise PlanError('修订未返回完整三节课')
+        revised = copy.deepcopy(doc)
+        for index, old in enumerate(doc['sessions']):
+            if sections is not None and index + 1 not in sections:
+                continue
+            candidates = _session_candidates({'primary': old['focus']['primary'], 'supporting': old['focus'].get('supporting')}, index+1, goals, cmap)
+            adj = []
+            new = _session_doc(raw['sessions'][index], index+1, goals, candidates, adj)
+            if index == 2:
+                _append_block_review(new, 3)
+            # Repair never replaces practice IDs/tasks or unrelated session fields.
+            if len(new['activities']) != len(old['activities']):
+                raise PlanError('修订改变活动数量，保留原稿供导师编辑')
+            for a, previous in zip(new['activities'], old['activities']):
+                a['id'] = previous['id']
+            revised['sessions'][index]['activities'] = new['activities']
+            revised['sessions'][index]['timing'] = new['timing']
+        remaining = [c for c in review(plan, revised) if c['level'] == 'review']
+        if sections is not None:
+            remaining = [c for c in remaining if len(c['path']) >= 2 and c['path'][0] == 'sessions' and c['path'][1] + 1 in sections]
+        record['issues_after'] = [c['id'] for c in remaining]
+        record['applied'] = len(remaining) < len(issues)
+        if record['applied']:
+            return revised, record
+    except Exception as exc:
+        record['applied'] = False
+        record['error'] = '修订未完成，原稿保留供编辑：' + type(exc).__name__
+    return doc, record
+
+
 def generate(plan_id: int, *, progress=None, actor_id=None,
              use_old_report: bool = False) -> int:
     """生成完整内部版（调用方已把状态设为 generating）。"""
     plan = pstore.get_plan(plan_id)
     if not plan:
         raise PlanError("发展计划不存在")
-    report = rstore.get_report_by_id(plan["report_id"])
+    if plan.get("source_mode") == "mentor_inputs":
+        blockers = pstore.generate_blockers(plan)
+        if blockers:
+            raise PlanError("；".join(blockers))
+    report = rstore.get_report_by_id(plan["report_id"]) if plan.get("source_mode") != "mentor_inputs" else None
     if (not use_old_report and report
             and plan.get("report_version_id") != report.get("current_version_id")):
         raise PlanError("会后报告已更新，请先重新读取或选择继续使用旧版本")
+    from m1.plan_quality import require_teachable_budget
+    require_teachable_budget(plan)
     _report_doc_for(plan)
     goals = _require_goals(plan)
     if progress:
@@ -666,9 +791,11 @@ def generate(plan_id: int, *, progress=None, actor_id=None,
     overview_data = {
         "student": {"name": plan.get("student_name") or "", "grade": plan.get("grade") or ""},
         "goals": _goal_view(goals),
-        "inputs": {key: _text((plan.get("inputs") or {}).get(key)) for key in INPUT_KEYS},
-        "personal_summary": _personal_text(plan),
+        "inputs": _teaching_inputs(plan),
+        "personal_summary": _personal_text(plan) if plan.get("source_mode") != "mentor_inputs" else "",
+        "teaching_context": _teaching_context(plan),
         "session_count": SESSION_COUNT,
+        "grounding_refs": _grounding_refs(plan),
     }
     overview_result = _ask(plan_prompts.OVERVIEW_PROMPT % (
         plan_prompts.SHARED_RULES, _json(overview_data)))
@@ -705,6 +832,9 @@ def generate(plan_id: int, *, progress=None, actor_id=None,
     if progress:
         progress("sessions", "done")
     _assign_ids(doc)
+    doc, repair = _repair_once(plan, doc, goals, cmap)
+    if repair['attempts'] and not repair.get('applied'):
+        adjustments.append({'path': [], 'label': '一次修订', 'text': '已尝试一次修订；未解决问题保留供导师编辑，不会继续自动重试'})
     if progress:
         progress("checks", "active")
     checks = _version_checks(plan, doc, adjustments)
@@ -712,7 +842,9 @@ def generate(plan_id: int, *, progress=None, actor_id=None,
         plan_id, part="internal", kind="ai_draft",
         ai_doc=copy.deepcopy(doc), doc=copy.deepcopy(doc), checks=checks,
         manifest={
+            "teaching_context": _teaching_context(plan),
             "model": model_name(),
+            "repair": repair,
             "prompt_keys": prompt_keys,
             "wb_candidates": {str(n): [c.get("wb_id") for c in
                                        _session_candidates(session_plan[n - 1], n, goals, cmap)]
@@ -735,6 +867,12 @@ def regenerate(plan_id: int, section, *, progress=None, actor_id=None) -> int:
     plan = pstore.get_plan(plan_id)
     if not plan:
         raise PlanError("发展计划不存在")
+    if plan.get("source_mode") == "mentor_inputs":
+        blockers = pstore.generate_blockers(plan)
+        if blockers:
+            raise PlanError("；".join(blockers))
+    from m1.plan_quality import require_teachable_budget
+    require_teachable_budget(plan)
     current = pstore.current_version(plan_id, "internal")
     if not current or not current.get("doc"):
         raise PlanError("内部版还没有生成")
@@ -751,8 +889,9 @@ def regenerate(plan_id: int, section, *, progress=None, actor_id=None) -> int:
         data = {
             "student": {"name": plan.get("student_name") or "", "grade": plan.get("grade") or ""},
             "goals": _goal_view(goals),
-            "inputs": {key: _text((plan.get("inputs") or {}).get(key)) for key in INPUT_KEYS},
-            "personal_summary": _personal_text(plan),
+            "inputs": _teaching_inputs(plan),
+            "personal_summary": _personal_text(plan) if plan.get("source_mode") != "mentor_inputs" else "",
+            "teaching_context": _teaching_context(plan),
             "session_count": SESSION_COUNT,
         }
         result = _ask(plan_prompts.OVERVIEW_PROMPT % (
@@ -796,7 +935,12 @@ def regenerate(plan_id: int, section, *, progress=None, actor_id=None) -> int:
         manifest.setdefault("wb_candidates", {})[str(n)] = [c.get("wb_id") for c in candidates]
     _assign_ids(doc)
     _assign_ids(ai_doc)
+    doc, repair = (doc, {"attempts": 0, "scope": "overview"}) if section == "overview" else _repair_once(plan, doc, goals, _candidate_map(goals, plan.get("wb_grade")), sections={int(section)})
+    manifest["repair"] = repair
+    if repair['attempts'] and not repair.get('applied'):
+        adjustments.append({'path': [], 'label': '一次修订', 'text': '已尝试一次修订；未解决问题保留供导师编辑'})
     checks = _version_checks(plan, doc, adjustments)
+    manifest["teaching_context"] = _teaching_context(plan)
     manifest["prompt_keys"] = prompt_keys
     manifest["adjustments"] = adjustments
     version = pstore.add_version(
@@ -856,7 +1000,6 @@ def generate_parent(plan_id: int, *, progress=None, actor_id=None) -> int:
             "practices": [{"ref": p.get("id"), "name": _text(p.get("name")),
                            "task": _text(p.get("task"))} for p in session.get("practice") or []],
         } for session in sessions],
-        "personal_summary": _personal_text(plan),
         "block_review": "本节最后有 Block Review & Summary，记录这个 Block 的成长与下一步练习。",
     }
     if progress:
@@ -911,39 +1054,43 @@ def generate_parent(plan_id: int, *, progress=None, actor_id=None) -> int:
         "practice": [internal_practices[0]["ref"]] if len(internal_practices) == 1 else [],
         "family": [_field(value) for value in ai_family],
         "family_seen": [False, False],
+        "family_ack": [{"hash": hashlib.sha1(_text(value).strip().encode("utf-8")).hexdigest(),
+                        "seen": False} for value in ai_family],
         "review": [{"label": _field(point.get("label")), "text": _field(point.get("text"))}
                    for point in ai_review if isinstance(point, dict)],
     }
     limits = plan_kb.PARENT_LIMITS
-    _cap(parent_doc["intro"], limits["intro"], "家长版 · 开场介绍", ["intro"], adjustments)
     for index, goal in enumerate(parent_doc["goals"]):
-        _cap(goal["text"], limits["goal"], "家长版 · 目标 %s" % goal["code"],
-             ["goals", index, "text"], adjustments)
+        label = "家长版 · 目标 %s" % goal["code"]
+        _note_long(goal["text"], limits["goal"], label, ["goals", index, "text"], adjustments)
     for index, session in enumerate(parent_doc["sessions"]):
         label = "家长版 · Session %d" % (index + 1)
-        _cap(session["title"], limits["session_title"], label + " 标题",
-             ["sessions", index, "title"], adjustments)
-        _cap(session["summary"], limits["session_summary"], label + " 小结",
-             ["sessions", index, "summary"], adjustments)
-    _cap(parent_doc["transition"], limits["transition"], "家长版 · 过渡句",
-         ["transition"], adjustments)
+        _note_long(session["title"], limits["session_title"], label + " 标题",
+                   ["sessions", index, "title"], adjustments)
+        _note_long(session["summary"], limits["session_summary"], label + " 小结",
+                   ["sessions", index, "summary"], adjustments)
+    _note_long(parent_doc["intro"], limits["intro"], "家长版 · 开场介绍",
+               ["intro"], adjustments)
+    _note_long(parent_doc["transition"], limits["transition"], "家长版 · 过渡句",
+               ["transition"], adjustments)
     for index, option in enumerate(parent_doc["practice_options"]):
         label = "家长版 · 课后实践 %d" % (index + 1)
-        _cap(option["title"], limits["practice_title"], label + " 名称",
-             ["practice_options", index, "title"], adjustments)
-        _cap(option["text"], limits["practice_text"], label + " 说明",
-             ["practice_options", index, "text"], adjustments)
-        _cap(option["frequency"], limits["practice_frequency"], label + " 频率",
-             ["practice_options", index, "frequency"], adjustments)
+        _note_long(option["title"], limits["practice_title"], label + " 名称",
+                   ["practice_options", index, "title"], adjustments)
+        _note_long(option["text"], limits["practice_text"], label + " 说明",
+                   ["practice_options", index, "text"], adjustments)
+        _note_long(option["frequency"], limits["practice_frequency"], label + " 频率",
+                   ["practice_options", index, "frequency"], adjustments)
     for index, line in enumerate(parent_doc["family"]):
-        _cap(line, limits["family"], "家长版 · 家庭协作 %d" % (index + 1),
-             ["family", index], adjustments)
+        _note_long(line, limits["family"], "家长版 · 家庭协作 %d" % (index + 1),
+                   ["family", index], adjustments)
     for index, point in enumerate(parent_doc["review"]):
         label = "家长版 · 成长观察 %d" % (index + 1)
-        _cap(point["label"], limits["review_label"], label + " 标签",
-             ["review", index, "label"], adjustments)
-        _cap(point["text"], limits["review_text"], label + " 说明",
-             ["review", index, "text"], adjustments)
+        _note_long(point["label"], limits["review_label"], label + " 标签",
+                   ["review", index, "label"], adjustments)
+        _note_long(point["text"], limits["review_text"], label + " 说明",
+                   ["review", index, "text"], adjustments)
+    _require_parent_payload(parent_doc)
     checks = plan_checks.parent_blocking(
         parent_doc, _plan_with_file_texts(plan), internal_doc) + \
         _adjustment_items(adjustments)
@@ -957,3 +1104,118 @@ def generate_parent(plan_id: int, *, progress=None, actor_id=None) -> int:
         source_version_id=internal["id"], created_by=actor_id)
     pstore.finish_generation(plan_id, "parent", version_id=version["id"], status="draft")
     return version["id"]
+
+
+def extract_inputs(plan_id, *, progress=None, actor_id=None, expected_rev=None):
+    plan = pstore.get_plan(plan_id)
+    if not plan:
+        raise PlanError("发展计划不存在")
+    return extract_mentor_inputs(plan, progress=progress, actor_id=actor_id,
+                                 expected_rev=expected_rev)
+
+
+def extract_mentor_inputs(plan, *, progress=None, actor_id=None, expected_rev=None):
+    from m1.plan_context import build_context, BRIEF_FIELDS
+    context = build_context(plan, extraction=True)
+    if plan.get('source_mode') != 'mentor_inputs':
+        context['report_doc'] = _report_view(context['report_doc'])
+        context['report_version_id'] = plan['report_version_id']
+        context['draft_brief'] = plan.get('teaching_brief') or {}
+        context['notes'] = (plan.get('personal') or {}).get('notes') or ''
+        context['files'] = [{'id': f['id'], 'text': (pstore.get_file(f['id']) or {}).get('text', '')}
+                            for f in pstore.list_files(plan['id'])]
+        context['mentor_inputs'] = plan.get('inputs') or {}
+    if not any(context.get(k) for k in ("draft_brief", "notes", "files", "report_doc")) and not any(
+            _text(v) for v in context["mentor_inputs"].values()):
+        raise PlanError("请填写导师资料或上传相关笔记")
+    prompt = ("从授权的导师资料提取可编辑学生资料和教学简报。不得编造未知信息，不得把家长观点当成学生事实。"
+              "不要选择或锁定能力目标。返回 JSON: strengths/needs/context/interests 为文字，"
+              "teaching_brief 为对象，字段只可为 " + ",".join(BRIEF_FIELDS) +
+              "。每个简报字段为 {text,provenance,source_ref}，provenance 为 mentor/student/parent/report/file/unknown，"
+              "source_ref 的文件引用必须为所给文件 id 的字符串，报告引用为 report_version_id 字符串；未知内容省略。所有结果须导师审核确认。\n" + _json(context))
+    if progress:
+        progress("read", "done")
+        progress("inputs", "active")
+    result = _ask(prompt)
+    brief = result.get("teaching_brief", {})
+    if not isinstance(brief, dict):
+        raise PlanError("AI 没有返回有效的教学简报")
+    for value in brief.values():
+        if isinstance(value, dict):
+            value['use_for_teaching'] = False
+            value['disclosure'] = 'internal_only'
+    saved = pstore.save_extracted_context(plan['id'],
+                                         expected_rev if expected_rev is not None else plan['rev'],
+                                         {key: _field(result.get(key)) for key in INPUT_KEYS}, brief,
+                                         actor_id=actor_id)
+    if progress:
+        progress("inputs", "done")
+    return saved
+
+
+def propose_activity(plan_id, rev, source_version_id, activity_id, *, actor_id=None, progress=None):
+    from m1 import plan_activity_proposals as proposals
+    from m1.plan_quality import require_teachable_budget, review
+    plan, doc, si, ai = proposals.source(plan_id, rev, source_version_id, activity_id)
+    require_teachable_budget(plan)
+    blockers = pstore.generate_blockers(plan)
+    if blockers:
+        raise PlanError('；'.join(blockers))
+    session = doc['sessions'][si]
+    focus = session['focus']
+    goals = _require_goals(plan)
+    candidates = _session_candidates(focus, si+1, goals, _candidate_map(goals, plan.get('wb_grade')))
+    old = session['activities'][ai]
+    payload = {'grounding_refs': _grounding_refs(plan), 'teaching_context': _teaching_context(plan),
+               'goals': _goal_view(goals), 'session': session, 'activity_id': activity_id,
+               'target_minutes': old['minutes'], 'candidates': candidates,
+               'timing_budget': plan_kb.timing_budget(si+1, plan['session_durations'][si]),
+               'other_sessions': [s for i, s in enumerate(doc['sessions']) if i != si]}
+    if progress:
+        progress('proposal', 'active')
+    raw = _ask(plan_prompts.ACTIVITY_PROMPT % (plan_prompts.SHARED_RULES, _json(payload)))
+    adjustments = []
+    if not isinstance(raw.get('activity'), dict):
+        raise PlanError('未返回活动建议')
+    candidate = _activity(raw['activity'], si+1, ai+1, [g['code'] for g in goals],
+                          [c['wb_id'] for c in candidates], adjustments)
+    candidate['id'] = activity_id
+    revised = copy.deepcopy(doc)
+    revised['sessions'][si]['activities'][ai] = candidate
+    checks = plan_checks.run_checks(plan, revised) + _adjustment_items(adjustments)
+    # A proposal is itself one draft. One targeted repair at most, no session rewrites.
+    record = {'attempts': 0}
+    def target_issues(draft):
+        result = [c for c in plan_checks.run_checks(plan, draft) if c['level'] == 'review' and (
+            c['path'][:4] == ['sessions', si, 'activities', ai] or c['path'][:3] == ['sessions', si, 'timing'])]
+        if draft['sessions'][si]['activities'][ai]['minutes'] != old['minutes']:
+            result.append({'id': 'dp12-proposal-minutes', 'level': 'review', 'path': ['sessions', si, 'activities', ai, 'minutes'],
+                           'label': '替换时长', 'text': '替换必须保留目标活动分钟数'})
+        return result
+    candidate_issues = target_issues(revised)
+    if candidate_issues:
+        record['attempts'] = 1
+        try:
+            fix = _ask(plan_prompts.ACTIVITY_PROMPT % (plan_prompts.SHARED_RULES,
+                _json(dict(payload, candidate=candidate, checks=candidate_issues, repair='仅本次一次修订'))), attempts=1)
+            fixed = _activity(fix['activity'], si+1, ai+1, [g['code'] for g in goals], [c['wb_id'] for c in candidates], [])
+            fixed['id'] = activity_id
+            trial = copy.deepcopy(doc)
+            trial['sessions'][si]['activities'][ai] = fixed
+            remaining = target_issues(trial)
+            record['applied'] = len(remaining) < len(candidate_issues)
+            if record['applied']:
+                candidate, revised = fixed, trial
+        except Exception as exc:
+            record['applied'] = False
+            record['error'] = type(exc).__name__
+    checks = plan_checks.run_checks(plan, revised) + _adjustment_items(adjustments)
+    checks.extend(c for c in target_issues(revised) if c['id'] not in {i['id'] for i in checks})
+    if record['attempts'] and not record.get('applied'):
+        checks.append({'id': 'dp12-proposal-repair', 'level': 'review', 'path': [], 'label': '一次修订',
+                       'text': '已尝试一次修订，未解决问题保留；不能自动信任来源或引用'})
+    result = proposals.create(plan_id, rev, source_version_id, activity_id, candidate, checks,
+        {'repair': record, 'wb_candidates': [c['wb_id'] for c in candidates]}, actor_id=actor_id)
+    if progress:
+        progress('proposal', 'done')
+    return result

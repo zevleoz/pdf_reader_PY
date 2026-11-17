@@ -6,10 +6,12 @@
   var listHost = doc ? doc.getElementById('m1List') : null;
   var dlg = doc ? doc.getElementById('planDlg') : null;
 
-  // 排序是纯函数，导出给页面测试用。
+  // 排序与新建表单是纯函数，导出给页面测试用。
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = { sortPreps: sortPreps, sortReports: sortReports,
-      uniqueByStudent: uniqueByStudent };
+      uniqueByStudent: uniqueByStudent, eligiblePath: eligiblePath,
+      creationPayload: creationPayload, planHintText: planHintText,
+      gradeVisible: gradeVisible };
   }
   if (!root || !listHost) return;
 
@@ -19,6 +21,14 @@
     preps: [],
     plans: [],
     eligible: [],
+    eligibleReport: [],
+    eligibleDirect: [],
+    loaded: { report: false, direct: false },
+    mentors: [],
+    mentorsLoaded: false,
+    canAssignMentor: root.dataset.canAssignMentor === '1',
+    meName: root.dataset.meName || '',
+    mode: 'report',
     me: null,
     who: root.dataset.defaultWho === 'all' ? 'all' : 'mine',
     view: 'all',
@@ -71,6 +81,59 @@
     var parts = text.split('-');
     var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     return parts[1] + '-' + parts[2] + ' 周' + DAYS[d.getDay()];
+  }
+
+  function eligiblePath(mode) {
+    return mode === 'direct'
+      ? '/api/m1/plans/eligible?source_mode=mentor_inputs'
+      : '/api/m1/plans/eligible';
+  }
+
+  function gradeVisible(mode, student) {
+    if (mode === 'direct') return true;
+    return !(student && student.wb_grade != null && student.wb_grade !== '');
+  }
+
+  function planHintText(mode, opts) {
+    var hasStudent = opts && opts.hasStudent;
+    var hasDates = opts && opts.hasDates;
+    var hasMentor = opts && opts.hasMentor;
+    var count = opts && opts.eligibleCount;
+    if (mode === 'direct') {
+      if (count === 0) return '没有可访问的学生。';
+      if (!hasStudent) return '先选择学生';
+      if (!hasMentor) return '选择负责导师';
+      if (!hasDates) return '填好阶段开始和结束后就可以新建';
+      return '直接创建不需要会后报告；新建后填写教学简报并确认。';
+    }
+    if (count === 0) return '还没有会后报告已生成 AI 草稿的学生。';
+    if (!hasStudent) return '先选择学生';
+    if (!hasDates) return '填好阶段开始和结束后就可以新建';
+    return '会后报告生成 AI 草稿后就可以新建';
+  }
+
+  // 两种创建方式共用一套字段，但派生字段不同：报告路径必须带 prep_id，
+  // 直接路径必须带 source_mode，且从不发送 prep/report 标识。
+  function creationPayload(mode, values) {
+    var body = {
+      student_id: Number(values.studentId),
+      block_no: Number(values.blockNo),
+      period_start: values.periodStart,
+      period_end: values.periodEnd,
+      credits: values.credits
+    };
+    if (values.wbGrade != null && values.wbGrade !== '') {
+      body.wb_grade = Number(String(values.wbGrade).replace(/^G/, ''));
+    }
+    if (mode === 'direct') {
+      body.source_mode = 'mentor_inputs';
+      if (values.mentorUserId != null && values.mentorUserId !== '') {
+        body.mentor_user_id = Number(values.mentorUserId);
+      }
+    } else {
+      body.prep_id = Number(values.prepId);
+    }
+    return body;
   }
 
   function matchesWho(row) {
@@ -202,10 +265,16 @@
       var name = item.name || (plan._names && plan._names[item.code]) || '';
       return name ? item.code + ' ' + name : item.code;
     }).join('、');
+    var co = ((plan.team || {}).co_mentors || []).map(function (row) {
+      return row.name;
+    }).filter(Boolean);
     var meta = [md(plan.period_start) + (plan.period_end ? ' 至 ' + md(plan.period_end) : ''),
-      plan.mentor_name].filter(Boolean).join(' · ');
+      plan.mentor_name,
+      co.length ? '共同导师 ' + co.join('、') : ''].filter(Boolean).join(' · ');
     var block = el('span', 'c-t', 'Block ' + plan.block_no);
-    if (meta) block.appendChild(el('small', null, meta));
+    var planMeta = plan.source_mode === 'mentor_inputs'
+      ? ('直接创建' + (meta ? ' · ' + meta : '')) : meta;
+    if (planMeta) block.appendChild(el('small', null, planMeta));
     return [
       nameCell(plan),
       block,
@@ -435,14 +504,19 @@
   // -------------------------------------------------------------------------
   function planField(id) { return document.getElementById(id); }
 
+  function eligibleFor(mode) {
+    return mode === 'direct' ? state.eligibleDirect : state.eligibleReport;
+  }
+
   function setOptions(select, items) {
     select.innerHTML = '';
     var blank = el('option', null, '选择学生');
     blank.value = '';
     select.appendChild(blank);
     items.forEach(function (item) {
+      var meta = [item.student_code, item.grade].filter(Boolean).join(' · ');
       var option = el('option', null,
-        item.name + ' · ' + item.student_code + ' · 下一个 Block ' + item.next_block);
+        item.name + (meta ? ' · ' + meta : '') + ' · 下一个 Block ' + item.next_block);
       option.value = String(item.student_id);
       select.appendChild(option);
     });
@@ -450,25 +524,47 @@
 
   function chosenStudent() {
     var value = planField('planStudent').value;
-    return state.eligible.filter(function (item) {
+    return eligibleFor(state.mode).filter(function (item) {
       return String(item.student_id) === value;
     })[0] || null;
   }
 
-  function planHintText(hasStudent, hasDates) {
-    if (!hasStudent) return '先选择学生';
-    if (!hasDates) return '填好阶段开始和结束后就可以新建';
-    return '会后报告生成 AI 草稿后就可以新建';
+  function currentMentorId() {
+    var select = planField('planMentorUser');
+    if (select && !select.hidden && select.value) return select.value;
+    return state.me == null ? '' : String(state.me);
+  }
+
+  function showPlanError(message) {
+    var box = planField('planError');
+    if (!box) return;
+    box.textContent = message || '';
+    box.hidden = !message;
+  }
+
+  function clearPlanError() {
+    showPlanError('');
   }
 
   function syncPlanGo() {
     var go = planField('planGo');
     if (!go) return;
+    var select = planField('planMentorUser');
     var hasStudent = !!planField('planStudent').value;
+    var hasBlock = Number(planField('planBlock').value) > 0;
     var hasDates = !!(planField('planStart').value && planField('planEnd').value);
-    go.disabled = !(hasStudent && planField('planBlock').value && hasDates);
+    var hasMentor = true;
+    if (state.mode === 'direct' && state.canAssignMentor && select && !select.hidden) {
+      hasMentor = !!select.value;
+    }
+    go.disabled = !(hasStudent && hasBlock && hasDates && hasMentor);
     var hint = planField('planHint');
-    if (hint) hint.textContent = planHintText(hasStudent, hasDates);
+    if (hint) {
+      hint.textContent = planHintText(state.mode, {
+        hasStudent: hasStudent, hasDates: hasDates, hasMentor: hasMentor,
+        eligibleCount: eligibleFor(state.mode).length
+      });
+    }
   }
 
   function syncStudentFields() {
@@ -478,12 +574,14 @@
     var note = planField('planMentor');
     if (student) {
       block.value = String(student.next_block || 1);
-      grade.hidden = student.wb_grade != null && student.wb_grade !== '';
     } else {
       block.value = '';
-      grade.hidden = true;
     }
-    if (student && student.mentor_user_id !== state.me && student.mentor_name) {
+    grade.hidden = !gradeVisible(state.mode, student);
+    if (state.mode === 'direct') {
+      note.hidden = true;
+      note.textContent = '';
+    } else if (student && student.mentor_user_id !== state.me && student.mentor_name) {
       note.hidden = false;
       note.textContent = '负责导师：' + student.mentor_name + '。只有负责导师可以修改。';
     } else {
@@ -493,29 +591,109 @@
     syncPlanGo();
   }
 
-  function openPlanDialog(prepId) {
-    if (!dlg) return;
-    var select = planField('planStudent');
-    setOptions(select, state.eligible);
-    ['planBlock', 'planStart', 'planEnd', 'planCredits'].forEach(function (id) {
-      planField(id).value = '';
-    });
-    planField('planGrade').value = '';
-    planField('planGradeWrap').hidden = true;
-    planField('planMentor').hidden = true;
+  function syncMentorFields() {
+    var wrap = planField('planMentorWrap');
+    var selfWrap = planField('planMentorSelfWrap');
+    var direct = state.mode === 'direct';
+    var assign = direct && state.canAssignMentor && state.mentors.length > 0;
+    if (wrap) wrap.hidden = !assign;
+    if (selfWrap) selfWrap.hidden = !(direct && !assign);
+    var self = planField('planMentorSelf');
+    if (self) self.value = (state.meName || '当前账号') + '（你）';
+    syncPlanGo();
+  }
 
-    var prep = state.preps.filter(function (row) {
-      return String(row.id) === String(prepId || '');
-    })[0];
-    if (prep) {
-      var matched = state.eligible.filter(function (item) {
-        return item.student_id === prep.student_id;
-      })[0];
-      if (matched) select.value = String(matched.student_id);
+  function loadEligible(mode) {
+    if (state.loaded[mode]) return Promise.resolve(eligibleFor(mode));
+    return api(eligiblePath(mode)).then(function (data) {
+      var rows = data.students || [];
+      if (mode === 'direct') state.eligibleDirect = rows;
+      else state.eligibleReport = rows;
+      state.loaded[mode] = true;
+      return rows;
+    });
+  }
+
+  function loadMentors() {
+    if (state.mentorsLoaded) return Promise.resolve();
+    return api('/api/m1/mentors').then(function (data) {
+      state.mentors = data.mentors || [];
+      state.mentorsLoaded = true;
+      var select = planField('planMentorUser');
+      if (!select) return;
+      select.innerHTML = '';
+      state.mentors.forEach(function (mentor) {
+        var option = el('option', null, mentor.display_name || ('用户 ' + mentor.id));
+        option.value = String(mentor.id);
+        select.appendChild(option);
+      });
+      var self = state.me == null ? '' : String(state.me);
+      var hasSelf = state.mentors.some(function (mentor) {
+        return String(mentor.id) === self;
+      });
+      if (hasSelf) select.value = self;
+      else if (state.mentors[0]) select.value = String(state.mentors[0].id);
+    }).catch(function () {
+      state.canAssignMentor = false;
+    });
+  }
+
+  function setMode(mode) {
+    state.mode = mode === 'direct' ? 'direct' : 'report';
+    Array.prototype.forEach.call(document.querySelectorAll('#planMode [data-mode]'), function (button) {
+      var on = button.dataset.mode === state.mode;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    var note = planField('planModeNote');
+    if (note) {
+      note.textContent = state.mode === 'direct'
+        ? '直接创建不读取会后报告；Block、阶段周期和负责导师为必填。'
+        : '会后报告生成 AI 草稿后就可以新建；也可以直接创建教案。';
     }
-    syncStudentFields();
-    dlg.hidden = false;
-    select.focus();
+    clearPlanError();
+    return loadEligible(state.mode).then(function () {
+      setOptions(planField('planStudent'), eligibleFor(state.mode));
+      if (state.mode === 'direct' && state.canAssignMentor) return loadMentors();
+      return null;
+    }).then(function () {
+      syncMentorFields();
+      syncStudentFields();
+      renderEligibleNote();
+    }).catch(function (err) {
+      showPlanError(err.message || '加载学生失败');
+    });
+  }
+
+  function openPlanDialog(prepId, opts) {
+    if (!dlg) return Promise.resolve();
+    opts = opts || {};
+    return setMode(opts.mode === 'direct' ? 'direct' : 'report').then(function () {
+      var select = planField('planStudent');
+      setOptions(select, eligibleFor(state.mode));
+      ['planBlock', 'planStart', 'planEnd', 'planCredits'].forEach(function (id) {
+        planField(id).value = '';
+      });
+      planField('planGrade').value = '';
+      clearPlanError();
+
+      var studentId = opts.studentId;
+      if (studentId == null && prepId) {
+        var prep = state.preps.filter(function (row) {
+          return String(row.id) === String(prepId);
+        })[0];
+        if (prep) studentId = prep.student_id;
+      }
+      if (studentId != null) {
+        var matched = eligibleFor(state.mode).filter(function (item) {
+          return String(item.student_id) === String(studentId);
+        })[0];
+        if (matched) select.value = String(matched.student_id);
+      }
+      syncStudentFields();
+      dlg.hidden = false;
+      select.focus();
+    });
   }
 
   function closePlanDialog() {
@@ -527,25 +705,26 @@
     var go = planField('planGo');
     if (!student || !go) return;
     go.disabled = true;
-    var body = {
-      student_id: student.student_id,
-      prep_id: student.prep_id,
-      block_no: Number(planField('planBlock').value),
-      period_start: planField('planStart').value,
-      period_end: planField('planEnd').value,
-      credits: planField('planCredits').value
+    clearPlanError();
+    var values = {
+      studentId: student.student_id,
+      prepId: student.prep_id,
+      blockNo: planField('planBlock').value,
+      periodStart: planField('planStart').value,
+      periodEnd: planField('planEnd').value,
+      credits: planField('planCredits').value,
+      wbGrade: planField('planGradeWrap').hidden ? '' : planField('planGrade').value,
+      mentorUserId: state.mode === 'direct' ? currentMentorId() : ''
     };
-    if (planField('planGradeWrap').hidden === false) {
-      var gradeValue = planField('planGrade').value;
-      if (gradeValue) body.wb_grade = Number(gradeValue.replace('G', ''));
-    }
-    api('/api/m1/plans', { method: 'POST', body: body }).then(function (data) {
-      var id = data.plan && data.plan.id;
-      window.location.href = id ? '/m1/plans/' + id + '#step=inputs' : '/m1/plans';
-    }).catch(function (err) {
-      go.disabled = false;
-      if (window.v2Toast) window.v2Toast(err.message || '新建失败');
-    });
+    api('/api/m1/plans', { method: 'POST', body: creationPayload(state.mode, values) })
+      .then(function (data) {
+        var id = data.plan && data.plan.id;
+        window.location.href = id ? '/m1/plans/' + id + '#step=inputs' : '/m1/plans';
+      }).catch(function (err) {
+        go.disabled = false;
+        showPlanError(err.message || '新建失败');
+        if (window.v2Toast) window.v2Toast(err.message || '新建失败');
+      });
   }
 
   function renderEligibleNote() {
@@ -555,12 +734,10 @@
     var blocked = state.preps.filter(function (row) {
       return ready.indexOf((row.report || {}).status || '') === -1;
     }).map(function (row) { return row.student_name; });
-    if (blocked.length) {
-      host.textContent = '可以发展计划的学生：会后报告已有 AI 草稿（' +
-        blocked.join('、') + ' 的报告还没生成，所以不在这里）。';
-    } else {
-      host.textContent = '可以发展计划的学生：会后报告已有 AI 草稿的学生都在这里。';
-    }
+    var reportNote = blocked.length
+      ? '会后报告已有 AI 草稿的学生可以新建（' + blocked.join('、') + ' 的报告还没生成）。'
+      : '会后报告已有 AI 草稿的学生都可以新建。';
+    host.textContent = reportNote + ' 没有报告也可以直接创建教案。';
   }
 
   // -------------------------------------------------------------------------
@@ -610,11 +787,31 @@
         var button = document.getElementById(id);
         if (button) button.addEventListener('click', closePlanDialog);
       });
-      planField('planStudent').addEventListener('change', syncStudentFields);
-      ['planBlock', 'planStart', 'planEnd'].forEach(function (id) {
-        planField(id).addEventListener('input', syncPlanGo);
-        planField(id).addEventListener('change', syncPlanGo);
+      Array.prototype.forEach.call(document.querySelectorAll('#planMode [data-mode]'), function (button) {
+        button.addEventListener('click', function () { setMode(button.dataset.mode); });
+        button.addEventListener('keydown', function (event) {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          event.preventDefault();
+          var next = button.dataset.mode === 'report' ? 'direct' : 'report';
+          setMode(next);
+          var target = document.querySelector('#planMode [data-mode="' + next + '"]');
+          if (target) target.focus();
+        });
       });
+      planField('planStudent').addEventListener('change', function () {
+        clearPlanError();
+        syncStudentFields();
+      });
+      ['planBlock', 'planStart', 'planEnd', 'planCredits', 'planGrade'].forEach(function (id) {
+        var field = planField(id);
+        if (!field) return;
+        field.addEventListener('input', function () { clearPlanError(); syncPlanGo(); });
+        field.addEventListener('change', function () { clearPlanError(); syncPlanGo(); });
+      });
+      var mentorSelect = planField('planMentorUser');
+      if (mentorSelect) {
+        mentorSelect.addEventListener('change', function () { clearPlanError(); syncPlanGo(); });
+      }
       planField('planGo').addEventListener('click', submitPlan);
     }
   }
@@ -628,12 +825,22 @@
       return;
     }
     return api('/api/m1/plans/eligible').then(function (eligible) {
-      state.eligible = eligible.students || [];
+      state.eligibleReport = eligible.students || [];
+      state.loaded.report = true;
       renderEligibleNote();
       setWho(state.who);
       setView(state.view);
-      var wanted = new URLSearchParams(window.location.search).get('new');
-      if (wanted) openPlanDialog(wanted);
+      var params = new URLSearchParams(window.location.search);
+      var wantedPrep = params.get('new');
+      var wantedStudent = params.get('new_student');
+      var wantedMode = params.get('mode');
+      if (wantedStudent) {
+        openPlanDialog(null, { mode: 'direct', studentId: wantedStudent });
+      } else if (wantedMode === 'direct') {
+        openPlanDialog(null, { mode: 'direct' });
+      } else if (wantedPrep) {
+        openPlanDialog(wantedPrep);
+      }
     });
   }).catch(function (err) {
     if (window.v2Toast) window.v2Toast(err.message || '加载失败');

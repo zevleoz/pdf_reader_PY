@@ -127,12 +127,30 @@ def _promise_word(text: str) -> Optional[str]:
 
 
 def _activity_text(activity: Dict[str, Any]) -> str:
-    return " ".join(_text(activity.get(key)) for key in ("name", "steps", "questions"))
+    return " ".join(_text(activity.get(key)) for key in ("name", "steps", "questions", "materials") + plan_kb.RICH_ACTIVITY_FIELDS)
 
 
 def run_checks(plan: Dict[str, Any], doc: Dict[str, Any]) -> List[Dict[str, Any]]:
     """内部版全部检查项：需要核对 + 其他提示。"""
-    return internal_review(plan, doc) + internal_hints(plan, doc)
+    from m1.plan_quality import review, structure_issues
+    if not isinstance(doc, dict):
+        return []
+    sessions = doc.get('sessions')
+    malformed = not isinstance(sessions, list)
+    if not malformed:
+        malformed = any(not isinstance(s, dict) or type(s.get('n')) is not int or
+            not isinstance(s.get('activities', []), list) or
+            any(not isinstance(a, dict) for a in s.get('activities', [])) or
+            not isinstance(s.get('practice', []), list) or
+            any(not isinstance(p, dict) for p in s.get('practice', [])) or
+            not isinstance(s.get('focus', {}), dict) for s in sessions)
+    if malformed:
+        return [{'id': 'dp12-structure', 'level': 'review', 'path': ['sessions'],
+                 'label': '教学草稿核对', 'text': '课程/活动/实践结构无效，请核对'}]
+    invalid = structure_issues(doc) if any(s.get("teaching_schema") == 2 for s in sessions) else []
+    if invalid:
+        return invalid
+    return internal_review(plan, doc) + internal_hints(plan, doc) + (review(plan, doc) if isinstance(doc, dict) else [])
 
 
 def internal_review(plan: Dict[str, Any], doc: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -153,6 +171,7 @@ def internal_review(plan: Dict[str, Any], doc: Dict[str, Any]) -> List[Dict[str,
             label = "Session %d · Activity %d" % (n, a_index + 1)
             path = ["sessions", index, "activities", a_index]
             text = _activity_text(activity)
+            _promise_field(items, text, label, path, "activity-s%da%d" % (n, a_index + 1))
             if text and lessons and any(
                     _copy_hit(text, lesson["text"], lesson["name"]) for lesson in lessons):
                 _add(items, "review", "copy-s%da%d" % (n, a_index + 1), path, label, COPY_TEXT)
@@ -266,7 +285,7 @@ def internal_hints(plan: Dict[str, Any], doc: Dict[str, Any]) -> List[Dict[str, 
         if not focus.get("supporting"):
             _add(items, "hint", "hint-supporting-s%d" % n, [],
                  "Session %d" % n, "没有关联辅助目标。")
-        total = sum(int(activity.get("minutes") or 0)
+        total = sum(activity.get("minutes") if type(activity.get("minutes")) is int else 0
                     for activity in session.get("activities") or []
                     if isinstance(activity, dict))
         if total > 90:
@@ -336,7 +355,7 @@ def _parent_sources(plan: Dict[str, Any], internal_doc: Dict[str, Any]) -> List[
 
 
 def _parent_limit_items(items: List[Dict[str, Any]], doc: Dict[str, Any]) -> None:
-    """家长版超字数的阻断项；上限只来自 ``plan_kb.PARENT_LIMITS``。"""
+    """家长版超过编辑建议长度的提示；只来自 ``plan_kb.PARENT_LIMITS``，不阻断导出。"""
     limits = plan_kb.PARENT_LIMITS
     sections = plan_kb.parent().get("sections") or []
 
@@ -351,9 +370,10 @@ def _parent_limit_items(items: List[Dict[str, Any]], doc: Dict[str, Any]) -> Non
         text = _text(value)
         if not text or len(text) <= limit:
             return
-        _add(items, "blocking",
+        _add(items, "hint",
              "parent-long-%s" % "-".join(str(part) for part in path), path, label,
-             "%s · 第 %d 项 · 超过 %d 字，请缩短" % (section, number, limit))
+             "%s · 第 %d 项 · 超过建议长度 %d 字，可酌情精简（不影响导出）"
+             % (section, number, limit))
 
     over(doc.get("intro"), limits["intro"], "开场介绍", 1, ["intro"],
          "家长版 · 开场介绍")
@@ -494,8 +514,6 @@ def parent_blocking(doc: Dict[str, Any], plan: Dict[str, Any],
                 _add(items, "blocking", "parent-empty-review-%d-%s" % (index, key),
                      ["review", index, key], "家长版 · 成长观察", "%s是空的" % label)
 
-    _parent_limit_items(items, doc)
-
     texts = _parent_texts(doc)
     if _shares_run(texts, _parent_sources(plan, internal_doc), 8):
         _add(items, "blocking", "parent-copied-notes", [], "家长版 · 个性化需求",
@@ -518,10 +536,11 @@ def _bigrams(text: str) -> set:
 
 def parent_hints(doc: Dict[str, Any], plan: Dict[str, Any],
                  internal_doc: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-    """家长版的其他提示：成长观察不要和目标原文重复。"""
+    """家长版的提示：建议长度超限、成长观察与目标原文太近；都不阻断导出。"""
     items = _items()
     if not isinstance(doc, dict):
         return items
+    _parent_limit_items(items, doc)
     goal_grams = []
     for goal in plan.get("goals") or []:
         grams = _bigrams(_text(goal.get("goal")))

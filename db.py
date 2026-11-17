@@ -232,6 +232,8 @@ def init_db() -> None:
         import y4_upload  # noqa: F401
     except Exception as e:  # 导入失败不应阻断既有功能
         print(f"[DB] Y4 上传模型注册失败 (非致命): {e}")
+    import m1.plan_store as _plan_store
+    _plan_store.ensure_tables(engine)
     Base.metadata.create_all(engine)
     try:
         import y4_upload as _y4u

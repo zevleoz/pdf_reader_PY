@@ -311,23 +311,25 @@ def test_parent_prompt_lengths_match_shared_limits(ready, monkeypatch):
 
     limits = plan_kb.PARENT_LIMITS
     phrases = [
-        "60 至 %(intro)d 字" % limits,
-        "不超过 %(goal)d 字" % limits,
-        "不超过 %(session_title)d 字" % limits,
-        "30 至 %(session_summary)d 字" % limits,
-        "不超过 %(transition)d 字" % limits,
-        "分别不超过 %(practice_title)d、%(practice_text)d、%(practice_frequency)d 字" % limits,
-        "每条不超过 %(family)d 字" % limits,
-        "不超过 %(review_label)d 字" % limits,
-        "不超过 %(review_text)d 字" % limits,
+        "不设页数上限",
+        "建议 60 至 %(intro)d 字" % limits,
+        "建议不超过 %(goal)d 字" % limits,
+        "建议不超过 %(session_title)d 字" % limits,
+        "建议 30 至 %(session_summary)d 字" % limits,
+        "建议不超过 %(transition)d 字" % limits,
+        "建议分别不超过 %(practice_title)d、%(practice_text)d、%(practice_frequency)d 字" % limits,
+        "建议每条不超过 %(family)d 字" % limits,
+        "建议不超过 %(review_label)d 字" % limits,
+        "建议不超过 %(review_text)d 字" % limits,
+        "以上字数是编辑建议",
     ]
     for phrase in phrases:
         assert phrase in prompt
-    for old in ("120 字", "80 字"):
+    for old in ("两页文字", "120 字", "80 字"):
         assert old not in prompt
 
 
-def test_parent_truncates_fields_to_shared_limits(ready, monkeypatch):
+def test_parent_keeps_long_fields_without_truncation(ready, monkeypatch):
     _db, plan = ready
     _approved(plan, monkeypatch, FakeModel())
     plan = pstore.get_plan(plan["id"])
@@ -349,11 +351,36 @@ def test_parent_truncates_fields_to_shared_limits(ready, monkeypatch):
     pstore.begin_generation(plan["id"], "parent")
     parent_id = pipeline.generate_parent(plan["id"])
     version = pstore.get_version(parent_id)
-    assert len(version["doc"]["goals"][0]["text"]["text"]) == limits["goal"]
-    assert len(version["doc"]["family"][0]["text"]) == limits["family"]
-    labels = [item["text"] for item in version["checks"]]
-    assert any("超过 %d 字，已删去后面的句子" % limits["goal"] in text for text in labels)
-    assert any("超过 %d 字，已删去后面的句子" % limits["family"] in text for text in labels)
+    # 全文保留，长度不再被截断。
+    assert version["doc"]["goals"][0]["text"]["text"] == long_goal
+    assert version["doc"]["family"][0]["text"] == parent["family"][0]
+    hints = [item for item in version["checks"] if item["level"] == "hint"]
+    assert any("超过建议长度 %d 字" % limits["goal"] in item["text"] for item in hints)
+    assert any("超过建议长度 %d 字" % limits["family"] in item["text"] for item in hints)
+    assert not any("已删去" in item["text"] for item in version["checks"])
+    assert not any(item.get("id", "").startswith("parent-long-") and item["level"] == "blocking"
+                   for item in version["checks"])
+
+
+def test_parent_payload_over_technical_limit_fails_loudly(ready, monkeypatch):
+    _db, plan = ready
+    _approved(plan, monkeypatch, FakeModel())
+    plan = pstore.get_plan(plan["id"])
+    internal = pstore.current_version(plan["id"], "internal")["doc"]
+    parent = _parent_result({
+        "goals": plan["goals"],
+        "sessions": [{"n": session["n"],
+                      "practices": [{"ref": practice["id"]}
+                                    for practice in session.get("practice") or []]}
+                     for session in internal["sessions"]],
+    })
+    parent["intro"] = "长" * (plan_kb.PARENT_PAYLOAD_LIMIT + 1)
+
+    fake = FakeModel(parent=parent)
+    monkeypatch.setattr(pipeline, "call_model", fake)
+    pstore.begin_generation(plan["id"], "parent")
+    with pytest.raises(pipeline.PlanError, match="技术上限"):
+        pipeline.generate_parent(plan["id"])
 
 
 def test_parent_wrong_goal_count_fails(ready, monkeypatch):

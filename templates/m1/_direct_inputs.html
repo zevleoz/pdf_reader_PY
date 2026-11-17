@@ -1,0 +1,93 @@
+{% if plan and plan.source_mode == 'mentor_inputs' %}
+{% set initial = {
+  'plan': plan,
+  'files': files|default([]),
+  'goals': goals|default([]),
+  'can_edit': step1_editable|default(false)
+} %}
+<link rel="stylesheet" href="/m1/assets/direct_inputs.css">
+<section id="m1DirectInputs" class="di" aria-label="直接创建教案的教学输入"
+         data-direct-inputs
+         data-plan-id="{{ plan.id }}"
+         data-source-mode="{{ plan.source_mode }}"
+         data-rev="{{ plan.rev }}"
+         data-can-edit="{{ 1 if step1_editable else 0 }}">
+  <script type="application/json" data-role="initial">{{ initial|tojson }}</script>
+
+  <div class="di-head">
+    <div>
+      <h2>教学输入</h2>
+      <p class="di-lead">
+        这里只用于直接创建的计划。资料用于起草；教学简报是导师对学生的判断，
+        需要逐项核对来源并明确确认。编辑资料文本不会自动替代已确认的简报。
+      </p>
+    </div>
+    <div class="di-state" data-role="status" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="di-alert" data-role="alert" role="alert" hidden></div>
+
+  <section class="di-card" aria-labelledby="diProfileH">
+    <div class="di-card-head">
+      <h3 id="diProfileH">学生资料</h3>
+      <span class="di-note">可编辑。保存后可用于资料提取；教学内容以导师确认并授权的教学简报为准。</span>
+    </div>
+    <div class="di-fields" data-role="profile"></div>
+    <div class="di-actions">
+      <button class="btn" type="button" data-role="save-profile">保存学生资料</button>
+      <span class="di-save" data-role="profile-state" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <section class="di-card" aria-labelledby="diBriefH">
+    <div class="di-card-head">
+      <h3 id="diBriefH">教学简报</h3>
+      <span class="di-note" data-role="brief-state"></span>
+    </div>
+    <p class="di-missing" data-role="brief-missing" role="status" aria-live="polite"></p>
+    <div data-role="brief"></div>
+    <div class="di-actions">
+      <button class="btn" type="button" data-role="save-brief">保存教学简报</button>
+      <button class="btn p" type="button" data-role="confirm-brief">确认教学简报</button>
+      <span class="di-save" data-role="brief-save-state" aria-live="polite"></span>
+    </div>
+    <p class="di-note">
+      学生意愿、家长诉求与内部教学判断分区显示。标记「可进入家长版」只表示可作为素材；
+      家长版仍需单独确认与导出。未标注的内部内容不会进入家长版。
+    </p>
+  </section>
+
+  <section class="di-card" aria-labelledby="diFilesH">
+    <div class="di-card-head">
+      <h3 id="diFilesH">资料与提取</h3>
+      <span class="di-note">支持 .txt / .docx / .pdf，单个文件不超过 10 MB。</span>
+    </div>
+    <div class="di-upload">
+      <label class="di-file-label">选择资料
+        <input type="file" data-role="file-input" accept=".txt,.docx,.pdf">
+      </label>
+      <button class="btn" type="button" data-role="upload">上传</button>
+      <span class="di-save" data-role="upload-state" aria-live="polite"></span>
+    </div>
+    <ul class="di-files" data-role="files"></ul>
+    <div class="di-actions">
+      <button class="btn p" type="button" data-role="extract">从资料提取草案</button>
+      <span class="di-save" data-role="extract-state" aria-live="polite"></span>
+    </div>
+    <p class="di-note">
+      AI 提取会写入可编辑的资料和简报草案，并把所有条目设为未授权、仅内部使用；
+      不会自动确认。提取失败时保留已输入内容，可直接重试。
+    </p>
+  </section>
+
+  <section class="di-card" aria-labelledby="diGoalsH">
+    <div class="di-card-head">
+      <h3 id="diGoalsH">发展目标措辞</h3>
+      <span class="di-note">先确认教学简报，再让 AI 起草目标描述。</span>
+    </div>
+    <div class="di-goals" data-role="goals"></div>
+    <span class="di-save" data-role="goal-state" aria-live="polite"></span>
+  </section>
+</section>
+<script src="/m1/assets/direct_inputs.js" defer></script>
+{% endif %}

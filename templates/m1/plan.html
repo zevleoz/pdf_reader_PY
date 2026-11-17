@@ -24,6 +24,39 @@
 {%- endmacro %}
 
 {% set st = plan.status %}
+{% set direct = plan.source_mode == 'mentor_inputs' %}
+{% set collab_team = page_state.collaboration.team %}
+{% set co_mentors = collab_team.co_mentors if collab_team else [] %}
+{% set durations = plan.session_durations or [60, 60, 60] %}
+{% set direct_brief = plan.teaching_brief or {} %}
+{% set direct_brief_confirmed = direct and plan.brief_revision and plan.brief_confirmed_revision == plan.brief_revision %}
+{% set rich_keys = ['purpose', 'personalization', 'student_action', 'expected_attempt', 'support', 'extension'] %}
+{% set rich_labels = {
+  'purpose': '教学目标与理由',
+  'personalization': '针对这名学生的设计',
+  'student_action': '学生要做什么',
+  'expected_attempt': '可观察的尝试',
+  'support': '学生卡住时',
+  'extension': '学生准备好时'
+} %}
+{% set ref_labels = {
+  'brief.student_wish': '学生意愿',
+  'brief.student_willingness': '学生意愿程度',
+  'brief.topics_to_avoid': '避免的话题',
+  'brief.parent_priority': '家长关注',
+  'brief.strengths': '优势',
+  'brief.learning_need': '学习需要',
+  'brief.current_situation': '当前情境',
+  'brief.current_response': '当前反应',
+  'brief.interests': '兴趣',
+  'brief.preferences': '学习偏好',
+  'brief.constraints': '限制',
+  'brief.teaching_implications': '教学启示',
+  'inputs.strengths': '报告 · 积极资源',
+  'inputs.needs': '报告 · 主要需求',
+  'inputs.context': '报告 · 生活情境',
+  'inputs.interests': '报告 · 兴趣偏好'
+} %}
 {% set s1 = 'n' if st == 'inputs' else 'd' %}
 {% set s2 = 'x' if st == 'inputs' else ('d' if st == 'approved' else 'n') %}
 {% set s3 = 'd' if plan.parent_status in ('confirmed', 'exported') else ('n' if st == 'approved' or plan.parent_status in ('generating', 'draft') else 'x') %}
@@ -33,11 +66,11 @@
 <div class="plan-page" id="m1Plan" data-plan-id="{{ plan.id }}" data-status="{{ st }}"
      data-default-step="{{ default_step }}" data-job-id="{{ job_id or '' }}"
      data-step1="{{ 1 if step1_editable else 0 }}" data-step2="{{ 1 if step2_editable else 0 }}"
-     data-can-edit="{{ 1 if can_edit else 0 }}">
+     data-can-edit="{{ 1 if can_edit else 0 }}" data-source-mode="{{ plan.source_mode }}">
 
   <div class="head th">
     <div>
-      <h1>发展计划<span>{{ state_label }}</span></h1>
+      <h1>发展计划<span>{{ state_label }}</span><span class="origin">{{ '直接创建' if direct else '报告创建' }}</span></h1>
       <p class="sub">{{ plan.student_name }} · {{ grade_label }} · Block {{ plan.block_no }} · {{ period }} · {{ plan.mentor_name }}</p>
     </div>
     <div class="acts"></div>
@@ -71,6 +104,23 @@
         <label>计划课次<input class="inp" value="3" disabled><span class="hint">默认 3 节</span></label>
       </div>
 
+      <div class="durs" id="durations" data-durations>
+        <span class="dur-h"><b>每节时长</b><span class="hint">只更新时长与核对，不重新生成内容。</span></span>
+        {% for n in [1, 2, 3] %}
+        <label>第 {{ n }} 节
+          <input class="inp" type="number" min="15" max="180" step="5"
+                 data-duration="{{ n - 1 }}" value="{{ durations[n - 1] }}"
+                 aria-label="第 {{ n }} 节分钟数"{% if not step1_editable %} disabled{% endif %}><span>分钟</span>
+        </label>
+        {% endfor %}
+        <span class="dur-total" id="durTotal">合计 {{ durations|sum }} 分钟</span>
+      </div>
+
+      {% if direct %}
+      {% include "m1/_direct_inputs.html" %}
+      {% endif %}
+
+      {% if not direct %}
       <h3 class="h2">学生资料<small>从会后报告提取</small></h3>
       <div class="src">
         <span><b>会后报告<span class="req">必需</span></b><span class="how">平台自动读取</span></span>
@@ -112,9 +162,10 @@
         </dl>
         <p class="hint" style="margin:8px 0 0">只留和本 Block 教学有关的信息，不重复整份报告。每条都能在报告里找到出处。</p>
       </div>
+      {% endif %}
 
       <h3 class="h2" style="margin-top:28px">已确认的发展目标<small>1–3 项，通常 1–2 项</small></h3>
-      {% if read_goals %}
+      {% if read_goals and not direct %}
       <div class="chips" style="margin:0 0 12px">
         <span class="mu" style="font-size:12.5px">会后报告的阶段发展重点：</span>
         {% for g in read_goals %}
@@ -169,6 +220,7 @@
       {% endif %}
       <p class="hint" style="margin:6px 0 0">导师选择能力；AI 起草“发展目标”“当前起点”和“阶段预期进展”，由导师编辑并确认。</p>
 
+      {% if not direct %}
       <h3 class="h2" style="margin-top:28px">个性化需求<small>可选</small></h3>
       <div class="src">
         <span><b>家长关注点 · 学生意愿 · 生活情境 · 导师要求</b><span class="how">{{ '粘贴文字或上传会议记录' if step1_editable else '导师粘贴的文字或上传的会议记录' }}</span></span>
@@ -201,6 +253,7 @@
         </div>
         <textarea class="ta" id="summaryText" rows="3" style="width:100%" aria-labelledby="summaryH"{% if not step1_editable %} disabled{% endif %} placeholder="{{ '还没有总结。粘贴需求或上传会议记录后生成。' if step1_editable else '导师还没有生成需求总结。' }}">{{ (personal.summary or {}).get('text') or '' }}</textarea>
       </div>
+      {% endif %}
 
     </div>
 
@@ -208,7 +261,7 @@
       {% if step1_editable %}
       <div class="go">
         <b>生成内部教学计划</b>
-        <span class="hint" style="color:var(--ink2)">使用：会后报告、{{ goals|selectattr('locked')|list|length }} 项已锁定目标、个性化需求。目标没锁定不能生成。</span>
+        <span class="hint" style="color:var(--ink2)">使用：{% if direct %}已确认的教学简报、学生资料、{% else %}会后报告、{% endif %}{{ goals|selectattr('locked')|list|length }} 项已锁定目标{% if not direct %}、个性化需求{% endif %}。目标没锁定不能生成。</span>
         <button class="btn p" id="genBtn"{% if blockers %} disabled{% endif %}>生成内部教学计划</button>
         <span class="hint" id="genHint">{% if blockers %}{{ blockers|join('；') }}{% else %}约 1–3 分钟，可以离开页面。{% endif %}</span>
       </div>
@@ -264,23 +317,31 @@
 
       {% if internal %}
       <div class="desk">
-        <article class="a4 notion{% if st != 'approved' %} draft{% endif %}" id="doc" data-rev="{{ internal.rev }}">
+        <article class="a4 notion{% if st != 'approved' %} draft{% endif %}" id="doc"
+                 data-rev="{{ internal.rev }}" data-version="{{ internal.id }}">
           {% if st != 'approved' %}<p class="sample">草稿 · 批准后锁定这一版用于家长版。</p>{% endif %}
           <h1>{{ plan.student_name }} · 情绪力阶段发展与教学计划（内部版）</h1>
           <table class="phead">
             <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级 / 年龄</th><td>{{ grade_label }}</td></tr>
-            <tr><th>负责导师</th><td>{{ plan.mentor_name }}</td><th>Module</th><td>M1 Emotional &amp; Relational Development</td></tr>
+            <tr><th>负责导师</th><td>{{ plan.mentor_name }}{% if co_mentors %} · 共同导师 {{ co_mentors|map(attribute='name')|join('、') }}{% endif %}</td><th>Module</th><td>M1 Emotional &amp; Relational Development</td></tr>
             <tr><th>阶段周期</th><td>{{ period }}</td><th>Block / 学分 / 课次</th><td>Block {{ plan.block_no }} · {{ plan.credits }} · 3 节</td></tr>
           </table>
 
           <h2>A｜学生当前状态</h2>
           <p class="mu" style="font-size:12.5px">来自 ① 资料与目标，在那里修改。</p>
           {% set inputs = plan.inputs or {} %}
-          {% if (inputs.get('strengths') or {}).get('text') or (inputs.get('needs') or {}).get('text') or (inputs.get('context') or {}).get('text') or (inputs.get('interests') or {}).get('text') %}
+          {% set has_profile = (inputs.get('strengths') or {}).get('text') or (inputs.get('needs') or {}).get('text') or (inputs.get('context') or {}).get('text') or (inputs.get('interests') or {}).get('text') %}
+          {% if has_profile %}
             {% for key, label in [('strengths', '可利用的积极资源'), ('needs', '主要发展需求'), ('context', '关键生活情境'), ('interests', '兴趣与学习偏好')] %}
             <p><b class="k">{{ label }}：</b>{{ (inputs.get(key) or {}).get('text') or '—' }}</p>
             {% endfor %}
-          {% else %}
+          {% endif %}
+          {% if direct_brief_confirmed %}
+            {% for key, label in [('learning_need', '学习需要'), ('current_situation', '当前情境'), ('current_response', '当前反应')] %}
+              {% set entry = direct_brief.get(key) or {} %}
+              {% if entry.get('use_for_teaching') and (entry.get('text') or '').strip() %}<p><b class="k">{{ label }}：</b>{{ entry.get('text') }}</p>{% endif %}
+            {% endfor %}
+          {% elif not has_profile %}
           <p class="mu">还没有学生资料。</p>
           {% endif %}
 
@@ -294,8 +355,18 @@
             </tbody>
           </table>
 
+          {% if direct %}
+          <h2>C｜导师确认的教学简报</h2>
+          {% if direct_brief_confirmed %}
+            {% for key, label in [('learning_need', '学习需要'), ('current_situation', '当前情境'), ('current_response', '当前反应')] %}
+              {% set entry = direct_brief.get(key) or {} %}
+              {% if entry.get('use_for_teaching') and (entry.get('text') or '').strip() %}<p><b>{{ label }}：</b>{{ entry.get('text') }}</p>{% endif %}
+            {% endfor %}
+          {% else %}<p>尚未确认教学简报。</p>{% endif %}
+          {% else %}
           <h2>C｜个性化需求总结</h2>
           <p>{{ (personal.summary or {}).get('text') or '—' }}</p>
+          {% endif %}
 
           <h2>Block Overview｜总体目标与教学策略</h2>
           {% set doc = internal.doc %}
@@ -305,9 +376,31 @@
           {% for session in doc.get('sessions') or [] %}
           {% set si = loop.index0 %}
           {% set sbase = 'sessions.' ~ si %}
-          <div class="sess">
+          {% set ns = namespace(act=0, br=0) %}
+          {% for a in session.get('activities') or [] %}
+            {% set ns.act = ns.act + (a.get('minutes') or 0) %}
+            {% if a.get('block_review') %}{% set ns.br = ns.br + (a.get('minutes') or 0) %}{% endif %}
+          {% endfor %}
+          {% set timing = session.get('timing') if session.get('timing') is mapping else none %}
+          {% set review_min = timing.get('review_minutes', 0) if timing else 0 %}
+          {% set trans_min = timing.get('transition_minutes', 0) if timing else 0 %}
+          {% set total_min = ns.act + review_min + trans_min %}
+          {% set duration = durations[si] %}
+          {% set teach_min = duration - review_min - trans_min - ns.br %}
+          <div class="sess" data-session="{{ si }}">
             <h2>Session {{ session.n }}｜{{ txt(session.get('title') or {}, sbase ~ '.title.text', 20, 'block') }}</h2>
             {% if step2_editable %}<button class="btn s g regen" data-regen="{{ session.n }}">重新生成本节</button>{% endif %}
+            <p class="timing" data-timing-budget="{{ si }}" data-activity-minutes="{{ ns.act }}"
+               data-review-minutes="{{ review_min }}" data-transition-minutes="{{ trans_min }}"
+               data-block-review-minutes="{{ ns.br }}"{% if timing %} data-timing="{{ si }}"{% endif %}>
+              <b data-duration-label>本节 {{ duration }} 分钟</b>
+              {% if timing %}
+              <span data-timing-summary>活动 {{ ns.act }} 分钟{% if ns.br %}（含 Block Review {{ ns.br }} 分钟）{% endif %} · 上次回顾 {{ review_min }} 分钟 · 转换 {{ trans_min }} 分钟 · 合计 {{ total_min }} 分钟 · 可用于教学 {{ teach_min }} 分钟</span>
+              <span class="tm-off" data-timing-delta{% if total_min == duration %} hidden{% endif %}>{% if total_min != duration %}与计划相差 {{ '%+d'|format(total_min - duration) }} 分钟，可在①调整每节时长或活动分钟数{% endif %}</span>
+              {% else %}
+              <span data-timing-summary>活动合计 {{ ns.act }} 分钟</span><span class="tm-off" data-timing-delta hidden></span>
+              {% endif %}
+            </p>
           </div>
 
           {% if session.get('review') %}
@@ -337,7 +430,7 @@
           <p><b class="k">Skills：</b>{{ txt(content.get('skills') or {}, sbase ~ '.content.skills.text', 90) }}</p>
           <p><b class="k">Techniques：</b>{{ txt(content.get('techniques') or {}, sbase ~ '.content.techniques.text', 90) }}</p>
 
-          <h3>C｜教学活动</h3>
+          <h3>C｜教学活动{% if timing %}<small class="act-guide">{{ (session.get('activities') or [])|length }} 项 · 建议 3–5 项，仅提示，不阻止批准</small>{% endif %}</h3>
           {% for activity in session.get('activities') or [] %}
           {% set ai = loop.index0 %}
           {% set abase = sbase ~ '.activities.' ~ ai %}
@@ -355,11 +448,12 @@
           {% else %}
           <div class="act" data-block-review="0" data-a="{{ ai }}">
             <div class="act-h">
-              <h4>Activity {{ ai + 1 }}｜{{ txt(activity.get('name') or {}, abase ~ '.name.text', 40) }}</h4>
+              <h4>Activity {{ ai + 1 }}｜{{ txt(activity.get('name') or {}, abase ~ '.name.text', activity_limits.name) }}</h4>
               {% if step2_editable %}
               <div class="act-tools">
                 <button data-op="up" data-s="{{ si }}" data-a="{{ ai }}"{% if ai == 0 %} disabled{% endif %} aria-label="上移">↑</button>
                 <button data-op="down" data-s="{{ si }}" data-a="{{ ai }}"{% if ai + 1 >= (session.get('activities')|length) or (session.get('activities') or [])[ai + 1].get('block_review') %} disabled{% endif %} aria-label="下移">↓</button>
+                <button data-op="propose-activity" data-s="{{ si }}" data-a="{{ ai }}">替换</button>
                 <button data-op="del-activity" data-s="{{ si }}" data-a="{{ ai }}"{% if session.get('activities')|length <= 1 %} disabled{% endif %}>删除</button>
               </div>
               {% endif %}
@@ -386,9 +480,36 @@
               <span class="srcl">{{ srclabel(activity.get('source') or {}) }}</span>
               {% endif %}
             </p>
-            <p class="steps">{{ txt(activity.get('steps') or {}, abase ~ '.steps.text', 400, 'block') }}</p>
-            <p><b class="lbl">引导问题：</b>{{ txt(activity.get('questions') or {}, abase ~ '.questions.text', 200) }}</p>
-            <p><b class="lbl">所需材料：</b>{{ txt(activity.get('materials') or {}, abase ~ '.materials.text', 60) }}</p>
+            <p class="steps">{{ txt(activity.get('steps') or {}, abase ~ '.steps.text', activity_limits.steps, 'block') }}</p>
+            <p><b class="lbl">引导问题：</b>{{ txt(activity.get('questions') or {}, abase ~ '.questions.text', activity_limits.questions) }}</p>
+            <p><b class="lbl">所需材料：</b>{{ txt(activity.get('materials') or {}, abase ~ '.materials.text', activity_limits.materials) }}</p>
+            {% set rich = session.get('teaching_schema') == 2 or (activity.get('purpose') is not none or activity.get('personalization') is not none or activity.get('student_action') is not none or activity.get('expected_attempt') is not none or activity.get('support') is not none or activity.get('extension') is not none) %}
+            {% if rich %}
+            {% set nsr = namespace(filled=0) %}
+            {% for key in rich_keys %}
+              {% set value = activity.get(key) %}
+              {% if ((value.text if value is mapping else value) or '')|string|trim %}{% set nsr.filled = nsr.filled + 1 %}{% endif %}
+            {% endfor %}
+            <details class="act-more" data-rich="{{ ai }}">
+              <summary>教学设计细节 <span class="rich-n">{{ nsr.filled }}/6</span></summary>
+              <div class="rich">
+                {% for key in rich_keys %}
+                {% set value = activity.get(key) %}
+                <div class="rf">
+                  <b class="lbl">{{ rich_labels[key] }}</b>
+                  <span class="pf block" contenteditable="{{ 'true' if step2_editable else 'false' }}"
+                        data-path="{{ abase }}.{{ key }}.text" data-rich-field="1" data-limit="{{ activity_limits[key] }}" data-placeholder="未填写"
+                        aria-label="Activity {{ ai + 1 }} · {{ rich_labels[key] }}">{{ (value.text if value is mapping else value) or '' }}</span>
+                </div>
+                {% endfor %}
+                {% set refs = activity.get('input_refs') or [] %}
+                {% if refs %}
+                <p class="refs"><b class="lbl">依据：</b>{% for ref in refs %}<span class="ref" title="{{ ref }}">{{ ref_labels.get(ref, ref) }}</span>{% endfor %}</p>
+                {% endif %}
+                {% if activity.get('source_issue') %}<p class="mu src-issue">来源提示：{{ activity.get('source_issue') }}</p>{% endif %}
+              </div>
+            </details>
+            {% endif %}
           </div>
           {% endif %}
           {% endfor %}
@@ -443,18 +564,34 @@
     </div>
 
     <aside class="rail">
+      <section class="collab" id="collabPanel" aria-live="polite">
+        <h3 class="h2">协作状态<small id="collabCount"></small></h3>
+        <p class="collab-self" id="collabSelf">正在连接…</p>
+        <div class="collab-list" id="collabList"></div>
+        <p class="hint collab-offline" id="collabOffline" hidden>当前离线，修改会留在本页，联网后再保存。</p>
+      </section>
+      <div class="collab-conflicts" id="collabConflicts" aria-live="assertive" hidden></div>
+
       {% if can_edit %}
         {% if st == 'review' %}
         <div class="go">
           <b>批准内部版</b>
           <span class="hint" style="color:var(--ink2)">批准后锁定这一版，才能生成家长版。没核对完会提醒，但不挡住。</span>
+          {% if page_state.canApprove %}
           <button class="btn p" id="approveBtn">批准内部版</button>
+          {% else %}
+          <p class="hint" id="approveHint">共同导师可以编辑，但批准和导出由负责导师或管理员完成。</p>
+          {% endif %}
         </div>
         {% elif st == 'approved' %}
         <div class="go">
           <b>已批准</b>
           <span class="hint" style="color:var(--ink2)">{{ approved_at }}{% if approver_name %} · {{ approver_name }}{% endif %}</span>
+          {% if page_state.canApprove %}
           <button class="btn s" id="reopenBtn">重新打开</button>
+          {% else %}
+          <p class="hint">共同导师不能重新打开已批准的计划。</p>
+          {% endif %}
           {% if plan.parent_status in ('draft', 'confirmed', 'exported') %}<span class="hint">重新打开后，已有家长版会标记为需要更新。</span>{% endif %}
         </div>
         {% endif %}
@@ -521,7 +658,7 @@
         {% elif st == 'approved' %}
         <div class="gcard" style="margin-top:14px" id="parentEmpty">
           <div class="gt"><b>生成家长版</b><span class="ai">只用已批准的内部版</span></div>
-          <p class="hint" style="margin:6px 0 12px">从已批准的内部版生成两页家长版。改家长版不会改内部版。</p>
+          <p class="hint" style="margin:6px 0 12px">从已批准的内部版生成家长版；页数随内容自然延续。改家长版不会改内部版。</p>
           {% if can_edit %}<button class="btn p" id="parentGenBtn">生成家长版</button>{% endif %}
         </div>
         {% else %}
@@ -591,7 +728,8 @@
               {% set fi = loop.index0 %}
               <li>
                 <span class="pf block"{% if parent_editable %} contenteditable="true" spellcheck="false"{% endif %} data-ppath="family.{{ fi }}" data-family="{{ fi }}" data-limit="{{ parent_limits.family }}">{{ line }}</span>
-                {% if not parent_view.family_seen[fi] %}<span class="ai" data-family-ai="{{ fi }}">AI 新写</span>{% endif %}
+                {% if not parent_view.family_seen[fi] %}<span class="ai" data-family-ai="{{ fi }}">AI 新写</span>
+                {% if parent_editable %}<button class="btn s" type="button" data-family-seen="{{ fi }}" style="height:26px;font-size:11.5px;margin-left:6px">已看过</button>{% endif %}{% endif %}
               </li>
               {% endfor %}
             </ul>
@@ -626,14 +764,15 @@
         <b>确认家长版</b>
         <span class="hint">确认后才能导出正式 PDF。</span>
         <span class="st {{ 's0' if parent_status == 'exported' else ('s1' if parent_status == 'draft' else 'sn') }}" id="parentStatusChip">{{ parent_labels.get(parent_status, parent_status) }}</span>
-        {% if parent_editable %}
+        {% if parent_editable and page_state.canApprove %}
         <button class="btn p" id="parentConfirmBtn">确认家长版</button>
         <button class="btn" id="parentExportBtn">导出 PDF</button>
+        {% elif parent_editable %}
+        <p class="hint">共同导师可以修改家长版，确认和导出由负责导师或管理员完成。</p>
         {% endif %}
         <p class="hint" id="parentBlockSummary" style="margin:6px 0 0"{% if not parent_blocking %} hidden{% endif %}>
           {% if parent_blocking %}{{ parent_blocking|length }} 项待处理 · 先处理：{{ parent_blocking[0].label }}{% endif %}
         </p>
-        <p class="pwarn" id="parentFitWarn" hidden style="margin:8px 0 0"></p>
       </div>
 
       <section>
@@ -671,16 +810,13 @@
         {% endif %}
         <details class="fold">
           <summary>会阻止导出的情况</summary>
-          <p class="hint">目标数量或名称与内部版不一致 · 课程主题缺失 · 实践不是来自已批准内容 · 必填内容为空 · 超过两页。</p>
+          <p class="hint">目标数量或名称与内部版不一致 · 课程主题缺失 · 实践不是来自已批准内容 · 必填内容为空 · 内容超过技术上限。</p>
         </details>
       </section>
       {% endif %}
     </aside>
   </div>
 
-  {% if parent %}
-  <iframe id="ppFrame" class="pp-frame" title="家长版 PDF 预览检查" tabindex="-1" aria-hidden="true"></iframe>
-  {% endif %}
 </div>
 
 {% if can_edit %}
@@ -701,6 +837,23 @@
     <div class="dh"><b id="regenH">重新生成本节</b><button class="x" data-close aria-label="关闭">×</button></div>
     <div class="db"><p style="margin:0">会用 AI 重写这一节，你在这一节的修改会被替换。其他节不变。</p></div>
     <div class="df"><button class="btn" data-close>取消</button><button class="btn p" id="regenOk">重新生成</button></div>
+  </div>
+</div>
+
+<div class="pal dlg" id="proposalDlg" hidden role="dialog" aria-modal="true" aria-labelledby="proposalH">
+  <div class="wide">
+    <div class="dh"><b id="proposalH">替换这一项活动</b><button class="x" data-close aria-label="关闭">×</button></div>
+    <div class="db">
+      <p class="hint" style="margin:0">只重写这一项，其他内容和你的修改不变。替换前会先保存当前修改。</p>
+      <p class="pstat" id="proposalStat">正在准备…</p>
+      <p class="derr" id="proposalErr" hidden></p>
+      <div class="cmp" id="proposalCmp" hidden>
+        <div class="cmp-col"><b>当前活动</b><div id="proposalOld"></div></div>
+        <div class="cmp-col"><b>建议替换</b><div id="proposalNew"></div></div>
+      </div>
+      <details class="fold" id="proposalChecks" hidden><summary>建议的核对提示</summary><div id="proposalCheckList"></div></details>
+    </div>
+    <div class="df"><button class="btn" data-close>取消，不改动</button><button class="btn p" id="proposalOk" disabled>应用替换</button></div>
   </div>
 </div>
 
@@ -742,5 +895,6 @@
 
 {% block scripts %}
 <script>window.M1_PLAN = {{ page_state|tojson }};</script>
+<script src="{{ url_for('m1.m1_asset', filename='plan_collab_core.js') }}"></script>
 <script src="{{ url_for('m1.m1_asset', filename='plan.js') }}"></script>
 {% endblock %}

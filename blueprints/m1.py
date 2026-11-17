@@ -21,6 +21,7 @@ from sqlalchemy.exc import OperationalError
 
 import app_utils
 import db as _db
+import m1.plan_collaboration as plan_collab
 import m1.plan_store as pstore
 import m1.report_store as rstore
 import m1.sources as sources
@@ -498,7 +499,12 @@ def _next_step(prep: dict, report: dict | None, plan: dict | None):
 @bp.route("/api/m1/students")
 @role_required(*_WRITE_ROLES)
 def api_students():
-    return jsonify({"ok": True, "students": store.list_students(_user())})
+    rows = store.list_students(_user())
+    plans = {plan['student_id']: plan for plan in reversed(pstore.list_plans(_user()))}
+    for row in rows:
+        row['plan'] = _plan_cell(plans.get(row['id']))
+        row['overview_url'] = '/api/m1/students/%d/overview' % row['id']
+    return jsonify({"ok": True, "students": rows})
 
 
 @bp.route("/api/m1/preps")
@@ -1006,3 +1012,46 @@ def api_job_status(job_id: str):
     if not store.can_access(_user(), prep):
         return _err("无权访问该任务", 403)
     return jsonify({"ok": True, "job": job})
+
+
+def _student_overview_payload(student_id: int) -> dict:
+    plans = [plan for plan in pstore.list_plans(_user()) if plan['student_id'] == student_id]
+    for plan in plans:
+        plan['next_action'] = pstore.next_action(plan)
+    preps = store.list_preps(user=_user(), student_id=student_id)
+    student = _db.get_student(student_id) or {}
+    can_access = store.can_access_student(_user(), student_id)
+    return {'ok': True,
+            'student': {k: student.get(k) for k in ('id', 'name', 'student_code', 'grade', 'school')},
+            'preps': preps, 'plans': plans, 'can_create_direct': can_access,
+            'can_manage_team': pstore.can_manage_team(_user()),
+            'team': plan_collab.team_view(student_id),
+            'create_plan': {'method': 'POST', 'href': '/api/m1/plans',
+                            'source_mode': 'mentor_inputs', 'student_id': student_id}}
+
+
+def _can_view_student_hub(student_id: int) -> bool:
+    return (store.can_access_student(_user(), student_id)
+            or pstore.is_team_member(_user(), student_id))
+
+
+@bp.route('/api/m1/students/<int:student_id>/overview')
+@role_required(*_WRITE_ROLES)
+def api_student_overview(student_id):
+    """Student-scoped JSON hub, including students with no meetings or reports."""
+    student = _db.get_student(student_id)
+    if not student or not _can_view_student_hub(student_id):
+        return _err('学生不存在', 404)
+    return jsonify(_student_overview_payload(student_id))
+
+
+@bp.route('/m1/students/<int:student_id>')
+@role_required(*_WRITE_ROLES)
+def page_student_hub(student_id):
+    """Student hub page; same access check as the JSON overview endpoint."""
+    student = _db.get_student(student_id)
+    if not student or not _can_view_student_hub(student_id):
+        abort(404)
+    return _render_page('m1/student_hub.html', nav_active='students',
+                        student=student, student_id=student_id,
+                        ctx={'student': student})

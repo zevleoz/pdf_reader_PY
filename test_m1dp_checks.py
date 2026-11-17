@@ -195,14 +195,17 @@ def test_valid_parent_has_no_blocking():
     assert checks.parent_blocking(_parent(), _plan(), _internal()) == []
 
 
-def test_parent_over_limit_blocks_with_section_and_number():
+def test_parent_over_limit_is_an_advisory_hint():
     limits = plan_kb.PARENT_LIMITS
     doc = _parent()
     doc["goals"][0]["text"] = _field("练" * (limits["goal"] + 1))
     doc["family"][0] = _field("练" * (limits["family"] + 1))
-    texts = _texts(checks.parent_blocking(doc, _plan(), _internal()))
-    assert "01 阶段成长目标 · 第 1 项 · 超过 %d 字，请缩短" % limits["goal"] in texts
-    assert "04 家庭协作与支持 · 第 1 项 · 超过 %d 字，请缩短" % limits["family"] in texts
+    assert checks.parent_blocking(doc, _plan(), _internal()) == []
+    hints = checks.parent_hints(doc, _plan(), _internal())
+    texts = _texts(hints)
+    assert "01 阶段成长目标 · 第 1 项 · 超过建议长度 %d 字，可酌情精简（不影响导出）" % limits["goal"] in texts
+    assert "04 家庭协作与支持 · 第 1 项 · 超过建议长度 %d 字，可酌情精简（不影响导出）" % limits["family"] in texts
+    assert all(item["level"] == "hint" for item in hints)
 
 
 def test_parent_at_exact_limit_is_allowed():

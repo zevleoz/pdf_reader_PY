@@ -15,15 +15,17 @@ from app_utils import BASE_DIR
 from m1.jobs import (JOB_DIR, JOB_ID_RE, LAUNCH_GRACE_SECONDS, JobLaunchError,
                      read_job, write_job)
 
-KINDS = ("plan_inputs", "plan_goal", "plan_personal",
-         "plan_generate", "plan_regen", "plan_parent")
+KINDS = ("plan_brief", "plan_inputs", "plan_goal", "plan_personal",
+         "plan_generate", "plan_regen", "plan_parent", "plan_activity_proposal")
 
 STEP_DEFS: Dict[str, List[tuple]] = {
-    "plan_inputs": [("read", "读取会后报告"), ("inputs", "提取学生资料")],
+    "plan_activity_proposal": [("proposal", "生成单活动替换建议")],
+    "plan_brief": [("read", "读取教学来源"), ("inputs", "提取资料与教学简报")],
+    "plan_inputs": [("read", "读取教学来源"), ("inputs", "提取学生资料")],
     "plan_goal": [("goal", "填写当前起点与预期进展")],
     "plan_personal": [("personal", "整理个性化需求")],
     "plan_generate": [
-        ("read", "读取会后报告、目标与个性化需求"),
+        ("read", "读取教学来源、目标与个性化需求"),
         ("wb", "查找 WB 参考课"),
         ("overview", "阶段总体目标与教学策略"),
         ("sessions", "第 1–3 节课（每节一次调用）"),
@@ -41,7 +43,7 @@ def new_steps(kind: str) -> List[Dict[str, Any]]:
 
 def launch_job(plan_id: int, kind: str, *, actor_id=None, code=None,
                section=None, use_old_report: bool = False,
-               previous_status: Optional[str] = None) -> str:
+               previous_status: Optional[str] = None, expected_rev=None, source_version_id=None, activity_id=None) -> str:
     """拉起生成子进程；启动窗口内退出则抛 :class:`JobLaunchError`。"""
     if kind not in KINDS:
         raise ValueError("未知的发展计划任务：%s" % kind)
@@ -53,6 +55,9 @@ def launch_job(plan_id: int, kind: str, *, actor_id=None, code=None,
     directory = Path(JOB_DIR)
     directory.mkdir(parents=True, exist_ok=True)
     args = {
+        "expected_rev": expected_rev,
+        "source_version_id": source_version_id,
+        "activity_id": activity_id,
         "plan_id": int(plan_id),
         "kind": kind,
         "code": code,
@@ -96,6 +101,7 @@ def run_job(job_id: str, args: Dict[str, Any]) -> int:
     """子进程入口：执行生成并维护状态文件与计划状态。"""
     from m1 import plan_pipeline, plan_store
 
+    plan_store.ensure_tables()
     plan_id = int(args.get("plan_id") or 0)
     kind = str(args.get("kind") or "")
     previous_status = args.get("previous_status")
@@ -126,19 +132,37 @@ def run_job(job_id: str, args: Dict[str, Any]) -> int:
 
     write("生成任务运行中", status="running")
     try:
-        if kind == "plan_inputs":
-            result = plan_pipeline.read_report(plan_id, progress=progress, actor_id=actor_id)
+        if args.get('expected_rev') is not None and kind in ('plan_brief', 'plan_inputs', 'plan_goal', 'plan_personal'):
+            plan = plan_store.get_plan(plan_id)
+            if not plan:
+                raise plan_store.NotFound('发展计划不存在')
+            if plan['rev'] != args['expected_rev']:
+                raise plan_store.RevConflict(plan['rev'])
+        if kind == 'plan_brief':
+            result = plan_pipeline.extract_inputs(plan_id, progress=progress,
+                                                  actor_id=actor_id,
+                                                  expected_rev=args.get('expected_rev'))
+        elif kind == "plan_inputs":
+            result = plan_pipeline.read_report(plan_id, progress=progress,
+                                               actor_id=actor_id,
+                                               expected_rev=args.get('expected_rev'))
         elif kind == "plan_goal":
             result = plan_pipeline.fill_goal(plan_id, str(args.get("code") or ""),
-                                             progress=progress, actor_id=actor_id)
+                                             progress=progress, actor_id=actor_id,
+                                             expected_rev=args.get('expected_rev'))
         elif kind == "plan_personal":
-            result = plan_pipeline.personal_summary(plan_id, progress=progress, actor_id=actor_id)
+            result = plan_pipeline.personal_summary(plan_id, progress=progress,
+                                                    actor_id=actor_id,
+                                                    expected_rev=args.get('expected_rev'))
         elif kind == "plan_generate":
             result = plan_pipeline.generate(plan_id, progress=progress, actor_id=actor_id,
                                             use_old_report=bool(args.get("use_old_report")))
         elif kind == "plan_regen":
             result = plan_pipeline.regenerate(plan_id, section, progress=progress,
                                               actor_id=actor_id)
+        elif kind == "plan_activity_proposal":
+            result = plan_pipeline.propose_activity(plan_id, args.get("expected_rev"),
+                args.get("source_version_id"), args.get("activity_id"), actor_id=actor_id, progress=progress)
         elif kind == "plan_parent":
             result = plan_pipeline.generate_parent(plan_id, progress=progress,
                                                    actor_id=actor_id)
@@ -159,7 +183,8 @@ def run_job(job_id: str, args: Dict[str, Any]) -> int:
     for row in steps:
         row["state"] = "done"
     write("生成完成", status="done",
-          version_id=result if isinstance(result, int) else None)
+          version_id=result if isinstance(result, int) else None,
+          proposal_id=result.get("id") if kind == "plan_activity_proposal" and isinstance(result, dict) else None)
     if kind == "plan_generate":
         try:
             from m1 import store
