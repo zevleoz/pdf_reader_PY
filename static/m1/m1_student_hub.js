@@ -113,6 +113,11 @@
   function nextStepFor(overview) {
     var plans = overview.plans || [];
     var plan = activePlan(plans);
+    if (!plan && overview.can_create_direct === false) {
+      var prep = (overview.preps || [])[0];
+      return prep ? {sentence: '查看已共享的会议资料与文档。', label: '查看',
+        href: '/m1/preps/' + prep.id} : {sentence: '还没有共享的文档。', label: '', href: ''};
+    }
     if (!plan) {
       return {
         sentence: '可以直接创建教案，不需要 First Meeting。',
@@ -153,6 +158,7 @@
     var link = doc.getElementById('m1HubNextBtn');
     if (text) text.textContent = step.sentence;
     if (link) {
+      link.hidden = !step.href;
       link.textContent = step.label;
       link.href = step.href;
       link.innerHTML = step.label + ' ' + ARROW;
@@ -245,7 +251,7 @@
     var head = el('div', 'tt');
     head.appendChild(el('b', null, '负责与共同导师'));
     head.appendChild(el('span', 'st sn',
-      '共同导师只共享这个学生的 M1 计划，不含会前准备或报告原文'));
+      '共同导师可查看该学生全部 M1 会前准备、会后报告及相关资料，并共同编辑发展计划；不增加会前准备或会后报告的修改权限'));
     card.appendChild(head);
 
     var dl = el('dl', 'kv');
@@ -332,8 +338,8 @@
         var name = (select.options[select.selectedIndex] || {}).textContent || '该导师';
         var studentName = (data.student || {}).name || '该学生';
         var ok = window.confirm('将 ' + name + ' 添加为 ' + studentName +
-          ' 的共同导师？\n\n权限范围：仅该学生的 M1 计划（查看与编辑）；' +
-          '不包含会前准备、报告原文或其他学生。');
+          ' 的共同导师？\n\n可查看该学生全部现有及后续 M1 会前准备、会后报告和相关资料，共同编辑发展计划。' +
+          '会前准备和会后报告只读；批准权限不变。不授予其他学生或其他平台的权限。');
         if (!ok) return;
         add.disabled = true;
         api('/api/m1/students/' + studentId + '/team', {
@@ -381,11 +387,14 @@
     if (!plans.length) {
       var empty = el('div', 'panel');
       empty.style.padding = '18px';
-      empty.appendChild(el('p', null,
-        '还没有发展计划。可以直接创建教案，不需要 First Meeting、会后报告或参考年级。'));
-      var cta = el('a', 'btn p', '直接创建教案');
-      cta.href = createHref(data.student.id);
-      empty.appendChild(cta);
+      empty.appendChild(el('p', null, data.can_create_direct === false
+        ? '还没有发展计划。'
+        : '还没有发展计划。可以直接创建教案，不需要 First Meeting、会后报告或参考年级。'));
+      if (data.can_create_direct !== false) {
+        var cta = el('a', 'btn p', '直接创建教案');
+        cta.href = createHref(data.student.id);
+        empty.appendChild(cta);
+      }
       host.appendChild(empty);
       return;
     }

@@ -324,8 +324,9 @@ def get_prep(prep_id: int) -> Optional[Dict[str, Any]]:
 def list_preps(*, user=None, student_id: Optional[int] = None,
                status: Optional[str] = None,
                limit: int = 200) -> List[Dict[str, Any]]:
-    """会前准备列表；advisor 只看名下学生的与自己做 Mentor 的。"""
+    """会前准备读列表；原有范围加明确的学生团队授权。"""
     user = _user_dict(user)
+    assigned = assigned_student_ids(user)
     with Session(_engine()) as sess:
         stmt = (select(M1Prep, _db.Student)
                 .join(_db.Student, M1Prep.student_id == _db.Student.id)
@@ -337,7 +338,8 @@ def list_preps(*, user=None, student_id: Optional[int] = None,
             stmt = stmt.where(M1Prep.status == status)
         if user.get("role") == "advisor":
             if not _sees_all_students(user):
-                mine = M1Prep.mentor_user_id == user.get("user_id")
+                mine = ((M1Prep.mentor_user_id == user.get("user_id"))
+                        | M1Prep.student_id.in_(assigned))
                 # an advisor account without a name owns nobody (empty must not match empty)
                 scope = (user.get("advisor_name") or "").strip()
                 stmt = stmt.where((_db.Student.advisor_name == scope) | mine if scope else mine)
@@ -697,6 +699,36 @@ def can_access_student(user, student_id: int) -> bool:
         # an advisor account without a name owns nobody (empty must not match empty)
         name = (u.get("advisor_name") or "").strip()
         return bool(name) and (student.advisor_name or "").strip() == name
+
+
+def assigned_student_ids(user) -> set:
+    """Explicit student-wide read grants; recheck the live account on every request."""
+    from m1.plan_collaboration import PlanTeamMember
+    u = _user_dict(user)
+    if not u.get("user_id"):
+        return set()
+    with Session(_engine()) as sess:
+        account = sess.get(_db.User, int(u["user_id"]))
+        if not account or not account.is_active or account.role not in ("admin", "advisor"):
+            return set()
+        if not _db.effective_account_settings(
+                account.role, account.student_scope, account.detail_level,
+                account.m1_access, account.m1_admin)["m1_access"]:
+            return set()
+        return set(sess.execute(select(PlanTeamMember.student_id).where(
+            PlanTeamMember.user_id == account.id)).scalars())
+
+
+def can_read_student(user, student_id: int) -> bool:
+    return can_access_student(user, student_id) or int(student_id) in assigned_student_ids(user)
+
+
+def can_read_prep(user, prep_id: int) -> bool:
+    """Read authority is additive; never use this helper for a mutation."""
+    if can_access_prep(user, prep_id):
+        return True
+    prep = get_prep(prep_id)
+    return bool(prep and prep["student_id"] in assigned_student_ids(user))
 
 
 def can_access_prep(user, prep_id: int) -> bool:

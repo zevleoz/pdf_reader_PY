@@ -89,7 +89,10 @@ def m1db(tmp_path, monkeypatch):
     def _enable_fk(dbapi_connection, _record):
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
+    from m1.plan_collaboration import PlanTeamMember
+
     tables = [
+        PlanTeamMember.__table__,
         _db.Student.__table__, _db.User.__table__, _db.Report.__table__,
         store.M1Prep.__table__, store.M1Source.__table__, store.M1Version.__table__,
         _gt.AuditLog.__table__,

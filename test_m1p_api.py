@@ -62,7 +62,7 @@ def test_list_carries_me_materials_and_report_state(client, m1db, monkeypatch):
     assert body["me"] == m1db.alice_id
     row = [item for item in body["preps"] if item["id"] == prep["id"]][0]
     assert row["materials"] == ["Y4", "First Touch", "家长反馈"]
-    assert row["report"] == {"status": "draft", "label": "未开始", "started": False}
+    assert row["report"] == {"status": "draft", "label": "未开始", "started": False, "can_edit": True}
 
 
 # ---------------------------------------------------------------------------

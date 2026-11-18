@@ -428,3 +428,26 @@ handlers.click({target:{closest(){return null;}}});
 assert.equal(window.location.href,'/workflow');
 """
     subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+
+@pytest.mark.skipif(shutil.which('node') is None, reason='node 未安装')
+def test_report_list_prefers_latest_started_report_without_changing_preps():
+    script = '''
+const assert = require('node:assert/strict');
+const h = require(%s);
+const rows = [
+ {id:1, student_id:7, meeting_date:'2026-11-01', report:{started:true,status:'published'}},
+ {id:2, student_id:7, meeting_date:'2026-11-06', report:{started:false,status:'draft'}},
+ {id:3, student_id:8, meeting_date:'2026-11-01'},
+ {id:4, student_id:8, meeting_date:'2026-11-06', report:{started:false,status:'draft'}}
+];
+assert.deepEqual(h.reportRowsByStudent(rows).map(r=>r.id), [1,4]);
+assert.deepEqual(h.uniqueByStudent(rows).map(r=>r.id), [4,2]);
+rows.push({id:5,student_id:7,meeting_date:'2026-11-04',report:{started:true,status:'ai_draft'}});
+assert.deepEqual(h.reportRowsByStudent(rows).map(r=>r.id), [5,4]);
+rows.push({id:6,student_id:7,meeting_date:'2026-11-04',report:{started:true,status:'draft'}});
+assert.deepEqual(h.reportRowsByStudent(rows).map(r=>r.id), [6,4]);
+assert.deepEqual(h.reportRowsByStudent([]), []);
+assert.equal(rows.length, 6);
+''' % json.dumps(str(BASE_DIR / 'static/m1/m1_lists.js'))
+    subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)

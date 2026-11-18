@@ -1,0 +1,52 @@
+{% extends "m1/_layout.html" %}
+{% block title %}{{ prep.student_name }} · {{ '会前准备' if kind == 'prep' else '会后报告' }} · 只读{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/m1/assets/m1.css">
+<style>.m1-readonly{min-width:0;max-width:100%}.m1-readonly pre{white-space:pre-wrap;overflow-wrap:anywhere}.m1-readonly .doc-scroll{max-width:100%;overflow:auto;margin-top:20px}</style>
+{% endblock %}
+{% block content %}
+<div class="m1 m1-readonly">
+  <h1>{{ '会前准备' if kind == 'prep' else '会后报告' }} · 只读</h1>
+  <p class="sub">{{ prep.student_name }} · 当前权限可查看资料与文档、打印或下载 PDF。</p>
+  <div class="acts">
+    <a class="btn" href="/m1/preps/{{ prep.id }}">返回会议</a>
+    <a class="btn" href="/m1/preps/{{ prep.id }}/{{ 'report' if kind == 'prep' else 'prep' }}">{{ '查看会后报告' if kind == 'prep' else '查看会前准备' }}</a>
+    {% if detail.doc %}<a class="btn p" target="_blank" href="/m1/preps/{{ prep.id }}/{{ 'report/print' if kind == 'report' else 'print' }}">预览 / 下载 PDF</a>{% endif %}
+  </div>
+  {% if detail.doc %}
+    {% if kind == 'prep' %}
+    <div class="doc-scroll"><article id="m1doc" class="a4 plain"></article></div>
+    {% else %}
+    <iframe title="会后报告只读预览" src="/m1/preps/{{ prep.id }}/report/print" style="width:100%;height:80vh;border:1px solid #ddd;margin-top:20px"></iframe>
+    {% endif %}
+  {% else %}<p>还没有生成文档。</p>{% endif %}
+  {% if kind == 'prep' %}
+  <h2>自动资料</h2>
+  {% for item in detail.y4_items %}<p>{{ item.id }} · {{ item.text }}</p>{% endfor %}
+  {% if detail.auto.first_touch.present %}<details><summary>First Touch · {{ detail.auto.first_touch.date }}</summary><pre>{{ detail.auto.first_touch.text }}</pre></details>{% endif %}
+  {% for questionnaire in detail.auto.questionnaires %}
+  <details><summary>{{ questionnaire.title }} · {{ questionnaire.status }}</summary>
+    {% for answer in questionnaire.answers %}<p>{{ answer.question }}：{{ answer.answer }}</p>{% endfor %}
+  </details>
+  {% endfor %}
+  <h2>资料原文</h2>
+  <p class="hint">显示文件中已提取的文字。原始文件下载暂不可用。</p>
+  {% for source in detail.sources %}
+  <details><summary>{{ source.label or source.filename or '资料' }}</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ source.text }}</pre></details>
+  {% else %}<p>没有上传的资料。</p>{% endfor %}
+  {% else %}
+  <h2>会议资料</h2>
+  <a class="btn" href="/m1/preps/{{ prep.id }}/report/sources">查看逐字稿与资料原文</a>
+  <p>逐字稿：{{ detail.report.transcript_filename or ('已粘贴文字' if detail.report.transcript_length else '未提供') }}</p>
+  {% for source in detail.inputs.others %}<p>{{ source.label or source.filename or '其他资料' }} · {{ source.filename }} · {{ source.detected_date }}</p>{% endfor %}
+  <h2>版本记录</h2>
+  {% for version in detail.versions %}<p>第 {{ version.n }} 版 · {{ version.created_at }}</p>{% else %}<p>没有历史版本。</p>{% endfor %}
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{% if kind == 'prep' and detail.doc %}
+<script src="/m1/assets/m1_doc.js"></script>
+<script>window.M1Doc.render(document.getElementById('m1doc'), {{ detail|tojson }}, {mode: 'read'});</script>
+{% endif %}
+{% endblock %}

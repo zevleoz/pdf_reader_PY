@@ -1637,7 +1637,8 @@ def eligible_students(user=None, source_mode="report") -> List[Dict[str, Any]]:
                     if store.can_access_student(user, row.id)]
     if source_mode != "report":
         raise ValueError("source_mode 只能是 report 或 mentor_inputs")
-    preps = store.list_preps(user=user)
+    preps = [p for p in store.list_preps(user=user)
+             if store.can_access_prep(user, p["id"])]
     statuses = rstore.list_statuses([prep["id"] for prep in preps])
     chosen: Dict[int, Dict[str, Any]] = {}
     for prep in preps:

@@ -1,4 +1,4 @@
-"""Assigned-student discovery and raw-source isolation, using temporary data only."""
+"""Assigned-student discovery and document read/write separation, using temporary data only."""
 import json
 import shutil
 import subprocess
@@ -56,7 +56,7 @@ def _shared_report(client, database):
     return prep, report, plan
 
 
-def test_shared_report_plan_discovers_student_without_raw_metadata(client, m1db):
+def test_shared_report_plan_discovers_readonly_documents(client, m1db):
     prep, report, plan = _shared_report(client, m1db)
     # The report need only have a draft, not publication, to supply a shared plan.
     assert report["status"] == "ai_draft"
@@ -75,12 +75,13 @@ def test_shared_report_plan_discovers_student_without_raw_metadata(client, m1db)
                         "participating", "roles", "prep", "plan", "next", "workflow_state"}
     assert row["student_id"] == m1db.student_id
     assert row["roles"] == ["co_mentor"] and row["participating"] is True
-    assert row["prep"] is None
+    assert row["prep"]["id"] == prep["id"]
+    assert row["prep"]["can_edit"] is False
     assert set(row["plan"]) == {"id", "block_no", "label", "tone", "step_url"}
     assert row["plan"]["id"] == plan["id"]
     serialized = json.dumps(rows)
-    for forbidden in ("prep_id", "report_id", "report_version_id", "meeting_date",
-                      "current_version_id", "ai_draft", "2091-02-03", "PRIVATE_",
+    for forbidden in ("prep_id", "report_id", "report_version_id",
+                      "current_version_id", "PRIVATE_",
                       "school", "advisor_name", "transcript", "materials", "y4", "notes"):
         assert forbidden not in serialized
     assert client.get(row["hub_url"]).status_code == 200
@@ -90,9 +91,11 @@ def test_shared_report_plan_discovers_student_without_raw_metadata(client, m1db)
     for path in (f"/api/m1/preps/{prep['id']}", f"/api/m1/preps/{prep['id']}/overview",
                  f"/m1/preps/{prep['id']}/prep", f"/api/m1/preps/{prep['id']}/report",
                  f"/m1/preps/{prep['id']}/report"):
-        assert client.get(path).status_code == 403, path
+        assert client.get(path).status_code == 200, path
     assert client.patch(f"/api/m1/sources/{source_id}", json={"text": "changed"}).status_code == 403
-    assert client.get("/api/m1/preps").get_json()["preps"] == []
+    preps = client.get("/api/m1/preps").get_json()["preps"]
+    assert [p["id"] for p in preps] == [prep["id"]]
+    assert preps[0]["can_edit"] is False
     assert client.get("/api/m1/students").get_json()["students"] == []
     # Discovery does not grant the legacy Add Meeting operation either.
     assert client.post("/api/m1/preps", json={"student_id": m1db.student_id}).status_code == 403
@@ -140,7 +143,7 @@ def test_deduplicates_preps_and_blocks_and_uses_all_assignments_for_participatio
     assert row["prep"]["meeting_date"] == "2030-06-01"
     assert row["plan"]["id"] == newest["id"] and row["plan"]["block_no"] == 3
     assert "primary" in row["roles"]  # earlier visible assignment still counts
-    assert set(row["prep"]) == {"id", "meeting_date", "mentor_name", "status", "has_doc", "report"}
+    assert set(row["prep"]) == {"id", "meeting_date", "mentor_name", "status", "has_doc", "report", "can_edit"}
 
 
 def test_prep_assignment_gets_narrow_hub_access_without_student_or_other_prep_access(client, m1db):

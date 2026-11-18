@@ -118,9 +118,10 @@ async function boot(saved, studentId) {
     const shared = rows().find(r => r.dataset.href === payload.students[0].hub_url);
     assert.ok(shared, 'default home must render the API co-mentor row');
     assert.match(shared.textContent, /共同导师/);
-    assert.equal((shared.textContent.match(/未共享/g) || []).length, 2);
-    assert.ok(!shared.textContent.includes('日期待定'), 'shared plan must have no fake meeting');
-    assert.match(ids.m1List.textContent, /计划与团队学生/);
+    assert.equal((shared.textContent.match(/未共享/g) || []).length, 0);
+    assert.ok(payload.students[0].prep, 'DP15 assignment reveals the existing prep');
+    assert.match(shared.textContent, /待生成|未开始/, 'shared prep/report state is visible');
+    assert.match(ids.m1List.textContent, /接下来的会议/);
     assert.match(ids.m1List.textContent, /接下来的会议/);
     assert.match(ids.m1List.textContent, /已开过的会议/);
     assert.deepEqual(['all', 'todo', 'done'].map(count), ['4', '3', '1']);

@@ -113,19 +113,24 @@ def _prep_or_404(prep_id: int):
     prep = store.get_prep(prep_id)
     if not prep:
         abort(404)
-    if not store.can_access(_user(), prep):
+    if not store.can_read_prep(_user(), prep_id):
         abort(403)
-    return prep
+    return _sanitize_prep(prep)
 
 
-def _api_prep(prep_id: int):
+def _api_read_prep(prep_id: int):
+    return _api_prep(prep_id, read=True)
+
+
+def _api_prep(prep_id: int, *, read=False):
     """API 取 prep：不存在 → 404，越权 → 403。返回 ``(prep, error)``。"""
     prep = store.get_prep(prep_id)
     if not prep:
         return None, _err("会前准备不存在", 404)
-    if not store.can_access(_user(), prep):
+    allowed = store.can_read_prep if read else store.can_access_prep
+    if not allowed(_user(), prep_id):
         return None, _err("无权访问该会前准备", 403)
-    return prep, None
+    return _sanitize_prep(prep), None
 
 
 def _nav_for_path(path: str) -> str:
@@ -229,6 +234,10 @@ def _sanitize_version(version: dict | None) -> dict | None:
     return version
 
 
+def _sanitize_prep(prep: dict) -> dict:
+    return {**prep, "current_version": _sanitize_version(prep.get("current_version"))}
+
+
 def _doc_blocks(value, found=None) -> dict:
     """id → block for every ``{id, text}`` block in a document (flags excluded)."""
     found = {} if found is None else found
@@ -310,8 +319,10 @@ def _prep_version(prep: dict):
 
 
 def _detail(prep: dict) -> dict:
+    prep = _sanitize_prep(prep)
     auto = _sanitize_auto(sources.auto_sources(prep["student_id"]))
-    uploaded = store.list_sources(prep["id"])
+    uploaded = [{k: v for k, v in row.items() if k != "stored_path"}
+                for row in store.list_sources(prep["id"])]
     # a final prep shows its locked final row (it carries reviewed_at);
     # a draft shows the working edit row
     if prep.get("status") == "final":
@@ -323,6 +334,7 @@ def _detail(prep: dict) -> dict:
     kb, fixed = _kb_payload()
     return {
         "ok": True,
+        "can_edit": store.can_access_prep(_user(), prep["id"]),
         "prep": prep,
         "status": prep["status"],
         "rev": prep["rev"],
@@ -377,6 +389,9 @@ def page_student(prep_id: int):
 @page_login_required
 def page_workspace(prep_id: int):
     prep = _prep_or_404(prep_id)
+    if not store.can_access_prep(_user(), prep_id):
+        return _render_page("m1/document_readonly.html", prep=prep, prep_id=prep_id,
+                            kind="prep", detail=_detail(prep))
     return _render_page("m1/workspace.html", nav_active="preps", prep=prep,
                         prep_id=prep["id"], m1_parts=M1_PARTS, ctx={"prep": prep})
 
@@ -388,7 +403,10 @@ def page_print(prep_id: int):
     prep["current_version"] = _sanitize_version(prep.get("current_version"))
     detail = _detail(prep)
     # the fact flags are for the mentor's review only and never reach the print page
-    for holder in (detail, detail.get("version") or {}, prep.get("current_version") or {}):
+    nested_prep = detail.get("prep") or {}
+    for holder in (detail, detail.get("version") or {},
+                   prep.get("current_version") or {},
+                   nested_prep.get("current_version") or {}):
         if isinstance(holder.get("doc"), dict):
             holder["doc"] = {key: value for key, value in holder["doc"].items()
                              if key != "fact_flags"}
@@ -455,6 +473,9 @@ def _is_past(value) -> bool:
 def _next_step(prep: dict, report: dict | None, plan: dict | None):
     """列表里的「下一步」：顺序固定，返回 None 表示没有可点的动作。"""
     base = "/m1/preps/%d" % prep["id"]
+    if prep.get("can_edit") is False and not plan:
+        suffix = "/report" if (report or {}).get("started") else "/prep"
+        return {"label": "查看", "href": base + suffix, "primary": False}
     if plan:
         status = plan.get("status")
         parent = plan.get("parent_status")
@@ -519,6 +540,7 @@ def api_preps():
     rows = store.list_preps(user=user, student_id=student_id, status=status)
     overview = rstore.list_overview([row["id"] for row in rows])
     plans = _latest_plans([row["student_id"] for row in rows])
+    assigned = store.assigned_student_ids(user)
     for row in rows:
         found = overview.get(row["id"])
         if found:
@@ -535,6 +557,9 @@ def api_preps():
         row["published_at"] = published_at
         plan = plans.get(int(row["student_id"]))
         row["plan"] = _plan_cell(plan)
+        row["can_edit"] = store.can_access_prep(user, row["id"])
+        row["report"]["can_edit"] = row["can_edit"] and app_utils.can_see_full()
+        row["assigned"] = row["student_id"] in assigned
         row["next"] = _next_step(row, found, plan)
     return jsonify({"ok": True, "me": user.get("user_id"), "preps": rows})
 
@@ -542,7 +567,7 @@ def api_preps():
 @bp.route("/api/m1/roster")
 @role_required(*_WRITE_ROLES)
 def api_roster():
-    """Student discovery only; team membership does not grant raw-source access."""
+    """Discovery uses the same student-wide read visibility as document routes."""
     user = _user()
     try:
         rows = roster.visible_sources(user)
@@ -652,7 +677,7 @@ def api_create_prep():
 @bp.route("/api/m1/preps/<int:prep_id>")
 @role_required(*_WRITE_ROLES)
 def api_prep_detail(prep_id: int):
-    prep, error = _api_prep(prep_id)
+    prep, error = _api_read_prep(prep_id)
     if error:
         return error
     return jsonify(_detail(prep))
@@ -662,7 +687,7 @@ def api_prep_detail(prep_id: int):
 @role_required(*_WRITE_ROLES)
 def api_prep_overview(prep_id: int):
     """学生页：自动来源、会前准备与会后报告两部分的状态和资料。"""
-    prep, error = _api_prep(prep_id)
+    prep, error = _api_read_prep(prep_id)
     if error:
         return error
 
@@ -725,6 +750,7 @@ def api_prep_overview(prep_id: int):
 
     return jsonify({
         "ok": True,
+        "can_edit": store.can_access_prep(_user(), prep["id"]),
         "prep": prep,
         "auto": {
             "y4": {"complete": bool(y4.get("complete")), "date": y4.get("date") or ""},
@@ -732,6 +758,7 @@ def api_prep_overview(prep_id: int):
                             "date": first_touch.get("date") or ""},
             "questionnaires": {"done": done, "total": total},
         },
+        "report_can_edit": store.can_access_prep(_user(), prep_id) and app_utils.can_see_full(),
         "prep_part": {
             "status": prep["status"],
             "label": label,
@@ -755,7 +782,8 @@ def api_prep_overview(prep_id: int):
             "materials": report_materials,
         },
         "plans": plans,
-        "can_create_plan": pstore.report_ready(report),
+        "can_create_plan": (store.can_access_prep(_user(), prep_id)
+                            and pstore.report_ready(report)),
         "activity": store.list_activity(prep_id, prep["student_id"]),
     })
 
@@ -1044,7 +1072,7 @@ def api_job_status(job_id: str):
     prep = store.get_prep(job.get("prep_id") or 0)
     if not prep:
         return _err("任务不存在", 404)
-    if not store.can_access(_user(), prep):
+    if not store.can_read_prep(_user(), prep["id"]):
         return _err("无权访问该任务", 403)
     return jsonify({"ok": True, "job": job})
 
@@ -1054,11 +1082,16 @@ def _student_overview_payload(student_id: int) -> dict:
     for plan in plans:
         plan['next_action'] = pstore.next_action(plan)
     preps = store.list_preps(user=_user(), student_id=student_id)
+    statuses = rstore.list_overview([p["id"] for p in preps])
+    for prep in preps:
+        prep["can_edit"] = store.can_access_prep(_user(), prep["id"])
+        prep["report"] = statuses.get(prep["id"]) or {}
     student = _db.get_student(student_id) or {}
     can_access = store.can_access_student(_user(), student_id)
     return {'ok': True,
             'student': {k: student.get(k) for k in ('id', 'name', 'student_code', 'grade', 'school')},
             'preps': preps, 'plans': plans, 'can_create_direct': can_access,
+            'can_create_first_meeting': can_access,
             'can_manage_team': pstore.can_manage_team(_user()),
             'team': plan_collab.team_view(student_id),
             'create_plan': {'method': 'POST', 'href': '/api/m1/plans',
@@ -1066,8 +1099,7 @@ def _student_overview_payload(student_id: int) -> dict:
 
 
 def _can_view_student_hub(student_id: int) -> bool:
-    return (store.can_access_student(_user(), student_id)
-            or pstore.is_team_member(_user(), student_id)
+    return (store.can_read_student(_user(), student_id)
             or bool(store.list_preps(user=_user(), student_id=student_id, limit=1)))
 
 
@@ -1090,4 +1122,6 @@ def page_student_hub(student_id):
         abort(404)
     return _render_page('m1/student_hub.html', nav_active='students',
                         student=student, student_id=student_id,
+                        can_create_direct=store.can_access_student(_user(), student_id),
+                        can_create_first_meeting=store.can_access_student(_user(), student_id),
                         ctx={'student': student})

@@ -1,7 +1,6 @@
 """M1 会后报告蓝图（首次情绪力分析报告）：页面 + ``/api/m1/preps/<id>/report*``。
 
-权限 = M1 权限（``_m1_access_guard`` 与 ``can_access_prep``）再加 ``can_see_full()``：
-概要账号 403。只有员工能看，没有学生或家长入口；家庭版是员工下载的 PDF。
+读取允许明确的学生团队授权；修改仍要求原有 prep 权限和完整详情账号。
 """
 from __future__ import annotations
 
@@ -21,7 +20,7 @@ import m1.sources as sources
 import m1.store as store
 from m1 import report_display, speakers
 from app_utils import page_login_required, role_required
-from blueprints.m1 import (_WRITE_ROLES, _api_prep, _err, _json_body, _m1_access_guard,
+from blueprints.m1 import (_WRITE_ROLES, _api_prep, _api_read_prep, _err, _json_body, _m1_access_guard,
                            _prep_or_404, _render_page, _user)
 from growth_talk.upload import UploadError, extract_upload
 
@@ -34,11 +33,20 @@ _FIELD_KEYS = ("goal", "mentor", "family", "evidence")
 
 @bp.before_request
 def _report_access_guard():
-    """概要账号（detail_level != full）看不到会后报告。"""
+    """Summary accounts get only explicitly assigned, student-scoped GET/HEAD reads."""
     if not session.get("user_id"):
         return None
     if app_utils.can_see_full():
         return None
+    if (request.method in ("GET", "HEAD")
+            and request.endpoint == "m1_report.api_report_statuses"
+            and store.assigned_student_ids(_user())):
+        return None
+    prep_id = (request.view_args or {}).get("prep_id")
+    if request.method in ("GET", "HEAD") and prep_id is not None:
+        prep = store.get_prep(prep_id)
+        if prep and prep["student_id"] in store.assigned_student_ids(_user()):
+            return None
     if request.path.startswith("/api/"):
         return jsonify({"ok": False, "error": "当前账号不能查看会后报告"}), 403
     abort(403)
@@ -129,6 +137,7 @@ def _payload(prep: dict) -> dict:
     mapped = {code: info["indicators"] for code, info in kb.ability_map().items()}
     return {
         "ok": True,
+        "can_edit": store.can_access_prep(_user(), prep["id"]) and app_utils.can_see_full(),
         "report": _public_report(report) if report else {
             "id": None, "prep_id": prep["id"], "status": "draft",
             "label": rstore.STATUS_LABELS["draft"], "rev": 1,
@@ -163,8 +172,23 @@ def _need_report(prep: dict):
 @page_login_required
 def page_report(prep_id: int):
     prep = _prep_or_404(prep_id)
+    if not (store.can_access_prep(_user(), prep_id) and app_utils.can_see_full()):
+        return _render_page("m1/document_readonly.html", prep=prep, prep_id=prep_id,
+                            kind="report", detail=_payload(prep))
     return _render_page("m1/report_workspace.html", prep=prep, prep_id=prep["id"],
                         ctx={"prep": prep})
+
+
+@bp.route("/m1/preps/<int:prep_id>/report/sources")
+@page_login_required
+def page_report_sources(prep_id: int):
+    """Read stored extracted text, never a filesystem path or external-platform URL."""
+    prep = _prep_or_404(prep_id)
+    report = rstore.get_report(prep_id) or {}
+    return _render_page("m1/report_sources.html", prep=prep, prep_id=prep_id,
+                        transcript=report.get("transcript_text") or "",
+                        transcript_filename=report.get("transcript_filename") or "",
+                        source_rows=store.list_sources(prep_id, part="report"))
 
 
 @bp.route("/m1/preps/<int:prep_id>/report/print")
@@ -177,7 +201,8 @@ def page_report_print(prep_id: int):
     shown = report_display.display_version(version)
     doc = shown.get("doc") or {}
     draft = report["status"] not in ("approved", "published")
-    editing = (request.args.get("edit") == "1"
+    editing = (store.can_access_prep(_user(), prep_id) and app_utils.can_see_full()
+               and request.args.get("edit") == "1"
                and report["status"] not in ("published", "generating"))
     edit_data = None
     if editing:
@@ -213,7 +238,7 @@ def page_report_evidence(prep_id: int):
 @bp.route("/api/m1/preps/<int:prep_id>/report")
 @role_required(*_WRITE_ROLES)
 def api_report(prep_id: int):
-    prep, error = _api_prep(prep_id)
+    prep, error = _api_read_prep(prep_id)
     if error:
         return error
     return jsonify(_payload(prep))
@@ -222,7 +247,7 @@ def api_report(prep_id: int):
 @bp.route("/api/m1/preps/<int:prep_id>/report/speakers")
 @role_required(*_WRITE_ROLES)
 def api_report_speakers(prep_id: int):
-    prep, error = _api_prep(prep_id)
+    prep, error = _api_read_prep(prep_id)
     if error:
         return error
     report = rstore.get_report(prep_id)
@@ -277,6 +302,9 @@ def api_report_speakers_save(prep_id: int):
 @role_required(*_WRITE_ROLES)
 def api_report_statuses():
     preps = store.list_preps(user=_user())
+    if not app_utils.can_see_full():
+        assigned = store.assigned_student_ids(_user())
+        preps = [p for p in preps if p["student_id"] in assigned]
     found = rstore.list_statuses([p["id"] for p in preps])
     default = {"status": "draft", "label": rstore.STATUS_LABELS["draft"]}
     return jsonify({"statuses": {str(p["id"]): found.get(p["id"], default) for p in preps}})

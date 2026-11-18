@@ -178,8 +178,12 @@ def test_team_admin_add_remove_and_plan_access(plan_client, m1db):
     assert detail["can_approve"] is False
     assert detail["collaboration"]["permissions"]["role"] == "co_mentor"
     assert "report_doc" not in detail and "transcript" not in detail
-    # 只读计划不扩大到原始会前准备/逐字稿。
-    assert bob.get("/api/m1/preps/%d" % plan["prep_id"]).status_code == 403
+    # DP15: student assignment adds document reads, never prep/report edits.
+    prep_detail = bob.get("/api/m1/preps/%d" % plan["prep_id"])
+    assert prep_detail.status_code == 200
+    assert prep_detail.get_json()["can_edit"] is False
+    assert bob.patch("/api/m1/preps/%d" % plan["prep_id"],
+                     json={"duration": 90}).status_code == 403
     mine = bob.get("/api/m1/plans?scope=mine").get_json()["plans"]
     assert [row["id"] for row in mine] == [plan["id"]]
 

@@ -1,0 +1,18 @@
+{% extends "m1/_layout.html" %}
+{% block title %}{{ prep.student_name }} · 会议资料原文 · 只读{% endblock %}
+{% block content %}
+<div class="m1" style="min-width:0;max-width:100%">
+  <h1>会议资料原文 · 只读</h1>
+  <p>{{ prep.student_name }} · <a href="/m1/preps/{{ prep.id }}/report">返回会后报告</a></p>
+  <p class="hint">显示文件中已提取的文字。原始文件下载暂不可用。</p>
+  <h2>会议逐字稿</h2>
+  <p>{{ transcript_filename or '粘贴的文字' }}</p>
+  <pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ transcript or '未提供逐字稿。' }}</pre>
+  <h2>其他资料</h2>
+  {% for source in source_rows %}
+  <details><summary>{{ source.label or source.filename or '资料' }} · {{ source.filename }} · {{ source.detected_date }}</summary>
+    <pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ source.text or '未提取到文字。' }}</pre>
+  </details>
+  {% else %}<p>没有上传的其他资料。</p>{% endfor %}
+</div>
+{% endblock %}

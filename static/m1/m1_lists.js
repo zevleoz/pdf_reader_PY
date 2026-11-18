@@ -9,7 +9,7 @@
   // 排序与新建表单是纯函数，导出给页面测试用。
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = { sortPreps: sortPreps, sortReports: sortReports,
-      uniqueByStudent: uniqueByStudent, eligiblePath: eligiblePath,
+      uniqueByStudent: uniqueByStudent, reportRowsByStudent: reportRowsByStudent, eligiblePath: eligiblePath,
       creationPayload: creationPayload, planHintText: planHintText,
       gradeVisible: gradeVisible };
   }
@@ -139,7 +139,7 @@
   function matchesWho(row) {
     if (state.who === 'all') return true;
     if (state.me === null) return false;
-    return row.created_by === state.me || row.mentor_user_id === state.me;
+    return row.assigned || row.created_by === state.me || row.mentor_user_id === state.me;
   }
 
   function matchesQuery(row) {
@@ -168,6 +168,7 @@
 
   function prepAction(prep) {
     var base = '/m1/preps/' + prep.id;
+    if (prep.can_edit === false) return { label: '查看', href: base + '/prep', primary: false };
     if (!prep.current_version_id) return { label: '生成', href: base + '/prep', primary: false };
     if (prep.status !== 'final') {
       return { label: '去定稿', href: base + '/prep#step=review', primary: true };
@@ -209,6 +210,7 @@
   function reportAction(prep) {
     var base = '/m1/preps/' + prep.id;
     var report = prep.report || {};
+    if (report.can_edit === false) return { label: '查看', href: base + '/report', primary: false };
     if (!report.started) return { label: '上传逐字稿', href: base + '/report', primary: true };
     if (report.status !== 'published') {
       return { label: '核对发布', href: base + '/report#step=review', primary: true };
@@ -382,6 +384,16 @@
     });
   }
 
+  function reportRowsByStudent(rows) {
+    var started = rows.filter(function (row) {
+      var report = row.report || {};
+      return report.started || (report.status && report.status !== 'draft');
+    });
+    return uniqueByStudent(started).concat(uniqueByStudent(rows).filter(function (row) {
+      return !started.some(function (other) { return other.student_id === row.student_id; });
+    }));
+  }
+
   function sortPreps(rows) {
     var pending = rows.filter(function (p) { return p.status !== 'final'; });
     var final = rows.filter(function (p) { return p.status === 'final'; });
@@ -422,7 +434,7 @@
 
   function prepareRows(rows) {
     if (kind === 'preps') return sortPreps(uniqueByStudent(rows));
-    if (kind === 'reports') return sortReports(uniqueByStudent(rows));
+    if (kind === 'reports') return sortReports(reportRowsByStudent(rows));
     return rows;
   }
 
@@ -481,7 +493,7 @@
     render();
   }
 
-  // persist=true 仅在用户点击「我添加的 / 全部」时传入；页面启动不写 localStorage
+  // persist=true 仅在用户点击「我参与的 / 全部」时传入；页面启动不写 localStorage
   function setWho(who, persist) {
     state.who = who;
     if (persist) {

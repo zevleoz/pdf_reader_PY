@@ -1,4 +1,4 @@
-"""Minimal M1 discovery, independent of raw student/prep access.
+"""M1 discovery using legacy scope plus explicit student-wide read grants.
 
 Build authorized source maps once. Never use plan serialization here: it contains
 raw-source identifiers and mentor inputs that team-only discovery must not expose.
@@ -15,7 +15,7 @@ from m1 import plan_collaboration as collab, plan_store as plans, store
 def visible_sources(user) -> list[dict]:
     """One student row with latest readable prep and highest readable Block.
 
-    Visibility follows can_access_student/can_access_prep/can_view_plan, without
+    Visibility follows student/prep read helpers and can_view_plan, without
     their per-record queries. Creation is participation, never access authority.
     The caller projects these internal source summaries into the public schema.
     """
@@ -53,7 +53,7 @@ def visible_sources(user) -> list[dict]:
                    db.User.advisor_name, db.User.username)
             .join(db.Student, db.Student.id == prep.student_id)
             .outerjoin(db.User, db.User.id == prep.mentor_user_id)
-            .where(or_(raw_student, prep.mentor_user_id == uid))
+            .where(or_(raw_student, prep.mentor_user_id == uid, prep.student_id.in_(my_team)))
             .order_by(prep.updated_at.desc(), prep.id.desc())).all()
         readable_preps = {r.id for r in prep_rows}
         # A report plan requires its actual prep authority (not merely its plan
@@ -87,6 +87,7 @@ def visible_sources(user) -> list[dict]:
         rows[s.id] = {"student_id": s.id, "student_name": s.name or "",
                       "student_code": s.student_code or "", "grade": s.grade or "",
                       "roles": roles, "participating": bool(roles),
+                      "_advisor": (s.advisor_name or "").strip(),
                       "prep": None, "plan": None}
     for sources, kind in ((prep_rows, "prep"), (plan_rows, "plan")):
         for source in sources:
@@ -100,6 +101,8 @@ def visible_sources(user) -> list[dict]:
                 continue
             if kind == "prep":
                 row[kind] = {"id": source.id, "meeting_date": source.meeting_date or "",
+                             "can_edit": bool(all_students or source.mentor_user_id == uid
+                                              or (advisor and advisor == rows[source.student_id].get("_advisor"))),
                              "mentor_name": source.display_name or source.advisor_name
                              or source.username or "", "status": source.status,
                              "current_version_id": source.current_version_id}
@@ -112,4 +115,6 @@ def visible_sources(user) -> list[dict]:
                              "parent_stale": bool(source.parent_version_id and (
                                  source.status != "approved" or
                                  (source.source_version_id or 0) != (source.current_version_id or 0)))}
+    for row in rows.values():
+        row.pop("_advisor", None)
     return list(rows.values())

@@ -15,7 +15,7 @@
     <div class="nx">
       <small>下一步</small>
       <b id="m1HubNextText">正在载入…</b>
-      <a class="btn p" id="m1HubNextBtn"
+      <a class="btn p" id="m1HubNextBtn" hidden
          href="/m1/plans?new_student={{ student.id }}&amp;mode=direct">直接创建教案</a>
     </div>
   </div>
@@ -26,9 +26,9 @@
 
   <section style="margin-top:26px">
     <h3 class="h2">发展计划
-      <span class="r">
+      {% if can_create_direct %}<span class="r">
         <a class="btn s" href="/m1/plans?new_student={{ student.id }}&amp;mode=direct">+ 直接创建教案</a>
-      </span>
+      </span>{% endif %}
     </h3>
     <div id="m1HubPlans"></div>
   </section>
@@ -42,9 +42,9 @@
 
   <section style="margin-top:30px">
     <h3 class="h2">First Meeting
-      <span class="r">
+      {% if can_create_first_meeting %}<span class="r">
         <a class="btn s" href="/m1?student={{ student.id }}">+ 新建 First Meeting</a>
-      </span>
+      </span>{% endif %}
     </h3>
     <div class="cols2" id="m1HubPreps"></div>
   </section>

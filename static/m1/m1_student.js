@@ -83,6 +83,10 @@
   }
 
   function openPrint(prep) {
+    if (state.data.can_edit === false) {
+      window.open('/m1/preps/' + prep.id + '/print', '_blank', 'noopener');
+      return;
+    }
     var tab = window.open('', '_blank');
     api('/api/m1/preps/' + prep.id + '/export', { method: 'POST' }).then(function () {
       var url = '/m1/preps/' + prep.id + '/print';
@@ -100,6 +104,11 @@
     var reportPart = data.report_part;
     var base = '/m1/preps/' + prep.id;
     var plan = (data.plans || [])[0];
+    if (!plan && (data.can_edit === false ||
+        (reportPart.started && data.report_can_edit === false))) {
+      return {sentence: '当前会议文档只读', button: '查看',
+        href: base + (reportPart.started ? '/report' : '/prep')};
+    }
     if (!plan) {
       if (reportPart.started) {
         if (reportPart.status === 'published') {
@@ -327,7 +336,9 @@
     var acts = el('div', 'acts');
     var link = el('a', 'btn p');
     link.href = '/m1/preps/' + prep.id + '/report';
-    if (!part.started) {
+    if (data.report_can_edit === false) {
+      link.textContent = '查看';
+    } else if (!part.started) {
       link.innerHTML = UPLOAD + '上传逐字稿';
     } else {
       link.textContent = '打开';
@@ -440,7 +451,7 @@
     host.innerHTML = '';
 
     var heading = el('h3', 'h2', 'First Meeting');
-    if (!state.editing) {
+    if (!state.editing && data.can_edit !== false) {
       var right = el('span', 'r');
       var edit = el('button', 'btn s');
       edit.type = 'button';

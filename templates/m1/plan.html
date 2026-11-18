@@ -468,7 +468,7 @@
               </select>
               {% set src = activity.get('source') or {} %}
               {% if src.type == 'world_bank' %}
-              <select class="selx" data-path="{{ abase }}.source.wb_id" data-source-lesson="{{ si }}">
+              <select class="selx" data-path="{{ abase }}.source.wb_id" data-source-lesson="{{ si }}" aria-label="Activity {{ ai + 1 }} · World Bank 参考课程">
                 {% for row in session_candidates[si] %}
                 <option value="{{ row.wb_id }}"{% if row.wb_id == src.wb_id %} selected{% endif %}>{{ row.cite }}</option>
                 {% endfor %}

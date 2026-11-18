@@ -42,8 +42,8 @@
       <button type="button" data-view="exported">已导出<em>0</em></button>
       {% endif %}
     </div>
-    <div class="seg" role="group" aria-label="添加人">
-      <button{% if not m1_manager %} class="on"{% endif %} type="button" data-who="mine" aria-pressed="{{ 'false' if m1_manager else 'true' }}">我添加的</button>
+    <div class="seg" role="group" aria-label="参与范围">
+      <button{% if not m1_manager %} class="on"{% endif %} type="button" data-who="mine" aria-pressed="{{ 'false' if m1_manager else 'true' }}">我参与的</button>
       <button{% if m1_manager %} class="on"{% endif %} type="button" data-who="all" aria-pressed="{{ 'true' if m1_manager else 'false' }}">全部</button>
     </div>
     <label class="fld" style="width:220px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="m1Search" placeholder="搜索姓名或 Y4 编号" aria-label="搜索"></label>
