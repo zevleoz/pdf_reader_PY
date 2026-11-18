@@ -22,8 +22,6 @@ INPUT_KEYS = ("strengths", "needs", "context", "interests")
 SESSION_COUNT = 3
 TITLE_LIMIT = 20
 FOCUS_LIMIT = 40
-STEPS_LIMIT = 4000
-QUESTIONS_LIMIT = 200
 EVIDENCE_LIMIT = 80
 TASK_LIMIT = 120
 OVERVIEW_LIMIT = 250
@@ -517,10 +515,6 @@ def _activity(raw: Dict[str, Any], n: int, index: int, codes: List[str],
     row["input_refs"] = copy.deepcopy(raw.get("input_refs", []))
     if source.get("type") not in ("ai_original", "world_bank") or (source.get("type") == "world_bank" and source.get("wb_id") not in candidate_ids):
         row["source_issue"] = copy.deepcopy(source)
-    for key, limit in plan_kb.ACTIVITY_LIMITS.items():
-        if len(_text(row.get(key))) > limit:
-            adjustments.append({"path": path + [key], "label": label_base,
-                                "text": "%s超过%d字符，内容未截断，请精简" % (key, limit)})
     return row
 
 

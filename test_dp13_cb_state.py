@@ -46,7 +46,8 @@ const state = [
   'clonePatch', 'isPlainObject', 'composePatch', 'ensurePending', 'rememberPath',
   'scheduleFlush', 'buildSectionPatch', 'stagePatch', 'stageField', 'updateSaveState',
   'sendPatch', 'acceptPatch', 'dropWrite', 'patchSection', 'isStaleError', 'flushSection',
-  'hasUnresolved', 'flushAll', 'handlePatchError', 'applyPermissions', 'applyPresence',
+  'hasUnresolved', 'flushAll',
+  'handlePatchError', 'applyPermissions', 'applyPresence',
   'handleEpochChange', 'applyFamilyFromPayload', 'familyRemoteDiffers',
   'adoptFamilyRemote', 'adoptFamilyRemoteIfClean', 'loadFamilyPayload',
   'markFamilySeen',
@@ -78,6 +79,8 @@ function makeEngine(overrides) {
       doc: null, parentDoc: null, canEdit: true, revoked: false, offline: false,
       sections: {}, knownVersions: {}, observedDocVersion: 1, docVersion: 1,
       pending: {}, conflicts: {}, leases: {}, leasePromises: {}, locked: {}, writes: [],
+      goalDirty: false, inputsDirty: false, goalEdit: 0, inputEdit: 0,
+      goalWrites: [], inputWrites: [], step1: false,
       inflight: 0, familyHashes: [], familySeen: [], parentEditable: true,
       familyRemote: null, familyRemoteVersion: 0, familyRefreshSeq: 0
     },

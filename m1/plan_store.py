@@ -835,6 +835,52 @@ def current_version(plan_id: int, part: str = "internal") -> Optional[Dict[str, 
         return _version_row(sess, row) if row else None
 
 
+def internal_print_snapshot(plan_id: int) -> Optional[Dict[str, Any]]:
+    """单节教案打印用的连贯只读快照。
+
+    部署环境使用 Python ``sqlite3`` 的 legacy 事务模式：SELECT 不会自动
+    开启 DBAPI 事务，SQLAlchemy 的逻辑事务也不等于 sqlite3 的读事务。
+    因此这里在**第一条 SELECT 之前**显式执行 ``BEGIN``，让后续计划头、
+    目标、状态、当前版本、文档和 document epoch 全部落在同一个真实读事务
+    里：
+
+    - WAL：读事务在第一条 SELECT 时固定快照，其他连接的写入可以继续提交，
+      但本事务始终读到同一修订；不会出现“旧 rev + 新文档”。
+    - rollback-journal：读事务持有 SHARED 锁，写入方可以写但不一定能立刻
+      提交；打印是只读短事务，结束时立即 rollback 释放锁。
+
+    事务由 ``finally`` 中的 ``rollback`` 结束（不写库、不建快照表），连接
+    随后归还连接池。这里刻意不复用 ``_plan_page_context()``：后者会多次
+    开启新事务，无法保证打印前置条件与页面内容属于同一修订。
+    """
+    from m1.plan_collaboration import _document_version
+
+    engine = _engine()
+    sqlite = str(engine.url).startswith("sqlite")
+    with Session(engine) as sess:
+        if sqlite:
+            sess.connection().exec_driver_sql("BEGIN")
+        try:
+            row = sess.get(M1Plan, int(plan_id))
+            if row is None:
+                return None
+            plan = _plan_row(sess, row)
+            version = None
+            if row.current_version_id:
+                vrow = sess.get(M1PlanVersion, int(row.current_version_id))
+                if (vrow is not None and vrow.part == "internal"
+                        and int(vrow.plan_id) == int(plan_id)):
+                    version = _version_row(sess, vrow)
+            return {
+                "plan": plan,
+                "internal": version,
+                "document_version": _document_version(sess, plan_id),
+            }
+        finally:
+            if sqlite:
+                sess.rollback()
+
+
 def list_versions(plan_id: int) -> List[Dict[str, Any]]:
     """历史版本：编号、类型、时间、谁（README deviation 5）。"""
     with Session(_engine()) as sess:

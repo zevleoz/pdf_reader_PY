@@ -91,9 +91,6 @@ def review(plan, doc):
                 if not isinstance(used, list) or not used or any(not isinstance(r, str) or r not in refs for r in used):
                     add('refs-%d-%d' % (si, ai), ap + ['input_refs'], '个性化引用必须指向已授权简报/已读报告资料；不能编造引用')
                 add('fit-%d-%d' % (si, ai), ap + ['personalization'], '请人工评估：所引情境是否实际改变步骤、目标与可观察尝试是否相连；引用有效不代表内容真实或教学有效', 'hint')
-            for key, limit in plan_kb.ACTIVITY_LIMITS.items():
-                if len(text(activity.get(key))) > limit:
-                    add('long-%d-%d-%s' % (si, ai, key), ap + [key], '%s超过%d字符；请精简，内容未截断' % (key, limit))
             if activity.get('source_issue'):
                 add('source-%d-%d' % (si, ai), ap + ['source'], '生成来源不在提供候选中或类型无效，请人工核对（原始值保留在source_issue）')
             name = ''.join(text(activity.get('name')).split()).lower()

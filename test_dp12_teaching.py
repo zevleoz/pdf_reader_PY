@@ -98,16 +98,16 @@ def test_sparse_brief_refuses_before_model(standalone, monkeypatch):
         pipeline.generate(standalone['id'])
 
 
-def test_steps_not_truncated_and_practical_limits_visible(draft):
+def test_steps_not_truncated_and_no_activity_length_findings(draft):
     v = plans.current_version(draft['id'])
     a = v['doc']['sessions'][0]['activities'][0]
     steps = '先示范一句。再请学生尝试。' * 500
     a['steps']['text'] = steps
-    assert any(c['id'] == 'dp12-long-0-0-steps' for c in checks.run_checks(draft, v['doc']))
+    assert not any(c['id'].startswith('long-') for c in checks.run_checks(draft, v['doc']))
     adj = []
     result = pipeline._activity(dict(rich_activity(1, 20), steps=steps), 1, 1, ['R2.2'], [], adj)
     assert result['steps']['text'] == steps
-    assert adj and '未截断' in adj[0]['text']
+    assert adj == []
 
 
 @pytest.mark.parametrize('refs', [['brief.invented'], ['__import__(os)'], [{'text': 'brief.current_situation'}], {}, None])

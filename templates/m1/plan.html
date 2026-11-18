@@ -9,9 +9,9 @@
 
 {% block content %}
 
-{% macro txt(value, path, limit=0, cls='') -%}
+{% macro txt(value, path, limit=0, cls='', count=0, multiline=0) -%}
 {%- set t = value.text if value is mapping else value -%}
-<span class="pf{{ ' ' + cls if cls }}"{% if step2_editable %} contenteditable="true" spellcheck="false"{% endif %} data-path="{{ path }}"{% if limit %} data-limit="{{ limit }}"{% endif %}>{{ t }}</span>
+<span class="pf{{ ' ' + cls if cls }}"{% if step2_editable %} contenteditable="true" spellcheck="false"{% endif %} data-path="{{ path }}"{% if limit %} data-limit="{{ limit }}"{% endif %}{% if count %} data-count="1"{% endif %}{% if multiline %} data-multiline="1"{% endif %}>{{ t }}</span>
 {%- endmacro %}
 
 {% macro srclabel(src) -%}
@@ -195,12 +195,12 @@
         </div>
         <dl>
           <dt>发展目标{% if g.goal.src == 'ai' and g.goal_text %}<span class="ai" data-goal-ai="{{ g.code }}-goal">AI</span>{% endif %}</dt>
-          <dd><span class="pf block gtext"{% if step1_editable %} contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true" aria-label="{{ g.code }} 发展目标" data-placeholder="写这一项的发展目标（必填）"{% endif %} data-goal-text="{{ g.code }}"{% if step1_editable and g.locked and not (g.goal_text or '').strip() %} data-missing="1"{% endif %}>{{ g.goal_text }}</span>
+          <dd><span class="pf block gtext"{% if step1_editable %} contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true" aria-label="{{ g.code }} 发展目标" data-placeholder="写这一项的发展目标（必填）"{% endif %} data-goal-text="{{ g.code }}" data-multiline="1"{% if step1_editable and g.locked and not (g.goal_text or '').strip() %} data-missing="1"{% endif %}>{{ g.goal_text }}</span>
             {%- if step1_editable %}<span class="gwarn" data-goal-warn="{{ g.code }}"{% if not (g.locked and not (g.goal_text or '').strip()) %} hidden{% endif %}>还没写发展目标，生成前要补上。</span>{% endif %}</dd>
           <dt>当前起点{% if g.start.src == 'ai' %}<span class="ai" data-goal-ai="{{ g.code }}-start">AI</span>{% endif %}</dt>
-          <dd data-goal-field="{{ g.code }}-start"><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false"{% endif %} data-goal-value="{{ g.code }}-start">{{ g.start.text }}</span></dd>
+          <dd data-goal-field="{{ g.code }}-start"><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false" aria-multiline="true"{% endif %} data-goal-value="{{ g.code }}-start" data-multiline="1">{{ g.start.text }}</span></dd>
           <dt>阶段预期进展{% if g.expected.src == 'ai' %}<span class="ai" data-goal-ai="{{ g.code }}-expected">AI</span>{% endif %}</dt>
-          <dd data-goal-field="{{ g.code }}-expected"><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false"{% endif %} data-goal-value="{{ g.code }}-expected">{{ g.expected.text }}</span></dd>
+          <dd data-goal-field="{{ g.code }}-expected"><span class="pf block"{% if step1_editable %} contenteditable="true" spellcheck="false" aria-multiline="true"{% endif %} data-goal-value="{{ g.code }}-expected" data-multiline="1">{{ g.expected.text }}</span></dd>
         </dl>
       </div>
       {% endfor %}
@@ -389,7 +389,17 @@
           {% set teach_min = duration - review_min - trans_min - ns.br %}
           <div class="sess" data-session="{{ si }}">
             <h2>Session {{ session.n }}｜{{ txt(session.get('title') or {}, sbase ~ '.title.text', 20, 'block') }}</h2>
-            {% if step2_editable %}<button class="btn s g regen" data-regen="{{ session.n }}">重新生成本节</button>{% endif %}
+            <div class="sess-tools">
+              {% if internal %}
+              <button type="button" class="btn s g sess-export" data-session="{{ session.n }}"
+                aria-label="导出 Session {{ session.n }} PDF"
+                {% if st == 'generating' %}disabled aria-disabled="true" title="内部版正在更新，完成后可导出本节 PDF"{% else %}title="使用浏览器打印 / 另存为 PDF"{% endif %}>导出本节 PDF</button>
+              {% endif %}
+              {% if step2_editable %}<button class="btn s g regen" data-regen="{{ session.n }}">重新生成本节</button>{% endif %}
+            </div>
+            {% if internal and st == 'generating' %}
+            <p class="sess-export-note">内部版正在更新，完成后可导出本节 PDF</p>
+            {% endif %}
             <p class="timing" data-timing-budget="{{ si }}" data-activity-minutes="{{ ns.act }}"
                data-review-minutes="{{ review_min }}" data-transition-minutes="{{ trans_min }}"
                data-block-review-minutes="{{ ns.br }}"{% if timing %} data-timing="{{ si }}"{% endif %}>
@@ -442,13 +452,13 @@
             {% for part in block_review.parts %}
             <p class="steps ro"><b class="lbl">{{ part.label }}：</b>{{ part.text }}</p>
             {% endfor %}
-            <p><b class="lbl">引导问题：</b>{{ txt(activity.get('questions') or {}, abase ~ '.questions.text', 200) }}</p>
+            <p><b class="lbl">引导问题：</b>{{ txt(activity.get('questions') or {}, abase ~ '.questions.text', 0, '', 1, 1) }}</p>
             <p class="mu" style="font-size:12px">{{ block_review.note }}</p>
           </div>
           {% else %}
           <div class="act" data-block-review="0" data-a="{{ ai }}">
             <div class="act-h">
-              <h4>Activity {{ ai + 1 }}｜{{ txt(activity.get('name') or {}, abase ~ '.name.text', activity_limits.name) }}</h4>
+              <h4>Activity {{ ai + 1 }}｜{{ txt(activity.get('name') or {}, abase ~ '.name.text', 0, '', 1, 1) }}</h4>
               {% if step2_editable %}
               <div class="act-tools">
                 <button data-op="up" data-s="{{ si }}" data-a="{{ ai }}"{% if ai == 0 %} disabled{% endif %} aria-label="上移">↑</button>
@@ -480,9 +490,9 @@
               <span class="srcl">{{ srclabel(activity.get('source') or {}) }}</span>
               {% endif %}
             </p>
-            <p class="steps">{{ txt(activity.get('steps') or {}, abase ~ '.steps.text', activity_limits.steps, 'block') }}</p>
-            <p><b class="lbl">引导问题：</b>{{ txt(activity.get('questions') or {}, abase ~ '.questions.text', activity_limits.questions) }}</p>
-            <p><b class="lbl">所需材料：</b>{{ txt(activity.get('materials') or {}, abase ~ '.materials.text', activity_limits.materials) }}</p>
+            <p class="steps">{{ txt(activity.get('steps') or {}, abase ~ '.steps.text', 0, 'block', 1, 1) }}</p>
+            <p><b class="lbl">引导问题：</b>{{ txt(activity.get('questions') or {}, abase ~ '.questions.text', 0, '', 1, 1) }}</p>
+            <p><b class="lbl">所需材料：</b>{{ txt(activity.get('materials') or {}, abase ~ '.materials.text', 0, '', 1, 1) }}</p>
             {% set rich = session.get('teaching_schema') == 2 or (activity.get('purpose') is not none or activity.get('personalization') is not none or activity.get('student_action') is not none or activity.get('expected_attempt') is not none or activity.get('support') is not none or activity.get('extension') is not none) %}
             {% if rich %}
             {% set nsr = namespace(filled=0) %}
@@ -498,7 +508,7 @@
                 <div class="rf">
                   <b class="lbl">{{ rich_labels[key] }}</b>
                   <span class="pf block" contenteditable="{{ 'true' if step2_editable else 'false' }}"
-                        data-path="{{ abase }}.{{ key }}.text" data-rich-field="1" data-limit="{{ activity_limits[key] }}" data-placeholder="未填写"
+                        data-path="{{ abase }}.{{ key }}.text" data-rich-field="1" data-count="1" data-multiline="1" data-placeholder="未填写"
                         aria-label="Activity {{ ai + 1 }} · {{ rich_labels[key] }}">{{ (value.text if value is mapping else value) or '' }}</span>
                 </div>
                 {% endfor %}

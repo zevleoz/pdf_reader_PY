@@ -104,7 +104,7 @@ SESSION_PROMPT = TASK_SESSION + """
 60分钟通常建议3至5个有不同目的、逐步递进的实质活动，短课可以更少；不要为数量填充。最多2个WB参考不代表最多2个活动。
 每个活动增加 purpose（对应目标和教学目的）、personalization（哪个已提供情况如何影响步骤，不只重复学生姓名）、input_refs（所用 grounding_refs 中的编号数组）、student_action、expected_attempt（可观察尝试）、support（较轻替代）、extension（进阶）。steps 写导师可直接使用的步骤，questions 写具体可说的问题。
 input_refs 只能照抄 grounding_refs 的编号。不要声称这些引用证明教学有效；没有资料时说明未知，不编造。对家长解释保持归属。
-实用字段上限（字符，超限会提示导师，不截断）：name100，purpose600，personalization1000，steps4000，student_action1500，questions1500，materials1000，expected_attempt1000，support1500，extension1500；整个内部版JSON预算50000字符。
+教学目标与活动字段不设字数上限：把名称、步骤、问题、材料与六项教学设计写完整，导师可以直接编辑或补充。整个内部版 JSON 的技术预算为 50000 字符。
 
 %s
 

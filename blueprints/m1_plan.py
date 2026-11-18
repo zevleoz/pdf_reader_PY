@@ -8,10 +8,11 @@
 """
 from __future__ import annotations
 
+import html
 import uuid
 from pathlib import Path
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, Response, abort, jsonify, request
 
 import app_utils
 import db as _db
@@ -1080,7 +1081,6 @@ def _plan_page_context(plan: dict) -> dict:
         "wb_groups": _wb_groups(goals, candidates),
         "session_candidates": session_candidates,
         "source_labels": plan_kb.source_labels(),
-        "activity_limits": plan_kb.ACTIVITY_LIMITS,
         "block_review": plan_kb.block_review(),
         "cites": _doc_cites(doc),
         "period": _period(plan),
@@ -1113,6 +1113,128 @@ def page_plan(plan_id: int):
         abort(404)
     return _render_page("m1/plan.html", nav_active="plans",
                         **_plan_page_context(plan))
+
+
+def _print_error(plan_id: int, status: int, message: str) -> Response:
+    """打印页是顶层导航，错误也要给出可阅读的 HTML 而不是 JSON。"""
+    body = (
+        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>无法导出本节教案</title></head>'
+        '<body style="margin:0;padding:48px 24px;font:15px/1.8 '
+        '-apple-system,BlinkMacSystemFont,\'PingFang SC\',sans-serif;'
+        'color:#0f172a;background:#f7f8fa">'
+        '<div style="max-width:560px;margin:0 auto;background:#fff;'
+        'border:1px solid #e5e7eb;border-radius:10px;padding:28px">'
+        '<h1 style="font-size:17px;margin:0 0 10px">无法导出本节教案</h1>'
+        '<p id="print-error" style="margin:0 0 18px;color:#334155">%s</p>'
+        '<p style="margin:0"><a href="/m1/plans/%d" '
+        'style="color:#b33a3a;text-decoration:none">返回计划</a></p>'
+        '</div></body></html>'
+    ) % (html.escape(message), int(plan_id))
+    return Response(body, status=status, content_type="text/html; charset=utf-8")
+
+
+def _session_by_no(doc: dict, session_no: int):
+    for index, session in enumerate((doc or {}).get("sessions") or []):
+        if not isinstance(session, dict):
+            continue
+        try:
+            n = int(session.get("n"))
+        except (TypeError, ValueError):
+            n = index + 1
+        if n == session_no:
+            return session
+    return None
+
+
+def _session_print_duration(plan: dict, session_no: int) -> int:
+    durations = plan.get("session_durations") or []
+    value = durations[session_no - 1] if len(durations) >= session_no else 60
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 60
+
+
+def _session_goal_projection(plan: dict, session: dict):
+    """只投影本节 primary/supporting 引用的已确认目标。
+
+    找不到引用时返回原代码用于诚实提示；绝不回退到其他目标。
+    """
+    focus = session.get("focus") or {}
+    codes = []
+    for code in (focus.get("primary"), focus.get("supporting")):
+        code = str(code or "").strip()
+        if code and code not in codes:
+            codes.append(code)
+    by_code = {row.get("code"): row for row in _goal_display(plan)}
+    goals = [by_code[code] for code in codes if code in by_code]
+    missing = [code for code in codes if code not in by_code]
+    return goals, missing, bool(codes)
+
+
+@bp.route("/m1/plans/<int:plan_id>/sessions/<int:session_no>/print")
+def page_plan_session_print(plan_id: int, session_no: int):
+    """导出单节内部教案（浏览器打印 / 另存为 PDF）。
+
+    这是只读动作，不新增编辑或最终批准权限；权限与整份内部版打印一致。
+    可选前置条件：``?expected_rev=<int>&version_id=<int>``（必须同时提供）。
+    ``expected_rev`` 覆盖当前版本的就地编辑，``version_id`` 覆盖当前版本切换；
+    两者都在 ``internal_print_snapshot`` 的同一个 SQLite 读事务里核对。
+    """
+    if session_no not in (1, 2, 3):
+        abort(404)
+    raw_rev = request.args.get("expected_rev")
+    raw_version = request.args.get("version_id")
+    if (raw_rev is None) != (raw_version is None):
+        return _print_error(plan_id, 400, "打印参数不完整，请返回重新预览。")
+    expected_rev = expected_version = None
+    if raw_rev is not None:
+        try:
+            expected_rev = int(raw_rev)
+            expected_version = int(raw_version)
+        except (TypeError, ValueError):
+            return _print_error(plan_id, 400, "打印参数格式不正确，请返回重新预览。")
+
+    snapshot = pstore.internal_print_snapshot(plan_id)
+    if not snapshot:
+        abort(404)
+    plan = snapshot["plan"]
+    if not pstore.can_view_plan(_user(), plan):
+        abort(404)
+    internal = snapshot.get("internal")
+    if not internal:
+        abort(404)
+    if plan.get("status") == "generating":
+        return _print_error(plan_id, 409, "内部版正在更新，完成后可重新导出本节 PDF。")
+    if expected_rev is not None and (
+            expected_rev != int(plan.get("rev") or 0)
+            or expected_version != int(internal.get("id") or 0)):
+        return _print_error(plan_id, 409, "计划已有更新，请返回后重新预览。")
+
+    doc = internal.get("doc") or {}
+    session = _session_by_no(doc, session_no)
+    if session is None:
+        abort(404)
+    goals, missing_codes, has_reference = _session_goal_projection(plan, session)
+    return _render_page(
+        "m1/plan_session_print.html",
+        plan=plan,
+        session=session,
+        session_no=session_no,
+        session_duration=_session_print_duration(plan, session_no),
+        session_goals=goals,
+        missing_goal_codes=missing_codes,
+        has_goal_reference=has_reference,
+        show_session_goals=True,
+        grade_text=plan.get("grade") or "",
+        period=_period(plan),
+        source_labels=plan_kb.source_labels(),
+        block_review=plan_kb.block_review(),
+        cites=_doc_cites({"sessions": [session]}),
+        auto_print=request.args.get("print") == "1",
+    )
 
 
 @bp.route("/m1/plans/<int:plan_id>/print")

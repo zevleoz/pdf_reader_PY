@@ -133,12 +133,8 @@ def parent() -> Dict[str, Any]:
 fixed()
 
 
-# Provisional internal authoring limits; review with mentor samples before Task 4.
-# Unlike parent PDF limits these flag output, never delete instructions.
-ACTIVITY_LIMITS = {"name": 100, "purpose": 600, "personalization": 1000,
-                   "steps": 4000, "student_action": 1500, "questions": 1500,
-                   "materials": 1000, "expected_attempt": 1000,
-                   "support": 1500, "extension": 1500}
+# DP16-A：教学目标与活动字段不设字数上限；导师可保存完整长文。
+# INTERNAL_RESPONSE_LIMIT 只是整份文档的技术预算提示，不是字段保存限制。
 INTERNAL_RESPONSE_LIMIT = 50000
 RICH_ACTIVITY_FIELDS = ("purpose", "personalization", "student_action",
                         "expected_attempt", "support", "extension")

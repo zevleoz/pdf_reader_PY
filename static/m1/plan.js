@@ -29,6 +29,14 @@
     docTimer: null,
     goalTimer: null,
     inputTimer: null,
+    /* 目标 / 资料输入在 700ms 防抖前只存在 S.goals 与 DOM 中，
+       必须靠 dirty 标记（而不是 timer 句柄）判断是否尚未落盘。 */
+    goalDirty: false,
+    inputsDirty: false,
+    goalEdit: 0,
+    inputEdit: 0,
+    goalWrites: [],
+    inputWrites: [],
     notesTimer: null,
     lastSaved: null,
     parentDoc: (CFG.parent || {}).doc || null,
@@ -161,6 +169,12 @@
   function fieldValue(field) {
     if (field.tagName === 'INPUT' || field.tagName === 'SELECT' || field.tagName === 'TEXTAREA') {
       return field.value;
+    }
+    /* DP16-A：长文/多行字段用 innerText 保留换行与段落，textContent 会丢掉
+       contenteditable 里由 <div>/<br> 表示的分行。 */
+    if (field.getAttribute && field.getAttribute('data-multiline') === '1'
+        && typeof field.innerText === 'string') {
+      return field.innerText.replace(/\r\n?/g, '\n');
     }
     return field.textContent || '';
   }
@@ -359,31 +373,102 @@
   }
 
   /* 等待 debounce 条目、排队中的请求和在途写入全部确认后再返回。
-     期间新到的编辑会进入下一轮，避免批准/导出漏掉刚输入的文字。 */
+     期间新到的编辑会进入下一轮，避免批准/导出漏掉刚输入的文字。
+     目标/资料防抖的排空逻辑放在函数内部，确保按真实函数提取的测试
+     也能拿到完整实现。 */
   function flushAll() {
-    function round() {
-      var sections = Object.keys(S.pending);
-      if (sections.length) {
-        return sections.reduce(function (chain, section) {
-          return chain.then(function (ok) {
-            if (ok === false) return false;
-            return flushSection(section);
-          });
-        }, Promise.resolve(true)).then(function (ok) {
-          if (ok === false) return false;
+    /* 目标与资料输入有独立的 700ms 防抖，触发前不会进入 S.pending。
+       导出/批准前必须先排空；只有同一编辑代次的保存被确认后才清 dirty，
+       保存期间的新输入会继续下一轮。 */
+    function flushDebouncedEdits() {
+      function round() {
+        var goalWrites = S.goalWrites || [];
+        var inputWrites = S.inputWrites || [];
+        var jobs = [];
+        /* 已有在途保存时先等它，避免用同一 expected_version 再发一次而制造
+           伪冲突；若有更新编辑，下一轮会用最新内容重发。 */
+        if (goalWrites.length) {
+          jobs.push(settleWrites(goalWrites));
+        } else if (S.goalDirty) {
+          if (!S.step1 || S.conflicts['goals'] || S.revoked || !S.canEdit || S.offline) {
+            return Promise.resolve(false);
+          }
+          clearTimeout(S.goalTimer);
+          S.goalTimer = null;
+          jobs.push(saveGoals().then(function () { return true; },
+                                    function () { return false; }));
+        } else if (S.goalDirty === undefined && S.goalTimer) {
+          /* 兼容不携带 dirty 标记的既有状态对象：等待已排队的防抖回调
+             自己完成。正式页面初始化后 S.goalDirty 一定是布尔值。 */
+          jobs.push(waitForTimer(function () { return !S.goalTimer; }));
+        }
+        if (inputWrites.length) {
+          jobs.push(settleWrites(inputWrites));
+        } else if (S.inputsDirty) {
+          if (!S.step1 || S.conflicts['inputs'] || S.revoked || !S.canEdit || S.offline) {
+            return Promise.resolve(false);
+          }
+          clearTimeout(S.inputTimer);
+          S.inputTimer = null;
+          jobs.push(saveInputs().then(function (ok) { return ok !== false; },
+                                     function () { return false; }));
+        }
+        if (!jobs.length) return Promise.resolve(true);
+        return Promise.all(jobs).then(function (results) {
+          if (results.indexOf(false) >= 0) return false;
           return round();
         });
       }
-      var active = S.writes.slice();
-      if (!active.length) return Promise.resolve(!hasUnresolved());
-      return Promise.all(active.map(function (write) {
-        return write.catch(function () {});
-      })).then(function () {
-        if (Object.keys(S.pending).length) return round();
-        return !hasUnresolved();
+      return round();
+    }
+
+    function waitForTimer(done) {
+      return new Promise(function (resolve) {
+        (function poll() {
+          if (done()) return resolve(true);
+          setTimeout(poll, 20);
+        })();
       });
     }
-    return round();
+
+    function settleWrites(list) {
+      return Promise.all(list.slice().map(function (write) {
+        return write.then(function () { return true; }, function () { return false; });
+      })).then(function (results) {
+        return results.indexOf(false) < 0;
+      });
+    }
+
+    function flushSections() {
+      function round() {
+        var sections = Object.keys(S.pending);
+        if (sections.length) {
+          return sections.reduce(function (chain, section) {
+            return chain.then(function (ok) {
+              if (ok === false) return false;
+              return flushSection(section);
+            });
+          }, Promise.resolve(true)).then(function (ok) {
+            if (ok === false) return false;
+            return round();
+          });
+        }
+        var active = S.writes.slice();
+        if (!active.length) return Promise.resolve(!hasUnresolved());
+        return Promise.all(active.map(function (write) {
+          return write.catch(function () {});
+        })).then(function () {
+          if (Object.keys(S.pending).length) return round();
+          return !hasUnresolved();
+        });
+      }
+      return round();
+    }
+
+    return flushDebouncedEdits().then(function (ok) {
+      if (ok === false) return false;
+      return flushSections();
+    });
   }
 
   function updateSaveState() {
@@ -1518,6 +1603,19 @@
       field.addEventListener('input', update);
       update();
     });
+    /* DP16-A：目标/活动字段只显示中性字数，不设分母、不触发超限样式。 */
+    document.querySelectorAll('[data-count]').forEach(function (field) {
+      var counter = document.createElement('span');
+      counter.className = 'pcnt';
+      counter.title = '字数统计，仅供参考，不影响确认或导出';
+      field.insertAdjacentElement('afterend', counter);
+      function update() {
+        var value = fieldValue(field) || '';
+        counter.textContent = Array.from(value).length + ' 字';
+      }
+      field.addEventListener('input', update);
+      update();
+    });
   }
   initCounters();
 
@@ -1631,26 +1729,48 @@
       INPUT_SRC[key] = 'edited';
       var badge = document.querySelector('[data-ai="' + key + '"]');
       if (badge) badge.hidden = true;
-      clearTimeout(S.inputTimer);
-      S.inputTimer = setTimeout(saveInputs, 700);
+      markInputsEdited();
     });
   });
 
+  function markInputsEdited() {
+    S.inputsDirty = true;
+    S.inputEdit += 1;
+    clearTimeout(S.inputTimer);
+    /* 句柄在回调触发时清空，避免“定时器已执行但句柄仍非空”被误判成待保存。 */
+    S.inputTimer = setTimeout(function () {
+      S.inputTimer = null;
+      saveInputs();
+    }, 700);
+  }
+
   function saveInputs() {
-    if (!S.step1) return Promise.resolve();
+    if (!S.step1) return Promise.resolve(true);
+    var edit = S.inputEdit;
     var values = {};
     document.querySelectorAll('[data-input]').forEach(function (field) {
       var key = field.getAttribute('data-input');
       values[key] = {text: field.textContent || '', src: INPUT_SRC[key] || 'ai'};
     });
     setSave('busy');
-    return patchSection('inputs', values).then(function () {
+    var write = patchSection('inputs', values).then(function () {
+      if (S.inputEdit === edit) S.inputsDirty = false;
       setSave('ok');
       return releaseLease('inputs');
     }).catch(function (err) {
       setSave('err');
       toast(err.message);
+      return false;
     });
+    S.inputWrites.push(write);
+    write.then(function () { dropInputWrite(write); },
+               function () { dropInputWrite(write); });
+    return write;
+  }
+
+  function dropInputWrite(write) {
+    var index = S.inputWrites.indexOf(write);
+    if (index >= 0) S.inputWrites.splice(index, 1);
   }
 
   /* --------------------------------------------------------------- 目标 */
@@ -1668,8 +1788,10 @@
 
   function saveGoals() {
     if (!S.step1) return Promise.resolve();
+    var edit = S.goalEdit;
     setSave('busy');
-    return patchSection('goals', {goals: goalPayload()}).then(function () {
+    var write = patchSection('goals', {goals: goalPayload()}).then(function () {
+      if (S.goalEdit === edit) S.goalDirty = false;
       setSave('ok');
       return releaseLease('goals');
     }).catch(function (err) {
@@ -1677,6 +1799,15 @@
       toast(err.message);
       throw err;
     });
+    S.goalWrites.push(write);
+    write.then(function () { dropGoalWrite(write); },
+               function () { dropGoalWrite(write); });
+    return write;
+  }
+
+  function dropGoalWrite(write) {
+    var index = S.goalWrites.indexOf(write);
+    if (index >= 0) S.goalWrites.splice(index, 1);
   }
 
   function findGoal(code) {
@@ -1720,14 +1851,14 @@
     field.addEventListener('input', function () {
       var goal = findGoal(code);
       if (!goal) return;
-      goal.goal = {text: field.textContent || '', src: 'mentor'};
+      var value = fieldValue(field);
+      goal.goal = {text: value, src: 'mentor'};
       var badge = document.querySelector('[data-goal-ai="' + code + '-goal"]');
       if (badge) badge.hidden = true;
-      if (!field.textContent) field.innerHTML = '';
+      if (!value) field.innerHTML = '';
       refreshGoalWarn(code);
       refreshGenReason();
-      clearTimeout(S.goalTimer);
-      S.goalTimer = setTimeout(saveGoals, 700);
+      markGoalEdited();
     });
   });
 
@@ -1740,13 +1871,23 @@
     field.addEventListener('input', function () {
       var goal = findGoal(code);
       if (!goal) return;
-      goal[which] = {text: field.textContent || '', src: 'edited'};
+      goal[which] = {text: fieldValue(field), src: 'edited'};
       var badge = document.querySelector('[data-goal-ai="' + key + '"]');
       if (badge) badge.hidden = true;
-      clearTimeout(S.goalTimer);
-      S.goalTimer = setTimeout(saveGoals, 700);
+      markGoalEdited();
     });
   });
+
+  function markGoalEdited() {
+    S.goalDirty = true;
+    S.goalEdit += 1;
+    clearTimeout(S.goalTimer);
+    /* 句柄在回调触发时清空，避免“定时器已执行但句柄仍非空”被误判成待保存。 */
+    S.goalTimer = setTimeout(function () {
+      S.goalTimer = null;
+      saveGoals();
+    }, 700);
+  }
 
   document.querySelectorAll('[data-lock]').forEach(function (button) {
     button.addEventListener('click', function () {
@@ -2184,7 +2325,7 @@
           var parent = get(S.doc, parentPath);
           if (typeof parent === 'string') set(S.doc, parentPath, {text: parent, src: 'mentor'});
         }
-        set(S.doc, path, field.textContent || '');
+        set(S.doc, path, fieldValue(field));
         refreshRichCount(field);
         stageField(field, false);
       });
@@ -3048,6 +3189,107 @@
       });
     });
   }
+
+  // ---- DP16-B 单节内部教案导出（浏览器打印 / 另存为 PDF） ----
+  function sessionPrintUrl(planId, sessionNo, rev, versionId) {
+    return '/m1/plans/' + encodeURIComponent(planId)
+      + '/sessions/' + encodeURIComponent(sessionNo) + '/print'
+      + '?expected_rev=' + encodeURIComponent(rev)
+      + '&version_id=' + encodeURIComponent(versionId)
+      + '&print=1';
+  }
+
+  function sessionExportBlockedReason(state, online) {
+    if (!online || state.offline) return '当前处于离线状态，无法导出本节 PDF';
+    if (state.revoked) return '你没有这个计划的访问权限';
+    if (state.status === 'generating') return '内部版正在更新，完成后可导出本节 PDF';
+    if (state.rev == null || state.versionId == null) return '还没有可导出的内部版';
+    return '';
+  }
+
+  function runSessionExport(sessionNo, opts) {
+    var state = opts.state || {};
+    if (sessionNo !== 1 && sessionNo !== 2 && sessionNo !== 3) {
+      opts.toast('只能导出第 1–3 节');
+      return Promise.resolve(false);
+    }
+    var blocked = sessionExportBlockedReason(state, opts.online);
+    if (blocked) {
+      opts.toast(blocked);
+      return Promise.resolve(false);
+    }
+
+    // 点击时同步开空白页，避免持久化 await 之后被浏览器拦截弹窗。
+    var tab = opts.openTab ? opts.openTab() : null;
+    function closeTab() {
+      if (!tab) return;
+      try { tab.close(); } catch (err) {}
+    }
+    function fail(message) {
+      closeTab();
+      if (message) opts.toast(message);
+      return false;
+    }
+
+    return Promise.resolve().then(function () {
+      return opts.flushDirect ? opts.flushDirect() : null;
+    }).then(function () {
+      return opts.flushAll ? opts.flushAll() : true;
+    }).then(function (ok) {
+      if (ok === false) return fail('还有未保存或冲突的内容，未打开打印预览');
+      var late = sessionExportBlockedReason(opts.state || {}, opts.online);
+      if (late) return fail(late);
+      // 使用写入确认后的修订与版本，而不是点击瞬间的值。
+      var url = sessionPrintUrl(opts.planId, sessionNo,
+        opts.state.rev, opts.state.versionId);
+      if (tab && tab.location) {
+        if (tab.location.replace) tab.location.replace(url);
+        else tab.location = url;
+      } else if (opts.navigate) {
+        opts.navigate(url);
+      }
+      return true;
+    }).catch(function (err) {
+      return fail(err && err.message ? err.message : '保存失败，未打开打印预览');
+    });
+  }
+
+  function openSessionPrintTab() {
+    var tab = null;
+    try { tab = window.open('', '_blank'); } catch (err) { tab = null; }
+    if (!tab) return null;
+    try {
+      tab.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+        + '<title>正在准备打印预览…</title></head><body style="font:14px/1.7 '
+        + '-apple-system,BlinkMacSystemFont,\'PingFang SC\',sans-serif;padding:40px;'
+        + 'color:#0f172a">正在保存并准备本节教案…</body></html>');
+      tab.document.close();
+    } catch (err) {}
+    return tab;
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.sess-export'), function (button) {
+    button.addEventListener('click', function () {
+      if (button.disabled) return;
+      var label = button.textContent;
+      var sessionNo = Number(button.getAttribute('data-session'));
+      button.disabled = true;
+      button.textContent = '正在准备…';
+      runSessionExport(sessionNo, {
+        state: S,
+        planId: CFG.planId,
+        online: navigator.onLine,
+        flushDirect: flushDirect,
+        flushAll: flushAll,
+        toast: toast,
+        openTab: openSessionPrintTab,
+        navigate: function (url) { location.href = url; }
+      }).then(function () {
+        button.textContent = label;
+        button.disabled = S.status === 'generating';
+      });
+    });
+  });
 
   if (parentExportBtn) {
     parentExportBtn.addEventListener('click', function () {

@@ -211,7 +211,7 @@ def test_editor_wires_one_activity_proposal_through_save_and_accept():
     assert 'data-rich-field' in template and 'data-placeholder="未填写"' in template
 
 
-def test_internal_page_uses_shared_activity_limits_and_confirmed_direct_brief(page_client, m1db):
+def test_internal_page_uses_unlimited_activity_fields_and_confirmed_direct_brief(page_client, m1db):
     plan = _direct_plan(m1db)
     plan = pstore.save_brief(plan['id'], plan['rev'], _brief(
         learning_need='确认后的学习需要',
@@ -230,10 +230,12 @@ def test_internal_page_uses_shared_activity_limits_and_confirmed_direct_brief(pa
     assert '确认后的当前情境' in html and '确认后的当前反应' in html
     assert '私密原始笔记' not in html and '私密总结' not in html
     assert '还没有学生资料。' not in html
-    assert 'data-limit="100"' in html
-    assert 'data-limit="4000"' in html
-    assert 'data-limit="1500"' in html
-    assert 'data-limit="1000"' in html
+    assert 'data-limit="100"' not in html
+    assert 'data-limit="4000"' not in html
+    assert 'data-limit="1500"' not in html
+    assert 'data-limit="1000"' not in html
+    assert 'data-count="1"' in html
+    assert 'data-multiline="1"' in html
     assert 'data-timing-budget="0"' in html
 
 

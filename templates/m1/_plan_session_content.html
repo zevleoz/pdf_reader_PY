@@ -1,0 +1,97 @@
+<div class="pp-sess">
+  <h2>Session {{ session_no }}｜{% set title_value = session.get('title') %}<span class="pp-pre">{{ title_value.get('text') if title_value is mapping else (title_value or '') }}</span></h2>
+  {% set timing = session.get('timing') if session.get('timing') is mapping else none %}
+  <p class="mu">本节 {{ session_duration }} 分钟{% if timing %} · 上次回顾 {{ timing.get('review_minutes', 0) }} 分钟 · 转换 {{ timing.get('transition_minutes', 0) }} 分钟{% endif %}</p>
+  {% if session.get('review') %}
+  <p class="mu"><b>上次课后实践回顾</b></p>
+  <ul style="margin:2px 0 8px;padding-left:18px">
+    {% for row in session.review %}<li><span class="pp-pre">{{ row.text if row is mapping else row }}</span></li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if show_session_goals %}
+  <h3>本节引用目标</h3>
+  {% if session_goals %}
+  <table>
+    <thead><tr><th style="width:112px">目标</th><th>发展目标</th><th style="width:150px">当前起点</th><th style="width:150px">阶段预期进展</th></tr></thead>
+    <tbody>
+      {% for g in session_goals %}
+      <tr><td><span class="pp-pre">{{ g.code }} {{ g.name }}</span></td><td><span class="pp-pre">{{ g.goal_text or '—' }}</span></td><td><span class="pp-pre">{{ (g.start or {}).get('text') or '—' }}</span></td><td><span class="pp-pre">{{ (g.expected or {}).get('text') or '—' }}</span></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% for code in missing_goal_codes or [] %}
+  <p class="mu">未找到已确认目标：{{ code }}（保留原引用，未自动替换）</p>
+  {% endfor %}
+  {% if not has_goal_reference %}
+  <p class="mu">本节没有关联已确认目标（未自动选择其他目标）。</p>
+  {% endif %}
+  {% endif %}
+
+  <h3>A｜本节教学重点</h3>
+  {% set focus = session.get('focus') or {} %}
+  <p class="mu">主要目标：{{ focus.get('primary') or '—' }}{% if focus.get('supporting') %} · 辅助目标：{{ focus.get('supporting') }}{% endif %}</p>
+  <p class="pp-pre">{{ (focus.get('text') or {}).get('text') or '' }}</p>
+
+  <h3>B｜核心学习内容</h3>
+  {% set content = session.get('content') or {} %}
+  <p><b>Mindsets：</b><span class="pp-pre">{{ (content.get('mindsets') or {}).get('text') or '' }}</span></p>
+  {% set path_value = content.get('path') or {} %}
+  {% if (path_value.get('text') if path_value is mapping else path_value)|string|trim %}<p><b>Path：</b><span class="pp-pre">{{ path_value.get('text') if path_value is mapping else path_value }}</span></p>{% endif %}
+  <p><b>Skills：</b><span class="pp-pre">{{ (content.get('skills') or {}).get('text') or '' }}</span></p>
+  <p><b>Techniques：</b><span class="pp-pre">{{ (content.get('techniques') or {}).get('text') or '' }}</span></p>
+
+  <h3>C｜教学活动</h3>
+  {% set br = namespace(index=-1) %}
+  {% for activity in session.get('activities') or [] %}
+    {% if activity.get('block_review') %}{% set br.index = loop.index0 %}{% endif %}
+  {% endfor %}
+  {% set block_review_index = br.index if (session_no|int) == (plan.sessions or 3) else -1 %}
+  {% for activity in session.get('activities') or [] %}
+  {% if loop.index0 == block_review_index %}
+  <div class="pp-act pp-review">
+    <p><b>{{ block_review.name }}（约 {{ activity.get('minutes', block_review.minutes) }} 分钟）</b></p>
+    {% for part in block_review.parts %}
+    <p><b>{{ part.label }}：</b><span class="pp-pre">{{ part.text }}</span></p>
+    {% endfor %}
+    {% set questions = (activity.get('questions') or {}).get('text') or '' %}
+    {% if questions %}<p><b>引导问题：</b><span class="pp-pre">{{ questions }}</span></p>{% endif %}
+    <p class="mu pp-pre">{{ block_review.note }}</p>
+  </div>
+  {% else %}
+  <div class="pp-act">
+    <p><b>Activity {{ loop.index }}｜<span class="pp-pre">{{ (activity.get('name') or {}).get('text') or '' }}</span></b>
+      <span class="meta"> · {{ activity.get('minutes', 0) }} 分钟 · 参考来源：{% set src = activity.get('source') or {} %}{{ source_labels.get(src.type, source_labels['ai_original']) }}{% if src.type == 'world_bank' %} · {{ cites.get(src.wb_id, '') }}{% elif src.type == 'other' and src.text %} · {{ src.text }}{% endif %}</span>
+    </p>
+    <p class="pp-pre">{{ (activity.get('steps') or {}).get('text') or '' }}</p>
+    <p><b>引导问题：</b><span class="pp-pre">{{ (activity.get('questions') or {}).get('text') or '' }}</span></p>
+    <p><b>所需材料：</b><span class="pp-pre">{{ (activity.get('materials') or {}).get('text') or '' }}</span></p>
+    {% for key, label in [('purpose', '教学目标与理由'), ('personalization', '针对这名学生的设计'), ('student_action', '学生要做什么'), ('expected_attempt', '可观察的尝试'), ('support', '学生卡住时'), ('extension', '学生准备好时')] %}
+      {% set value = activity.get(key) %}
+      {% set text = value.get('text') if value is mapping else value %}
+      {% if text %}<p><b>{{ label }}：</b><span class="pp-pre">{{ text }}</span></p>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  <h3>D｜课堂预期表现</h3>
+  <p class="pp-pre">{{ (session.get('evidence') or {}).get('text') or '' }}</p>
+
+  <h3>E｜课后成长实践</h3>
+  {% for practice in session.get('practice') or [] %}
+  <p><b>Practice {{ loop.index }}｜<span class="pp-pre">{{ (practice.get('name') or {}).get('text') or '' }}</span></b>
+    · 关联 {{ practice.get('code') or '' }}
+    · <span class="pp-pre">{{ (practice.get('frequency') or {}).get('text') or '' }}</span>
+    · 平台：{{ practice.get('platform') or '无' }}
+  </p>
+  <p><b>任务：</b><span class="pp-pre">{{ (practice.get('task') or {}).get('text') or '' }}</span></p>
+  <p><b>预期证据：</b><span class="pp-pre">{{ (practice.get('evidence') or {}).get('text') or '' }}</span></p>
+  {% endfor %}
+
+  {% if session.get('next_prep') %}
+  <h3>F｜下次课准备</h3>
+  <p class="pp-pre">{{ (session.get('next_prep') or {}).get('text') or '' }}</p>
+  {% endif %}
+</div>

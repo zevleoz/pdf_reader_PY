@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ plan.student_name }} · Block {{ plan.block_no }} · Session {{ session_no }} · 内部教案</title>
+<link rel="stylesheet" href="{{ url_for('m1.m1_asset', filename='m1.css') }}">
+<link rel="stylesheet" href="{{ url_for('m1.m1_asset', filename='plan.css') }}">
+</head>
+<body class="m1 print-page plan-print session-print">
+<div class="print-bar">
+  <span>{{ plan.student_name }} · Block {{ plan.block_no }} · Session {{ session_no }} · 内部教案{% if plan.status != 'approved' %} · 草稿{% endif %}</span>
+  <span class="sp"></span>
+  <button class="btn" onclick="window.print()">打印 / 另存为 PDF</button>
+  <a class="btn" href="/m1/plans/{{ plan.id }}">返回</a>
+</div>
+
+<div class="print-desk">
+  <article class="a4 notion session-a4{% if plan.status != 'approved' %} draftmark{% endif %}" data-print-session="{{ session_no }}">
+    {% if plan.status != 'approved' %}<span class="pp-sr">草稿</span>{% endif %}
+    {% set grade_label = grade_text or '—' %}
+    <h1>{{ plan.student_name }} · Block {{ plan.block_no }} · Session {{ session_no }} · 内部教案</h1>
+    <table>
+      <tr><th>学生</th><td>{{ plan.student_name }}</td><th>年级</th><td>{{ grade_label }}</td></tr>
+      <tr><th>负责导师</th><td>{{ plan.mentor_name }}</td><th>Block</th><td>Block {{ plan.block_no }}</td></tr>
+      <tr><th>阶段周期</th><td>{{ period }}</td><th>Session / 时长</th><td>Session {{ session_no }} · {{ session_duration }} 分钟</td></tr>
+    </table>
+
+    {% include 'm1/_plan_session_content.html' %}
+  </article>
+</div>
+
+{% if auto_print %}<script>window.addEventListener('load', function () { window.print(); });</script>{% endif %}
+</body>
+</html>

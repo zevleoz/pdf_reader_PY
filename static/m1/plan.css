@@ -182,6 +182,8 @@
 .plan-print .a4 th,.plan-print .a4 td{border:1px solid #DDDCD8;padding:5px 7px;vertical-align:top;text-align:left}
 .plan-print .a4 th{background:#F4F3F0;font-weight:600}
 .plan-print .a4 .mu{color:#787774}
+/* 作者输入的换行/空段落原样保留；长英文/无空格串在可打印宽度内换行。 */
+.plan-print .a4 .pp-pre{white-space:pre-wrap;overflow-wrap:anywhere}
 .plan-print .a4 .pp-sess{margin-top:22px;padding-top:12px;border-top:1px solid #DDDCD8}
 .plan-print .a4 .pp-sess h2{margin-top:0}
 .plan-print .a4 .pp-act{margin:7px 0 9px;padding:7px 10px;background:#FAFAF8;border-left:2px solid #DDDCD8}
@@ -189,6 +191,8 @@
 .plan-print .a4 .pp-act .meta{font-size:11px;color:#787774;margin:2px 0 4px}
 .plan-print .a4 .pp-sess h2,.plan-print .a4 .pp-act>h4{page-break-after:avoid}
 .plan-print .a4 .pp-act{page-break-inside:avoid}
+/* 单节教案允许超长活动跨页自然分页，不裁切、不缩排。 */
+.plan-print.session-print .a4 .pp-act{page-break-inside:auto;break-inside:auto}
 .pp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 @media (max-width:980px){
@@ -218,7 +222,10 @@
 
 .sess{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center}
 .sess h2{grid-column:1;grid-row:1;margin:0}
-.sess .regen{grid-column:2;grid-row:1}
+.sess .sess-tools{grid-column:2;grid-row:1;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.sess .sess-tools .regen{grid-column:auto;grid-row:auto}
+.sess .sess-export[disabled]{opacity:.55;cursor:not-allowed}
+.sess .sess-export-note{grid-column:1/-1;margin:0;font-size:12px;color:#8A5A00}
 .sess .timing{grid-column:1/-1;margin:0;font-size:12.5px;line-height:1.65;color:var(--mute)}
 .sess .timing b{color:var(--ink);font-weight:700}
 .sess .timing span{margin-left:6px}
@@ -255,8 +262,9 @@ h3 .act-guide{font-weight:400;font-size:11.5px;letter-spacing:0;color:var(--mute
 @media (max-width:760px){
   .dlg .cmp{grid-template-columns:1fr}
   .sess{grid-template-columns:1fr}
-  .sess .regen{grid-column:1;grid-row:2;justify-self:start}
-  .sess .timing{grid-row:3}
+  .sess .sess-tools{grid-column:1;grid-row:2;justify-content:flex-start}
+  .sess .sess-export-note{grid-row:3}
+  .sess .timing{grid-row:4}
   .durs .dur-h{width:100%;margin-right:0}
 }
 
