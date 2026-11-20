@@ -1,66 +1,72 @@
 {% extends "student/base.html" %}
 {% block title %}我的问卷{% endblock %}
 {% block top_right %}
-<form method="post" action="/student/logout">
+<form method="post" action="{{ url_for('questionnaires.student_logout') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-  <button type="submit" class="s-btn s-btn-secondary" style="padding:6px 12px; font-size:13px">退出</button>
+  <button type="submit" class="s-sign-out">退出登录</button>
 </form>
 {% endblock %}
 {% block content %}
 {% set total = todos|length + done|length %}
-<div style="margin-top:20px">
-  <div class="s-h1">{{ student.name or student.username }}，你好</div>
+<div class="s-home">
+  <header class="s-home-intro">
+    <h1 class="s-h1">我的问卷</h1>
+    <p class="s-intro">{{ student.name or student.username }}，你好。</p>
+    {% if total %}
+    <div class="s-home-progress">
+      <span>{% if todos %}还有 {{ todos|length }} 份待完成{% else %}所有问卷都已完成{% endif %}</span>
+      <span class="s-muted" id="s-total-progress">已提交 {{ done|length }} / {{ total }} 份</span>
+      <progress class="s-meter" max="{{ total }}" value="{{ done|length }}" aria-labelledby="s-total-progress"></progress>
+    </div>
+    {% endif %}
+  </header>
+
   {% if todos %}
-  <p style="margin-top:4px; font-size:15px">你有 <b>{{ todos|length }}</b> 份问卷待完成</p>
-  {% elif done %}
-  <p style="margin-top:4px; font-size:15px">所有问卷都已完成，谢谢你。</p>
-  {% else %}
-  <p class="s-muted" style="margin-top:4px; font-size:14px">目前没有需要完成的问卷，顾问安排后会显示在这里。</p>
+  <section class="s-task-section" aria-labelledby="s-todo-heading">
+    <h2 id="s-todo-heading">待完成</h2>
+    <p class="s-muted s-task-hint">作答时会自动保存，退出后可以回来继续。</p>
+    <ul class="s-task-list">
+      {% for task in todos %}
+      <li class="s-task{{ ' s-task-current' if loop.first else '' }}">
+        <div class="s-task-detail">
+          <h3 id="s-task-{{ task.id }}">{{ task.questionnaire_title }}</h3>
+          <p class="s-muted" id="s-task-progress-{{ task.id }}">
+            {% if task.answered_count %}已答 {{ task.answered_count }} / {{ task.question_count }} 题
+            {% else %}未开始 · 共 {{ task.question_count }} 题{% endif %}
+          </p>
+          {% if task.answered_count and task.question_count %}
+          <progress class="s-meter" max="{{ task.question_count }}" value="{{ task.answered_count }}"
+                    aria-labelledby="s-task-{{ task.id }} s-task-progress-{{ task.id }}"></progress>
+          {% endif %}
+        </div>
+        <a class="s-btn {{ 's-btn-primary' if loop.first else 's-btn-secondary' }}"
+           aria-labelledby="s-task-action-{{ task.id }} s-task-{{ task.id }}"
+           href="{{ url_for('questionnaires.student_form', aid=task.id) }}">
+          <span id="s-task-action-{{ task.id }}">{{ '继续作答' if task.answered_count else '开始作答' }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% elif not done %}
+  <div class="s-task-section s-empty">
+    <h2>暂时没有待办问卷</h2>
+    <p class="s-muted">顾问安排新问卷后，会显示在这里。</p>
+  </div>
   {% endif %}
-  {% if total %}
-  <div class="s-meter" role="progressbar" aria-valuemin="0" aria-valuemax="{{ total }}"
-       aria-valuenow="{{ done|length }}" aria-label="已完成 {{ done|length }} / {{ total }}"
-       style="margin-top:12px"><i style="width:{{ (done|length * 100 / total)|round|int }}%"></i></div>
-  <div class="s-muted" style="font-size:12.5px; margin-top:6px">已完成 {{ done|length }} / {{ total }}</div>
+
+  {% if done %}
+  <section class="s-task-section" aria-labelledby="s-done-heading">
+    <h2 id="s-done-heading">已提交</h2>
+    <ul class="s-task-list s-completed-list">
+      {% for task in done %}
+      <li>
+        <span>{{ task.questionnaire_title }}</span>
+        {% if task.submitted_at %}<time class="s-muted">{{ task.submitted_at|dt_short }}</time>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
   {% endif %}
 </div>
-
-{% if todos %}
-<p class="s-muted" style="font-size:13px; margin-top:18px">答案会自动保存，可以随时退出，下次回来接着做。</p>
-<ul style="margin-top:8px">
-  {% for t in todos %}
-  <li class="s-card" style="margin-top:10px">
-    <div style="font-size:15px; font-weight:600">{{ t.questionnaire_title }}</div>
-    <div class="s-muted" style="font-size:12.5px; margin-top:2px">
-      共 {{ t.question_count }} 题
-    </div>
-    {% if t.answered_count %}
-    <div class="s-meter" style="margin-top:10px"
-         aria-label="已答 {{ t.answered_count }} / {{ t.question_count }}">
-      <i style="width:{{ (t.answered_count * 100 / t.question_count)|round|int }}%"></i>
-    </div>
-    <div class="s-muted" style="font-size:12.5px; margin-top:6px">已答 {{ t.answered_count }} / {{ t.question_count }}</div>
-    {% endif %}
-    <a class="s-btn {{ 's-btn-primary' if loop.first else 's-btn-secondary' }}"
-       style="width:100%; margin-top:12px"
-       href="/student/q/{{ t.id }}">{{ '继续作答' if t.answered_count else '开始作答' }}</a>
-  </li>
-  {% endfor %}
-</ul>
-{% endif %}
-
-{% if done %}
-<div style="margin-top:24px; font-size:14px; font-weight:600">已完成</div>
-<ul class="s-card" style="margin-top:8px; padding-top:6px; padding-bottom:6px">
-  {% for d in done %}
-  <li style="display:flex; gap:12px; align-items:baseline; padding:10px 0; font-size:13.5px;
-             {{ 'border-bottom:1px solid #E4DED3' if not loop.last }}">
-    <span style="min-width:0; flex:1; font-weight:500">{{ d.questionnaire_title }}</span>
-    <span class="s-muted" style="font-size:12.5px; white-space:nowrap">
-      {{ d.submitted_at|dt_short if d.submitted_at else '已提交' }}
-    </span>
-  </li>
-  {% endfor %}
-</ul>
-{% endif %}
 {% endblock %}

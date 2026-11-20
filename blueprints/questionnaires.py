@@ -14,9 +14,10 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from flask import (Blueprint, jsonify, redirect, render_template, request,
-                   session)
+                   send_from_directory, session)
 
 import db as _db
 import questionnaire_store as qs
@@ -622,6 +623,12 @@ def link_submit(token):
                            message="问卷已收到，感谢作答。你可以关闭本页了。")
 
 
+@bp.route("/student/assets/alpine-3.14.9.min.js")
+def alpine_asset():
+    vendor_dir = Path(__file__).resolve().parent.parent / "static" / "vendor"
+    return send_from_directory(vendor_dir, "alpine-3.14.9.min.js", max_age=31536000)
+
+
 @bp.route("/student/login", methods=["GET", "POST"])
 def student_login():
     if request.method == "GET":
@@ -638,14 +645,14 @@ def student_login():
         if request.is_json:
             return _err("尝试过多，请稍后再试", 429)
         return render_template("student/login.html", error="尝试过多，请稍后再试",
-                               next=(data.get("next") or "/student/home")), 429
+                               next=(data.get("next") or "/student/home"), username=username), 429
     acc = qs.verify_student_login(username, password)
     if not acc:
         rate_fail_record(scope="student-login")
         if request.is_json:
             return _err("账号或密码错误", 401)
         return render_template("student/login.html", error="账号或密码错误",
-                               next=(data.get("next") or "/student/home"))
+                               next=(data.get("next") or "/student/home"), username=username)
     rate_fail_clear(scope="student-login")
     session["student_account_id"] = acc["account_id"]
     session["student_id"] = acc["student_id"]

@@ -1,12 +1,15 @@
 {% extends "student/base.html" %}
 {% block title %}{{ questionnaire.title }}{% endblock %}
+{% block head_extra %}
+<script defer src="{{ url_for('questionnaires.alpine_asset') }}"></script>
+{% endblock %}
 
 {# 品牌头：顶部居中盾徽（15 指令包 §6）——仅作答页覆盖，login/home 沿用默认壳头 #}
 {% block header %}
 <header class="q-head">
   <img class="q-shield" src="/branding/logo_red.png" alt="凭远教育"
        onerror="this.style.display='none'" />
-  <div class="q-head-name">凭远教育 · Y4 综合测评</div>
+  <div class="q-head-name q-form-name">{{ questionnaire.title }}</div>
 </header>
 {% endblock %}
 
@@ -15,7 +18,7 @@
    的「较新者」判定材料。题干来自 seed（可信源），JS 侧一律 x-text 渲染，不拼 innerHTML #}
 <script>window.Y4Q = {{ wizard | tojson }};</script>
 
-<div class="q-wrap" x-data="wizard()" x-init="init()" x-cloak
+<div class="q-wrap" x-data="wizard()" x-cloak
      @keydown.window="onKey($event)">
 
   {# 提交失败 / 断网横幅（顶部固定细条，非 alert） #}
@@ -26,7 +29,7 @@
   <div class="q-banner is-warn" x-show="!banner && netOffline" x-cloak>
     网络连接已断开，答案会继续保存在本机
   </div>
-  <div class="q-progress" x-show="state === 'form'">
+  <div class="q-progress" x-show="state === 'form'" aria-hidden="true">
     <span :style="'width:' + pct + '%'"></span>
   </div>
 
@@ -35,7 +38,7 @@
     {% if not token %}
     <a class="q-muted" href="/student/home" style="margin-right:auto; font-size:13px">← 我的问卷</a>
     {% endif %}
-    <span class="q-sync" :class="'is-' + sync">
+    <span class="q-sync" :class="'is-' + sync" role="status">
       <span class="q-dot"></span><span x-text="syncText"></span>
     </span>
   </div>
@@ -85,7 +88,7 @@
       <template x-if="step.kind === 'q'">
         <div>
           <div class="q-qnum" x-text="'第 ' + step.n + ' 题 · 共 ' + total + ' 题'"></div>
-          <h1 class="q-qtitle q-serif" tabindex="-1" x-ref="head" x-text="step.title"></h1>
+          <h1 id="q-active-title" class="q-qtitle q-serif" tabindex="-1" x-ref="head" x-text="step.title"></h1>
           <div class="q-req" x-show="step.required">必答</div>
           <div class="q-err" x-show="errors[step.id]" x-text="errors[step.id]"></div>
 
@@ -137,7 +140,7 @@
           </template>
 
           <template x-if="step.type === 'text'">
-            <textarea class="q-textarea" rows="5" :maxlength="step.max_length || null"
+            <textarea class="q-textarea" aria-labelledby="q-active-title" rows="5" :maxlength="step.max_length || null"
                       x-model="answers[step.id]" @input="onChange()"></textarea>
           </template>
 
@@ -183,6 +186,7 @@
 {# ── 无 JS 降级：整页表单原生提交路径（06/07 包既有行为，原样保留） ──────
     JS 可用时由 wizard.init() 隐藏；Alpine 加载失败时它仍是可用兜底路径。 #}
 <div id="q-fallback" class="q-wrap">
+  {% if not token %}<a class="s-btn s-btn-secondary" href="{{ url_for('questionnaires.student_home') }}">返回我的问卷</a>{% endif %}
   <noscript>
     <div class="q-alert" style="margin-top:12px">
       当前浏览器未启用脚本增强，已为你显示完整表单（功能完全可用）。
@@ -338,8 +342,9 @@ function wizard() {
     },
     get syncText() {
       if (this.sync === 'offline') return '离线 · 将自动重试';
-      if (this.sync === 'cloud' || !this.lsOk) return '已同步云端';
-      return this.savedAt ? '已保存本机 ' + this.savedAt : '已保存本机';
+      if (this.sync === 'cloud') return '已同步云端';
+      if (!this.lsOk) return '等待同步';
+      return this.savedAt ? '已保存本机 ' + this.savedAt : '作答后自动保存';
     },
 
     /* ── 初始化：两源草稿取较新者回填 ─────────────────── */

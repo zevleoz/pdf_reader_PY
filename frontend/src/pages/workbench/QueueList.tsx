@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { errorText, postJSON } from "@/lib/api";
 import type { NavLink } from "@/lib/boot";
 import { cn } from "@/lib/utils";
-import { useGoLink } from "@/shell/useGoLink";
 
 import { fmtDate } from "../profile/common";
 import { ConfirmDialog, type Pkg } from "./Dialogs";
@@ -51,7 +50,7 @@ function detailOf(item: QueueItem): string {
   }
 }
 
-const btnClass = "h-7 rounded-none border-line px-2.5 text-[12.5px] font-semibold shadow-none";
+const btnClass = "min-h-10 whitespace-normal rounded-none md:min-h-7 border-line px-2.5 text-[12.5px] font-semibold shadow-none";
 
 export default function QueueList({
   items,
@@ -70,7 +69,6 @@ export default function QueueList({
   onPackage: (pkg: Pkg) => void;
   notify: Notify;
 }) {
-  const go = useGoLink();
   const [busy, setBusy] = React.useState(false);
   const [confirming, setConfirming] = React.useState<Extract<QueueItem, { kind: "confirm" }> | null>(null);
 
@@ -154,24 +152,24 @@ export default function QueueList({
       case "six_am":
         return canWrite ? (
           <Button variant="outline" size="sm" className={btnClass} asChild>
-            <Link to={profile + "?tab=six_am"}>打开</Link>
+            <Link to={profile + "?tab=six_am"}>查看 6AM</Link>
           </Button>
         ) : null;
       case "first_touch":
         if (!canWrite) return null;
         return full ? (
           <Button variant="outline" size="sm" className={btnClass} asChild>
-            <a href={"/first-touch/students/" + item.student.id}>继续</a>
+            <Link to={"/first-touch/students/" + item.student.id}>继续会谈</Link>
           </Button>
         ) : (
           <Button variant="outline" size="sm" className={btnClass} asChild>
-            <Link to={profile + "?tab=first_touch"}>打开</Link>
+            <Link to={profile + "?tab=first_touch"}>查看会谈进度</Link>
           </Button>
         );
       case "booking":
         return canWrite && bookingsLink ? (
-          <Button variant="outline" size="sm" className={btnClass} onClick={() => go(bookingsLink)}>
-            找时段
+          <Button variant="outline" size="sm" className={btnClass} asChild>
+            <Link to={"/booking?student=" + encodeURIComponent(item.student.code)}>为该学生找时段</Link>
           </Button>
         ) : null;
     }
@@ -185,11 +183,11 @@ export default function QueueList({
           <div
             key={itemKey(item)}
             className={cn(
-              "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-b border-line py-[11px] md:grid-cols-[92px_minmax(0,1fr)_auto]",
+              "grid items-center gap-x-3 gap-y-1 border-b border-line py-[11px] md:grid-cols-[92px_minmax(0,1fr)_auto]",
               alert && "bg-tint shadow-[-12px_0_0_hsl(var(--tint)),12px_0_0_hsl(var(--tint))]",
             )}
           >
-            <span className={cn("col-span-2 text-[12.5px] font-medium text-mute md:col-span-1", alert && "font-bold text-hl")}>
+            <span className={cn("text-[12.5px] font-medium text-mute", alert && "font-bold text-hl")}>
               {KIND_LABEL[item.kind]}
             </span>
             <div className="min-w-0">
@@ -198,7 +196,7 @@ export default function QueueList({
               </Link>
               <small className="block text-[12.5px] leading-[1.3] text-mute">{detailOf(item)}</small>
             </div>
-            <div className="flex gap-1.5">{actionOf(item)}</div>
+            <div className="flex flex-wrap gap-1.5 md:justify-end">{actionOf(item)}</div>
           </div>
         );
       })}

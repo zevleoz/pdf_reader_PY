@@ -1,9 +1,11 @@
+import { Link } from "react-router-dom";
+
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 import { Chip, dtShort, EmptyPanel, fmtFTTime, Tag, type ChipTone, useProfile } from "./common";
 
-const MARKS = ["①", "②", "③"];
+const PHASE_LABELS = ["会前准备", "兴趣记录", "会后整理"];
 
 export default function FirstTouchTab() {
   const { data } = useProfile();
@@ -17,7 +19,8 @@ export default function FirstTouchTab() {
     label = "已完成" + (ft.reports && ft.reports.length ? " · v" + ft.reports[0].version : "");
     tone = "s0";
   } else if (status === "in_progress") {
-    label = "进行中 · " + MARKS[ft.step || 0];
+    const phase = ft.step == null ? null : PHASE_LABELS[ft.step];
+    label = phase ? "进行中 · " + phase : "进行中";
     tone = "sn";
   } else if (status === "needs_y4") {
     label = "需先完成 Y4";
@@ -32,16 +35,13 @@ export default function FirstTouchTab() {
   let action = null;
   if (!ft.restricted) {
     if (!ft.canStart) {
-      action = (
-        <>
-          <Button variant="outline" disabled>
-            需先完成 Y4
-          </Button>
+      if (canWrite) {
+        action = (
           <Button variant="outline" asChild>
-            <a href="/generate">去生成 Y4</a>
+            <Link to={"?tab=y4"}>打开 Y4 画像</Link>
           </Button>
-        </>
-      );
+        );
+      }
     } else {
       let text = "继续会谈";
       if (!canWrite || status === "completed" || !ft.sessionId) {
@@ -49,7 +49,7 @@ export default function FirstTouchTab() {
       }
       action = (
         <Button asChild>
-          <a href={"/app/first-touch/students/" + data.student.id}>{text}</a>
+          <Link to={"/first-touch/students/" + data.student.id}>{text}</Link>
         </Button>
       );
     }

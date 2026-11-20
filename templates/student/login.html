@@ -1,36 +1,33 @@
 {% extends "student/base.html" %}
 {% block title %}登录{% endblock %}
 {% block content %}
-<div class="s-card" style="margin-top:32px">
-  <div class="s-h1">我的问卷</div>
-  <p class="s-muted" style="font-size:13px; margin-top:6px">
-    用顾问发给你的账号和密码登录，就能看到需要完成的所有问卷。
-  </p>
+<div class="s-login">
+  <h1 class="s-h1">我的问卷</h1>
+  <p class="s-muted s-intro">使用顾问发给你的账号和密码登录。</p>
   {% if error %}
-  <div class="s-alert" style="margin-top:14px">{{ error }}</div>
+  <div id="s-login-error" class="s-alert" role="alert">{{ error }}</div>
   {% endif %}
-  <form method="post" action="/student/login" style="margin-top:16px" class="space-y-3">
+  <form method="post" action="{{ url_for('questionnaires.student_login') }}" class="s-login-form">
     <input type="hidden" name="next" value="{{ next }}" />
-    <label class="block">
-      <span class="s-muted" style="font-size:12.5px">账号</span>
-      <input class="s-input" name="username" autocomplete="username" required autofocus
-             autocapitalize="none" autocorrect="off" spellcheck="false"
-             style="margin-top:6px" />
-    </label>
-    <label class="block">
-      <span class="s-muted" style="font-size:12.5px">密码</span>
-      <span style="display:block; position:relative; margin-top:6px">
+    <div class="s-field">
+      <label for="s-username">账号</label>
+      <input class="s-input" id="s-username" name="username" autocomplete="username" required
+             value="{{ username|default('') }}" autocapitalize="none" autocorrect="off" spellcheck="false"
+             {% if error %}aria-describedby="s-login-error"{% endif %} />
+    </div>
+    <div class="s-field">
+      <label for="s-password">密码</label>
+      <div class="s-password-field">
         <input class="s-input" id="s-password" name="password" type="password"
                autocomplete="current-password" required
                autocapitalize="none" autocorrect="off" spellcheck="false"
-               style="padding-right:60px" />
-        <button type="button" class="s-muted" aria-controls="s-password"
-                style="position:absolute; right:4px; top:4px; bottom:4px; padding:0 10px; font-size:12.5px"
-                onclick="var p=document.getElementById('s-password');var show=p.type==='password';p.type=show?'text':'password';this.textContent=show?'隐藏':'显示';">显示</button>
-      </span>
-    </label>
-    <button type="submit" class="s-btn s-btn-primary" style="width:100%; margin-top:6px">登录</button>
+               {% if error %}aria-describedby="s-login-error"{% endif %} />
+        <button type="button" class="s-password-toggle" aria-controls="s-password"
+                onclick="const password = document.getElementById('s-password'); const show = password.type === 'password'; password.type = show ? 'text' : 'password'; this.textContent = show ? '隐藏密码' : '显示密码';">显示密码</button>
+      </div>
+    </div>
+    <button type="submit" class="s-btn s-btn-primary">登录</button>
   </form>
-  <p class="s-muted" style="font-size:12.5px; margin-top:12px">忘记密码请联系你的顾问重置。</p>
+  <p class="s-muted s-login-help">忘记密码？请联系你的顾问重置。</p>
 </div>
 {% endblock %}

@@ -503,8 +503,8 @@ def test_student_home_shows_pending_count_and_no_scores(client, world):
     world.assign("Q-DEP-01", delivery="link")
     _login_student(client, world)
     html = client.get("/student/home").get_data(as_text=True)
-    assert "<b>2</b> 份问卷待完成" in html
-    assert "已完成 1 / 3" in html
+    assert "还有 2 份待完成" in html
+    assert "已提交 1 / 3 份" in html
     for leaked in ("重度焦虑", "建议正式评估", "得分"):
         assert leaked not in html
 
