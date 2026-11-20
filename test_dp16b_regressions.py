@@ -234,7 +234,9 @@ function makeEngine(overrides) {
     }).join(', ') + '};'
   );
   const api = factory(
-    S, CORE, '/api/m1/plans', 'tab', {}, {querySelectorAll: function () { return []; }},
+    S, CORE, '/api/m1/plans', 'tab', {}, {querySelectorAll: function () {
+      return (overrides && overrides.inputs) || [];
+    }},
     function () {}, function (m) { toasts.push(m); }, function () {}, function () {},
     function () {}, function () {}, function () {},
     function (rev) { if (rev != null) S.rev = Number(rev); },
@@ -389,6 +391,75 @@ async function main() {
       return row.type === 'request' && row.url.indexOf('/sections/sessions.1.content') >= 0;
     });
     assert(lessonIndex < indexOfNav(e.log), 'lesson text before navigation');
+  }
+
+  // 6) 等待 activity 时编辑目标和资料，等待资料时再改教案。
+  {
+    const firstSection = 'internal.session.1.activity.s1-a1';
+    const lastSection = 'internal.session.1';
+    let acknowledgeActivity, acknowledgeInputs;
+    const input = {textContent: 'OLD_INPUT', getAttribute: () => 'student_interest'};
+    const e = makeEngine({inputs: [input], onRequest: function (method, url) {
+      if (url.endsWith('/sections/' + firstSection)) {
+        return new Promise(function (resolve) { acknowledgeActivity = resolve; });
+      }
+      if (url.endsWith('/sections/inputs')) {
+        return new Promise(function (resolve) { acknowledgeInputs = resolve; });
+      }
+    }});
+    e.S.goals = [goal('R2.2', 'OLD_GOAL')];
+    e.stagePatch(firstSection, {steps: {text: 'NEW_ACTIVITY', src: 'edited'}}, false);
+    const exporting = e.runSessionExport(1, exportOpts(e));
+    await new Promise(setImmediate);
+    assert(acknowledgeActivity && indexOfNav(e.log) < 0, 'waiting for the activity');
+    e.S.goals[0].goal = {text: 'LATE_GOAL', src: 'edited'};
+    input.textContent = 'LATE_INPUT';
+    e.markGoalEdited();
+    e.markInputsEdited();
+    acknowledgeActivity({section_version: 2, document_version: 2, rev: 5});
+    await new Promise(setImmediate);
+    assert(acknowledgeInputs && indexOfNav(e.log) < 0, 'waiting for late inputs');
+    e.stagePatch(lastSection, {evidence: {text: 'LATE_EVIDENCE', src: 'edited'}}, false);
+    acknowledgeInputs({section_version: 2, document_version: 4, rev: 7});
+    assert(await exporting, 'export after both queues drain');
+    assert(!e.S.goalDirty && !e.S.inputsDirty, 'both debounce queues are clean');
+    assert(e.log[indexOfRequest(e.log, 'goals')].body.patch.goals[0].goal.text === 'LATE_GOAL',
+           'late goal was saved');
+    assert(e.log[indexOfRequest(e.log, 'inputs')].body.patch.student_interest.text === 'LATE_INPUT',
+           'late input was saved');
+    const nav = e.log[indexOfNav(e.log)];
+    assert(indexOfRequest(e.log, lastSection) < indexOfNav(e.log), 'late section saved before print');
+    assert(nav.url.includes('expected_rev=8'), 'navigation uses the final acknowledged revision');
+  }
+
+  // 7) A failed late write, a conflict, or losing access while waiting must stop export.
+  for (const failure of ['save', 'conflict', 'offline', 'view']) {
+    let acknowledge;
+    const e = makeEngine({onRequest: function (method, url) {
+      if (url.endsWith('/sections/internal.session.1')) {
+        return new Promise(function (resolve) { acknowledge = resolve; });
+      }
+      if (url.endsWith('/sections/goals')) {
+        const err = Object.assign(new Error('未保存'), failure === 'conflict'
+          ? {status: 409, payload: {code: 'stale_section'}} : {status: 500, payload: {}});
+        return Promise.reject(err);
+      }
+    }});
+    e.stagePatch('internal.session.1', {evidence: {text: 'NEW_EVIDENCE', src: 'edited'}}, false);
+    const exporting = e.runSessionExport(1, exportOpts(e));
+    await new Promise(setImmediate);
+    assert(acknowledge, 'waiting for section in ' + failure);
+    e.S.goals = [goal('R2.2', 'LATE_DRAFT')];
+    e.markGoalEdited();
+    if (failure === 'offline') e.S.offline = true;
+    if (failure === 'view') Object.assign(e.S, {canView: false, canEdit: false, revoked: true});
+    acknowledge({section_version: 2, document_version: 2, rev: 5});
+    assert(await exporting === false, 'blocks on ' + failure);
+    clearTimeout(e.S.goalTimer);
+    assert(e.S.goalDirty && e.S.goals[0].goal.text === 'LATE_DRAFT', 'retains draft on ' + failure);
+    const attempts = aims(e.log).filter(row => row.url.endsWith('/sections/goals')).length;
+    assert(attempts === (['save', 'conflict'].includes(failure) ? 1 : 0), 'no retry on ' + failure);
+    assert(indexOfNav(e.log) === -1, 'no navigation on ' + failure);
   }
 
   console.log('PASS');

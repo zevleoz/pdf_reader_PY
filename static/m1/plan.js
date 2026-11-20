@@ -21,6 +21,7 @@
     goals: CFG.goals || [],
     step1: !!CFG.step1,
     step2: !!CFG.step2,
+    canView: (COLLAB.permissions || {}).can_view,
     canEdit: !!CFG.canEdit,
     canApprove: !!CFG.canApprove,
     useOld: false,
@@ -37,6 +38,7 @@
     inputEdit: 0,
     goalWrites: [],
     inputWrites: [],
+    editDrains: 0,
     notesTimer: null,
     lastSaved: null,
     parentDoc: (CFG.parent || {}).doc || null,
@@ -372,102 +374,64 @@
     });
   }
 
-  /* 等待 debounce 条目、排队中的请求和在途写入全部确认后再返回。
-     期间新到的编辑会进入下一轮，避免批准/导出漏掉刚输入的文字。
-     目标/资料防抖的排空逻辑放在函数内部，确保按真实函数提取的测试
-     也能拿到完整实现。 */
+  /* 两类队列都清空后才能批准或导出。任一类等待确认时，
+     新编辑可能进入另一类队列，因此每轮结束都检查两类队列。 */
   function flushAll() {
-    /* 目标与资料输入有独立的 700ms 防抖，触发前不会进入 S.pending。
-       导出/批准前必须先排空；只有同一编辑代次的保存被确认后才清 dirty，
-       保存期间的新输入会继续下一轮。 */
     function flushDebouncedEdits() {
-      function round() {
-        var goalWrites = S.goalWrites || [];
-        var inputWrites = S.inputWrites || [];
-        var jobs = [];
-        /* 已有在途保存时先等它，避免用同一 expected_version 再发一次而制造
-           伪冲突；若有更新编辑，下一轮会用最新内容重发。 */
-        if (goalWrites.length) {
-          jobs.push(settleWrites(goalWrites));
-        } else if (S.goalDirty) {
-          if (!S.step1 || S.conflicts['goals'] || S.revoked || !S.canEdit || S.offline) {
-            return Promise.resolve(false);
-          }
-          clearTimeout(S.goalTimer);
-          S.goalTimer = null;
-          jobs.push(saveGoals().then(function () { return true; },
-                                    function () { return false; }));
-        } else if (S.goalDirty === undefined && S.goalTimer) {
-          /* 兼容不携带 dirty 标记的既有状态对象：等待已排队的防抖回调
-             自己完成。正式页面初始化后 S.goalDirty 一定是布尔值。 */
-          jobs.push(waitForTimer(function () { return !S.goalTimer; }));
-        }
-        if (inputWrites.length) {
-          jobs.push(settleWrites(inputWrites));
-        } else if (S.inputsDirty) {
-          if (!S.step1 || S.conflicts['inputs'] || S.revoked || !S.canEdit || S.offline) {
-            return Promise.resolve(false);
-          }
-          clearTimeout(S.inputTimer);
-          S.inputTimer = null;
-          jobs.push(saveInputs().then(function (ok) { return ok !== false; },
-                                     function () { return false; }));
-        }
-        if (!jobs.length) return Promise.resolve(true);
-        return Promise.all(jobs).then(function (results) {
-          if (results.indexOf(false) >= 0) return false;
-          return round();
-        });
+      if ((S.goalDirty || S.inputsDirty) && (!S.step1 || S.revoked || !S.canEdit || S.offline)) {
+        return Promise.resolve(false);
       }
-      return round();
-    }
-
-    function waitForTimer(done) {
-      return new Promise(function (resolve) {
-        (function poll() {
-          if (done()) return resolve(true);
-          setTimeout(poll, 20);
-        })();
-      });
+      if ((S.goalDirty && S.conflicts.goals) || (S.inputsDirty && S.conflicts.inputs)) {
+        return Promise.resolve(false);
+      }
+      var jobs = S.goalWrites.concat(S.inputWrites);
+      /* 同一个防抖队列先等在途保存，避免用相同的 expected_version 再发一次。 */
+      if (S.goalDirty && !S.goalWrites.length) {
+        clearTimeout(S.goalTimer);
+        S.goalTimer = null;
+        jobs.push(saveGoals());
+      }
+      if (S.inputsDirty && !S.inputWrites.length) {
+        clearTimeout(S.inputTimer);
+        S.inputTimer = null;
+        jobs.push(saveInputs());
+      }
+      return settleWrites(jobs);
     }
 
     function settleWrites(list) {
-      return Promise.all(list.slice().map(function (write) {
-        return write.then(function () { return true; }, function () { return false; });
+      return Promise.all(list.map(function (write) {
+        return write.then(function (ok) { return ok !== false; }, function () { return false; });
       })).then(function (results) {
         return results.indexOf(false) < 0;
       });
     }
 
     function flushSections() {
-      function round() {
-        var sections = Object.keys(S.pending);
-        if (sections.length) {
-          return sections.reduce(function (chain, section) {
-            return chain.then(function (ok) {
-              if (ok === false) return false;
-              return flushSection(section);
-            });
-          }, Promise.resolve(true)).then(function (ok) {
-            if (ok === false) return false;
-            return round();
-          });
-        }
-        var active = S.writes.slice();
-        if (!active.length) return Promise.resolve(!hasUnresolved());
-        return Promise.all(active.map(function (write) {
-          return write.catch(function () {});
-        })).then(function () {
-          if (Object.keys(S.pending).length) return round();
-          return !hasUnresolved();
+      var pending = Object.keys(S.pending).reduce(function (chain, section) {
+        return chain.then(function (ok) {
+          return ok === false ? false : flushSection(section);
         });
-      }
-      return round();
+      }, Promise.resolve(true));
+      return settleWrites(S.writes.concat(pending));
     }
 
-    return flushDebouncedEdits().then(function (ok) {
-      if (ok === false) return false;
-      return flushSections();
+    function drain(roundsLeft) {
+      return flushDebouncedEdits().then(function (ok) {
+        return ok && flushSections();
+      }).then(function (ok) {
+        if (!ok || hasUnresolved()) return false;
+        if (S.goalDirty || S.inputsDirty || S.goalWrites.length || S.inputWrites.length ||
+            Object.keys(S.pending).length || S.writes.length) {
+          return roundsLeft > 1 && drain(roundsLeft - 1);
+        }
+        return true;
+      });
+    }
+
+    S.editDrains = (S.editDrains || 0) + 1;
+    return drain(10).finally(function () {
+      S.editDrains -= 1;
     });
   }
 
@@ -757,7 +721,8 @@
     S.polling = true;
     return request('GET', API + '/presence').then(applyPresence)
       .catch(function (err) {
-        if (err.status === 403 || err.status === 404) {
+        if (err.status === 401 || err.status === 403 || err.status === 404) {
+          S.canView = false;
           applyRevoked('你没有这个计划的编辑权限（可能已被移出团队或计划已关闭）。本地未保存文字仍保留。');
         }
       }).finally(function () { S.polling = false; });
@@ -765,6 +730,7 @@
 
   function applyPermissions(perms) {
     if (!perms) return;
+    if (perms.can_view !== undefined) S.canView = !!perms.can_view;
     if (perms.can_edit !== undefined) {
       var next = !!perms.can_edit;
       if (!next && (S.canEdit || !S.revoked)) {
@@ -1740,7 +1706,8 @@
     /* 句柄在回调触发时清空，避免“定时器已执行但句柄仍非空”被误判成待保存。 */
     S.inputTimer = setTimeout(function () {
       S.inputTimer = null;
-      saveInputs();
+      /* 排空期间的修改由下一轮保存，避免定时器与在途写入竞争。 */
+      if (!S.editDrains && S.canEdit && !S.revoked && !S.conflicts.inputs) saveInputs();
     }, 700);
   }
 
@@ -1885,7 +1852,7 @@
     /* 句柄在回调触发时清空，避免“定时器已执行但句柄仍非空”被误判成待保存。 */
     S.goalTimer = setTimeout(function () {
       S.goalTimer = null;
-      saveGoals();
+      if (!S.editDrains && S.canEdit && !S.revoked && !S.conflicts.goals) saveGoals();
     }, 700);
   }
 
@@ -3194,14 +3161,15 @@
   function sessionPrintUrl(planId, sessionNo, rev, versionId) {
     return '/m1/plans/' + encodeURIComponent(planId)
       + '/sessions/' + encodeURIComponent(sessionNo) + '/print'
-      + '?expected_rev=' + encodeURIComponent(rev)
-      + '&version_id=' + encodeURIComponent(versionId)
-      + '&print=1';
+      + (rev == null ? '?print=1' : '?expected_rev=' + encodeURIComponent(rev)
+        + '&version_id=' + encodeURIComponent(versionId) + '&print=1');
   }
 
   function sessionExportBlockedReason(state, online) {
     if (!online || state.offline) return '当前处于离线状态，无法导出本节 PDF';
-    if (state.revoked) return '你没有这个计划的访问权限';
+    if (state.canView === false || (state.revoked && state.canView !== true)) {
+      return '你没有这个计划的访问权限';
+    }
     if (state.status === 'generating') return '内部版正在更新，完成后可导出本节 PDF';
     if (state.rev == null || state.versionId == null) return '还没有可导出的内部版';
     return '';
@@ -3218,6 +3186,7 @@
       opts.toast(blocked);
       return Promise.resolve(false);
     }
+    var readOnly = state.canEdit === false;
 
     // 点击时同步开空白页，避免持久化 await 之后被浏览器拦截弹窗。
     var tab = opts.openTab ? opts.openTab() : null;
@@ -3231,21 +3200,27 @@
       return false;
     }
 
-    return Promise.resolve().then(function () {
+    var ready = readOnly ? Promise.resolve(true) : Promise.resolve().then(function () {
       return opts.flushDirect ? opts.flushDirect() : null;
     }).then(function () {
+      if (state.canEdit === false || state.offline) return false;
       return opts.flushAll ? opts.flushAll() : true;
-    }).then(function (ok) {
+    });
+    return ready.then(function (ok) {
       if (ok === false) return fail('还有未保存或冲突的内容，未打开打印预览');
-      var late = sessionExportBlockedReason(opts.state || {}, opts.online);
+      var late = sessionExportBlockedReason(state, opts.online);
       if (late) return fail(late);
-      // 使用写入确认后的修订与版本，而不是点击瞬间的值。
+      if (!readOnly && state.canEdit === false) return fail('编辑权限已变更，请重试导出');
+      // 只读用户由打印路由读取当前保存的快照。编辑者使用写入确认后的修订。
       var url = sessionPrintUrl(opts.planId, sessionNo,
-        opts.state.rev, opts.state.versionId);
+        readOnly ? null : state.rev, state.versionId);
       if (tab && tab.location) {
         if (tab.location.replace) tab.location.replace(url);
         else tab.location = url;
       } else if (opts.navigate) {
+        if (readOnly && (state.step1 || state.step2 || state.parentEditable)) {
+          return fail('请允许打开打印预览弹窗，本页未保存的文字仍保留');
+        }
         opts.navigate(url);
       }
       return true;
