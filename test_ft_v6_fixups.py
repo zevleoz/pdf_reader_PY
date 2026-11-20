@@ -13,6 +13,8 @@ from test_ft_v3_student360 import (  # noqa: F401
     _stub_progress, client as student360_client,
 )
 
+from test_ft_v3_workspace import _workspace_script
+
 FIVE_LONG_ITEMS = ["验证" * 75 for _ in range(5)]
 
 
@@ -103,9 +105,10 @@ def test_workspace_initializes_session_once(client, qdb):
     html = _workspace_html(client, qdb)
 
     assert 'x-init="init()"' not in html
-    assert "init: function ()" in html
-    assert html.count("        this.loadSession();") == 1
-    assert html.count("await this.loadSession();") == 1
+    script = _workspace_script(client, html)
+    assert "init: function ()" in script
+    assert script.count("        this.loadSession();") == 1
+    assert script.count("await this.loadSession();") == 1
 
 
 # ---------------------------------------------------------------------------
@@ -139,8 +142,9 @@ def test_workspace_step_two_focus_and_save_states(client, qdb):
     html = _workspace_html(client, qdb)
     flat = re.sub(r"\s+", " ", html)
 
-    assert "focusAddInput" in html
-    assert "this.$refs.addInput.focus()" in html
+    script = _workspace_script(client, html)
+    assert "focusAddInput" in script
+    assert "this.$refs.addInput.focus()" in script
 
     assert "未保存 · 有冲突" in html
     assert "ft-save.warn" in html

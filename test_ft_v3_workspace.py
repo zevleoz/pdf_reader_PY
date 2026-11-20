@@ -14,6 +14,14 @@ def _flat(html: str) -> str:
     return re.sub(r"\s+", "", html)
 
 
+def _workspace_script(client, html: str) -> str:
+    match = re.search(r'<script src="(/app/assets/first_touch_workspace-[^"]+\.js)"></script>', html)
+    assert match, "workspace must reference its shared controller"
+    response = client.get(match.group(1))
+    assert response.status_code == 200
+    return response.get_data(as_text=True)
+
+
 def _workspace(client, qdb, *, role="advisor", advisor_name="Alice") -> str:
     login_as(client, qdb, role=role, advisor_name=advisor_name,
              display_name="观察员" if role == "viewer" else advisor_name,
@@ -50,14 +58,16 @@ def test_three_step_labels_and_no_removed_ui(client, qdb):
 def test_no_removed_endpoints_are_referenced(client, qdb):
     html = _with_session(client, qdb)
 
+    source = html + _workspace_script(client, html)
+
     for path in ("y4-calibrate", "career-calibration", "report-prepare",
                  "report-pdf", "/first-touch/copilot"):
-        assert path not in html
+        assert path not in source
 
     for path in ("/interest-draft", "/talking-points", "/next-steps",
                  "/report-preview", "/report-confirm", "/supplement",
                  "/sources", "/assistant", "/copilot/chats"):
-        assert path in html
+        assert path in source
 
 
 # ---------------------------------------------------------------------------
@@ -71,8 +81,9 @@ def test_score_controls_cover_waiting_and_zero_to_three(client, qdb):
     assert html.count('title="待评"') == 2
     assert html.count('x-for="value in [0, 1, 2, 3]"') == 2
 
-    assert "'不喜欢', '一般', '喜欢', '非常喜欢'" in html
-    assert "'不擅长', '一般', '擅长', '非常擅长'" in html
+    script = _workspace_script(client, html)
+    assert "'不喜欢', '一般', '喜欢', '非常喜欢'" in script
+    assert "'不擅长', '一般', '擅长', '非常擅长'" in script
 
 
 def test_interest_board_is_four_by_four_and_hides_unscored(client, qdb):
@@ -94,10 +105,11 @@ def test_autosave_conflict_and_local_timer_markup(client, qdb):
     assert "已自动保存" in html
     assert "正在保存…" in html
     assert "保存失败，点此重试" in html
-    assert "saveDebounce: 800" in html
+    script = _workspace_script(client, html)
+    assert "saveDebounce: 800" in script
     assert "其他人刚更新了这次会谈" in html
     assert "载入最新" in html
-    assert "beforeunload" in html
+    assert "beforeunload" in script
     assert "会谈 ' + elapsed" in html
     assert "keydown.escape.window" in html
 

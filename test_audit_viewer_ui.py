@@ -11,6 +11,7 @@ import pytest
 from flask import Flask, render_template
 
 import app_utils
+from blueprints.app_shell import bp as app_shell_bp
 from blueprints import copilot as copilot_api
 
 from test_copilot_routes import login_as, qdb  # noqa: F401
@@ -27,6 +28,7 @@ def client(qdb):
     app.config["SECRET_KEY"] = "test-secret"
     app.config["TESTING"] = True
     app.register_blueprint(copilot_api.bp)
+    app.register_blueprint(app_shell_bp)
     app_utils.register_admin_context(app)
     app.context_processor(lambda: {"csrf_token": app_utils.get_csrf_token})
     app.add_template_filter(app_utils.dt_short, "dt_short")

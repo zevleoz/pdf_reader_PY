@@ -13,6 +13,7 @@ from flask import Flask
 
 import app_utils
 import growth_talk_store as store
+from blueprints.app_shell import bp as app_shell_bp
 from blueprints import copilot as copilot_api
 from blueprints import growth_talk as gt_routes
 from growth_talk import jobs, report_contract
@@ -27,6 +28,7 @@ def app(qdb):
     application.config["SECRET_KEY"] = "test-secret"
     application.config["TESTING"] = True
     application.register_blueprint(copilot_api.bp)
+    application.register_blueprint(app_shell_bp)
     application.register_blueprint(gt_routes.bp)
     app_utils.register_admin_context(application)
     application.context_processor(
