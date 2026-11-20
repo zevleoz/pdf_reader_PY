@@ -1,0 +1,246 @@
+import * as React from "react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+import { CONTROL_CLASS, ROLE_DEFAULTS, type CreatePayload, type Role } from "./model";
+
+type FormState = {
+  username: string;
+  password: string;
+  role: Role;
+  advisor_name: string;
+  display_name: string;
+  student_scope: string;
+  detail_level: string;
+  m1_access: boolean;
+};
+
+function initialForm(): FormState {
+  return {
+    username: "",
+    password: "",
+    role: "viewer",
+    advisor_name: "",
+    display_name: "",
+    ...ROLE_DEFAULTS.viewer,
+  };
+}
+
+function applyRole(form: FormState, role: Role): FormState {
+  const defaults = ROLE_DEFAULTS[role];
+  const student_scope = defaults.student_scope;
+  return {
+    ...form,
+    role,
+    student_scope,
+    detail_level: defaults.detail_level,
+    m1_access: defaults.m1_access,
+    advisor_name: student_scope === "own" ? form.advisor_name : "",
+  };
+}
+
+export default function UserCreateForm({
+  busy,
+  onCreate,
+}: {
+  busy: boolean;
+  onCreate: (payload: CreatePayload) => Promise<string | null>;
+}) {
+  const [form, setForm] = React.useState<FormState>(initialForm);
+  const [error, setError] = React.useState("");
+  const [notice, setNotice] = React.useState("");
+
+  const isAdmin = form.role === "admin";
+  const isViewer = form.role === "viewer";
+  const showAdvisor = form.student_scope === "own";
+
+  function changeRole(role: Role) {
+    setForm((current) => applyRole(current, role));
+  }
+
+  function changeScope(student_scope: string) {
+    setForm((current) => ({
+      ...current,
+      student_scope,
+      advisor_name: student_scope === "own" ? current.advisor_name : "",
+    }));
+  }
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    setError("");
+    setNotice("");
+
+    const username = form.username.trim();
+    if (!username) {
+      setError("请输入账号");
+      return;
+    }
+    if (!form.password) {
+      setError("请输入初始密码");
+      return;
+    }
+    const advisor_name = form.advisor_name.trim();
+    if (form.student_scope === "own" && !advisor_name) {
+      setError("名下学生范围需要绑定顾问姓名");
+      return;
+    }
+
+    const failure = await onCreate({
+      username,
+      password: form.password,
+      role: form.role,
+      advisor_name,
+      display_name: form.display_name.trim(),
+      student_scope: form.student_scope,
+      detail_level: form.detail_level,
+      m1_access: form.m1_access ? 1 : 0,
+    });
+    if (failure) {
+      setError(failure);
+      return;
+    }
+
+    setNotice("已创建：" + username);
+    setForm((current) => ({ ...applyRole(current, current.role), username: "", password: "", advisor_name: "", display_name: "" }));
+  }
+
+  return (
+    <section className="min-w-0 border-t-2 border-rule pt-[9px]" aria-labelledby="users-create-title">
+      <h2 id="users-create-title" className="mb-2.5 text-sm font-bold">
+        新增用户
+      </h2>
+      <form className="space-y-3" onSubmit={(event) => void submit(event)}>
+        <div className="grid gap-1.5">
+          <Label htmlFor="nu">账号</Label>
+          <Input
+            id="nu"
+            value={form.username}
+            autoComplete="off"
+            placeholder="登录账号"
+            disabled={busy}
+            onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
+          />
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="np">初始密码</Label>
+          <Input
+            id="np"
+            type="password"
+            value={form.password}
+            autoComplete="new-password"
+            placeholder="初始密码"
+            disabled={busy}
+            onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+          />
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="nr">角色</Label>
+          <select
+            id="nr"
+            className={CONTROL_CLASS}
+            value={form.role}
+            disabled={busy}
+            onChange={(event) => changeRole(event.target.value as Role)}
+          >
+            <option value="viewer">只读</option>
+            <option value="advisor">顾问</option>
+            <option value="admin">管理员</option>
+          </select>
+        </div>
+
+        {showAdvisor ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor="na">绑定顾问（可见学生为名下学生时必填）</Label>
+            <Input
+              id="na"
+              value={form.advisor_name}
+              autoComplete="off"
+              placeholder="顾问姓名"
+              disabled={busy}
+              onChange={(event) => setForm((current) => ({ ...current, advisor_name: event.target.value }))}
+            />
+          </div>
+        ) : null}
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="nd">显示名（可选）</Label>
+          <Input
+            id="nd"
+            value={form.display_name}
+            autoComplete="off"
+            placeholder="显示名"
+            disabled={busy}
+            onChange={(event) => setForm((current) => ({ ...current, display_name: event.target.value }))}
+          />
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="nsc">可见学生</Label>
+          <select
+            id="nsc"
+            className={CONTROL_CLASS}
+            value={form.student_scope}
+            disabled={busy || isAdmin}
+            onChange={(event) => changeScope(event.target.value)}
+          >
+            <option value="all">全部学生</option>
+            <option value="own">名下学生</option>
+          </select>
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="ndl">可见内容</Label>
+          <select
+            id="ndl"
+            className={CONTROL_CLASS}
+            value={form.detail_level}
+            disabled={busy || isAdmin}
+            onChange={(event) => setForm((current) => ({ ...current, detail_level: event.target.value }))}
+          >
+            <option value="full">完整</option>
+            <option value="summary">概要</option>
+          </select>
+        </div>
+
+        <div className="grid gap-1.5">
+          <span className="text-sm font-medium leading-none">可用平台</span>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-ink"
+              checked={form.m1_access}
+              disabled={busy || isAdmin || isViewer}
+              onChange={(event) => setForm((current) => ({ ...current, m1_access: event.target.checked }))}
+            />
+            <span>心有灵析</span>
+          </label>
+        </div>
+
+        <Button type="submit" className="w-full" disabled={busy}>
+          {busy ? "添加中…" : "添加"}
+        </Button>
+
+        {error ? (
+          <p role="status" className="text-sm text-attention">
+            {error}
+          </p>
+        ) : null}
+        {notice ? (
+          <p role="status" className="text-sm text-s0">
+            {notice}
+          </p>
+        ) : null}
+
+        <p className="text-xs leading-relaxed text-mute">
+          完整：可看家长联系方式、问卷答案和分数、解读会纪要，可导出。概要：只看学生档案、Y4、问卷完成状态和 6AM。
+        </p>
+      </form>
+    </section>
+  );
+}

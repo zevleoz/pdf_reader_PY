@@ -8,7 +8,7 @@ import type { PageData } from "./common";
 const NEXT_BUTTON: Record<string, { label: string; href: (id: number, code: string) => string }> = {
   booking: { label: "去预约", href: (_id, code) => "/app/booking?student=" + encodeURIComponent(code) },
   y4_report: { label: "去生成报告", href: () => "/generate" },
-  interpretation: { label: "去写会议纪要", href: (id) => "/tools/transcript?student_id=" + id },
+  interpretation: { label: "去写会议纪要", href: (id) => "/app/minutes?student_id=" + id },
 };
 
 /** 下一步的那一个按钮（页头与概览空态共用）。only 限定哪些步骤显示按钮。 */

@@ -49,7 +49,7 @@ export default function FirstTouchTab() {
       }
       action = (
         <Button asChild>
-          <a href={"/first-touch/students/" + data.student.id}>{text}</a>
+          <a href={"/app/first-touch/students/" + data.student.id}>{text}</a>
         </Button>
       );
     }

@@ -9,6 +9,10 @@ import StudentProfile from "@/pages/StudentProfile";
 import Flow from "@/pages/Flow";
 import Workbench from "@/pages/Workbench";
 import Booking from "@/pages/Booking";
+import QuestionnaireBank from "@/pages/QuestionnaireBank";
+import Users from "@/pages/Users";
+import Minutes from "@/pages/Minutes";
+import FirstTouch from "@/pages/first-touch/FirstTouch";
 import NotFound from "@/pages/NotFound";
 
 export default function App() {
@@ -25,6 +29,10 @@ export default function App() {
               <Route path="flow" element={<Flow />} />
               <Route path="workbench" element={<Workbench />} />
               <Route path="booking" element={<Booking />} />
+              <Route path="minutes" element={<Minutes />} />
+              <Route path="first-touch/students/:sid" element={<FirstTouch />} />
+              <Route path="questionnaire-bank" element={<QuestionnaireBank />} />
+              <Route path="users" element={<Users />} />
               <Route path="kit" element={<Kit />} />
               <Route path="*" element={<NotFound />} />
             </Route>

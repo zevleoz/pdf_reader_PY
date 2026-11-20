@@ -25,6 +25,10 @@ def main(argv=None) -> int:
     parser.add_argument("--keep", type=int, default=14, help="保留的备份份数")
     args = parser.parse_args(argv)
 
+    # 在打开数据库或创建输出目录之前拒绝非正数，避免把已有备份全部清空。
+    if args.keep < 1:
+        parser.error("--keep 必须是 1 或更大的整数")
+
     url = os.environ.get("DATABASE_URL")
     if url and not url.startswith("sqlite"):
         print("只支持 SQLite 数据库")
@@ -37,21 +41,56 @@ def main(argv=None) -> int:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    target = out / ("y4_students-%s.db" % datetime.now().strftime("%Y%m%d-%H%M%S"))
 
-    source_conn = sqlite3.connect(str(db))
-    target_conn = sqlite3.connect(str(target))
-    try:
-        source_conn.backup(target_conn)
-    finally:
-        target_conn.close()
-        source_conn.close()
+    # 同一秒内已有备份时改用 _001 起的序号，独占创建保证不会覆盖旧备份；
+    # 下划线排在 "." 之后，按文件名排序仍保持时间先后。
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    # Continue above surviving suffixes; a pruned base name must not be reused
+    # and then immediately removed as the lexically oldest backup.
+    prefix = "y4_students-%s" % stamp
+    used = []
+    for existing in out.glob(prefix + "*.db"):
+        stem = existing.stem
+        suffix = stem[len(prefix):]
+        if not suffix:
+            used.append(0)
+        elif suffix.startswith("_") and suffix[1:].isdigit():
+            used.append(int(suffix[1:]))
+    first_seq = max(used, default=-1) + 1
+    target = None
+    for seq in range(first_seq, 1000):
+        suffix = "" if seq == 0 else "_%03d" % seq
+        candidate = out / ("y4_students-%s%s.db" % (stamp, suffix))
+        try:
+            fd = os.open(str(candidate), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        except FileExistsError:
+            continue
+        os.close(fd)
+        target = candidate
+        break
+    if target is None:
+        print("同一秒内的备份文件名已用尽")
+        return 1
 
-    check_conn = sqlite3.connect(str(target))
     try:
-        result = check_conn.execute("PRAGMA integrity_check").fetchone()
-    finally:
-        check_conn.close()
+        source_conn = sqlite3.connect(str(db))
+        target_conn = sqlite3.connect(str(target))
+        try:
+            source_conn.backup(target_conn)
+        finally:
+            target_conn.close()
+            source_conn.close()
+
+        check_conn = sqlite3.connect(str(target))
+        try:
+            result = check_conn.execute("PRAGMA integrity_check").fetchone()
+        finally:
+            check_conn.close()
+    except Exception:
+        # 只删除本次独占创建的文件，已有的备份不受影响。
+        target.unlink(missing_ok=True)
+        raise
+
     if not result or result[0] != "ok":
         target.unlink()
         print("备份校验失败")

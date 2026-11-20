@@ -1,0 +1,1 @@
+../../../static/js/first_touch_workspace.js

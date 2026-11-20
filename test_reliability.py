@@ -8,6 +8,7 @@ from __future__ import annotations
 import importlib.util
 import sqlite3
 import time
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -137,6 +138,98 @@ def test_backup_refuses_non_sqlite(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://x")
 
     assert backup_db.main(["--db", str(src), "--out", str(tmp_path / "backups")]) == 2
+
+
+# ── 3b. 非正数保留份数被拒绝 ───────────────────────────────────
+@pytest.mark.parametrize("keep_arg", ["--keep=0", "--keep=-1", "--keep=-14"])
+def test_backup_rejects_non_positive_keep(tmp_path, capsys, keep_arg):
+    backup_db = _load("backup_db")
+    src = _make_db(tmp_path / "src.db", 3)
+    out = tmp_path / "backups"
+    before = src.read_bytes()
+
+    with pytest.raises(SystemExit) as excinfo:
+        backup_db.main(["--db", str(src), "--out", str(out), keep_arg])
+
+    assert excinfo.value.code == 2
+    assert not out.exists()
+    assert src.read_bytes() == before
+    assert "keep" in capsys.readouterr().err
+
+
+def test_backup_invalid_keep_leaves_existing_backups(tmp_path):
+    backup_db = _load("backup_db")
+    src = _make_db(tmp_path / "src.db", 3)
+    out = tmp_path / "backups"
+    out.mkdir()
+    existing = _make_db(out / "y4_students-20250101-000000.db", 2)
+    before = existing.read_bytes()
+
+    with pytest.raises(SystemExit) as excinfo:
+        backup_db.main(["--db", str(src), "--out", str(out), "--keep=0"])
+
+    assert excinfo.value.code == 2
+    assert list(out.glob("y4_students-*.db")) == [existing]
+    assert existing.read_bytes() == before
+
+
+# ── 3c. 同一秒的备份不互相覆盖 ─────────────────────────────────
+def _freeze_same_second(monkeypatch, module):
+    class _FrozenDatetime:
+        @staticmethod
+        def now():
+            return datetime(2026, 11, 14, 14, 30, 0)
+
+    monkeypatch.setattr(module, "datetime", _FrozenDatetime)
+
+
+def test_backup_same_second_keeps_both(tmp_path, monkeypatch):
+    backup_db = _load("backup_db")
+    _freeze_same_second(monkeypatch, backup_db)
+    out = tmp_path / "backups"
+    src = _make_db(tmp_path / "src.db", 3)
+
+    assert backup_db.main(["--db", str(src), "--out", str(out)]) == 0
+    with sqlite3.connect(str(src)) as conn:
+        conn.execute("INSERT INTO t (x) VALUES (99)")
+        conn.execute("INSERT INTO t (x) VALUES (100)")
+    assert backup_db.main(["--db", str(src), "--out", str(out)]) == 0
+
+    files = sorted(out.glob("y4_students-*.db"))
+    assert len(files) == 2
+    assert [_rows(f) for f in files] == [3, 5]
+
+
+def test_backup_prunes_same_second_in_order(tmp_path, monkeypatch):
+    backup_db = _load("backup_db")
+    _freeze_same_second(monkeypatch, backup_db)
+    out = tmp_path / "backups"
+
+    for rows in (3, 4, 5, 6, 7):
+        src = _make_db(tmp_path / ("src-%d.db" % rows), rows)
+        assert backup_db.main(["--db", str(src), "--out", str(out),
+                               "--keep", "2"]) == 0
+
+    files = sorted(out.glob("y4_students-*.db"))
+    assert len(files) == 2
+    assert [_rows(f) for f in files] == [6, 7]
+
+
+def test_backup_failure_keeps_existing_backup(tmp_path, monkeypatch):
+    backup_db = _load("backup_db")
+    _freeze_same_second(monkeypatch, backup_db)
+    out = tmp_path / "backups"
+    out.mkdir()
+    existing = _make_db(out / "y4_students-20261114-143000.db", 2)
+    before = existing.read_bytes()
+    broken = tmp_path / "src.db"
+    broken.write_text("not a database", encoding="utf-8")
+
+    with pytest.raises(sqlite3.DatabaseError):
+        backup_db.main(["--db", str(broken), "--out", str(out)])
+
+    assert list(out.glob("y4_students-*.db")) == [existing]
+    assert existing.read_bytes() == before
 
 
 # ── 4. 恢复必须显式确认 ────────────────────────────────────────

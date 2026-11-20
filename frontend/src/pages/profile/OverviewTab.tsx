@@ -183,7 +183,7 @@ function Minutes({ res, studentId }: { res: Resource<MinutesResp>; studentId: nu
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" asChild>
-                      <a href={"/tools/transcript?student_id=" + studentId + "#m" + m.id} target="_blank" rel="noreferrer">
+                      <a href={"/app/minutes?student_id=" + studentId + (m.report_id ? "&report_id=" + m.report_id : "") + "#m" + m.id} target="_blank" rel="noreferrer">
                         前往
                       </a>
                     </Button>

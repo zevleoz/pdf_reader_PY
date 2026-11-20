@@ -100,6 +100,9 @@ def client(qdb):
     app = Flask(__name__, template_folder=str(app_utils.TEMPLATE_DIR))
     app.config["SECRET_KEY"] = "test-secret"
     app.register_blueprint(copilot_api.bp)
+    # Workspace assets use the same shell route as production.
+    from blueprints.app_shell import bp as app_shell_bp
+    app.register_blueprint(app_shell_bp)
     app.config["TESTING"] = True
     app_utils.register_admin_context(app)
     app.context_processor(lambda: {"csrf_token": app_utils.get_csrf_token})

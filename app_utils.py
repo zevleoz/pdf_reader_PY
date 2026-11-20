@@ -420,11 +420,11 @@ ADMIN_NAV = [
     ]},
     {"key": "tools", "title": "工具", "links": [
         {"key": "tools.tasks", "label": "问卷任务", "href": "/app/questionnaires", "icon": "clipboard"},
-        {"key": "tools.bank", "label": "问卷题库", "href": "/questionnaires/bank",
+        {"key": "tools.bank", "label": "问卷题库", "href": "/app/questionnaire-bank",
          "icon": "book", "roles": ("admin", "advisor")},
         {"key": "tools.bookings", "label": "预约管理", "href": "/app/booking", "icon": "calendar",
          "roles": ("admin", "advisor")},
-        {"key": "tools.transcript", "label": "解读会纪要", "href": "/tools/transcript", "icon": "mic",
+        {"key": "tools.transcript", "label": "解读会纪要", "href": "/app/minutes", "icon": "mic",
          "roles": ("admin", "advisor")},
         {"key": "tools.internal", "label": "内部下载", "href": "/tools/internal", "icon": "download",
          "roles": ("admin", "advisor")},
@@ -432,7 +432,7 @@ ADMIN_NAV = [
          "roles": ("admin",)},
     ]},
     {"key": "system", "title": "系统", "links": [
-        {"key": "system.users", "label": "用户管理", "href": "/system/users", "icon": "shield",
+        {"key": "system.users", "label": "用户管理", "href": "/app/users", "icon": "shield",
          "roles": ("admin",)},
         {"key": "system.settings", "label": "设置", "href": "/system/settings", "icon": "settings",
          "roles": ("admin",)},
