@@ -456,7 +456,7 @@ def test_speakers_api(client, rdb, monkeypatch):
 
     advisor_login(client, rdb.alice_id, "Alice", m1_access=1, detail_level="summary",
                   student_scope="all")
-    assert client.get(base).status_code == 403
+    assert client.get(base).status_code == 200
     assert client.put(base, json={"labels": {"发言人1": "学生"}}).status_code == 403
 
 

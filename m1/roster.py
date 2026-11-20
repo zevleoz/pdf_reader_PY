@@ -5,14 +5,14 @@ raw-source identifiers and mentor inputs that team-only discovery must not expos
 """
 from __future__ import annotations
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 import db
 from m1 import plan_collaboration as collab, plan_store as plans, store
 
 
-def visible_sources(user) -> list[dict]:
+def visible_sources(user, *, include_unassigned=False) -> list[dict]:
     """One student row with latest readable prep and highest readable Block.
 
     Visibility follows student/prep read helpers and can_view_plan, without
@@ -26,9 +26,9 @@ def visible_sources(user) -> list[dict]:
         u.get("m1_access"), u.get("m1_admin"))
     if uid is None or u.get("role") not in ("admin", "advisor") or not settings["m1_access"]:
         return []
-    all_students = u.get("role") == "admin" or settings["student_scope"] == "all"
+    all_students = store._sees_all_students(u)
     advisor = (u.get("advisor_name") or "").strip()
-    own_student = db.Student.advisor_name == advisor if advisor else False
+    own_student = func.trim(db.Student.advisor_name) == advisor if advisor else False
     raw_student = True if all_students else own_student
     prep = store.M1Prep
     plan = plans.M1Plan
@@ -37,6 +37,11 @@ def visible_sources(user) -> list[dict]:
         account = sess.get(db.User, uid)
         if account is None or not account.is_active:
             return []
+        live = store._user_dict(account)
+        if live["role"] not in ("admin", "advisor") or not db.effective_account_settings(
+                live["role"], m1_access=live["m1_access"])["m1_access"]:
+            return []
+        assigned = store.assigned_students_query(uid)
         # Membership is effective only while its account is active. For raw-scope
         # readers, a team is also an M1 participation marker before any plan exists.
         memberships = sess.execute(
@@ -53,11 +58,10 @@ def visible_sources(user) -> list[dict]:
                    db.User.advisor_name, db.User.username)
             .join(db.Student, db.Student.id == prep.student_id)
             .outerjoin(db.User, db.User.id == prep.mentor_user_id)
-            .where(or_(raw_student, prep.mentor_user_id == uid, prep.student_id.in_(my_team)))
+            .where(or_(raw_student, prep.mentor_user_id == uid, prep.student_id.in_(assigned)))
             .order_by(prep.updated_at.desc(), prep.id.desc())).all()
         readable_preps = {r.id for r in prep_rows}
-        # A report plan requires its actual prep authority (not merely its plan
-        # mentor field); direct plans require student authority or team membership.
+        # A mentor assignment on any document grants student-wide discovery.
         plan_rows = sess.execute(
             select(plan.id, plan.student_id, plan.block_no, plan.status,
                    plan.parent_status, plan.current_version_id,
@@ -66,7 +70,7 @@ def visible_sources(user) -> list[dict]:
             .join(db.Student, db.Student.id == plan.student_id)
             .outerjoin(plans.M1PlanVersion,
                        plans.M1PlanVersion.id == plan.parent_version_id)
-            .where(or_(raw_student, plan.student_id.in_(my_team),
+            .where(or_(raw_student, plan.student_id.in_(assigned),
                        (plan.source_mode == "report") & plan.prep_id.in_(readable_preps)))
             .order_by(plan.block_no.desc(), plan.updated_at.desc(), plan.id.desc())).all()
         ids = ({r.student_id for r in memberships}
@@ -74,7 +78,7 @@ def visible_sources(user) -> list[dict]:
         students = sess.execute(
             select(db.Student.id, db.Student.name, db.Student.student_code,
                    db.Student.grade, db.Student.advisor_name)
-            .where(db.Student.id.in_(ids))
+            .where(True if include_unassigned and settings["m1_admin"] else db.Student.id.in_(ids))
             .order_by(db.Student.name, db.Student.id)).all()
 
     rows = {}

@@ -109,6 +109,10 @@ def _page_guard():
         abort(403)
 
 
+def _can_manage_report() -> bool:
+    return store.is_m1_admin(_user()) or app_utils.can_see_full()
+
+
 def _prep_or_404(prep_id: int):
     prep = store.get_prep(prep_id)
     if not prep:
@@ -558,7 +562,7 @@ def api_preps():
         plan = plans.get(int(row["student_id"]))
         row["plan"] = _plan_cell(plan)
         row["can_edit"] = store.can_access_prep(user, row["id"])
-        row["report"]["can_edit"] = row["can_edit"] and app_utils.can_see_full()
+        row["report"]["can_edit"] = row["can_edit"] and _can_manage_report()
         row["assigned"] = row["student_id"] in assigned
         row["next"] = _next_step(row, found, plan)
     return jsonify({"ok": True, "me": user.get("user_id"), "preps": rows})
@@ -569,11 +573,12 @@ def api_preps():
 def api_roster():
     """Discovery uses the same student-wide read visibility as document routes."""
     user = _user()
+    include_unassigned = request.args.get("include_unassigned") == "1"
     try:
-        rows = roster.visible_sources(user)
+        rows = roster.visible_sources(user, include_unassigned=include_unassigned)
     except OperationalError:
         pstore.ensure_tables()
-        rows = roster.visible_sources(user)
+        rows = roster.visible_sources(user, include_unassigned=include_unassigned)
     reports = rstore.list_overview([row["prep"]["id"] for row in rows if row["prep"]])
     for row in rows:
         prep, plan = row["prep"], row["plan"]
@@ -758,7 +763,7 @@ def api_prep_overview(prep_id: int):
                             "date": first_touch.get("date") or ""},
             "questionnaires": {"done": done, "total": total},
         },
-        "report_can_edit": store.can_access_prep(_user(), prep_id) and app_utils.can_see_full(),
+        "report_can_edit": store.can_access_prep(_user(), prep_id) and _can_manage_report(),
         "prep_part": {
             "status": prep["status"],
             "label": label,
@@ -808,8 +813,11 @@ def api_update_prep(prep_id: int):
             fields["mentor_user_id"] = int(fields["mentor_user_id"])
         except (TypeError, ValueError):
             return _err("mentor_user_id 必须是数字")
-        if not _db.get_user_by_id(fields["mentor_user_id"]):
+        mentor = _db.get_user_by_id(fields["mentor_user_id"])
+        if not mentor:
             return _err("心有灵析 Mentor 不存在", 404)
+        if not mentor["is_active"] or not mentor["m1_access"]:
+            return _err("请选择已启用心有灵析权限的导师", 422)
     try:
         updated = store.update_prep(prep_id, **fields)
     except ValueError as exc:
@@ -1078,7 +1086,7 @@ def api_job_status(job_id: str):
 
 
 def _student_overview_payload(student_id: int) -> dict:
-    plans = [plan for plan in pstore.list_plans(_user()) if plan['student_id'] == student_id]
+    plans = pstore.list_plans(_user(), student_id=student_id)
     for plan in plans:
         plan['next_action'] = pstore.next_action(plan)
     preps = store.list_preps(user=_user(), student_id=student_id)
@@ -1090,7 +1098,8 @@ def _student_overview_payload(student_id: int) -> dict:
     can_access = store.can_access_student(_user(), student_id)
     return {'ok': True,
             'student': {k: student.get(k) for k in ('id', 'name', 'student_code', 'grade', 'school')},
-            'preps': preps, 'plans': plans, 'can_create_direct': can_access,
+            'preps': preps, 'plans': plans,
+            'can_create_direct': store.can_read_student(_user(), student_id),
             'can_create_first_meeting': can_access,
             'can_manage_team': pstore.can_manage_team(_user()),
             'team': plan_collab.team_view(student_id),
@@ -1122,6 +1131,6 @@ def page_student_hub(student_id):
         abort(404)
     return _render_page('m1/student_hub.html', nav_active='students',
                         student=student, student_id=student_id,
-                        can_create_direct=store.can_access_student(_user(), student_id),
+                        can_create_direct=store.can_read_student(_user(), student_id),
                         can_create_first_meeting=store.can_access_student(_user(), student_id),
                         ctx={'student': student})

@@ -44,12 +44,13 @@ class Element {
   querySelectorAll(selector) { return this.all().filter(c => c.tagName === selector); }
 }
 
-async function boot(saved, studentId) {
+async function boot(saved, studentId, manager = false) {
   const ids = Object.fromEntries(['m1Home', 'm1List', 'm1Count', 'm1Search', 'addDlg',
     'addStudent', 'addSearch', 'pick', 'addDate', 'addGo', 'addDuration', 'addDlgX', 'addCancel']
     .map(id => [id, new Element()]));
   ids.m1Count.appendChild(new Element('span'));
   ids.m1Home.dataset.studentId = studentId || '';
+  ids.m1Home.dataset.manager = manager ? '1' : '0';
   const views = ['all', 'todo', 'done'].map(view => {
     const b = new Element('button'); b.dataset.view = view; b.appendChild(new Element('em')); return b;
   });
@@ -99,8 +100,9 @@ async function boot(saved, studentId) {
     localStorage: {getItem: key => storage.get(key), setItem: (k, v) => storage.set(k, v)}},
     fetch: async path => {
       requests.push(path);
-      assert.ok(['/api/m1/roster', '/api/m1/students'].includes(path), path);
-      return {ok: true, json: async () => path.endsWith('/roster') ? roster : {students: []}};
+      const rosterPath = manager ? '/api/m1/roster?include_unassigned=1' : '/api/m1/roster';
+      assert.ok([rosterPath, '/api/m1/students'].includes(path), path);
+      return {ok: true, json: async () => path === rosterPath ? roster : {students: []}};
     }});
   await new Promise(resolve => setImmediate(resolve));
   const rows = () => ids.m1List.all().filter(e => e.attributes.role === 'link');
@@ -152,6 +154,11 @@ async function boot(saved, studentId) {
     assert.match(ids.pick.textContent, /暂无可添加 First Meeting/);
     assert.match(ids.pick.textContent, /已共享/);
   }
+  const manager = await boot('mine', undefined, true);
+  assert.equal(manager.rows().length, 5, 'a mentor preference must not narrow a new manager roster');
+  assert.ok(manager.rows().some(r => r.dataset.href === '/m1/students/99'));
+  assert.equal(manager.who.find(b => b.dataset.who === 'all').attributes['aria-pressed'], 'true');
+
   const all = await boot('all');
   assert.equal(all.rows().length, 5, 'saved all preference must survive boot');
   assert.equal(all.who.find(b => b.dataset.who === 'all').attributes['aria-pressed'], 'true');

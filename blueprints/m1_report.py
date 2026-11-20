@@ -10,7 +10,6 @@ from pathlib import Path
 
 from flask import Blueprint, abort, jsonify, request, session
 
-import app_utils
 import db as _db
 import m1.report_checks as checks_mod
 import m1.report_kb as kb
@@ -20,8 +19,9 @@ import m1.sources as sources
 import m1.store as store
 from m1 import report_display, speakers
 from app_utils import page_login_required, role_required
-from blueprints.m1 import (_WRITE_ROLES, _api_prep, _api_read_prep, _err, _json_body, _m1_access_guard,
-                           _prep_or_404, _render_page, _user)
+from blueprints.m1 import (_WRITE_ROLES, _api_prep, _api_read_prep, _can_manage_report,
+                           _err, _json_body, _m1_access_guard, _prep_or_404,
+                           _render_page, _user)
 from growth_talk.upload import UploadError, extract_upload
 
 bp = Blueprint("m1_report", __name__)
@@ -36,7 +36,7 @@ def _report_access_guard():
     """Summary accounts get only explicitly assigned, student-scoped GET/HEAD reads."""
     if not session.get("user_id"):
         return None
-    if app_utils.can_see_full():
+    if _can_manage_report():
         return None
     if (request.method in ("GET", "HEAD")
             and request.endpoint == "m1_report.api_report_statuses"
@@ -137,7 +137,7 @@ def _payload(prep: dict) -> dict:
     mapped = {code: info["indicators"] for code, info in kb.ability_map().items()}
     return {
         "ok": True,
-        "can_edit": store.can_access_prep(_user(), prep["id"]) and app_utils.can_see_full(),
+        "can_edit": store.can_access_prep(_user(), prep["id"]) and _can_manage_report(),
         "report": _public_report(report) if report else {
             "id": None, "prep_id": prep["id"], "status": "draft",
             "label": rstore.STATUS_LABELS["draft"], "rev": 1,
@@ -172,7 +172,7 @@ def _need_report(prep: dict):
 @page_login_required
 def page_report(prep_id: int):
     prep = _prep_or_404(prep_id)
-    if not (store.can_access_prep(_user(), prep_id) and app_utils.can_see_full()):
+    if not (store.can_access_prep(_user(), prep_id) and _can_manage_report()):
         return _render_page("m1/document_readonly.html", prep=prep, prep_id=prep_id,
                             kind="report", detail=_payload(prep))
     return _render_page("m1/report_workspace.html", prep=prep, prep_id=prep["id"],
@@ -201,7 +201,7 @@ def page_report_print(prep_id: int):
     shown = report_display.display_version(version)
     doc = shown.get("doc") or {}
     draft = report["status"] not in ("approved", "published")
-    editing = (store.can_access_prep(_user(), prep_id) and app_utils.can_see_full()
+    editing = (store.can_access_prep(_user(), prep_id) and _can_manage_report()
                and request.args.get("edit") == "1"
                and report["status"] not in ("published", "generating"))
     edit_data = None
@@ -302,7 +302,7 @@ def api_report_speakers_save(prep_id: int):
 @role_required(*_WRITE_ROLES)
 def api_report_statuses():
     preps = store.list_preps(user=_user())
-    if not app_utils.can_see_full():
+    if not _can_manage_report():
         assigned = store.assigned_student_ids(_user())
         preps = [p for p in preps if p["student_id"] in assigned]
     found = rstore.list_statuses([p["id"] for p in preps])

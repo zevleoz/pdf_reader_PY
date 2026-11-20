@@ -146,17 +146,18 @@ def test_deduplicates_preps_and_blocks_and_uses_all_assignments_for_participatio
     assert set(row["prep"]) == {"id", "meeting_date", "mentor_name", "status", "has_doc", "report", "can_edit"}
 
 
-def test_prep_assignment_gets_narrow_hub_access_without_student_or_other_prep_access(client, m1db):
+def test_prep_assignment_grants_student_wide_reads(client, m1db):
     assigned = m1db.prep(m1db.student_id, m1db.bob_id)
-    hidden = m1db.prep()
+    another = m1db.prep()
+    unrelated = m1db.prep(m1db.incomplete_student_id)
     login_as(client, m1db.bob_id, "advisor", "Bob")
     row, = _roster(client)
-    assert row["prep"]["id"] == assigned["id"] and row["participating"]
-    assert client.get(row["hub_url"]).status_code == 200
+    assert row["prep"]["id"] == another["id"] and row["participating"]
     overview = client.get(f"/api/m1/students/{m1db.student_id}/overview").get_json()
-    assert [p["id"] for p in overview["preps"]] == [assigned["id"]]
-    assert overview["can_create_direct"] is False
-    assert client.get(f"/api/m1/preps/{hidden['id']}").status_code == 403
+    assert {p["id"] for p in overview["preps"]} == {assigned["id"], another["id"]}
+    assert overview["can_create_direct"] is True
+    assert client.get(f"/api/m1/preps/{another['id']}").status_code == 200
+    assert client.get(f"/api/m1/preps/{unrelated['id']}").status_code == 403
 
 
 def test_report_plan_reached_via_prep_assignment_opens_hub(client, m1db):
@@ -187,17 +188,18 @@ def test_creator_alone_never_grants_visibility(client, m1db):
     assert client.get(f"/m1/students/{m1db.student_id}").status_code == 404
 
 
-def test_latest_block_is_selected_only_from_readable_plans(client, m1db):
+def test_latest_block_can_come_from_another_mentor_of_the_assigned_student(client, m1db):
     prep, report = _drafted_prep(m1db)
     store.update_prep(prep["id"], mentor_user_id=m1db.bob_id)
-    visible = _create(m1db, prep, report, mentor_user_id=m1db.bob_id)
-    hidden_prep, hidden_report = _drafted_prep(m1db)
-    _create(m1db, hidden_prep, hidden_report, block_no=2)
-    _direct(m1db, block=3)
+    _create(m1db, prep, report, mentor_user_id=m1db.bob_id)
+    latest_prep, latest_report = _drafted_prep(m1db)
+    _create(m1db, latest_prep, latest_report, block_no=2)
+    latest_plan = _direct(m1db, block=3)
     login_as(client, m1db.bob_id, "advisor", "Bob")
     row, = _roster(client)
-    assert row["plan"]["id"] == visible["id"] and row["plan"]["block_no"] == 1
-    assert row["prep"]["id"] == prep["id"]
+    assert row["plan"]["id"] == latest_plan["id"] and row["plan"]["block_no"] == 3
+    assert row["prep"]["id"] == latest_prep["id"]
+    assert "primary" in row["roles"]
 
 
 def test_creator_participates_only_with_independent_visibility(client, m1db):

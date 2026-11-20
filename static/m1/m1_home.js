@@ -13,9 +13,12 @@
   var addGo = document.getElementById('addGo');
   var durationSeg = document.getElementById('addDuration');
 
+  var manager = root.dataset.manager === '1';
+  var scopeKey = manager ? 'm1.list.who.manager' : 'm1.list.who';
+
   var state = {
     roster: [],
-    who: 'mine',
+    who: manager ? 'all' : 'mine',
     view: 'all',
     q: '',
     students: [],
@@ -24,9 +27,9 @@
     openedFrom: null
   };
 
-  // 参与筛选：我参与的（默认）/ 全部；旧 mine 值沿用新的参与语义。选择记在 localStorage['m1.list.who']。
+  // 恢复上次选择的参与范围。
   try {
-    var savedWho = window.localStorage.getItem('m1.list.who');
+    var savedWho = window.localStorage.getItem(scopeKey);
     if (savedWho === 'all' || savedWho === 'mine') state.who = savedWho;
   } catch (err) {}
 
@@ -215,7 +218,7 @@
         upcoming.length + ' · 按时间先后', upcoming));
     }
     if (standalone.length) {
-      listHost.appendChild(groupBlock('计划与团队学生',
+      listHost.appendChild(groupBlock('未安排会议的学生',
         standalone.length + ' · 无可见 First Meeting', standalone));
     }
     if (past.length) {
@@ -276,7 +279,7 @@
 
   function setWho(who) {
     state.who = who;
-    try { window.localStorage.setItem('m1.list.who', who); } catch (err) {}
+    try { window.localStorage.setItem(scopeKey, who); } catch (err) {}
     Array.prototype.forEach.call(document.querySelectorAll('[data-who]'), function (button) {
       var on = button.dataset.who === who;
       button.classList.toggle('on', on);
@@ -445,7 +448,7 @@
   if (addGo) addGo.addEventListener('click', submit);
 
   Promise.all([
-    api('/api/m1/roster'),
+    api('/api/m1/roster' + (manager ? '?include_unassigned=1' : '')),
     api('/api/m1/students').catch(function () { return { students: [] }; })
   ]).then(function (results) {
     state.roster = results[0].students || [];

@@ -72,6 +72,7 @@ def api_users_create():
             (data.get("advisor_name") or "").strip(),
             (data.get("display_name") or "").strip(),
             student_scope=data.get("student_scope"),
+            m1_admin=data.get("m1_admin"),
             detail_level=data.get("detail_level"),
             m1_access=data.get("m1_access"),
         )
@@ -119,18 +120,24 @@ def api_users_update(user_id):
 
 
 def _m1_manager_update(user_id, data):
-    """心有灵析管理账号：只能改他人 advisor 账号的 m1_access。"""
-    if not _is_m1_manager():
-        return _forbidden()
-    if set(data) != {"m1_access"} or user_id == session.get("user_id"):
+    """心有灵析管理账号只能为其他顾问分配心有灵析角色。"""
+    if (not _is_m1_manager() or user_id == session.get("user_id")
+            or not isinstance(data, dict) or not data
+            or not data.keys() <= {"m1_access", "m1_admin"}):
         return _forbidden()
     target = _db.get_user_by_id(user_id)
     if not target:
         return jsonify({"ok": False, "error": "用户不存在"}), 404
-    if target.get("role") != "advisor":
+    if target.get("role") != "advisor" or not target.get("is_active"):
         return _forbidden()
+    if any(type(value) not in (bool, int) or value not in (0, 1) for value in data.values()):
+        return jsonify(ok=False, error="心有灵析权限需要开启或关闭"), 400
+    if data.get("m1_admin") and not data.get("m1_access", target["m1_access"]):
+        return jsonify(ok=False, error="请先开启心有灵析权限"), 400
+    if data.get("m1_access") == 0:
+        data = {**data, "m1_admin": 0}
     try:
-        ok = _db.update_user(user_id, m1_access=data["m1_access"])
+        ok = _db.update_user(user_id, **data)
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
     invalidate_session_user(user_id)

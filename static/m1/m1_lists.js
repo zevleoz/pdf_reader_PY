@@ -137,7 +137,7 @@
   }
 
   function matchesWho(row) {
-    if (state.who === 'all') return true;
+    if (kind === 'plans' || state.who === 'all') return true;
     if (state.me === null) return false;
     return row.assigned || row.created_by === state.me || row.mentor_user_id === state.me;
   }
@@ -787,7 +787,7 @@
 
   if (kind === 'plans') {
     var newBtn = document.getElementById('newPlan');
-    if (newBtn) newBtn.addEventListener('click', function () { openPlanDialog(); });
+    if (newBtn) newBtn.addEventListener('click', function () { openPlanDialog(null, { mode: 'direct' }); });
     if (dlg) {
       dlg.addEventListener('click', function (event) {
         if (event.target === dlg) closePlanDialog();

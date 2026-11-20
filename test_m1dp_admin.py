@@ -157,7 +157,11 @@ def test_user_api_as_m1_admin(client, m1db):
 
     assert client.put("/api/users/%d" % m1db.admin_id, json={"m1_access": 0}).status_code == 403
     assert client.put("/api/users/%d" % m1db.alice_id, json={"m1_access": 0}).status_code == 403
-    for extra in ({"role": "admin"}, {"m1_admin": 1}, {"password": "x"},
+    assert client.put(bob, json={"m1_admin": 1}).status_code == 200
+    assert _db.get_user_by_id(m1db.bob_id)["m1_admin"] == 1
+    assert client.put(bob, json={"m1_admin": 0}).status_code == 200
+    assert _db.get_user_by_id(m1db.bob_id)["m1_admin"] == 0
+    for extra in ({"role": "admin"}, {"password": "x"},
                   {"student_scope": "all"}, {"detail_level": "full"}):
         assert client.put(bob, json=extra).status_code == 403
         assert client.put(bob, json={"m1_access": 0, **extra}).status_code == 403
@@ -166,6 +170,39 @@ def test_user_api_as_m1_admin(client, m1db):
                                            "role": "admin"}).status_code == 403
     assert client.delete(bob).status_code == 403
     assert _db.get_user_by_id(m1db.bob_id)
+
+
+def test_m1_admin_can_assign_student_outside_profiling_scope(client, m1db):
+    _manager(m1db)
+    sid = m1db.other_student_id
+    mentor_id = m1db.user("advisor", "Carol")
+    plan_mentor_id = m1db.user("advisor", "Dana")
+
+    _session(client, mentor_id, "advisor", "Carol", scope="own")
+    assert client.get(f"/m1/students/{sid}").status_code == 404
+
+    _session(client, m1db.alice_id, "advisor", "Alice", m1_admin=1, scope="own")
+    page = client.get("/m1").get_data(as_text=True)
+    assert 'data-who="all" aria-pressed="true">全部学生' in page
+    roster = client.get("/api/m1/roster?include_unassigned=1").get_json()["students"]
+    assert {row["student_id"] for row in roster} == {
+        m1db.student_id, sid, m1db.incomplete_student_id,
+    }
+    unassigned = next(row for row in roster if row["student_id"] == sid)
+    assert unassigned["prep"] is None and unassigned["plan"] is None
+    assert client.get(unassigned["hub_url"]).status_code == 200
+    result = client.post(f"/api/m1/students/{sid}/team", json={"user_id": mentor_id})
+    assert result.status_code == 200
+    assert [row["user_id"] for row in result.get_json()["team"]["co_mentors"]] == [mentor_id]
+    plan = client.post("/api/m1/plans", json={
+        "source_mode": "mentor_inputs", "student_id": sid, "mentor_user_id": plan_mentor_id,
+        "block_no": 1, "period_start": "2026-11-17", "period_end": "2026-12-17",
+    })
+    assert plan.status_code == 201
+
+    _session(client, mentor_id, "advisor", "Carol", scope="own")
+    assert client.get(unassigned["hub_url"]).status_code == 200
+    assert client.get(f"/m1/students/{m1db.student_id}").status_code == 404
 
 
 def test_user_api_plain_advisor_refused(client, m1db):

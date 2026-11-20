@@ -95,13 +95,21 @@ def test_direct_create_rejects_invalid_header(plan_client, m1db, changes):
     assert plans.list_plans({'role': 'admin'}) == []
 
 
-def test_assignment_respects_student_scope_and_revoked_m1_access(plan_client, m1db):
+def test_assignment_grants_student_scope_and_respects_revoked_m1_access(plan_client, m1db):
     _login(plan_client, m1db.admin_id, 'admin')
     payload = {'source_mode': 'mentor_inputs', 'student_id': m1db.incomplete_student_id,
                'mentor_user_id': m1db.bob_id, 'block_no': 1,
                'period_start': '2026-11-17', 'period_end': '2026-12-17'}
-    assert plan_client.post('/api/m1/plans', json=payload).status_code == 400
-    payload['mentor_user_id'] = m1db.alice_id
+    response = plan_client.post('/api/m1/plans', json=payload)
+    assert response.status_code == 201
+    pid = response.get_json()['plan']['id']
+    _login(plan_client, m1db.bob_id, 'advisor', 'Bob')
+    assert plan_client.get(f'/api/m1/plans/{pid}').status_code == 200
+    assert plan_client.get(f"/api/m1/students/{payload['student_id']}/overview").status_code == 200
+    assert plan_client.get(f'/api/m1/students/{m1db.student_id}/overview').status_code == 404
+
+    _login(plan_client, m1db.admin_id, 'admin')
+    payload.update(mentor_user_id=m1db.alice_id, block_no=2)
     with Session(m1db.engine) as session:
         session.get(db.User, m1db.alice_id).m1_access = 0
         session.commit()
@@ -147,15 +155,10 @@ def test_permissions_including_jobs_uploads_brief_and_hub(plan_client, standalon
         assert plan_client.delete(f'/api/m1/plan-files/{fid}').status_code == 200
 
 
-def test_same_student_other_mentor_view_only_and_student_scope_not_prep_scope(plan_client, standalone, m1db):
-    # Bob is a mentor of an unrelated prep for Alice's student; this gives no direct-plan access.
-    m1db.prep(standalone['student_id'], m1db.bob_id)
+def test_assigned_prep_mentor_can_read_existing_plan(plan_client, standalone, m1db):
     _login(plan_client, m1db.bob_id, 'advisor', 'Bob')
     assert plan_client.get(f"/api/m1/plans/{standalone['id']}").status_code == 404
-    with Session(m1db.engine) as session:
-        session.get(db.User, m1db.bob_id).advisor_name = 'Alice'
-        session.commit()
-    _login(plan_client, m1db.bob_id, 'advisor', 'Alice')
+    m1db.prep(standalone['student_id'], m1db.bob_id)
     assert plan_client.get(f"/api/m1/plans/{standalone['id']}").status_code == 200
     assert plan_client.put(f"/api/m1/plans/{standalone['id']}/durations", json={'rev': standalone['rev'], 'session_durations': [45,60,75]}).status_code == 403
 

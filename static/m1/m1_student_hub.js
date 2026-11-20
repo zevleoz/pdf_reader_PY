@@ -339,7 +339,7 @@
         var studentName = (data.student || {}).name || '该学生';
         var ok = window.confirm('将 ' + name + ' 添加为 ' + studentName +
           ' 的共同导师？\n\n可查看该学生全部现有及后续 M1 会前准备、会后报告和相关资料，共同编辑发展计划。' +
-          '会前准备和会后报告只读；批准权限不变。不授予其他学生或其他平台的权限。');
+          '共同导师也可以直接创建教案。现有计划仍由负责导师或管理员审批。');
         if (!ok) return;
         add.disabled = true;
         api('/api/m1/students/' + studentId + '/team', {
@@ -364,8 +364,7 @@
   function removeCoMentor(data, row, button) {
     var studentName = (data.student || {}).name || '该学生';
     var ok = window.confirm('将 ' + (row.name || '该导师') + ' 从 ' + studentName +
-      ' 的 M1 团队移除？\n\n移除后，这位导师将失去该学生 M1 计划的查看与编辑权限；' +
-      '其他学生和会前准备不受影响。');
+      ' 的 M1 团队移除？\n\n此操作会撤销共同导师身份授予的访问权限。');
     if (!ok) return;
     button.disabled = true;
     api('/api/m1/students/' + studentId + '/team/' + row.user_id, {method: 'DELETE'})

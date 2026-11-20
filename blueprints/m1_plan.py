@@ -1277,7 +1277,7 @@ def _create_direct(body):
             raise ValueError()
     except (ValueError, TypeError):
         return _err('学生、Block 和负责导师需要整数', 400)
-    if not store.can_access_student(_user(), student_id):
+    if not store.can_read_student(_user(), student_id):
         return _err('学生不存在', 404)
     if mentor_id != _user_id() and not store.is_m1_admin(_user()):
         return _err('只有管理员可以指定其他负责导师', 403)

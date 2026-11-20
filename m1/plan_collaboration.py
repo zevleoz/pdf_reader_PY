@@ -384,13 +384,12 @@ def _can_view_student_in_session(sess, user: Dict[str, Any], student_id) -> bool
     if settings.get("m1_access") != 1:
         return False
     role = user.get("role") or ""
-    if role == "admin":
-        return True
-    if role != "advisor":
+    if role not in ("admin", "advisor"):
         return False
-    if _team_row(sess, student_id, user.get("user_id")) is not None:
+    if store._sees_all_students(user):
         return True
-    if settings.get("student_scope") == "all":
+    assigned = store.assigned_students_query(user["user_id"]).subquery()
+    if sess.scalar(select(assigned.c.student_id).where(assigned.c.student_id == student_id)):
         return True
     student = sess.get(_db.Student, int(student_id))
     if student is None:

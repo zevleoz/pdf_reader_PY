@@ -85,10 +85,12 @@ def test_report_page_renders_for_admin(client, m1db):
 # ---------------------------------------------------------------------------
 # 2. 概要账号与 viewer
 # ---------------------------------------------------------------------------
-def test_report_page_is_403_for_summary_and_viewer(client, m1db):
+def test_report_page_is_readonly_for_assigned_summary_and_denied_for_viewer(client, m1db):
     prep = m1db.prep()
     _login(client, m1db.alice_id, "advisor", detail_level="summary")
-    assert client.get(f"/m1/preps/{prep['id']}/report").status_code == 403
+    response = client.get(f"/m1/preps/{prep['id']}/report")
+    assert response.status_code == 200
+    assert "只读" in response.get_data(as_text=True)
     _login(client, m1db.viewer_id, "viewer")
     assert client.get(f"/m1/preps/{prep['id']}/report").status_code == 403
 

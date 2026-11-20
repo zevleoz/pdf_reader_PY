@@ -181,8 +181,8 @@ def is_m1_admin(user=None) -> bool:
 
 
 def _sees_all_students(u: dict) -> bool:
-    """该账号 student_scope 是否为全部学生（缺字段按角色默认值）。"""
-    return _db.effective_account_settings(
+    """M1 管理员或具有全部学生范围的账号可查看全部 M1 学生。"""
+    return is_m1_admin(u) or _db.effective_account_settings(
         u.get("role") or "", u.get("student_scope"), u.get("detail_level"),
         u.get("m1_access"))["student_scope"] == "all"
 
@@ -701,9 +701,19 @@ def can_access_student(user, student_id: int) -> bool:
         return bool(name) and (student.advisor_name or "").strip() == name
 
 
+def assigned_students_query(user_id):
+    """Student IDs granted by the team or by a current document mentor assignment."""
+    from m1.plan_collaboration import PlanTeamMember
+    from m1.plan_store import M1Plan
+
+    return select(PlanTeamMember.student_id).where(PlanTeamMember.user_id == user_id).union(
+        select(M1Prep.student_id).where(M1Prep.mentor_user_id == user_id),
+        select(M1Plan.student_id).where(M1Plan.mentor_user_id == user_id),
+    )
+
+
 def assigned_student_ids(user) -> set:
     """Explicit student-wide read grants; recheck the live account on every request."""
-    from m1.plan_collaboration import PlanTeamMember
     u = _user_dict(user)
     if not u.get("user_id"):
         return set()
@@ -715,8 +725,7 @@ def assigned_student_ids(user) -> set:
                 account.role, account.student_scope, account.detail_level,
                 account.m1_access, account.m1_admin)["m1_access"]:
             return set()
-        return set(sess.execute(select(PlanTeamMember.student_id).where(
-            PlanTeamMember.user_id == account.id)).scalars())
+        return set(sess.scalars(assigned_students_query(account.id)))
 
 
 def can_read_student(user, student_id: int) -> bool:

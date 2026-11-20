@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (Column, DateTime, ForeignKey, Index, Integer, String,
-                        Text, or_, select)
+                        Text, func, or_, select)
 from sqlalchemy.orm import Session
 
 import db as _db
@@ -458,14 +458,12 @@ def create_plan(student_id: int, *, prep_id=None, report_id=None,
             raise NotFound("学生不存在")
         if source_mode == "mentor_inputs":
             mentor = sess.get(_db.User, int(mentor_user_id)) if mentor_user_id else None
-            if not mentor or mentor.role not in ("admin", "advisor"):
+            if not mentor or not mentor.is_active or mentor.role not in ("admin", "advisor"):
                 raise ValueError("请选择有效的负责导师")
             settings = _db.effective_account_settings(mentor.role, mentor.student_scope,
                 mentor.detail_level, mentor.m1_access, mentor.m1_admin)
             if not settings['m1_access']:
                 raise ValueError("负责导师没有心有灵析权限")
-            if not store.can_access_student(mentor, student_id):
-                raise ValueError("负责导师没有该学生的访问权限")
         existing = sess.execute(select(M1Plan).where(
             M1Plan.student_id == int(student_id),
             M1Plan.block_no == int(block_no))).scalars().first()
@@ -1560,13 +1558,9 @@ def can_view_plan(user, plan) -> bool:
         plan = get_plan(plan)
     if not plan:
         return False
-    if plan.get("source_mode") == "mentor_inputs":
-        allowed = store.can_access_student(user, plan["student_id"])
-    else:
-        allowed = store.can_access_prep(user, plan.get("prep_id"))
-    if allowed:
-        return True
-    return is_team_member(user, plan.get("student_id"))
+    return (store.can_read_student(user, plan["student_id"])
+            or (plan.get("source_mode") == "report"
+                and store.can_read_prep(user, plan["prep_id"])))
 
 
 def can_edit_plan(user, plan) -> bool:
@@ -1613,39 +1607,26 @@ def can_manage_team(user=None) -> bool:
 # ---------------------------------------------------------------------------
 # 列表 / 可新建
 # ---------------------------------------------------------------------------
-def _visible(user: dict, plan: Dict[str, Any]) -> bool:
-    if plan.get("source_mode") == "mentor_inputs":
-        return can_view_plan(user, plan)
-    if user.get("role") == "admin":
-        return True
-    if user.get("role") != "advisor":
-        return False
-    if is_team_member(user, plan.get("student_id")):
-        return True
-    if store._sees_all_students(user):
-        return True
-    if plan.get("mentor_user_id") is not None and user.get("user_id") is not None \
-            and int(plan["mentor_user_id"]) == int(user["user_id"]):
-        return True
-    name = (user.get("advisor_name") or "").strip()
-    return bool(name) and (plan.get("advisor_name") or "").strip() == name
-
-
-def list_plans(user=None, scope: str = "all", limit: int = 500) -> List[Dict[str, Any]]:
-    """发展计划列表；``mine`` 看负责或共同负责的，``all`` 看可见学生的全部。"""
+def list_plans(user=None, scope: str = "all", limit: int = 500, *, student_id=None) -> List[Dict[str, Any]]:
+    """列出可见计划，在应用条数限制前按学生和分配范围筛选。"""
     u = store._user_dict(user)
+    if u.get("role") not in ("admin", "advisor"):
+        return []
+    assigned = store.assigned_student_ids(u)
+    stmt = (select(M1Plan)
+            .join(_db.Student, M1Plan.student_id == _db.Student.id)
+            .order_by(M1Plan.updated_at.desc(), M1Plan.id.desc())
+            .limit(int(limit)))
+    if student_id is not None:
+        stmt = stmt.where(M1Plan.student_id == int(student_id))
+    if scope == "mine" and u.get("user_id") is not None:
+        stmt = stmt.where(M1Plan.student_id.in_(assigned))
+    elif not store._sees_all_students(u):
+        name = (u.get("advisor_name") or "").strip()
+        own = func.trim(_db.Student.advisor_name) == name if name else False
+        stmt = stmt.where(or_(own, M1Plan.student_id.in_(assigned)))
     with Session(_engine()) as sess:
-        stmt = (select(M1Plan)
-                .order_by(M1Plan.updated_at.desc(), M1Plan.id.desc())
-                .limit(int(limit)))
-        if scope == "mine" and u.get("user_id") is not None:
-            from m1.plan_collaboration import PlanTeamMember
-            team_ids = select(PlanTeamMember.student_id).where(
-                PlanTeamMember.user_id == int(u["user_id"]))
-            stmt = stmt.where(or_(M1Plan.mentor_user_id == int(u["user_id"]),
-                                  M1Plan.student_id.in_(team_ids)))
-        rows = [_plan_row(sess, row) for row in sess.execute(stmt).scalars().all()]
-    return [row for row in rows if _visible(u, row)]
+        return [_plan_row(sess, row) for row in sess.scalars(stmt)]
 
 
 def latest_by_student(student_ids: List[int]) -> Dict[int, Dict[str, Any]]:
@@ -1672,15 +1653,27 @@ def _next_block(sess: Session, student_id: int) -> int:
 
 
 def eligible_students(user=None, source_mode="report") -> List[Dict[str, Any]]:
-    """会后报告已有 AI 草稿、当前账号可见的学生，附 prep 与下一个可用 Block。"""
+    """为所选创建方式列出可选学生和下一个 Block。"""
     if source_mode == "mentor_inputs":
+        u = store._user_dict(user)
+        if u.get("role") not in ("admin", "advisor"):
+            return []
+        blocks = (select(M1Plan.student_id, func.max(M1Plan.block_no).label("last_block"))
+                  .group_by(M1Plan.student_id).subquery())
+        stmt = (select(_db.Student, blocks.c.last_block)
+                .outerjoin(blocks, blocks.c.student_id == _db.Student.id)
+                .order_by(_db.Student.name, _db.Student.id))
+        if not store._sees_all_students(u):
+            assigned = store.assigned_student_ids(u)
+            advisor = (u.get("advisor_name") or "").strip()
+            own = func.trim(_db.Student.advisor_name) == advisor if advisor else False
+            stmt = stmt.where(or_(own, _db.Student.id.in_(assigned)))
         with Session(_engine()) as sess:
             return [{"student_id": row.id, "name": row.name or "",
                      "grade": row.grade or "", "student_code": row.student_code or "",
-                     "mentor_user_id": store._user_dict(user).get("user_id"),
-                     "source_mode": "mentor_inputs", "next_block": _next_block(sess, row.id)}
-                    for row in sess.execute(select(_db.Student).order_by(_db.Student.name)).scalars()
-                    if store.can_access_student(user, row.id)]
+                     "mentor_user_id": u.get("user_id"),
+                     "source_mode": "mentor_inputs", "next_block": (last_block or 0) + 1}
+                    for row, last_block in sess.execute(stmt)]
     if source_mode != "report":
         raise ValueError("source_mode 只能是 report 或 mentor_inputs")
     preps = [p for p in store.list_preps(user=user)

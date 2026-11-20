@@ -1236,8 +1236,8 @@ def test_advisor_with_m1_off_gets_403(client, rdb):
     assert client.get("/m1/preps/%d/report" % rdb.prep_row["id"]).status_code == 403
 
 
-def test_summary_account_gets_403(client, rdb):
-    advisor_login(client, rdb.alice_id, "Alice", m1_access=1, detail_level="summary",
+def test_unassigned_summary_account_gets_403(client, rdb):
+    advisor_login(client, rdb.bob_id, "Bob", m1_access=1, detail_level="summary",
                   student_scope="all")
     for method, tail in ENDPOINTS:
         res = _hit(client, rdb, method, tail)

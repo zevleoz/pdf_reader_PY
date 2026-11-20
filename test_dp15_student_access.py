@@ -1,4 +1,5 @@
 """DP15: explicit student reads stay separate from legacy document mutations."""
+import io
 import json
 
 import pytest
@@ -50,13 +51,33 @@ def test_readonly_pages_payloads_and_print_edit_mode(assigned, m1db, summary):
     html = printed.get_data(as_text=True)
     assert "report_edit.js" not in html and 'contenteditable="true"' not in html
     hub = client.get(f"/m1/students/{m1db.student_id}").get_data(as_text=True)
-    assert "+ 直接创建教案" not in hub and "+ 新建 First Meeting" not in hub
+    assert "+ 直接创建教案" in hub and "+ 新建 First Meeting" not in hub
     listing = client.get("/api/m1/preps").get_json()["preps"]
     prep = next(p for p in listing if p["id"] == plan["prep_id"])
     assert prep["assigned"] is True and prep["can_edit"] is False
     assert prep["report"]["can_edit"] is False
     eligible = client.get("/api/m1/plans/eligible").get_json()["students"]
     assert all(p["student_id"] != m1db.student_id for p in eligible)
+
+
+def test_assigned_mentor_can_find_student_create_plan_and_upload_notes(assigned, m1db):
+    client, plan = assigned
+    sid = m1db.student_id
+    eligible = client.get("/api/m1/plans/eligible?source_mode=mentor_inputs").get_json()["students"]
+    student = next(row for row in eligible if row["student_id"] == sid)
+    response = client.post("/api/m1/plans", json={
+        "source_mode": "mentor_inputs", "student_id": sid, "block_no": student["next_block"],
+        "period_start": "2026-11-17", "period_end": "2026-12-17",
+    })
+    assert response.status_code == 201
+    pid = response.get_json()["plan"]["id"]
+    assert response.get_json()["plan"]["mentor_user_id"] == m1db.bob_id
+    upload = client.post(f"/api/m1/plans/{pid}/files", data={
+        "file": (io.BytesIO(b"Example lesson plan"), "lesson.txt"),
+    })
+    assert upload.status_code == 201
+    mine = client.get("/api/m1/plans?scope=mine").get_json()["plans"]
+    assert {row["id"] for row in mine} == {pid, plan["id"]}
 
 
 def test_report_sources_are_readable_escaped_and_revoke_immediately(assigned, m1db):
@@ -95,7 +116,7 @@ def test_live_account_disables_assignment_grant(assigned, m1db, field, value):
 
 def test_summary_status_list_only_includes_explicit_assignments(assigned, m1db):
     client, plan = assigned
-    own_prep = m1db.prep(m1db.other_student_id, m1db.bob_id)
+    own_prep = m1db.prep(m1db.other_student_id, m1db.alice_id)
     with client.session_transaction() as session:
         session["detail_level"] = "summary"
     response = client.get("/api/m1/report-statuses")
