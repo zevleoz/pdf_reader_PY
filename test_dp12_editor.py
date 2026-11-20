@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from bs4 import BeautifulSoup
+
 from m1 import plan_store as pstore
 from m1.plan_context import BRIEF_FIELDS
 
@@ -165,9 +167,13 @@ def test_internal_print_includes_support_and_timing_without_private_notes(page_c
     _mentor(page_client, m1db)
 
     printed = page_client.get('/m1/plans/%d/print' % plan['id']).get_data(as_text=True)
-    assert '学生卡住时：</b>support 1' in printed
-    assert '学生准备好时：</b>extension 3' in printed
-    assert '教学目标与理由：</b>purpose 2' in printed
+    paragraphs = {
+        ' '.join(paragraph.stripped_strings)
+        for paragraph in BeautifulSoup(printed, 'html.parser').select('.pp-act p')
+    }
+    assert '学生卡住时： support 1' in paragraphs
+    assert '学生准备好时： extension 3' in paragraphs
+    assert '教学目标与理由： purpose 2' in paragraphs
     assert '上次回顾 5 分钟' in printed
     assert '私密原始笔记-不要打印' not in printed
     assert 'data-path' not in printed
