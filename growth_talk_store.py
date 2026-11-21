@@ -527,7 +527,11 @@ def _source_referenced(sess: Session, source_id: int) -> bool:
         return True
     if sess.execute(select(GtReport.id).where(GtReport.run_id.in_(run_ids))).first():
         return True
-    return False
+    if sess.execute(select(CopilotSession.id).where(
+            CopilotSession.meeting_source_id == source_id)).first():
+        return True
+    return sess.execute(select(CopilotTranscriptSupplement.id).where(
+        CopilotTranscriptSupplement.source_id == source_id)).first() is not None
 
 
 def _with_retry(fn, *, attempts: int = 3):

@@ -5,9 +5,9 @@ existing profiling API. Account summary policy is checked before either request;
 profiling permissions/restricted state are checked before controller creation.
 Viewer controllers remain read-only. Existing server gates remain authoritative.
 
-The factory in `static/js/first_touch_workspace.js` is byte-identical to the inline
-factory at baseline `3e3b9b3` (SHA256
-`85f513a2be34dd0c18201c6f08a647cc42ddbfd5f7ab8812373c06e8e16dc97d`).
+The factory in `static/js/first_touch_workspace.js` is shared by the legacy
+template and React workspace. Both file uploads and pasted transcripts use the
+same revision-checked source upload and analysis flow.
 The public asset is a relative symlink to that source; Vite copies it unchanged
 into `static/app/assets`. Both the legacy template and React load that hashed URL
 through the existing app-shell asset route. The application intentionally has no

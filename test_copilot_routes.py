@@ -1,6 +1,7 @@
 """Copilot 2.0 路由测试（审核隔离、修订守卫、聊天入库、上下文截断、PDF 双检）。"""
 from __future__ import annotations
 
+import io
 import json
 
 import pytest
@@ -333,3 +334,22 @@ def test_workspace_page_renders(client, qdb):
     body = response.get_data(as_text=True)
     assert "ftWorkspace" in body
     assert "Y4 速览" in body
+
+
+def test_transcript_upload_replaces_source_and_keeps_previous_supplement(client, qdb):
+    login_as(client, qdb)
+    meeting = _ready_session(qdb)
+    old_source = meeting["meeting_source_id"]
+    transcript = "顾问：试试记录观察。\n学生：我想观察星空。"
+    response = client.post(
+        f"/api/v2/copilot/sessions/{meeting['id']}/sources",
+        data={"kind": "MEETING", "revision": str(meeting["revision"]),
+              "file": (io.BytesIO(transcript.encode("utf-8")), "粘贴的文字稿.txt")},
+    )
+
+    assert response.status_code == 201
+    source_id = response.get_json()["result"]["sourceId"]
+    assert source_id != old_source
+    assert store.get_session(meeting["id"])["meeting_source_id"] == source_id
+    assert store.latest_supplement(meeting["id"])["source_id"] == source_id
+    assert store.get_source(old_source) is not None

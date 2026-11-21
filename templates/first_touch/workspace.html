@@ -478,32 +478,41 @@
         <section class="ft-panel">
           <div class="ft-panel-head">
             <h2>会议转写</h2>
-            <span class="ft-sub">可选。上传后 AI 找出遗漏的兴趣和评分差异</span>
+            <span class="ft-sub">可选。保存后由 AI 查找遗漏的兴趣和评分差异</span>
             <span class="ft-spacer"></span>
             <span class="ft-sub" x-show="analyzing">正在分析…</span>
           </div>
           <div class="ft-body">
             <div class="ft-drop">
               <template x-if="meetingFileName">
-                <span>已上传 <b x-text="meetingFileName"></b></span>
+                <span>已保存 <b x-text="meetingFileName"></b></span>
               </template>
               <template x-if="!meetingFileName">
-                <span>还没有上传。可跳过，直接写总结。</span>
+                <span>可上传文字稿，也可跳过并直接写总结。</span>
               </template>
               <span class="ft-spacer"></span>
               <input class="ft-file" type="file" x-ref="fileInput" accept=".pdf,.docx,.txt,.md"
-                     :disabled="readOnly || uploadBusy" @change="uploadTranscript($event)">
-              <button type="button" class="btn btn-sec btn-sm" :disabled="readOnly || uploadBusy"
+                     :disabled="readOnly || uploadBusy || analyzing" @change="uploadTranscript($event)">
+              <button type="button" class="btn btn-sec btn-sm" :disabled="readOnly || uploadBusy || analyzing"
                       @click="$refs.fileInput.click()"
                       x-text="uploadBusy ? '上传中…' : (meetingFileName ? '替换文件' : '上传文件')"></button>
               <button type="button" class="btn btn-sm" x-show="meetingFileName"
-                      :disabled="readOnly || analyzing" @click="analyzeTranscript()"
+                      :disabled="readOnly || analyzing || uploadBusy" @click="analyzeTranscript()"
                       x-text="analyzing ? '分析中…' : '重新分析'"></button>
             </div>
-            <div class="ft-error" x-show="uploadError" x-cloak x-text="uploadError"></div>
+            <div x-show="!readOnly" style="display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-top:12px">
+              <label for="ft-transcript-paste" style="font-weight:600">粘贴会议文字稿</label>
+              <textarea id="ft-transcript-paste" class="ft-textarea" rows="5"
+                        x-model="transcriptPaste" :disabled="uploadBusy"></textarea>
+              <button type="button" class="btn btn-sec btn-sm"
+                      :disabled="uploadBusy || analyzing || !transcriptPaste.trim()"
+                      @click="submitPastedTranscript()"
+                      x-text="meetingFileName ? '替换文字稿并分析' : '保存文字稿并分析'"></button>
+            </div>
+            <div class="ft-error" role="alert" x-show="uploadError" x-cloak x-text="uploadError"></div>
             <div class="ft-error" x-show="analyzeError" x-cloak>
               <span x-text="analyzeError"></span>
-              <button type="button" class="btn btn-sec btn-sm" :disabled="readOnly || analyzing" @click="analyzeTranscript()">重试</button>
+              <button type="button" class="btn btn-sec btn-sm" :disabled="readOnly || analyzing || uploadBusy" @click="analyzeTranscript()">重试</button>
             </div>
             <div class="ft-error" x-show="suggestionsError" x-cloak x-text="suggestionsError"></div>
 
@@ -581,7 +590,7 @@
                     x-text="projectsBusy ? '生成中…' : (projectItems.length ? '重新生成' : '生成建议')"></button>
           </div>
           <div class="ft-body">
-            <div class="ft-hint" x-show="!meetingSourceId" style="margin-bottom:8px">上传会议转写后可生成项目建议。</div>
+            <div class="ft-hint" x-show="!meetingSourceId" style="margin-bottom:8px">保存会议文字稿后可生成项目建议。</div>
             <div class="ft-banner" x-show="projectsStale" x-cloak style="margin-bottom:8px">
               <span>已过期，需重新生成</span>
               <button type="button" class="btn btn-sm" :disabled="readOnly || projectsBusy || !meetingSourceId"
@@ -706,6 +715,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('app_shell.app_assets', filename='first_touch_workspace-85f513a2be34dd0c.js') }}"></script>
+<script src="{{ url_for('app_shell.app_assets', filename='first_touch_workspace-eed98b0dcce207b8.js') }}"></script>
 
 {% endblock %}

@@ -381,27 +381,40 @@ export default function WorkspaceView({c}: {c: Workspace}) {
 <section className="ft-panel">
 <div className="ft-panel-head">
 <h2 >会议转写</h2>
-<span className="ft-sub">可选。上传后 AI 找出遗漏的兴趣和评分差异</span>
+<span className="ft-sub">可选。保存后由 AI 查找遗漏的兴趣和评分差异</span>
 <span className="ft-spacer"></span>
 {Boolean(analyzing) && (<span className="ft-sub">正在分析…</span>)}
 </div>
 <div className="ft-body">
 <div className="ft-drop">
 {Boolean(meetingFileName) && (<>
-<span >已上传 <b >{meetingFileName}</b></span>
+<span >已保存 <b >{meetingFileName}</b></span>
 </>)}
 {Boolean(!meetingFileName) && (<>
-<span >还没有上传。可跳过，直接写总结。</span>
+<span >可上传文字稿，也可跳过并直接写总结。</span>
 </>)}
 <span className="ft-spacer"></span>
-<input aria-label="会议转写文件" className="ft-file" type="file" ref={(element) => { c.$refs.fileInput = element; }} accept=".pdf,.docx,.txt,.md" disabled={readOnly || uploadBusy} onChange={($event) => { uploadTranscript($event); }} />
-<Button variant="outline" type="button" className="btn btn-sec btn-sm" disabled={readOnly || uploadBusy} onClick={($event) => { $refs.fileInput?.click(); }}>{uploadBusy ? '上传中…' : (meetingFileName ? '替换文件' : '上传文件')}</Button>
-{Boolean(meetingFileName) && (<Button variant="outline" type="button" className="btn btn-sm" disabled={readOnly || analyzing} onClick={($event) => { analyzeTranscript(); }}>{analyzing ? '分析中…' : '重新分析'}</Button>)}
+<input aria-label="会议转写文件" className="ft-file" type="file" ref={(element) => { c.$refs.fileInput = element; }} accept=".pdf,.docx,.txt,.md" disabled={readOnly || uploadBusy || analyzing} onChange={($event) => { uploadTranscript($event); }} />
+<Button variant="outline" type="button" className="btn btn-sec btn-sm" disabled={readOnly || uploadBusy || analyzing} onClick={($event) => { $refs.fileInput?.click(); }}>{uploadBusy ? '上传中…' : (meetingFileName ? '替换文件' : '上传文件')}</Button>
+{Boolean(meetingFileName) && (<Button variant="outline" type="button" className="btn btn-sm" disabled={readOnly || analyzing || uploadBusy} onClick={($event) => { analyzeTranscript(); }}>{analyzing ? '分析中…' : '重新分析'}</Button>)}
 </div>
-{Boolean(uploadError) && (<div className="ft-error">{uploadError}</div>)}
+{!readOnly && (
+  <div className="mt-3 flex flex-col items-start gap-2">
+    <label htmlFor="ft-transcript-paste" className="font-semibold">粘贴会议文字稿</label>
+    <textarea id="ft-transcript-paste" className="ft-textarea" rows={5}
+      value={c.transcriptPaste} disabled={uploadBusy}
+      onChange={(event) => { c.transcriptPaste = event.currentTarget.value; }} />
+    <Button variant="outline" type="button" className="btn btn-sec btn-sm"
+      disabled={uploadBusy || analyzing || !c.transcriptPaste.trim()}
+      onClick={() => { c.submitPastedTranscript(); }}>
+      {meetingFileName ? '替换文字稿并分析' : '保存文字稿并分析'}
+    </Button>
+  </div>
+)}
+{Boolean(uploadError) && (<div className="ft-error" role="alert">{uploadError}</div>)}
 {Boolean(analyzeError) && (<div className="ft-error">
 <span >{analyzeError}</span>
-<Button variant="outline" type="button" className="btn btn-sec btn-sm" disabled={readOnly || analyzing} onClick={($event) => { analyzeTranscript(); }}>重试</Button>
+<Button variant="outline" type="button" className="btn btn-sec btn-sm" disabled={readOnly || analyzing || uploadBusy} onClick={($event) => { analyzeTranscript(); }}>重试</Button>
 </div>)}
 {Boolean(suggestionsError) && (<div className="ft-error">{suggestionsError}</div>)}
 {Boolean(suggestions.length) && (<div className="ft-sugg">
@@ -462,7 +475,7 @@ export default function WorkspaceView({c}: {c: Workspace}) {
 <Button variant="outline" type="button" className="btn btn-sec btn-sm" disabled={readOnly || projectsBusy || !meetingSourceId} onClick={($event) => { generateProjects(); }}>{projectsBusy ? '生成中…' : (projectItems.length ? '重新生成' : '生成建议')}</Button>
 </div>
 <div className="ft-body">
-{Boolean(!meetingSourceId) && (<div className="ft-hint" style={{"marginBottom": "8px"}}>上传会议转写后可生成项目建议。</div>)}
+{Boolean(!meetingSourceId) && (<div className="ft-hint" style={{"marginBottom": "8px"}}>保存会议文字稿后可生成项目建议。</div>)}
 {Boolean(projectsStale) && (<div className="ft-banner" style={{"marginBottom": "8px"}}>
 <span >已过期，需重新生成</span>
 <Button variant="outline" type="button" className="btn btn-sm" disabled={readOnly || projectsBusy || !meetingSourceId} onClick={($event) => { generateProjects(); }}>重新生成</Button>

@@ -93,6 +93,7 @@ window.ftWorkspace = function (ctx) {
     talkBusy: false,
     talkError: '',
 
+    transcriptPaste: '',
     uploadBusy: false,
     uploadError: '',
     analyzing: false,
@@ -386,7 +387,8 @@ window.ftWorkspace = function (ctx) {
 
     /* ---------- 保存 ---------- */
     hasPendingSave: function () {
-      return this.saving || this.interestDirty || this.scriptDirty || this.meetingDirty;
+      return this.saving || this.interestDirty || this.scriptDirty || this.meetingDirty
+        || Boolean(this.transcriptPaste.trim());
     },
     scheduleSave: function () {
       if (!this.canWrite || !this.sessionId) { return; }
@@ -968,11 +970,19 @@ window.ftWorkspace = function (ctx) {
     },
 
     /* ---------- ③ 会议转写 ---------- */
-    uploadTranscript: async function (event) {
+    uploadTranscript: function (event) {
       var input = event.target;
       var file = input.files && input.files[0];
       input.value = '';
-      if (!file || !this.canWrite || this.uploadBusy) { return; }
+      return this.saveTranscript(file, false);
+    },
+    submitPastedTranscript: function () {
+      if (!this.transcriptPaste.trim() || !this.canWrite || this.uploadBusy || this.analyzing) { return; }
+      var file = new File([this.transcriptPaste], '粘贴的文字稿.txt', { type: 'text/plain' });
+      return this.saveTranscript(file, true);
+    },
+    saveTranscript: async function (file, fromPaste) {
+      if (!file || !this.canWrite || this.uploadBusy || this.analyzing) { return; }
       if (!/\.(pdf|docx|txt|md)$/i.test(file.name)) {
         this.uploadError = '仅支持 PDF / DOCX / TXT / MD';
         return;
@@ -991,6 +1001,7 @@ window.ftWorkspace = function (ctx) {
         this.revision = data.revision;
         this.meetingSourceId = (data.result || {}).sourceId || null;
         this.meetingFileName = (data.result || {}).fileName || file.name;
+        if (fromPaste) { this.transcriptPaste = ''; }
         this.uploadBusy = false;
         await this.analyzeTranscript();
       } catch (error) {

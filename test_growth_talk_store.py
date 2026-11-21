@@ -43,6 +43,8 @@ def qdb(tmp_path, monkeypatch):
     tables = [
         _db.Student.__table__,
         store.GtSource.__table__,
+        store.CopilotSession.__table__,
+        store.CopilotTranscriptSupplement.__table__,
         store.GtRun.__table__,
         store.GtUnderstanding.__table__,
         store.GtInterest.__table__,

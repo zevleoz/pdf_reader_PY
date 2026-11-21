@@ -3,16 +3,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-def test_factory_is_unchanged():
-    # Original inline factory extracted from baseline 3e3b9b3, UTF-8 bytes.
+def test_factory_matches_published_fingerprint():
+    # Both workspace entry points use this fingerprint for the shared source.
     import hashlib
-    assert hashlib.sha256((ROOT / 'static/js/first_touch_workspace.js').read_bytes()).hexdigest() == '85f513a2be34dd0c18201c6f08a647cc42ddbfd5f7ab8812373c06e8e16dc97d'
+    assert hashlib.sha256((ROOT / 'static/js/first_touch_workspace.js').read_bytes()).hexdigest() == 'eed98b0dcce207b817dfcc6160cddd39bb439379fb44ffa3c79b5e4bc7968f51'
 
 def test_legacy_loads_shared_asset_once():
     template = (ROOT / 'templates/first_touch/workspace.html').read_text()
-    assert template.count("filename='first_touch_workspace-85f513a2be34dd0c.js'") == 1
+    assert template.count("filename='first_touch_workspace-eed98b0dcce207b8.js'") == 1
     assert "url_for('app_shell.app_assets'" in template
-    assert (ROOT / 'frontend/public/assets/first_touch_workspace-85f513a2be34dd0c.js').resolve() == ROOT / 'static/js/first_touch_workspace.js'
+    assert (ROOT / 'frontend/public/assets/first_touch_workspace-eed98b0dcce207b8.js').resolve() == ROOT / 'static/js/first_touch_workspace.js'
     assert 'window.ftWorkspace =' not in template
 
 

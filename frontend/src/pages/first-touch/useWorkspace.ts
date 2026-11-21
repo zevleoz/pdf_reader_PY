@@ -7,7 +7,7 @@ export function loadFactory(): Promise<void> {
   if (window.ftWorkspace) return Promise.resolve();
   if (!script) script = new Promise<void>((resolve, reject) => {
     const tag = document.createElement('script');
-    tag.src = '/app/assets/first_touch_workspace-85f513a2be34dd0c.js';
+    tag.src = '/app/assets/first_touch_workspace-eed98b0dcce207b8.js';
     tag.onload = () => window.ftWorkspace ? resolve() : reject(new Error('会谈组件不可用'));
     tag.onerror = () => { tag.remove(); script = undefined; reject(new Error('无法加载会谈组件')); };
     document.head.appendChild(tag);

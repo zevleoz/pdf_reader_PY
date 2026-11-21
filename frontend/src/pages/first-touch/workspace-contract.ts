@@ -64,6 +64,7 @@ export interface Workspace {
   elapsed: string;
   talkBusy: any;
   talkError: any;
+  transcriptPaste: string;
   uploadBusy: any;
   uploadError: any;
   analyzing: any;
@@ -162,6 +163,7 @@ export interface Workspace {
   afterDecision: (...args: any[]) => any;
   saveReview: (...args: any[]) => any;
   uploadTranscript: (...args: any[]) => any;
+  submitPastedTranscript: () => void;
   analyzeTranscript: (...args: any[]) => any;
   setSummary: (...args: any[]) => any;
   generateSummary: (...args: any[]) => any;

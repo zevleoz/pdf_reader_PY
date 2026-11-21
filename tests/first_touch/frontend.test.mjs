@@ -139,3 +139,33 @@ test('DOM refs are imperative and do not produce render loops; history actions r
  globalThis.fetch=async(path)=>({ok:true,json:async()=>path.includes('/chats/')?{chat:{chatId:'history',turns:[{question:'历史问题',answer:'历史回答'}]}}:{chats:[{chatId:'history',question:'历史问题'}]}});
  await a.controller.loadChats();assert.equal(a.controller.chat.chatId,'history');assert.equal(a.controller.chat.turns[0].answer,'历史回答');a.dispose();
 });
+
+test('pasted transcripts use the file upload and keep the draft on failure', async () => {
+ const transcript = '顾问：你最近在做什么？\n学生：我在观察星空。';
+ const c = raw({ transcriptPaste: transcript, revision: 7 });
+ let analyses = 0;
+ c.analyzeTranscript = async () => { analyses++; };
+ c.request = async () => { throw new Error('上传失败'); };
+ await c.submitPastedTranscript();
+ assert.equal(c.transcriptPaste, transcript);
+ assert.equal(c.uploadError, '上传失败');
+ assert.equal(analyses, 0);
+ assert.ok(c.hasPendingSave());
+
+ c.request = async (url, options) => {
+  assert.equal(url, '/api/v2/copilot/sessions/4/sources');
+  assert.equal(options.method, 'POST');
+  assert.equal(options.body.get('revision'), '7');
+  assert.equal(options.body.get('kind'), 'MEETING');
+  const file = options.body.get('file');
+  assert.equal(file.name, '粘贴的文字稿.txt');
+  assert.equal(await file.text(), transcript);
+  return { revision: 8, result: { sourceId: 15, fileName: file.name } };
+ };
+ await c.submitPastedTranscript();
+ assert.equal(c.transcriptPaste, '');
+ assert.equal(c.meetingSourceId, 15);
+ assert.equal(c.revision, 8);
+ assert.equal(analyses, 1);
+ assert.ok(!c.hasPendingSave());
+});
