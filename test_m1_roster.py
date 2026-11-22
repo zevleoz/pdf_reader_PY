@@ -110,7 +110,7 @@ def test_team_before_any_plan_has_real_row_and_hub(client, m1db, team_role):
     login_as(client, m1db.bob_id, "advisor", "Bob")
     row, = _roster(client)
     assert row["prep"] is row["plan"] is row["next"] is None
-    assert row["workflow_state"] == "todo"
+    assert row["workflow_state"] == "idle"
     assert row["roles"] == [team_role] and row["participating"]
     assert client.get(row["hub_url"]).status_code == 200
     assert not store.can_access_student({"role": "advisor", "advisor_name": "Bob"}, m1db.student_id)
@@ -314,8 +314,20 @@ def test_roster_query_count_does_not_grow_per_student(client, m1db):
 def test_home_executes_with_real_shared_roster_response(client, m1db):
     _shared_report(client, m1db)
     payload = client.get("/api/m1/roster").get_json()
-    subprocess.run(["node", str(ROOT / "test_m1_roster_home.cjs")],
-                   input=json.dumps(payload), capture_output=True, text=True, check=True, cwd=ROOT)
+    result = subprocess.run(["node", str(ROOT / "test_m1_roster_home.cjs")],
+                            input=json.dumps(payload), capture_output=True, text=True, cwd=ROOT)
+    assert result.returncode == 0, result.stderr
     html = client.get("/m1").get_data(as_text=True)
     assert 'data-who="mine" aria-pressed="true">我参与的' in html
     assert "此处添加 First Meeting" in html
+    # First paint is a loading state, not an apparent zero.
+    assert 'aria-busy="true"' in html
+    assert "正在加载学生" in html
+    assert '<h1 id="m1Count">学生<span aria-live="polite">—</span></h1>' in html
+    # The status filter is a labeled group with a pressed state.
+    assert 'role="group" aria-label="学生状态"' in html
+    assert 'data-view="all" aria-pressed="true"' in html
+    assert 'data-view="todo" aria-pressed="false"' in html
+    assert 'data-view="done" aria-pressed="false"' in html
+    # The dialog can receive focus when no inner control is available.
+    assert 'id="addDlg" role="dialog" aria-modal="true" aria-labelledby="addDlgH" tabindex="-1"' in html

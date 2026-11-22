@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app_utils import BASE_DIR
 from m1 import report_store
 from test_m1_report_core import (admin_login, generated_via_api, client, fake,  # noqa: F401
-                                 inline_jobs, rdb, url)
+                                 inline_jobs, publish_reviewed, rdb, url)
 from test_m1_report_screen import _login, _seed_report
 from test_m1_report_screen import client as screen_client  # noqa: F401
 from test_m1_store import m1db  # noqa: F401
@@ -54,7 +54,7 @@ def test_edit_js_diagnostics_are_information_only():
 def test_api_ai_draft_publishes_without_ack(client, rdb, fake, inline_jobs):  # noqa: F811
     generated_via_api(client, rdb, fake, inline_jobs)
     assert report_store.get_report(rdb.prep_row["id"])["status"] == "ai_draft"
-    res = client.post(url(rdb, "/publish"))
+    res = publish_reviewed(client, rdb)
     assert res.status_code == 200
     assert res.get_json()["report"]["status"] == "published"
 
@@ -69,6 +69,6 @@ def test_api_structural_block_still_refused(client, rdb, fake, inline_jobs):  # 
         report["id"], y4_ratings=version["y4_ratings"], evidence=version["evidence"],
         ai_doc=doc, doc=copy.deepcopy(doc), checks=[], manifest=version["manifest"],
         status="ai_draft")
-    res = client.post(url(rdb, "/publish"))
+    res = publish_reviewed(client, rdb)
     assert res.status_code == 400
     assert "阻断" in res.get_json()["error"]

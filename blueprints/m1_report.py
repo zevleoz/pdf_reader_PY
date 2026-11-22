@@ -6,11 +6,10 @@ from __future__ import annotations
 
 import copy
 import uuid
-from pathlib import Path
 
 from flask import Blueprint, abort, jsonify, request, session
 
-import db as _db
+from m1 import job_attempts
 import m1.report_checks as checks_mod
 import m1.report_kb as kb
 import m1.report_store as rstore
@@ -56,8 +55,7 @@ def _report_access_guard():
 # 助手
 # ---------------------------------------------------------------------------
 def _state(prep: dict):
-    report = rstore.get_report(prep["id"])
-    version = rstore.current_version(report["id"]) if report else None
+    report, version, _speaker_row = rstore.get_candidate(prep["id"])
     return report, version
 
 
@@ -101,6 +99,39 @@ def y4_lines(doc: dict, ratings: dict) -> dict:
     return out
 
 
+def _print_content(version):
+    shown = report_display.display_version(version)
+    doc = shown.get("doc") or {}
+    return {"fixed": kb.fixed(), "doc": doc, "appendix": kb.appendix(doc),
+            "y4_lines": y4_lines(doc, shown.get("y4_ratings"))}
+
+
+def _revision_conflict(exc):
+    return _err(str(exc), 409, rev=exc.rev)
+
+
+def _write_id(value):
+    if isinstance(value, str) and len(value) == 36:
+        try:
+            return str(uuid.UUID(value))
+        except ValueError:
+            pass
+    return None
+
+
+def _revision_pin(body):
+    rev = body.get("expected_rev")
+    version_id = body.get("version_id")
+    if all(type(value) is int and 0 < value <= 2_147_483_647 for value in (rev, version_id)):
+        return rev, version_id
+    return None
+
+
+def _print_error(prep, message, status):
+    return _render_page("m1/report_print_error.html", prep=prep, prep_id=prep["id"],
+                        message=message), status
+
+
 def _inputs(prep: dict) -> dict:
     y4 = {"report_id": None, "date": "", "complete": False}
     try:
@@ -133,10 +164,16 @@ def _inputs(prep: dict) -> dict:
 
 def _payload(prep: dict) -> dict:
     report, version = _state(prep)
+    job_id = None
+    if report and report["status"] == "generating":
+        job_id = job_attempts.current("report", report["id"])
+        if not job_id:
+            report, version = _state(prep)
     doc = (version or {}).get("doc") or {}
     mapped = {code: info["indicators"] for code, info in kb.ability_map().items()}
     return {
         "ok": True,
+        "job_id": job_id,
         "can_edit": store.can_access_prep(_user(), prep["id"]) and _can_manage_report(),
         "report": _public_report(report) if report else {
             "id": None, "prep_id": prep["id"], "status": "draft",
@@ -154,6 +191,7 @@ def _payload(prep: dict) -> dict:
         "fixed": kb.fixed(),
         "has_edits": rstore.has_edits(report, version) if report else False,
         "versions": rstore.list_versions(report["id"]) if report else [],
+        "official": rstore.latest_official_revision(report["id"]) if report else None,
     }
 
 
@@ -195,27 +233,43 @@ def page_report_sources(prep_id: int):
 @page_login_required
 def page_report_print(prep_id: int):
     prep = _prep_or_404(prep_id)
-    report, version = _state(prep)
+    raw_rev = request.args.get("expected_rev")
+    raw_version = request.args.get("version_id")
+    has_pin = raw_rev is not None or raw_version is not None
+    pin = (None, None)
+    if has_pin:
+        try:
+            pin = _revision_pin({"expected_rev": int(raw_rev), "version_id": int(raw_version)})
+        except (TypeError, ValueError):
+            pin = None
+        if pin is None:
+            return _print_error(prep, "打印参数不完整或不正确，请返回报告后重新导出。", 400)
+    try:
+        report, version, print_content = rstore.print_snapshot(
+            prep_id, expected_rev=pin[0], version_id=pin[1])
+    except rstore.RevConflict:
+        return _print_error(prep, "报告已有更新，请返回报告重新核对后导出。", 409)
     if not report or not version:
         abort(404)
-    shown = report_display.display_version(version)
-    doc = shown.get("doc") or {}
-    draft = report["status"] not in ("approved", "published")
-    editing = (store.can_access_prep(_user(), prep_id) and _can_manage_report()
-               and request.args.get("edit") == "1"
-               and report["status"] not in ("published", "generating"))
+    if has_pin and report["status"] == "generating":
+        return _print_error(prep, "报告正在更新，请在生成完成后重新导出。", 409)
+
+    can_edit = (store.can_access_prep(_user(), prep_id) and _can_manage_report()
+                and report["status"] in rstore.EDITABLE_STATUSES)
+    editing = can_edit and not has_pin and request.args.get("edit") == "1"
     edit_data = None
     if editing:
         edit_data = {"api": "/api/m1/preps/%d/report" % prep["id"],
-                     "rev": report["rev"],
+                     "rev": report["rev"], "version_id": version["id"],
                      "checks": _checks(report, version),
                      "tags": [tag["key"] for tag in kb.fixed()["tags"]],
                      "abilities": [{"code": code, "name": info["name"], "dim": info["dim"]}
                                    for code, info in kb.ability_map().items()]}
     return _render_page(
-        "m1/report_print.html", prep=prep, prep_id=prep["id"], fixed=kb.fixed(), doc=doc,
-        appendix=kb.appendix(doc), y4_lines=y4_lines(doc, shown.get("y4_ratings")),
-        draft=draft, status_label=report["label"], editing=editing, edit_data=edit_data)
+        "m1/report_print.html", prep=prep, prep_id=prep["id"],
+        draft=report["status"] not in rstore.OFFICIAL_STATUSES,
+        status_label=report["label"], editing=editing, edit_data=edit_data,
+        can_edit=can_edit and not has_pin, **(print_content or _print_content(version)))
 
 
 @bp.route("/m1/preps/<int:prep_id>/report/evidence")
@@ -241,7 +295,11 @@ def api_report(prep_id: int):
     prep, error = _api_read_prep(prep_id)
     if error:
         return error
-    return jsonify(_payload(prep))
+    body = _payload(prep)
+    write_id = _write_id(request.args.get("write_id"))
+    if write_id and body["can_edit"] and body["report"]["id"]:
+        body["write_rev"] = rstore.write_revision(body["report"]["id"], write_id)
+    return jsonify(body)
 
 
 @bp.route("/api/m1/preps/<int:prep_id>/report/speakers")
@@ -263,15 +321,13 @@ def api_report_speakers_save(prep_id: int):
     prep, error = _api_prep(prep_id)
     if error:
         return error
-    report = rstore.get_report(prep_id)
-    row = rstore.get_speakers(report["id"]) if report else None
+    report, version, row = rstore.get_candidate(prep_id)
     if not report or not speakers.is_current(row, report):
         return _err("还没有可修改的发言人识别结果，请先生成报告", 409)
-    if report["status"] == "generating":
-        return _err("报告正在生成，请稍后再改发言人", 409)
-    if report["status"] == "published":
-        return _err("报告已正式发布，请先重新打开", 409)
     body = _json_body()
+    rev = _rev(body) if "rev" in body else report["rev"]
+    if rev is None:
+        return _err("缺少 rev")
     labels = body.get("labels") or {}
     by_turn_raw = body.get("turns") or {}
     if not isinstance(labels, dict) or not isinstance(by_turn_raw, dict):
@@ -288,11 +344,19 @@ def api_report_speakers_save(prep_id: int):
     turns = row["turns"]
     speakers.apply_edits(turns, labels, by_turn)
     new_labels = dict(row["labels"], **labels)
-    rstore.save_speakers(report["id"], turns=turns, labels=new_labels,
-                         updated_by=_user().get("user_id"))
+    try:
+        updated, speaker_row = rstore.save_speakers(
+            report["id"], turns=turns, labels=new_labels, expected_rev=rev,
+            write_id=_write_id(body.get("write_id")), updated_by=_user().get("user_id"))
+    except rstore.RevConflict as exc:
+        return _revision_conflict(exc)
+    except rstore.StatusError as exc:
+        return _err(str(exc), 409)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_speakers",
                 {"prep_id": prep_id, "labels": len(labels), "turns": len(by_turn)})
-    out = {"ok": True, "speakers": speakers.summary(rstore.get_speakers(report["id"]), report)}
+    out = {"ok": True, "report": _public_report(updated),
+           "speakers": speakers.summary(speaker_row, updated),
+           "checks": _live_checks(updated, version)}
     if report.get("current_version_id"):
         out["notice"] = "发言人已修改，重新生成报告后生效"
     return jsonify(out)
@@ -317,10 +381,15 @@ def api_report_transcript(prep_id: int):
     if error:
         return error
     report = rstore.get_or_create_report(prep_id, _user().get("user_id"))
-    if report["status"] == "generating":
-        return _err("报告正在生成，请稍后再换逐字稿", 409)
+    if report["status"] in ("generating", "published"):
+        return _err("报告正在生成或已正式发布，请稍后再修改逐字稿", 409)
 
     upload = request.files.get("file")
+    body = _json_body() if upload is None else request.form
+    rev = (body.get("rev", type=int) if upload is not None else _rev(body)) \
+        if "rev" in body else report["rev"]
+    if rev is None:
+        return _err("缺少 rev")
     stored_path = ""
     filename = ""
     try:
@@ -338,7 +407,7 @@ def api_report_transcript(prep_id: int):
             target.write_bytes(data)
             stored_path = str(target)
         else:
-            text = (_json_body().get("text") or "").strip()
+            text = (body.get("text") or "").strip()
             if not text:
                 raise UploadError(400, "请先粘贴逐字稿内容")
     except UploadError as exc:
@@ -350,8 +419,16 @@ def api_report_transcript(prep_id: int):
         return _err("没有读到文字内容", 422)
 
     old_path = report.get("transcript_path") or ""
-    updated = rstore.set_transcript(report["id"], text=text, filename=filename,
-                                    stored_path=stored_path)
+    try:
+        updated = rstore.set_transcript(report["id"], text=text, filename=filename,
+                                        stored_path=stored_path, expected_rev=rev,
+                                        write_id=_write_id(body.get("write_id")))
+    except rstore.RevConflict as exc:
+        sources.remove_upload_file(stored_path)
+        return _revision_conflict(exc)
+    except rstore.StatusError as exc:
+        sources.remove_upload_file(stored_path)
+        return _err(str(exc), 409)
     if old_path and old_path != stored_path:
         sources.remove_upload_file(old_path)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_transcript",
@@ -367,7 +444,10 @@ def api_report_generate(prep_id: int):
         return error
     report = rstore.get_or_create_report(prep_id, _user().get("user_id"))
     if report["status"] == "generating":
-        return _err("生成任务已在进行中", 409)
+        job_attempts.current("report", report["id"])
+        report = rstore.get_report(prep_id)
+        if report["status"] == "generating":
+            return _err("生成任务已在进行中", 409)
     if not (report.get("transcript_text") or "").strip():
         return _err("请先添加心有灵析会议逐字稿", 400)
     version = rstore.current_version(report["id"])
@@ -376,15 +456,20 @@ def api_report_generate(prep_id: int):
 
     from m1 import report_jobs
     try:
-        previous = rstore.begin_generation(report["id"])
-    except rstore.StatusError as exc:
+        reserved_id, previous = job_attempts.reserve(
+            "report", report["id"], lambda: rstore.begin_generation(report["id"], expected_rev=report["rev"]),
+            prep_id=prep_id, report_id=report["id"], kind="report")
+    except rstore.RevConflict as exc:
+        return _revision_conflict(exc)
+    except (rstore.StatusError, job_attempts.AttemptConflict) as exc:
         return _err(str(exc), 409)
     try:
         job_id = report_jobs.launch_job(prep_id, report["id"], previous_status=previous,
-                                        actor_id=_user().get("user_id"))
-    except Exception as exc:
-        rstore.set_status(report["id"], previous)
-        return _err("生成任务启动失败：%s" % exc, 500)
+                                        actor_id=_user().get("user_id"), job_id=reserved_id,
+                                        attempt_scope="report")
+    except Exception:
+        job_attempts.cancel("report", report["id"], reserved_id)
+        return _err("生成任务未能启动，请重试。", 500)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_generate",
                 {"prep_id": prep_id, "job_id": job_id, "previous_status": previous})
     return jsonify({"ok": True, "job_id": job_id})
@@ -541,16 +626,21 @@ def api_report_doc(prep_id: int):
                 updates = {}
                 break
         if updates:
-            if rev != report["rev"]:
-                return _err("报告已在别处更新，请刷新后重试", 409, rev=report["rev"])
-            _db.update_student(prep["student_id"], **updates)
+            try:
+                saved_rev = rstore.save_cover(report["id"], prep["student_id"], rev, updates,
+                                              _write_id(body.get("write_id")))
+            except rstore.RevConflict as exc:
+                return _revision_conflict(exc)
+            except rstore.StatusError as exc:
+                return _err(str(exc), 409)
             store.audit(_user().get("user_id"), prep["student_id"], "m1.report_meta",
                         {"prep_id": prep_id, "fields": sorted(updates)})
-            return jsonify({"ok": True, "rev": report["rev"], "status": report["status"],
+            return jsonify({"ok": True, "rev": saved_rev, "status": report["status"],
                             "checks": [], "appendix": [], "impacts": []})
-    report, version, error = _need_report(prep)
-    if error:
-        return error
+    if not version:
+        return _err("报告还没有生成", 409)
+    if rev != report["rev"]:
+        return _revision_conflict(rstore.RevConflict(report["rev"]))
     try:
         new_doc, tags_changed = apply_changes(version.get("doc") or {}, body.get("changes"))
     except ChangeError as exc:
@@ -558,16 +648,16 @@ def api_report_doc(prep_id: int):
     candidate = dict(version, doc=new_doc)
     checks = _checks(report, candidate)
     try:
-        saved = rstore.save_version(report["id"], rev, doc=new_doc, checks=checks)
+        saved = rstore.save_version(report["id"], rev, doc=new_doc, checks=checks,
+                                    version_id=version["id"], write_id=_write_id(body.get("write_id")))
     except rstore.RevConflict as exc:
-        return jsonify({"ok": False, "error": str(exc), "rev": exc.rev}), 409
+        return _revision_conflict(exc)
     except rstore.StatusError as exc:
         return _err(str(exc), 409)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_edit",
                 {"prep_id": prep_id, "rev": saved["rev"],
                  "paths": [c.get("path") for c in body["changes"] if isinstance(c, dict)]})
-    return jsonify({"ok": True, "rev": saved["rev"], "status": saved["status"],
-                    "checks": checks, "appendix": kb.appendix(new_doc),
+    return jsonify({"ok": True, **saved, "checks": checks, "appendix": kb.appendix(new_doc),
                     "impacts": [IMPACT_NOTICE] if tags_changed else []})
 
 
@@ -591,6 +681,8 @@ def api_report_evidence(prep_id: int, eid: str):
     report, version, error = _need_report(prep)
     if error:
         return error
+    if rev != report["rev"]:
+        return _revision_conflict(rstore.RevConflict(report["rev"]))
     evidence = copy.deepcopy(version.get("evidence") or [])
     target = next((e for e in evidence if e.get("id") == eid), None)
     if target is None:
@@ -601,15 +693,15 @@ def api_report_evidence(prep_id: int, eid: str):
         target["speaker"] = speaker
     checks = _checks(report, dict(version, evidence=evidence))
     try:
-        saved = rstore.save_version(report["id"], rev, evidence=evidence, checks=checks)
+        saved = rstore.save_version(report["id"], rev, evidence=evidence, checks=checks,
+                                    version_id=version["id"], write_id=_write_id(body.get("write_id")))
     except rstore.RevConflict as exc:
-        return jsonify({"ok": False, "error": str(exc), "rev": exc.rev}), 409
+        return _revision_conflict(exc)
     except rstore.StatusError as exc:
         return _err(str(exc), 409)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_evidence",
                 {"prep_id": prep_id, "evidence_id": eid, "status": status, "speaker": speaker})
-    return jsonify({"ok": True, "rev": saved["rev"], "status": saved["status"],
-                    "evidence": target, "checks": checks})
+    return jsonify({"ok": True, **saved, "evidence": target, "checks": checks})
 
 
 # ---------------------------------------------------------------------------
@@ -633,6 +725,8 @@ def api_report_confirm_flag(prep_id: int):
     report, version, error = _need_report(prep)
     if error:
         return error
+    if rev != report["rev"]:
+        return _revision_conflict(rstore.RevConflict(report["rev"]))
     doc = copy.deepcopy(version.get("doc") or {})
     guard = doc.get("guard") if isinstance(doc.get("guard"), dict) else {}
     flags = guard.get("flags") or []
@@ -646,9 +740,10 @@ def api_report_confirm_flag(prep_id: int):
     doc["guard_ack"] = acked
     checks = _checks(report, dict(version, doc=doc))
     try:
-        saved = rstore.save_version(report["id"], rev, doc=doc, checks=checks)
+        saved = rstore.save_version(report["id"], rev, doc=doc, checks=checks,
+                                    version_id=version["id"], write_id=_write_id(body.get("write_id")))
     except rstore.RevConflict as exc:
-        return jsonify({"ok": False, "error": str(exc), "rev": exc.rev}), 409
+        return _revision_conflict(exc)
     except rstore.StatusError as exc:
         return _err(str(exc), 409)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_confirm_flag",
@@ -666,7 +761,12 @@ def api_report_safety_ack(prep_id: int):
     report = rstore.get_report(prep_id)
     if not report:
         return _err("报告还没有生成", 409)
-    updated = rstore.ack_safety(report["id"], _user().get("user_id"))
+    try:
+        updated = rstore.ack_safety(report["id"], _user().get("user_id"))
+    except rstore.RevConflict as exc:
+        return _revision_conflict(exc)
+    except rstore.StatusError as exc:
+        return _err(str(exc), 409)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_safety_ack",
                 {"prep_id": prep_id})
     return jsonify({"ok": True, "report": _public_report(updated)})
@@ -681,13 +781,24 @@ def api_report_approve(prep_id: int):
     report, version, error = _need_report(prep)
     if error:
         return error
+    body = _json_body()
+    if "expected_rev" in body or "version_id" in body:
+        pin = _revision_pin(body)
+        if pin is None:
+            return _err("缺少或无效的 expected_rev 和 version_id，请重新打开报告核对。")
+        if pin != (report["rev"], version["id"]):
+            return _revision_conflict(rstore.RevConflict(report["rev"]))
     checks = _checks(report, version)
     blocks = checks_mod.blocking(checks)
     if blocks:
         return _err("还有 %d 项阻断问题，不能审核通过" % len(blocks), 400,
                     blocking=blocks, checks=checks)
     try:
-        updated = rstore.approve(report["id"], _user().get("user_id"))
+        updated = rstore.approve(report["id"], _user().get("user_id"),
+                                 expected_rev=report["rev"], version_id=version["id"],
+                                 print_content=_print_content(version))
+    except rstore.RevConflict as exc:
+        return _revision_conflict(exc)
     except rstore.StatusError as exc:
         return _err(str(exc), 409)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_approve",
@@ -701,16 +812,30 @@ def api_report_publish(prep_id: int):
     prep, error = _api_prep(prep_id)
     if error:
         return error
-    report, version, error = _need_report(prep)
-    if error:
-        return error
-    checks = checks_mod.run_checks(_for_checks(report), version)
+    pin = _revision_pin(_json_body())
+    if pin is None:
+        return _err("缺少或无效的 expected_rev 和 version_id，请重新打开报告核对。")
+    report, version, speaker_row = rstore.get_candidate(prep_id)
+    if not report:
+        return _err("报告还没有生成", 409)
+    if pin != (report["rev"], report["current_version_id"]):
+        return _revision_conflict(rstore.RevConflict(report["rev"]))
+    if not version or report["status"] not in rstore.EDITABLE_STATUSES:
+        return _err("当前状态不能正式发布，请返回报告重新核对。", 409)
+    for_checks = report
+    if speakers.is_current(speaker_row, report):
+        for_checks = dict(report, transcript_text=speakers.marked_text(speaker_row["turns"]))
+    checks = checks_mod.run_checks(for_checks, version)
     blocks = checks_mod.blocking(checks)
     if blocks:
         return _err("还有 %d 项阻断问题，不能正式发布" % len(blocks), 400,
                     blocking=blocks, checks=checks)
     try:
-        updated = rstore.publish(report["id"], _user().get("user_id"))
+        updated = rstore.publish(report["id"], _user().get("user_id"),
+                                 expected_rev=pin[0], version_id=pin[1],
+                                 print_content=_print_content(version))
+    except rstore.RevConflict as exc:
+        return _revision_conflict(exc)
     except rstore.StatusError as exc:
         return _err(str(exc), 409)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_publish",
@@ -727,10 +852,17 @@ def api_report_reopen(prep_id: int):
     report = rstore.get_report(prep_id)
     if not report:
         return _err("报告还没有生成", 409)
+    body = _json_body()
+    pin = _revision_pin(body) if body else (report["rev"], report["current_version_id"])
+    if pin is None:
+        return _err("缺少或无效的 expected_rev 和 version_id，请重新打开报告核对。")
     try:
-        updated = rstore.reopen(report["id"])
+        updated = rstore.reopen(report["id"], expected_rev=pin[0], version_id=pin[1])
+    except rstore.RevConflict as exc:
+        return _revision_conflict(exc)
     except rstore.StatusError as exc:
         return _err(str(exc), 409)
     store.audit(_user().get("user_id"), prep["student_id"], "m1.report_reopen",
                 {"prep_id": prep_id})
-    return jsonify({"ok": True, "report": _public_report(updated)})
+    return jsonify({"ok": True, "report": _public_report(updated),
+                    "official": rstore.latest_official_revision(report["id"])})

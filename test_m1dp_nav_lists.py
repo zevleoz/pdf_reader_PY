@@ -172,8 +172,8 @@ def test_next_step_one_case_per_row(client, m1db):
         rows = client.get("/api/m1/preps").get_json()["preps"]
         return [row for row in rows if row["id"] == prep_id][0]["next"]
 
-    assert next_of(prep["id"])["label"] == "生成"
-    assert next_of(prep["id"])["href"] == "/m1/preps/%d/prep" % prep["id"]
+    assert next_of(prep["id"])["label"] == "开始会前准备"
+    assert next_of(prep["id"])["href"] == "/m1/preps/%d/prep#step=sources" % prep["id"]
 
     store.add_version(prep["id"], "ai_draft", doc={}, kb_version="test",
                       ai_generated_at=None)
@@ -182,7 +182,7 @@ def test_next_step_one_case_per_row(client, m1db):
 
     store.set_status(prep["id"], "final")
     assert next_of(prep["id"])["label"] == "上传逐字稿"
-    assert next_of(prep["id"])["href"] == "/m1/preps/%d/report" % prep["id"]
+    assert next_of(prep["id"])["href"] == "/m1/preps/%d/report#step=sources" % prep["id"]
 
     report = report_store.get_or_create_report(prep["id"], m1db.alice_id)
     report_store.set_transcript(report["id"], text="逐字稿内容")
@@ -192,22 +192,22 @@ def test_next_step_one_case_per_row(client, m1db):
                              doc={}, checks=[], manifest={}, status="approved")
     report_store.publish(report["id"], m1db.alice_id)
     report = report_store.get_report(prep["id"])
-    assert next_of(prep["id"])["label"] == "新建发展计划"
+    assert next_of(prep["id"])["label"] == "从会后报告创建发展计划"
     assert next_of(prep["id"])["href"] == "/m1/plans?new=%d" % prep["id"]
 
     plan = _plan(m1db, prep, report)
     assert next_of(prep["id"])["label"] == "继续发展计划"
 
     pstore.finish_generation(plan["id"], "internal", status="review")
-    assert next_of(prep["id"])["label"] == "审阅内部版"
+    assert next_of(prep["id"])["label"] == "审阅内部教案"
 
     pstore.approve(plan["id"], m1db.alice_id)
     pstore.finish_generation(plan["id"], "parent", status="draft")
-    assert next_of(prep["id"])["label"] == "确认家长版"
+    assert next_of(prep["id"])["label"] == "确认家长版发展计划"
 
     pstore.confirm_parent(plan["id"], m1db.alice_id)
     pstore.export_parent(plan["id"], m1db.alice_id)
-    assert next_of(prep["id"])["label"] == "打开发展计划"
+    assert next_of(prep["id"])["label"] == "查看家长版发展计划"
 
 
 # ---------------------------------------------------------------------------
@@ -330,70 +330,53 @@ def test_list_sorting_helpers():
     assert result["dup"] == [2, 3]
 
 
-@pytest.mark.parametrize("prep_status,version", [("draft", None), ("ai_draft", 10)])
 @pytest.mark.parametrize("status,parent,label,step", [
     ("inputs", "none", "继续发展计划", "inputs"),
-    ("generating", "none", "查看生成进度", "internal"),
-    ("review", "none", "审阅内部版", "internal"),
-    ("approved", "none", "生成家长版", "parent"),
-    ("approved", "generating", "查看家长版生成", "parent"),
-    ("approved", "draft", "确认家长版", "parent"),
-    ("approved", "confirmed", "导出家长版", "parent"),
-    ("approved", "exported", "打开发展计划", "parent"),
+    ("generating", "none", "查看计划生成进度", "internal"),
+    ("review", "none", "审阅内部教案", "internal"),
+    ("approved", "none", "生成家长版发展计划", "parent"),
+    ("approved", "generating", "查看计划生成进度", "parent"),
+    ("approved", "draft", "确认家长版发展计划", "parent"),
+    ("approved", "confirmed", "导出家长版发展计划", "parent"),
+    ("approved", "exported", "查看家长版发展计划", "parent"),
 ])
-def test_next_step_resumes_plan_before_old_prep(prep_status, version, status, parent, label, step):
-    from blueprints.m1 import _next_step
-    prep = {"id": 7, "status": prep_status, "current_version_id": version}
-    plan = {"id": 9, "status": status, "parent_status": parent}
-    action = _next_step(prep, {"started": True, "status": "published"}, plan)
+def test_plan_resume_action(status, parent, label, step):
+    from m1.workflow import summarize
+
+    plan = {"id": 9, "status": status, "parent_status": parent,
+            "can_edit": True, "can_approve": True}
+    action = summarize([], [plan], {}, report_allowed=True)["next"]
     assert action["label"] == label
     assert action["href"] == "/m1/plans/9#step=" + step
-    assert _next_step(prep, None, plan) == action
+    assert action["actionable"] == (parent != "exported")
 
 
 @pytest.mark.parametrize("status,label,suffix", [
-    ("draft", "继续会后报告", "/report"),
-    ("generating", "查看生成进度", "/report"),
+    ("draft", "继续会后报告", "/report#step=sources"),
+    ("generating", "查看报告生成进度", "/report#step=sources"),
     ("ai_draft", "核对发布", "/report#step=review"),
-    ("published", "新建发展计划", None),
 ])
-def test_next_step_resumes_report_before_old_prep(status, label, suffix):
-    from blueprints.m1 import _next_step
-    action = _next_step({"id": 7, "status": "ai_draft"},
-                        {"started": True, "status": status}, None)
-    assert action["label"] == label
-    assert action["href"] == ("/m1/preps/7" + suffix if suffix else "/m1/plans?new=7")
+def test_report_resume_has_priority_over_finished_plan(status, label, suffix):
+    from m1.workflow import summarize
+
+    prep = {"id": 7, "status": "review", "current_version_id": 10, "can_edit": True}
+    plan = {"id": 9, "status": "approved", "parent_status": "exported", "can_edit": True}
+    work = summarize([prep], [plan], {7: {"started": True, "status": status}}, report_allowed=True)
+    assert work["workflow_state"] == "todo"
+    assert work["next"]["label"] == label
+    assert work["next"]["href"] == "/m1/preps/7" + suffix
+    assert any(task["kind"] == "plan" and task["finished"] for task in work["tasks"])
 
 
-@pytest.mark.skipif(shutil.which("node") is None, reason="node 未安装")
-def test_student_next_step_downstream_priority_and_labels():
-    source = (BASE_DIR / "static/m1/m1_student.js").read_text()
-    function = source[source.index("  function nextStep(data)"):source.index("  function renderHead(data)")]
-    script = function + """
-const assert = require('assert');
-const data = {prep:{id:7}, prep_part:{has_doc:true,status:'ai_draft'},
-  report_part:{started:true,status:'published'}, plans:[]};
-assert.equal(nextStep(data).button, '新建发展计划');
-for (const [status, parent_status, button] of [
-  ['inputs','none','继续发展计划'], ['generating','none','查看生成进度'],
-  ['review','none','审阅内部版'], ['approved','generating','查看生成进度'],
-  ['approved','none','生成家长版'], ['approved','draft','确认家长版'],
-  ['approved','confirmed','导出家长版'], ['approved','exported','打开发展计划']]) {
-  data.plans = [{id:9,block_no:1,status,parent_status,step_url:'/m1/plans/9#step=current'}];
-  assert.equal(nextStep(data).button, button);
-  assert.equal(nextStep(data).href, data.plans[0].step_url);
-}
-data.plans = [];
-for (const [status,button] of [['draft','继续会后报告'],['generating','查看生成进度'],['ai_draft','核对发布']]) {
-  data.report_part.status = status;
-  assert.equal(nextStep(data).button,button);
-}
-data.report_part.started = false;
-assert.equal(nextStep(data).button,'去定稿');
-data.prep_part.has_doc = false;
-assert.equal(nextStep(data).button,'开始会前准备');
-"""
-    subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+def test_report_read_only_next_does_not_create_a_todo():
+    from m1.workflow import summarize
+
+    prep = {"id": 7, "status": "review", "can_edit": True}
+    work = summarize([prep], [], {7: {"started": True, "status": "ai_draft"}}, report_allowed=False)
+    action = next(task for task in work["tasks"] if task["kind"] == "report")
+    assert action["label"] == "查看会后报告（只读）"
+    assert not action["actionable"]
+    assert work["next"]["kind"] == "prep"
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 未安装")

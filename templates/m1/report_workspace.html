@@ -30,17 +30,20 @@
     <div id="r4Sources" style="min-width:0">
       <h3 class="h2">心有灵析 First Meeting 逐字稿<span class="req">必需</span></h3>
       <a class="link" href="/m1/preps/{{ prep.id }}/report/sources">查看已有逐字稿与资料原文（只读）</a>
-      <label class="drop big" id="r4Drop">
+      <div class="drop big" id="r4Drop">
         <b>拖入逐字稿文件</b>
-        <span>txt、docx、pdf。暂不支持音频，请先转成文字。</span>
-        <span class="btn s">选择文件</span>
+        <span id="r4TranscriptFormats">txt、md、docx、pdf。暂不支持音频，请先转成文字。</span>
+        <button type="button" class="btn s" id="r4TranscriptPick"
+                aria-describedby="r4TranscriptFormats r4TranscriptError">选择文件</button>
         <input type="file" id="r4TranscriptFile" hidden accept=".txt,.md,.docx,.pdf">
-      </label>
+      </div>
+      <p class="hint r4-err" id="r4TranscriptError" role="alert" hidden></p>
       <div class="file" id="r4TranscriptLine" hidden>
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>
         <span id="r4TranscriptName"></span>
         <span class="mu" id="r4TranscriptMeta"></span>
-        <button type="button" class="btn s g" id="r4TranscriptReplace">替换</button>
+        <button type="button" class="btn s g" id="r4TranscriptReplace"
+                aria-describedby="r4TranscriptError">替换</button>
       </div>
       <details class="fold" id="r4PasteFold" style="margin-top:6px">
         <summary>或者粘贴文字</summary>
@@ -53,9 +56,12 @@
       <div id="r4Others" style="margin-top:10px"></div>
       <div class="drop" id="r4OtherDrop" style="margin-top:10px">
         还有其他资料可以在这里上传；没有可以不传
-        <span class="btn s">上传文件</span>
+        <span class="hint" id="r4OtherFormats">txt、md、docx、pdf、csv、xlsx、png、jpg、jpeg</span>
+        <button type="button" class="btn s" id="r4OtherPick"
+                aria-describedby="r4OtherFormats r4OtherError">上传文件</button>
         <input type="file" id="r4OtherFile" hidden accept=".txt,.md,.docx,.pdf,.csv,.xlsx,.png,.jpg,.jpeg">
       </div>
+      <p class="hint r4-err" id="r4OtherError" role="alert" hidden></p>
 
       <details class="fold" id="r4Cover" style="margin-top:22px">
         <summary>封面信息（学生、日期等，通常不用改）</summary>
@@ -72,6 +78,8 @@
     </div>
 
     <aside class="rail">
+      <p class="hint r4-err" id="r4SourceSave" role="status" hidden></p>
+      <button type="button" class="btn s" id="r4SourceRetry" hidden>重试保存</button>
       <div class="go" id="r4GenerateCard">
         <b>生成会后报告</b>
         <div id="r4GenerateBody" style="display:contents">
@@ -79,6 +87,8 @@
           <button type="button" class="btn p" id="r4Generate">生成报告</button>
           <span class="hint">约 1–2 分钟。可以离开这个页面，生成会在后台继续。</span>
         </div>
+        <p class="hint" id="r4GenStatus" role="status" hidden></p>
+        <button type="button" class="btn s" id="r4GenRetry" hidden>重试载入进度</button>
         <div id="r4GenBox" hidden>
           <div class="meter"><i id="r4Meter"></i></div>
           <div class="gen" id="r4Steps" style="margin-top:10px"></div>
@@ -93,16 +103,38 @@
     <div style="min-width:0">
       <div class="dbar">
         <span class="saved" id="r4Saved" aria-live="polite"></span>
+        <button type="button" class="btn s" id="r4Retry" hidden>重试保存</button>
         <span class="sp"></span>
         <button type="button" class="btn s" id="r4Regenerate">重新生成</button>
       </div>
       <div class="safety" id="r4Safety" hidden>
         <div id="r4SafetyItems" class="r4-safety-items"></div>
       </div>
-      <div class="desk">
-        <iframe id="r4Preview" class="r4-preview" title="报告预览与修改"></iframe>
+      <section id="r4NeedCard">
+        <h3 class="h2">需要补全<small id="r4NeedCount">0</small></h3>
+        <p class="hint" id="r4NeedText"></p>
+        <div id="r4Todo" class="r4-checks"><div id="r4Checks"></div></div>
+        <details class="fold" id="r4TipsFold">
+          <summary>其他提示 <span id="r4TipCount">0</span> 条（仅供参考）</summary>
+          <div class="r4-checks" id="r4ChecksMore"></div>
+        </details>
+      </section>
+
+
+      <div class="r4-mode">
+        <button type="button" class="btn s" id="r4PreviewToggle" aria-pressed="false"
+                aria-controls="r4PreviewPane r4Content">查看打印版式</button>
       </div>
-      <p class="sub" id="r4PreviewEmpty" hidden>还没有生成报告。请回到「① 资料」生成。</p>
+    <section id="r4Content">
+      <div class="head"><h2>报告内容</h2><span class="sp"></span>
+        <span class="sub" id="r4ContentHint"></span></div>
+      <div class="r4-tabs" role="tablist" aria-label="报告内容" id="r4Tabs"></div>
+      <div class="r4-panels" id="r4Panels"></div>
+    </section>
+      <div class="desk" id="r4PreviewPane" hidden>
+        <iframe id="r4Preview" class="r4-preview" title="报告打印版式预览"></iframe>
+      </div>
+      <p class="sub" id="r4PreviewEmpty" hidden>还没有生成报告。请回到「① 逐字稿」生成。</p>
     </div>
 
     <aside class="rail">
@@ -111,24 +143,17 @@
         <p class="hint" id="r4ExportState" style="margin:0;color:var(--ink2)"></p>
         <button type="button" class="btn p" id="r4Publish" hidden>正式发布</button>
         <div class="r4-actions" id="r4Actions">
-          <a class="btn s" id="r4Print" href="/m1/preps/{{ prep.id }}/report/print?print=1"
-             target="_blank" rel="noopener" hidden style="flex:1">导出 PDF</a>
+          <button type="button" class="btn s" id="r4Print"
+             data-export-url="/m1/preps/{{ prep.id }}/report/print?print=1"
+             hidden style="flex:1">导出 PDF</button>
           <a class="btn s" id="r4Evidence" href="/m1/preps/{{ prep.id }}/report/evidence"
              target="_blank" rel="noopener" hidden style="flex:1">内部证据记录</a>
         </div>
+        <a class="link" id="r4Official" target="_blank" rel="noopener" hidden>查看上次正式版</a>
         <button type="button" class="btn p" id="r4Reopen" hidden>重新打开</button>
         <p class="hint">正式发布前导出的 PDF 带“草稿”水印。</p>
-        <p class="hint" id="r4PublishedNote" hidden>已正式发布。如需修改，请先重新打开。</p>
+        <p class="hint" id="r4PublishedNote" hidden>已正式发布。下载家长报告 PDF 后，请由导师发送。如需修改，请先重新打开。</p>
       </div>
-
-      <section id="r4NeedCard">
-        <h3 class="h2">需要补全<small id="r4NeedCount">0</small></h3>
-        <p class="hint" id="r4NeedText"></p>
-        <details class="fold" id="r4TipsFold">
-          <summary>其他提示 <span id="r4TipCount">0</span> 条（仅供参考）</summary>
-          <div class="r4-checks" id="r4ChecksMore"></div>
-        </details>
-      </section>
 
       <section id="r4Speakers">
         <h3 class="h2">发言人<small>自动识别</small></h3>
@@ -147,24 +172,10 @@
     </aside>
   </div>
 
-  {# 旧版内容面板保持隐藏，脚本仍在更新它。 #}
-  <div id="r4Legacy" hidden>
-    <section id="r4Todo">
-      <div class="head"><h2>需要处理</h2></div>
-      <div class="body r4-todo">
-        <div class="r4-checks" id="r4Checks"></div>
-      </div>
-    </section>
-    <section id="r4Content">
-      <div class="head"><h2>报告内容</h2><span class="sp"></span>
-        <span class="sub" id="r4ContentHint"></span></div>
-      <div class="r4-tabs" role="tablist" aria-label="报告内容" id="r4Tabs"></div>
-      <div class="r4-panels" id="r4Panels"></div>
-    </section>
-  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="/m1/assets/report_save.js" defer></script>
 <script src="/m1/assets/report_workspace.js" defer></script>
 {% endblock %}

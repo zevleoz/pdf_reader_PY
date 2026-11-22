@@ -16,6 +16,7 @@ const KIND_LABEL: Record<QueueItem["kind"], string> = {
   six_am: "6AM",
   first_touch: "First Touch",
   booking: "待预约",
+  m1: "心有灵析",
 };
 
 export function itemKey(item: QueueItem): string {
@@ -45,6 +46,8 @@ function detailOf(item: QueueItem): string {
       return item.reviewed === null ? "6AM 档案尚未生成" : item.reviewed + "/5 维已有团队结论";
     case "first_touch":
       return "进行中" + (item.updated_at ? " · 更新 " + fmtDate(item.updated_at) : "");
+    case "m1":
+      return item.task.owner;
     case "booking":
       return "还没有测评预约";
   }
@@ -166,6 +169,10 @@ export default function QueueList({
             <Link to={profile + "?tab=first_touch"}>查看会谈进度</Link>
           </Button>
         );
+      case "m1":
+        return <Button variant="outline" size="sm" className={btnClass} asChild>
+          <a href={item.task.href}>{item.task.label}</a>
+        </Button>;
       case "booking":
         return canWrite && bookingsLink ? (
           <Button variant="outline" size="sm" className={btnClass} asChild>

@@ -77,16 +77,17 @@ def read_job(job_id: str) -> Dict[str, Any] | None:
 
 
 def launch_job(prep_id: int, *, previous_status: str = "draft",
-               actor_id=None) -> str:
+               actor_id=None, job_id=None, attempt_scope=None) -> str:
     """拉起生成子进程；启动窗口内退出则抛 :class:`JobLaunchError`。"""
-    job_id = uuid.uuid4().hex
+    identity = [attempt_scope, int(prep_id)] if attempt_scope else None
+    job_id = job_id or uuid.uuid4().hex
     directory = Path(JOB_DIR)
     directory.mkdir(parents=True, exist_ok=True)
     args_path = directory / ("%s.args.json" % job_id)
     args_path.write_text(json.dumps({
         "prep_id": int(prep_id),
         "previous_status": previous_status,
-        "actor_id": actor_id,
+        "attempt": identity, "actor_id": actor_id,
     }, ensure_ascii=False), encoding="utf-8")
 
     write_job(job_id, status="queued", message="生成任务已排队",
@@ -101,16 +102,10 @@ def launch_job(prep_id: int, *, previous_status: str = "draft",
             start_new_session=True,
         )
     time.sleep(LAUNCH_GRACE_SECONDS)
-    if process.poll() is not None:
-        tail = ""
-        try:
-            tail = _log_path(job_id).read_text(
-                encoding="utf-8", errors="replace")[-2000:]
-        except OSError:
-            pass
-        message = "生成任务启动失败 (exit %s)" % process.returncode
+    if process.poll() is not None and (read_job(job_id) or {}).get("status") != "done":
+        message = "生成任务未能启动，请重试。"
         write_job(job_id, status="error",
-                  message=message + (("\n%s" % tail) if tail else ""),
+                  message=message,
                   prep_id=int(prep_id), previous_status=previous_status,
                   actor_id=actor_id, steps=new_steps())
         raise JobLaunchError(message)
@@ -120,6 +115,8 @@ def launch_job(prep_id: int, *, previous_status: str = "draft",
 def run_job(job_id: str, args: Dict[str, Any]) -> int:
     """子进程入口：执行生成并维护状态文件与 prep 状态。"""
     from m1 import pipeline, store
+
+    from m1 import job_attempts
 
     prep_id = int(args.get("prep_id") or 0)
     previous_status = str(args.get("previous_status") or "draft")
@@ -132,7 +129,8 @@ def run_job(job_id: str, args: Dict[str, Any]) -> int:
             "actor_id": actor_id}
 
     def write(message: str, **fields: Any) -> None:
-        write_job(job_id, steps=steps, message=message, **meta, **fields)
+        with job_attempts.commit():
+            write_job(job_id, steps=steps, message=message, **meta, **fields)
 
     def progress(step: str, state: str, seconds: float = 0.0) -> None:
         label = dict(STEP_DEFS).get(step, step)
@@ -151,11 +149,11 @@ def run_job(job_id: str, args: Dict[str, Any]) -> int:
     try:
         version_id = pipeline.generate(prep_id, progress=progress)
     except Exception as exc:
-        message = "生成失败：%s" % (str(exc).strip() or exc.__class__.__name__)
-        message = message[:1000]
+        message = "生成失败，请重试。"
         try:
-            store.set_status(prep_id, previous_status
-                             if previous_status in store.STATUSES else "draft")
+            with job_attempts.commit():
+                store.set_status(prep_id, previous_status
+                                 if previous_status in store.STATUSES else "draft")
         except Exception:
             pass
         write(message, status="error")
@@ -194,7 +192,10 @@ def main(argv: List[str]) -> int:
         print("cannot read args: %s" % exc, file=sys.stderr)
         return 2
     try:
-        run_job(job_id, args if isinstance(args, dict) else {})
+        from m1 import job_attempts
+
+        with job_attempts.worker(job_id, args.get("attempt")):
+            run_job(job_id, args if isinstance(args, dict) else {})
     except Exception:
         return 1
     return 0

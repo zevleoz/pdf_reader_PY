@@ -96,41 +96,21 @@
 
   function planHref(plan) {
     var action = (plan.next_action || {}).action;
-    return '/m1/plans/' + plan.id + '#step=' + planStep(action);
+    return '/m1/plans/' + plan.id + '#step=' + (action === 'poll_job' && plan.parent_status === 'generating'
+      ? 'parent' : planStep(action));
   }
 
   function createHref(studentIdValue) {
     return '/m1/plans?new_student=' + studentIdValue + '&mode=direct';
   }
 
-  function activePlan(plans) {
-    var open = (plans || []).filter(function (plan) {
-      return plan.parent_status !== 'exported';
-    });
-    return open[0] || (plans || [])[0] || null;
-  }
-
   function nextStepFor(overview) {
-    var plans = overview.plans || [];
-    var plan = activePlan(plans);
-    if (!plan && overview.can_create_direct === false) {
-      var prep = (overview.preps || [])[0];
-      return prep ? {sentence: '查看已共享的会议资料与文档。', label: '查看',
-        href: '/m1/preps/' + prep.id} : {sentence: '还没有共享的文档。', label: '', href: ''};
-    }
-    if (!plan) {
-      return {
-        sentence: '可以直接创建教案，不需要 First Meeting。',
-        label: '直接创建教案',
-        href: createHref(overview.student.id)
-      };
-    }
-    var label = planLabel(plan);
-    var block = 'Block ' + plan.block_no;
-    if ((plan.next_action || {}).action === 'view_parent') {
-      return { sentence: block + ' 的家长版已导出。', label: label, href: planHref(plan) };
-    }
-    return { sentence: block + '：' + label, label: label, href: planHref(plan) };
+    var work = overview.work || {};
+    if (work.next) return { sentence: work.next.owner, label: work.next.label, href: work.next.href };
+    var meeting = overview.meeting_creation || {};
+    if (meeting.href) return { sentence: '尚未安排首次会议', label: '新建首次会议', href: meeting.href };
+    if (meeting.reason) return { sentence: meeting.reason, label: '前往 Y4', href: meeting.y4_href || '' };
+    return { sentence: '当前没有待办', label: '', href: '' };
   }
 
   function planChip(plan) {
@@ -156,12 +136,12 @@
     var step = nextStepFor(data);
     var text = doc.getElementById('m1HubNextText');
     var link = doc.getElementById('m1HubNextBtn');
-    if (text) text.textContent = step.sentence;
+    if (text) text.textContent = step.sentence || (step.href ? '学生文档' : '当前没有待办');
     if (link) {
       link.hidden = !step.href;
       link.textContent = step.label;
       link.href = step.href;
-      link.innerHTML = step.label + ' ' + ARROW;
+      link.insertAdjacentHTML('beforeend', ' ' + ARROW);
     }
     var heading = doc.querySelector('#m1HubHead h1');
     if (heading && data.student && data.student.name) {
@@ -383,6 +363,12 @@
     if (!host) return;
     host.innerHTML = '';
     var plans = data.plans || [];
+    var reportPlan = ((data.work || {}).tasks || []).find(function (task) { return task.kind === 'plan_create'; });
+    var fromReport;
+    if (reportPlan) {
+      fromReport = el('a', 'btn', reportPlan.label);
+      fromReport.href = reportPlan.href;
+    }
     if (!plans.length) {
       var empty = el('div', 'panel');
       empty.style.padding = '18px';
@@ -394,11 +380,13 @@
         cta.href = createHref(data.student.id);
         empty.appendChild(cta);
       }
+      if (fromReport) empty.appendChild(fromReport);
       host.appendChild(empty);
       return;
     }
     plans.slice().sort(function (a, b) { return a.block_no - b.block_no; })
       .forEach(function (plan) { host.appendChild(renderPlanCard(plan)); });
+    if (fromReport) host.appendChild(fromReport);
   }
 
   function renderPreps(data) {
@@ -410,12 +398,14 @@
       host.appendChild(el('p', 'hint', '还没有 First Meeting。发展计划不依赖会议记录。'));
       return;
     }
+    var tasks = ((data.work || {}).tasks || []);
     preps.forEach(function (prep) {
       var card = el('section', 'tc');
       var title = el('div', 'tt');
       title.appendChild(el('b', null, meetingLabel(prep.meeting_date)));
       title.appendChild(chip(prep.status === 'final' ? ['s0', '已定稿']
-        : (prep.status === 'generating' ? ['s1', '生成中'] : ['sn', '待生成'])));
+        : (prep.status === 'generating' ? ['s1', '生成中'] :
+          prep.current_version_id ? ['s1', 'AI 初稿 · 待定稿'] : ['sn', '待生成'])));
       card.appendChild(title);
       var dl = el('dl', 'kv');
       dl.appendChild(el('dt', null, 'Mentor'));
@@ -425,9 +415,17 @@
       dl.appendChild(el('dd', null, report.label || (report.started ? '已开始' : '未开始')));
       card.appendChild(dl);
       var acts = el('div', 'acts');
-      var link = el('a', 'btn', '打开');
-      link.href = '/m1/preps/' + prep.id;
+      var base = '/m1/preps/' + prep.id;
+      var link = el('a', 'btn', '查看 First Meeting');
+      link.href = base;
       acts.appendChild(link);
+      tasks.filter(function (task) {
+        return (task.kind === 'report' || task.kind === 'prep') && task.href.startsWith(base + '/');
+      }).forEach(function (task) {
+        var resume = el('a', 'btn', task.label);
+        resume.href = task.href;
+        acts.appendChild(resume);
+      });
       card.appendChild(acts);
       host.appendChild(card);
     });

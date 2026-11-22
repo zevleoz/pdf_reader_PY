@@ -2047,9 +2047,21 @@
     });
   }
 
-  function pollJob(jobId, onDone, onError) {
+  var planProgressStatus = document.getElementById('planProgressStatus');
+  var planProgressRetry = document.getElementById('planProgressRetry');
+
+  function recoverProgress(message, retry) {
+    if (!planProgressStatus || !planProgressRetry) return;
+    planProgressStatus.textContent = message;
+    planProgressStatus.hidden = !message;
+    planProgressRetry.hidden = !retry;
+    planProgressRetry.onclick = retry || null;
+  }
+
+  function pollJob(jobId, onDone, onError, failures) {
     request('GET', '/api/m1/jobs/' + jobId).then(function (data) {
       var job = data.job || {};
+      recoverProgress('', null);
       updateGen(job.steps);
       if (job.status === 'done') {
         if (onDone) onDone(job);
@@ -2062,8 +2074,15 @@
       }
       setTimeout(function () { pollJob(jobId, onDone, onError); }, 1500);
     }).catch(function (err) {
-      toast(err.message);
-      if (onError) onError();
+      var retry = (failures || 0) + 1;
+      if (retry < 4) {
+        setTimeout(function () { pollJob(jobId, onDone, onError, retry); }, retry * 2000);
+        return;
+      }
+      recoverProgress('无法载入生成进度。', function () {
+        recoverProgress('', null);
+        pollJob(jobId, onDone, onError, 0);
+      });
     });
   }
 
@@ -2133,18 +2152,11 @@
   });
 
   /* 刷新后继续显示正在跑的任务 */
-  if (S.status === 'generating') {
-    if (CFG.jobId) setTimeout(function () { pollJob(CFG.jobId, function () { location.reload(); }); }, 800);
-    else {
-      (function pollPlan() {
-        setTimeout(function () {
-          request('GET', API).then(function (data) {
-            if (data.plan && data.plan.status !== 'generating') location.reload();
-            else pollPlan();
-          }).catch(function () { pollPlan(); });
-        }, 2000);
-      })();
-    }
+  if (S.status === 'generating' || S.parentStatus === 'generating') {
+    if (CFG.jobId) setTimeout(function () {
+      pollJob(CFG.jobId, function () { location.reload(); }, function () { location.reload(); });
+    }, 800);
+    else recoverProgress('生成正在进行，暂时无法载入进度。', function () { location.reload(); });
   }
 
   /* --------------------------------------------------------- ② 文档编辑 */

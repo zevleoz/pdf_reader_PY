@@ -12,19 +12,29 @@
   var addDate = document.getElementById('addDate');
   var addGo = document.getElementById('addGo');
   var durationSeg = document.getElementById('addDuration');
+  var counter = document.getElementById('m1Count');
 
   var manager = root.dataset.manager === '1';
   var scopeKey = manager ? 'm1.list.who.manager' : 'm1.list.who';
+  var VIEWS = ['all', 'todo', 'done'];
 
   var state = {
     roster: [],
+    rosterState: 'loading', // loading | ok | error
+    rosterError: '',
+    rosterSeq: 0,
+    students: [],
+    pickerState: 'loading', // loading | ok | error
+    pickerError: '',
+    pickerSeq: 0,
     who: manager ? 'all' : 'mine',
     view: 'all',
     q: '',
-    students: [],
     sel: null,
     duration: 60,
-    openedFrom: null
+    openedFrom: null,
+    directHandled: false,
+    linkedCandidateId: null
   };
 
   // 恢复上次选择的参与范围。
@@ -47,10 +57,14 @@
       init.body = JSON.stringify(init.body);
     }
     return fetch(path, init).then(function (r) {
-      return r.json().then(function (data) {
+      return r.json().catch(function () {
+        return {ok: false, error: '请求失败（' + r.status + '）'};
+      }).then(function (data) {
         if (!r.ok || !data || data.ok === false) {
           var msg = (data && (data.reason || data.error)) || ('请求失败（' + r.status + '）');
-          throw new Error(msg);
+          var error = new Error(msg);
+          error.status = r.status;
+          throw error;
         }
         return data;
       });
@@ -222,7 +236,7 @@
         standalone.length + ' · 无可见 First Meeting', standalone));
     }
     if (past.length) {
-      listHost.appendChild(groupBlock('已开过的会议',
+      listHost.appendChild(groupBlock('日期已过的会议',
         past.length + ' · 最近的在前', past));
     }
   }
@@ -241,20 +255,60 @@
     if (em) em.textContent = String(n);
   }
 
+  function setTotal(text) {
+    var span = counter && counter.querySelector('span');
+    if (span) span.textContent = String(text);
+  }
+
+  function resetCounts() {
+    setTotal('—');
+    VIEWS.forEach(function (view) { setCount(view, '—'); });
+  }
+
+  function fillFilterCounts(scoped) {
+    VIEWS.forEach(function (view) {
+      setCount(view, scoped.filter(function (prep) { return inView(prep, view); }).length);
+    });
+  }
+
+  function renderLoading() {
+    listHost.setAttribute('aria-busy', 'true');
+    listHost.innerHTML = '';
+    var loading = el('div', 'empty');
+    loading.setAttribute('role', 'status');
+    loading.appendChild(el('b', null, '正在加载学生…'));
+    loading.appendChild(el('span', null, '请稍候。'));
+    listHost.appendChild(loading);
+    resetCounts();
+  }
+
+  function renderRosterError() {
+    listHost.setAttribute('aria-busy', 'false');
+    listHost.innerHTML = '';
+    var wrap = el('div', 'empty');
+    wrap.setAttribute('role', 'alert');
+    wrap.appendChild(el('b', null, '学生列表加载失败'));
+    wrap.appendChild(el('span', null, state.rosterError || '请稍后重试。'));
+    var actions = el('div');
+    actions.style.marginTop = '12px';
+    var retry = el('button', 'btn s', '重试');
+    retry.type = 'button';
+    retry.addEventListener('click', function () { loadRoster(); });
+    actions.appendChild(retry);
+    wrap.appendChild(actions);
+    listHost.appendChild(wrap);
+    resetCounts();
+  }
+
   function render() {
+    listHost.setAttribute('aria-busy', 'false');
     var scoped = state.roster.filter(function (prep) {
       return matchesWho(prep) && matchesQuery(prep);
     });
-    ['all', 'todo', 'done'].forEach(function (view) {
-      setCount(view, scoped.filter(function (prep) { return inView(prep, view); }).length);
-    });
+    fillFilterCounts(scoped);
 
     var rows = scoped.filter(function (prep) { return inView(prep, state.view); });
-    var counter = document.getElementById('m1Count');
-    if (counter) {
-      var span = counter.querySelector('span');
-      if (span) span.textContent = String(scoped.length);
-    }
+    setTotal(scoped.length);
 
     if (!state.roster.length) {
       listHost.innerHTML = '';
@@ -269,41 +323,140 @@
     renderList(rows);
   }
 
+  function refresh() {
+    if (state.rosterState === 'ok') render();
+    else if (state.rosterState === 'error') renderRosterError();
+  }
+
+  function syncView() {
+    Array.prototype.forEach.call(document.querySelectorAll('.vw [data-view]'), function (button) {
+      var on = button.dataset.view === state.view;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function syncWho() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-who]'), function (button) {
+      var on = button.dataset.who === state.who;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
   function setView(view) {
     state.view = view;
-    Array.prototype.forEach.call(document.querySelectorAll('.vw [data-view]'), function (button) {
-      button.classList.toggle('on', button.dataset.view === view);
-    });
-    render();
+    syncView();
+    refresh();
   }
 
   function setWho(who) {
     state.who = who;
     try { window.localStorage.setItem(scopeKey, who); } catch (err) {}
-    Array.prototype.forEach.call(document.querySelectorAll('[data-who]'), function (button) {
-      var on = button.dataset.who === who;
-      button.classList.toggle('on', on);
-      button.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-    render();
+    syncWho();
+    refresh();
   }
 
   function selectable(student) {
     return !!student.y4_complete && !student.has_prep;
   }
 
+  function isDialogOpen() {
+    return !!dlg && dlg.hidden === false;
+  }
+
+  function dialogFocusables() {
+    if (!dlg) return [];
+    var nodes = dlg.querySelectorAll('button, input, select, textarea, a, [tabindex]');
+    return Array.prototype.filter.call(nodes, function (node) {
+      if (node.disabled || node.hidden) return false;
+      if (typeof node.tabIndex === 'number' && node.tabIndex < 0) return false;
+      return true;
+    });
+  }
+
+  function focusInitial() {
+    var target = addSearch || dlg;
+    if (target && typeof target.focus === 'function') target.focus();
+  }
+
   function closeDialog() {
-    if (!dlg) return;
+    if (!dlg || dlg.hidden) return;
     dlg.hidden = true;
-    if (state.openedFrom && typeof state.openedFrom.focus === 'function') {
-      state.openedFrom.focus();
+    var target = state.openedFrom;
+    state.openedFrom = null;
+    state.linkedCandidateId = null;
+    if (!target || target === document.body || target === document.documentElement ||
+        typeof target.focus !== 'function') {
+      target = addBtn;
     }
+    if (target && typeof target.focus === 'function') target.focus();
+  }
+
+  function onDocumentKeydown(event) {
+    if (!isDialogOpen()) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDialog();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    var items = dialogFocusables();
+    if (!items.length) {
+      event.preventDefault();
+      if (typeof dlg.focus === 'function') dlg.focus();
+      return;
+    }
+    var active = document.activeElement;
+    var index = items.indexOf(active);
+    var first = items[0];
+    var last = items[items.length - 1];
+    if (event.shiftKey) {
+      if (index <= 0) {
+        event.preventDefault();
+        last.focus();
+      }
+    } else if (index === -1 || index === items.length - 1) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function pickErrorState() {
+    var box = el('div');
+    box.style.display = 'grid';
+    box.style.gap = '8px';
+    var message = el('p', 'hint', state.pickerError || '学生名单加载失败。');
+    message.setAttribute('role', 'alert');
+    box.appendChild(message);
+    var retry = el('button', 'btn s', '重试');
+    retry.type = 'button';
+    retry.style.justifySelf = 'start';
+    retry.addEventListener('click', function () {
+      focusInitial();
+      loadStudents();
+    });
+    box.appendChild(retry);
+    return box;
   }
 
   function renderPick() {
     if (!pickHost) return;
-    var q = (addSearch.value || '').trim().toLowerCase();
     pickHost.innerHTML = '';
+
+    if (state.pickerState === 'loading') {
+      var loading = el('p', 'hint', '正在加载学生名单…');
+      loading.setAttribute('role', 'status');
+      pickHost.appendChild(loading);
+      return;
+    }
+    if (state.pickerState === 'error') {
+      pickHost.appendChild(pickErrorState());
+      return;
+    }
+
+    var q = (addSearch.value || '').trim().toLowerCase();
     var found = state.students.filter(function (student) {
       if (!q) return true;
       return (student.name || '').toLowerCase().indexOf(q) !== -1 ||
@@ -327,7 +480,9 @@
       var button = el('button');
       button.type = 'button';
       button.disabled = !ok;
-      if (state.sel === student.id) button.classList.add('on');
+      var selected = state.sel === student.id;
+      if (selected) button.classList.add('on');
+      if (ok) button.setAttribute('aria-pressed', String(selected));
       button.appendChild(el('b', null, student.name || '未命名学生'));
       var meta = [student.student_code, student.grade, student.school]
         .filter(Boolean).join(' · ');
@@ -343,8 +498,14 @@
       if (!ok) button.title = right.textContent;
       button.addEventListener('click', function () {
         if (!ok) return;
+        var previous = pickHost.querySelector('.on');
+        if (previous && previous !== button) {
+          previous.classList.toggle('on', false);
+          previous.setAttribute('aria-pressed', 'false');
+        }
         state.sel = student.id;
-        renderPick();
+        button.classList.add('on');
+        button.setAttribute('aria-pressed', 'true');
         syncAddGo();
       });
       pickHost.appendChild(button);
@@ -355,10 +516,29 @@
     if (addGo) addGo.disabled = !state.sel;
   }
 
-  function openDialog(studentId) {
+  function selectLinkedCandidate() {
+    if (state.linkedCandidateId === null || state.pickerState !== 'ok') return;
+    var studentId = state.linkedCandidateId;
+    state.linkedCandidateId = null;
+    var student = state.students.find(function (item) { return item.id === studentId; });
+    if (student && selectable(student)) {
+      state.sel = student.id;
+    } else if (student && window.v2Toast) {
+      window.v2Toast(student.reason || '已在心有灵析');
+    }
+  }
+
+  function openDialog(studentId, direct) {
     if (!dlg) return;
-    state.openedFrom = document.activeElement;
+    var trigger = document.activeElement;
+    if (!direct && trigger && trigger !== document.body && trigger !== document.documentElement &&
+        typeof trigger.focus === 'function') {
+      state.openedFrom = trigger;
+    } else {
+      state.openedFrom = addBtn || null;
+    }
     state.sel = null;
+    state.linkedCandidateId = studentId || null;
     state.duration = 60;
     if (addDate) addDate.value = '';
     if (addSearch) addSearch.value = '';
@@ -369,18 +549,67 @@
         button.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
     }
-    if (studentId) {
-      var student = state.students.filter(function (s) { return s.id === Number(studentId); })[0];
-      if (student && selectable(student)) {
-        state.sel = student.id;
-      } else if (student && window.v2Toast) {
-        window.v2Toast(student.reason || '已在心有灵析');
-      }
-    }
+    selectLinkedCandidate();
     renderPick();
     syncAddGo();
     dlg.hidden = false;
-    if (addSearch) addSearch.focus();
+    focusInitial();
+  }
+
+  function loadStudents() {
+    var seq = ++state.pickerSeq;
+    state.pickerState = 'loading';
+    state.pickerError = '';
+    if (isDialogOpen()) renderPick();
+    return api('/api/m1/students').then(function (data) {
+      if (seq !== state.pickerSeq) return;
+      state.students = data.students || [];
+      state.pickerState = 'ok';
+      if (isDialogOpen()) {
+        selectLinkedCandidate();
+        renderPick();
+        syncAddGo();
+      }
+    }).catch(function (error) {
+      if (seq !== state.pickerSeq) return;
+      state.pickerState = 'error';
+      state.pickerError = error.message || '请稍后重试。';
+      if (isDialogOpen()) renderPick();
+    });
+  }
+
+  function openDirectStudent() {
+    if (state.directHandled) return;
+    var wanted = Number(root.dataset.studentId || 0);
+    if (!wanted) {
+      state.directHandled = true;
+      return;
+    }
+    state.directHandled = true;
+    var listed = state.roster.filter(function (prep) { return prep.student_id === wanted; })[0];
+    if (listed && root.dataset.createMeeting !== '1') {
+      window.location.replace(listed.hub_url);
+      return;
+    }
+    openDialog(wanted, true);
+  }
+
+  function loadRoster() {
+    var seq = ++state.rosterSeq;
+    state.rosterState = 'loading';
+    renderLoading();
+    return api('/api/m1/roster' + (manager ? '?include_unassigned=1' : '')).then(function (data) {
+      if (seq !== state.rosterSeq) return;
+      state.roster = data.students || [];
+      state.rosterState = 'ok';
+      render();
+      openDirectStudent();
+    }).catch(function (error) {
+      if (seq !== state.rosterSeq) return;
+      state.rosterState = 'error';
+      state.rosterError = error.message || '请稍后重试。';
+      renderRosterError();
+    });
   }
 
   function submit() {
@@ -415,19 +644,17 @@
   if (search) {
     search.addEventListener('input', function () {
       state.q = (search.value || '').trim();
-      render();
+      refresh();
     });
   }
 
-  if (addBtn) addBtn.addEventListener('click', function () { openDialog(); });
+  if (addBtn) addBtn.addEventListener('click', function () { openDialog(null, false); });
   if (dlg) {
     dlg.addEventListener('click', function (event) {
       if (event.target === dlg) closeDialog();
     });
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape' && !dlg.hidden) closeDialog();
-    });
   }
+  document.addEventListener('keydown', onDocumentKeydown);
   ['addDlgX', 'addCancel'].forEach(function (id) {
     var button = document.getElementById(id);
     if (button) button.addEventListener('click', closeDialog);
@@ -447,23 +674,8 @@
   }
   if (addGo) addGo.addEventListener('click', submit);
 
-  Promise.all([
-    api('/api/m1/roster' + (manager ? '?include_unassigned=1' : '')),
-    api('/api/m1/students').catch(function () { return { students: [] }; })
-  ]).then(function (results) {
-    state.roster = results[0].students || [];
-    state.students = results[1].students || [];
-    setWho(state.who);
-    setView(state.view);
-
-    var wanted = Number(root.dataset.studentId || 0);
-    if (wanted) {
-      var listed = state.roster.filter(function (prep) { return prep.student_id === wanted; })[0];
-      if (listed) {
-        window.location.replace(listed.hub_url);
-        return;
-      }
-      openDialog(wanted);
-    }
-  });
+  syncView();
+  syncWho();
+  loadRoster();
+  loadStudents();
 })();

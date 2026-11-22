@@ -28,6 +28,7 @@
     conflict: false,
     jobId: null,
     pollTimer: null,
+    pollFailures: 0,
     sync: null
   };
 
@@ -590,8 +591,7 @@
           toast('已开始生成，完成后回到列表刷新', 'success');
           return;
         }
-        sessionStorage.setItem('m1_job_' + state.prepId, state.jobId);
-        pollJob();
+        retryProgress();
       })
       .catch(function (error) {
         toast(error.message, 'error');
@@ -600,9 +600,29 @@
       });
   }
 
+  var genStatus = document.getElementById('genStatus');
+  var genRetry = document.getElementById('genRetry');
+
+  function generationStatus(message, retry) {
+    genStatus.textContent = message;
+    genStatus.hidden = !message;
+    genRetry.hidden = !retry;
+  }
+
+  function retryProgress() {
+    state.pollFailures = 0;
+    generationStatus('', false);
+    if (state.jobId) pollJob();
+    else init();
+  }
+
+  genRetry.addEventListener('click', retryProgress);
+
   function pollJob() {
     clearTimeout(state.pollTimer);
     api('/api/m1/jobs/' + state.jobId).then(function (body) {
+      state.pollFailures = 0;
+      generationStatus('', false);
       var job = body.job || body;
       var steps = job.steps || body.steps || [];
       var rows = Array.prototype.slice.call(document.querySelectorAll('#genList [data-i]'));
@@ -636,20 +656,23 @@
         return;
       }
       if (['failed', 'error'].indexOf(status) !== -1) {
-        toast(job.error || '生成失败，请重试', 'error');
-        state.status = 'draft';
-        setStep('sources');
+        state.jobId = null;
+        generationStatus(job.message || '生成失败，已保留之前的文档。请重新生成。', false);
+        refresh().then(function () { setStep('sources'); }).catch(function () {
+          generationStatus('无法载入会前准备，请重试。', true);
+        });
         return;
       }
       state.pollTimer = setTimeout(pollJob, 2000);
-    }).catch(function (error) {
-      toast(error.message, 'error');
+    }).catch(function () {
+      state.pollFailures += 1;
+      generationStatus('暂时无法载入生成进度。', state.pollFailures >= 4);
+      if (state.pollFailures < 4) state.pollTimer = setTimeout(pollJob, 2000 * state.pollFailures);
     });
   }
 
   function finishGenerate() {
     clearTimeout(state.pollTimer);
-    sessionStorage.removeItem('m1_job_' + state.prepId);
     refresh().then(function () {
       state.status = (state.detail && state.detail.status) || 'review';
       if (state.doc) {
@@ -1229,9 +1252,10 @@
       renderSources();
       var step = state.status === 'generating' ? 'gen'
         : state.doc ? 'review' : 'sources';
-      if (state.status === 'generating' && !state.doc) {
-        var saved = sessionStorage.getItem('m1_job_' + state.prepId);
-        if (saved) { state.jobId = saved; pollJob(); }
+      state.jobId = body.job_id || null;
+      if (state.status === 'generating') {
+        if (state.jobId) pollJob();
+        else generationStatus('生成正在进行，暂时无法载入进度。', true);
       }
       setStep(step);
       if (step === 'review') renderReview();

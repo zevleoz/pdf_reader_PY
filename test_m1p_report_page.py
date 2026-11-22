@@ -71,14 +71,14 @@ def test_two_step_wrappers(client, m1db):  # noqa: F811
     assert "③" not in html
 
     sources = html.split('id="r4StepSources"', 1)[1].split('id="r4StepReview"', 1)[0]
-    review = html.split('id="r4StepReview"', 1)[1].split('id="r4Legacy"', 1)[0]
+    review = html.split('id="r4StepReview"', 1)[1]
     for element_id in ("r4TranscriptLine", "r4TranscriptReplace", "r4OtherDrop",
                        "r4GenerateBody", "r4GenBox"):
         assert 'id="%s"' % element_id in sources, element_id
     for element_id in ("r4Preview", "r4Export", "r4NeedCard", "r4NeedCount",
                        "r4NeedText", "r4TipCount", "r4Speakers"):
         assert 'id="%s"' % element_id in review, element_id
-    assert f'href="/m1/preps/{prep["id"]}/report/print?print=1"' in html
+    assert f'data-export-url="/m1/preps/{prep["id"]}/report/print?print=1"' in html
 
 
 def test_export_card_keeps_links(client, m1db):  # noqa: F811
@@ -104,7 +104,7 @@ def test_report_page_js_need_and_generation():
     for text in (
         "function renderNeed(blockCount, tipCount)",
         "renderNeed(blocks.length, reviews.length)",
-        "在报告的黄色框里补全。",
+        "选择待补全项，跳到对应的报告内容。",
         "showGenPanel()",
         "renderSteps(job.steps",
         "报告已生成",

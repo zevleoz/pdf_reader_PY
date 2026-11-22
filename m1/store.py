@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (Column, DateTime, ForeignKey, Index, Integer, String,
-                        Text, select)
+                        Text, select, update)
 from sqlalchemy.orm import Session
 
 import db as _db
@@ -282,15 +282,32 @@ def _latest_version(sess: Session, prep_id: int, kind: Optional[str] = None,
 # ---------------------------------------------------------------------------
 # Preps
 # ---------------------------------------------------------------------------
-def create_prep(student_id: int, *, created_by=None, meeting_date: str = "",
+def create_prep(student_id: int, **fields) -> Dict[str, Any]:
+    return _create_prep(student_id, **fields)[0]
+
+
+def create_first_prep(student_id: int, **fields):
+    return _create_prep(student_id, reuse_existing=True, **fields)
+
+
+def _create_prep(student_id: int, *, created_by=None, meeting_date: str = "",
                 mentor_user_id=None, duration: int = 60,
-                attendees: Optional[List[str]] = None) -> Dict[str, Any]:
+                attendees: Optional[List[str]] = None, reuse_existing=False):
     """新建一次会前准备。会议日期不自动生成，由导师在界面确认。"""
     student_id = int(student_id)
     with Session(_engine()) as sess:
+        if reuse_existing:
+            # Serialize concurrent first-meeting requests on the student row.
+            sess.execute(update(_db.Student).where(_db.Student.id == student_id)
+                         .values(id=_db.Student.id))
         student = _student(sess, student_id)
         if not student:
             raise NotFoundError("学生不存在")
+        if reuse_existing:
+            existing = sess.scalars(select(M1Prep).where(M1Prep.student_id == student_id)
+                                   .order_by(M1Prep.updated_at.desc(), M1Prep.id.desc()).limit(1)).first()
+            if existing is not None:
+                return _prep_row(existing, student, _mentor_name(sess, existing.mentor_user_id)), False
         row = M1Prep(
             student_id=student_id,
             meeting_date=(meeting_date or "").strip(),
@@ -301,11 +318,10 @@ def create_prep(student_id: int, *, created_by=None, meeting_date: str = "",
         )
         sess.add(row)
         sess.flush()
-        prep_id = row.id
         data = _prep_row(row, student,
                          _mentor_name(sess, row.mentor_user_id))
         sess.commit()
-        return data
+        return data, True
 
 
 def get_prep(prep_id: int) -> Optional[Dict[str, Any]]:
@@ -489,7 +505,7 @@ def add_version(prep_id: int, kind: str, *, doc: Optional[dict] = None,
                 y4_snapshot: Optional[dict] = None, kb_version: str = "",
                 evidence=None, ai_output: Optional[dict] = None,
                 ai_generated_at=None, reviewed_at=None, created_by=None,
-                set_current: bool = True) -> Dict[str, Any]:
+                set_current: bool = True, mark_ready: bool = False) -> Dict[str, Any]:
     """追加版本行。``ai_draft`` / ``final`` 落库后不再修改。"""
     if kind not in KINDS:
         raise ValueError("未知版本类型：%s" % kind)
@@ -511,6 +527,8 @@ def add_version(prep_id: int, kind: str, *, doc: Optional[dict] = None,
         sess.flush()
         if set_current:
             prep.current_version_id = row.id
+        if mark_ready:
+            prep.status = "review"
         prep.updated_at = datetime.utcnow()
         data = _version_row(row)
         sess.commit()

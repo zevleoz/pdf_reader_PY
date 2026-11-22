@@ -832,25 +832,27 @@ def generate(plan_id: int, *, progress=None, actor_id=None,
     if progress:
         progress("checks", "active")
     checks = _version_checks(plan, doc, adjustments)
-    version = pstore.add_version(
-        plan_id, part="internal", kind="ai_draft",
-        ai_doc=copy.deepcopy(doc), doc=copy.deepcopy(doc), checks=checks,
-        manifest={
-            "teaching_context": _teaching_context(plan),
-            "model": model_name(),
-            "repair": repair,
-            "prompt_keys": prompt_keys,
-            "wb_candidates": {str(n): [c.get("wb_id") for c in
-                                       _session_candidates(session_plan[n - 1], n, goals, cmap)]
-                              for n in range(1, SESSION_COUNT + 1)},
-            "session_plan": session_plan,
-            "inputs_hash": hashlib.sha256(_json(plan.get("inputs") or {}).encode("utf-8")).hexdigest(),
-            "adjustments": adjustments,
-        },
-        created_by=actor_id)
+    from m1 import job_attempts
+
+    with job_attempts.commit():
+        version = pstore.add_version(
+            plan_id, part="internal", kind="ai_draft",
+            ai_doc=copy.deepcopy(doc), doc=copy.deepcopy(doc), checks=checks,
+            manifest={
+                "teaching_context": _teaching_context(plan),
+                "model": model_name(),
+                "repair": repair,
+                "prompt_keys": prompt_keys,
+                "wb_candidates": {str(n): [c.get("wb_id") for c in
+                                           _session_candidates(session_plan[n - 1], n, goals, cmap)]
+                                  for n in range(1, SESSION_COUNT + 1)},
+                "session_plan": session_plan,
+                "inputs_hash": hashlib.sha256(_json(plan.get("inputs") or {}).encode("utf-8")).hexdigest(),
+                "adjustments": adjustments,
+            },
+            created_by=actor_id, mark_ready=True)
     if progress:
         progress("checks", "done")
-    pstore.finish_generation(plan_id, "internal", version_id=version["id"])
     return version["id"]
 
 
@@ -937,12 +939,14 @@ def regenerate(plan_id: int, section, *, progress=None, actor_id=None) -> int:
     manifest["teaching_context"] = _teaching_context(plan)
     manifest["prompt_keys"] = prompt_keys
     manifest["adjustments"] = adjustments
-    version = pstore.add_version(
-        plan_id, part="internal", kind="edit", ai_doc=ai_doc, doc=doc,
-        checks=checks, manifest=manifest, created_by=actor_id)
+    from m1 import job_attempts
+
+    with job_attempts.commit():
+        version = pstore.add_version(
+            plan_id, part="internal", kind="edit", ai_doc=ai_doc, doc=doc,
+            checks=checks, manifest=manifest, created_by=actor_id, mark_ready=True)
     if progress:
         progress("checks", "done")
-    pstore.finish_generation(plan_id, "internal", version_id=version["id"])
     return version["id"]
 
 
@@ -1090,13 +1094,15 @@ def generate_parent(plan_id: int, *, progress=None, actor_id=None) -> int:
         _adjustment_items(adjustments)
     if progress:
         progress("parent", "done")
-    version = pstore.add_version(
-        plan_id, part="parent", kind="ai_draft",
-        ai_doc=copy.deepcopy(parent_doc), doc=copy.deepcopy(parent_doc), checks=checks,
-        manifest={"model": model_name(), "source_version_id": internal["id"],
-                  "adjustments": adjustments},
-        source_version_id=internal["id"], created_by=actor_id)
-    pstore.finish_generation(plan_id, "parent", version_id=version["id"], status="draft")
+    from m1 import job_attempts
+
+    with job_attempts.commit():
+        version = pstore.add_version(
+            plan_id, part="parent", kind="ai_draft",
+            ai_doc=copy.deepcopy(parent_doc), doc=copy.deepcopy(parent_doc), checks=checks,
+            manifest={"model": model_name(), "source_version_id": internal["id"],
+                      "adjustments": adjustments},
+            source_version_id=internal["id"], created_by=actor_id, mark_ready=True)
     return version["id"]
 
 

@@ -403,15 +403,16 @@ def role_lookup(turns: List[Dict[str, Any]]) -> Callable[[str], str]:
 # 与报告、数据库的衔接
 # ---------------------------------------------------------------------------
 def run_for_report(report: Dict[str, Any], ask: Callable[[str], Dict[str, Any]],
-                   actor_id=None) -> Dict[str, Any]:
+                   actor_id=None):
     from m1 import report_store, store
 
     prep = store.get_prep(int(report["prep_id"])) or {}
     text = report.get("transcript_text") or ""
     result = identify(text, ask, prep.get("student_name") or "", prep.get("mentor_name") or "")
-    report_store.save_speakers(report["id"], transcript_hash=transcript_hash(text),
-                               updated_by=actor_id, **result)
-    return report_store.get_speakers(report["id"])
+    updated, row = report_store.save_speakers(
+        report["id"], transcript_hash=transcript_hash(text), updated_by=actor_id,
+        expected_rev=report["rev"], allow_generating=True, **result)
+    return row, updated["rev"]
 
 
 def is_current(row: Optional[Dict[str, Any]], report: Dict[str, Any]) -> bool:
@@ -420,14 +421,15 @@ def is_current(row: Optional[Dict[str, Any]], report: Dict[str, Any]) -> bool:
 
 
 def for_generation(report: Dict[str, Any], ask: Callable[[str], Dict[str, Any]],
-                   actor_id=None) -> Optional[Dict[str, Any]]:
-    """生成时用：已有且与逐字稿一致就沿用（包括导师的修改），否则重新识别。失败返回 None。"""
+                   actor_id=None):
+    """复用当前识别结果或生成新结果，同时返回用于落库校验的修订号。"""
     from m1 import report_store
 
     row = report_store.get_speakers(report["id"])
+    rev = report["rev"]
     if not is_current(row, report):
-        row = run_for_report(report, ask, actor_id)
-    return row if is_current(row, report) else None
+        row, rev = run_for_report(report, ask, actor_id)
+    return (row if is_current(row, report) else None), rev
 
 
 def analysis_text(report: Dict[str, Any]) -> str:

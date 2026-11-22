@@ -46,14 +46,15 @@ def _log_path(job_id: str) -> Path:
 
 
 def launch_job(prep_id: int, report_id: int, *, previous_status: str = "draft",
-               actor_id=None) -> str:
-    job_id = uuid.uuid4().hex
+               actor_id=None, job_id=None, attempt_scope=None) -> str:
+    identity = [attempt_scope, int(report_id)] if attempt_scope else None
+    job_id = job_id or uuid.uuid4().hex
     directory = Path(m1_jobs.JOB_DIR)
     directory.mkdir(parents=True, exist_ok=True)
     args_path = directory / ("%s.args.json" % job_id)
     args_path.write_text(json.dumps({
         "prep_id": int(prep_id), "report_id": int(report_id),
-        "previous_status": previous_status, "actor_id": actor_id,
+        "previous_status": previous_status, "attempt": identity, "actor_id": actor_id,
     }, ensure_ascii=False), encoding="utf-8")
     base = dict(prep_id=int(prep_id), report_id=int(report_id), kind="report",
                 previous_status=previous_status, actor_id=actor_id)
@@ -64,7 +65,7 @@ def launch_job(prep_id: int, report_id: int, *, previous_status: str = "draft",
             cwd=str(BASE_DIR), stdout=log, stderr=log, stdin=subprocess.DEVNULL,
             start_new_session=True)
     time.sleep(LAUNCH_GRACE_SECONDS)
-    if process.poll() is not None:
+    if process.poll() is not None and (read_job(job_id) or {}).get("status") != "done":
         message = "生成任务启动失败 (exit %s)" % process.returncode
         write_job(job_id, status="error", message=message, steps=new_steps(), **base)
         raise JobLaunchError(message)
@@ -73,6 +74,8 @@ def launch_job(prep_id: int, report_id: int, *, previous_status: str = "draft",
 
 def run_job(job_id: str, args: Dict[str, Any]) -> int:
     from m1 import report_pipeline, report_store, store
+
+    from m1 import job_attempts
 
     prep_id = int(args.get("prep_id") or 0)
     report_id = int(args.get("report_id") or 0)
@@ -84,7 +87,8 @@ def run_job(job_id: str, args: Dict[str, Any]) -> int:
             "previous_status": previous, "actor_id": actor_id}
 
     def write(message: str, **fields: Any) -> None:
-        write_job(job_id, steps=steps, message=message, **meta, **fields)
+        with job_attempts.commit():
+            write_job(job_id, steps=steps, message=message, **meta, **fields)
 
     def progress(step: str, state: str, seconds: float = 0.0) -> None:
         label = dict(STEP_DEFS).get(step, step)
@@ -101,11 +105,11 @@ def run_job(job_id: str, args: Dict[str, Any]) -> int:
     try:
         version_id = report_pipeline.generate(prep_id, progress=progress, actor_id=actor_id)
     except Exception as exc:
-        message = "生成失败：%s" % (str(exc).strip() or exc.__class__.__name__)
-        message = message[:1000]
+        message = "生成失败，请重试。"
         try:
             fallback = previous if previous in report_store.STATUSES and previous != "generating" else "draft"
-            report_store.set_status(report_id, fallback)
+            with job_attempts.commit():
+                report_store.set_status(report_id, fallback, from_status="generating")
         except Exception:
             pass
         write(message, status="error")
@@ -187,7 +191,10 @@ def main(argv: List[str]) -> int:
         print("cannot read args: %s" % exc, file=sys.stderr)
         return 2
     try:
-        run_job(job_id, args if isinstance(args, dict) else {})
+        from m1 import job_attempts
+
+        with job_attempts.worker(job_id, args.get("attempt")):
+            run_job(job_id, args if isinstance(args, dict) else {})
     except Exception:
         return 1
     return 0

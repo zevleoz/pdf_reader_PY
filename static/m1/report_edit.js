@@ -4,14 +4,23 @@
   var dataNode = document.getElementById('editData');
   if (!dataNode) return;
   var data = JSON.parse(dataNode.textContent);
-  var rev = data.rev;
   var checks = data.checks || [];
   var targets = [];
   var current = -1;
-  var queue = Promise.resolve();
+  var reportSave = window.M1ReportSave;
+  var pendingFields = new Set();
+  var pendingTags = new Map();
+  var lockedControls = new Map();
+  var reloadNeeded = false;
+  var locked = false;
+  var exporting = false;
+  var host = null;
+  var saves;
 
   var bar = {
     saved: document.getElementById('editSaved'),
+    retry: document.getElementById('editRetry'),
+    export: document.getElementById('editExport'),
     msg: document.getElementById('editMsg'),
     ack: document.getElementById('editAck'),
     count: document.getElementById('editCount'),
@@ -45,10 +54,53 @@
     return true;
   }
 
-  function notifyParent() {
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'm1-report-edit', rev: rev }, window.location.origin);
+  function onUnload(event) {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+
+  function sync(snapshot, parentAction) {
+    if (!host) {
+      if (snapshot.dirty || snapshot.pending) window.addEventListener('beforeunload', onUnload);
+      else window.removeEventListener('beforeunload', onUnload);
     }
+    if (snapshot.fault) setSaved(snapshot.fault.message || '保存失败', true);
+    else if (snapshot.saving) setSaved('保存中…');
+    else setSaved(snapshot.dirty ? '有未保存的修改' : '已保存');
+    bar.retry.hidden = !snapshot.fault || snapshot.fault.status === 409;
+    if (reloadNeeded && !exporting && !parentAction && !snapshot.pending
+        && !snapshot.dirty && !snapshot.saving && !snapshot.fault) {
+      reloadNeeded = false;
+      if (host) host.refresh();
+      else window.location.reload();
+    }
+  }
+
+  function refresh() {
+    reloadNeeded = true;
+  }
+
+  function lock(value) {
+    if (value === locked) return;
+    locked = value;
+    document.querySelectorAll('[data-path]').forEach(function (node) {
+      node.contentEditable = locked ? 'false' : node.__editableMode;
+    });
+    if (locked) {
+      document.querySelectorAll('article button, article select, article input, #editExport')
+        .forEach(function (control) {
+          lockedControls.set(control, control.disabled);
+          control.disabled = true;
+        });
+    } else {
+      lockedControls.forEach(function (disabled, control) { control.disabled = disabled; });
+      lockedControls.clear();
+    }
+  }
+
+  function updateChecks(next) {
+    checks = next;
+    render();
   }
 
   function render() {
@@ -117,35 +169,10 @@
   }
 
   function send(url, method, body) {
-    queue = queue.then(function () {
-      setSaved('保存中…');
-      body.rev = rev;
-      return fetch(url, {
-        method: method, credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-      }).then(function (res) {
-        return res.json().catch(function () { return {}; }).then(function (json) {
-          if (res.ok && json.ok) {
-            rev = json.rev;
-            checks = json.checks || [];
-            setSaved('已保存');
-            render();
-            notifyParent();
-            return json;
-          }
-          if (res.status === 409 && json.rev) {
-            setSaved('这份报告刚在别处改过，请刷新页面后再改。', true);
-          } else {
-            setSaved(json.error || '保存失败', true);
-          }
-          return null;
-        });
-      }).catch(function () {
-        setSaved('保存失败，请检查网络后再试。', true);
-        return null;
-      });
+    return saves.add(url, method, body).then(function (json) {
+      updateChecks(json.checks || []);
+      return json;
     });
-    return queue;
   }
 
   function planValue() {
@@ -164,29 +191,44 @@
   }
 
   function savePlan(plan) {
-    return send(data.api + '/doc', 'PUT',
-                { changes: [{ path: ['plan'], value: plan || planValue() }] });
+    return send('/doc', 'PUT', { changes: [{ path: ['plan'], value: plan || planValue() }] });
   }
 
-  function reloadAfter(json) {
-    if (json) window.location.reload();
+  function flushField(node) {
+    pendingFields.delete(node);
+    var text = node.innerText.trim();
+    if (text !== node.__lastQueued) {
+      node.__lastQueued = text;
+      if (node.hasAttribute('data-plan-index')) savePlan();
+      else send('/doc', 'PUT', { changes: [{ path: pathOf(node), value: text }] });
+    }
+    saves.setDirty(node, false);
+  }
+
+  function collect() {
+    var active = document.activeElement;
+    if (active && active.hasAttribute('data-path')) flushField(active);
+    pendingFields.forEach(flushField);
+    pendingTags.forEach(function (save) { save(); });
   }
 
   document.querySelectorAll('[data-plan-ability-select]').forEach(function (node) {
     node.addEventListener('change', function () {
+      refresh();
       var index = node.getAttribute('data-plan-index');
       document.querySelectorAll('[data-plan-key][data-plan-index="' + index + '"]').forEach(
         function (cell) { cell.setAttribute('data-plan-ability', node.value); });
-      savePlan().then(reloadAfter);
+      savePlan();
     });
   });
 
   document.querySelectorAll('.plan-del').forEach(function (button) {
     button.addEventListener('click', function () {
       if (button.disabled) return;
+      refresh();
       var plan = planValue();
       plan.splice(Number(button.getAttribute('data-plan-index')), 1);
-      savePlan(plan).then(reloadAfter);
+      savePlan(plan);
     });
   });
 
@@ -195,28 +237,25 @@
     addButton.addEventListener('click', function () {
       if (addButton.disabled) return;
       addButton.disabled = true;
-      var active = document.activeElement;
-      if (active && active.hasAttribute && active.hasAttribute('data-path')) active.blur();
+      collect();
+      refresh();
       var plan = planValue();
       plan.push({ ability: 'R1.1', goal: '', mentor: '', family: '', evidence: '' });
-      savePlan(plan).then(function (json) {
-        if (json) window.location.reload(); else addButton.disabled = false;
-      });
+      savePlan(plan);
     });
   }
 
   document.querySelectorAll('[data-path]').forEach(function (node) {
+    node.__lastQueued = node.innerText.trim();
+    node.__editableMode = node.contentEditable;
     node.addEventListener('focus', function () { node.__before = node.innerText.trim(); });
-    node.addEventListener('blur', function () {
-      var text = node.innerText.trim();
-      if (text === node.__before) return;
-      node.__before = text;
-      if (node.hasAttribute('data-plan-index')) {
-        savePlan();
-      } else {
-        send(data.api + '/doc', 'PUT', { changes: [{ path: pathOf(node), value: text }] });
-      }
+    node.addEventListener('input', function () {
+      var changed = node.innerText.trim() !== node.__lastQueued;
+      if (changed) pendingFields.add(node);
+      else pendingFields.delete(node);
+      saves.setDirty(node, changed);
     });
+    node.addEventListener('blur', function () { flushField(node); });
     node.addEventListener('keydown', function (event) {
       if (event.key === 'Escape') { node.innerText = node.__before || ''; node.blur(); }
     });
@@ -228,7 +267,12 @@
     cell.appendChild(button);
     button.addEventListener('click', function () {
       var open = cell.querySelector('.tag-pop');
-      if (open) { open.remove(); return; }
+      if (open) {
+        pendingTags.delete(open);
+        saves.setDirty(open, false);
+        open.remove();
+        return;
+      }
       var chosen = JSON.parse(cell.getAttribute('data-tags') || '[]');
       var pop = el('div', 'tag-pop');
       (data.tags || []).forEach(function (tag) {
@@ -243,36 +287,77 @@
       });
       var save = el('button', 'tag-edit', '保存标签');
       save.type = 'button';
-      save.addEventListener('click', function () {
-        var value = Array.prototype.slice.call(pop.querySelectorAll('input:checked'))
-          .map(function (box) { return box.value; });
-        send(data.api + '/doc', 'PUT', { changes: [{ path: pathOf(cell), value: value }] })
-          .then(function (json) { if (json) window.location.reload(); });
+      function selectedTags() {
+        return Array.from(pop.querySelectorAll('input:checked')).map(function (box) {
+          return box.value;
+        });
+      }
+      function saveTags() {
+        var value = selectedTags();
+        var changed = value.length !== chosen.length || value.some(function (tag) {
+          return chosen.indexOf(tag) === -1;
+        });
+        if (changed) {
+          refresh();
+          send('/doc', 'PUT', { changes: [{ path: pathOf(cell), value: value }] });
+          chosen = value;
+          cell.setAttribute('data-tags', JSON.stringify(value));
+        }
+        pendingTags.delete(pop);
+        saves.setDirty(pop, false);
+      }
+      pop.addEventListener('change', function () {
+        pendingTags.set(pop, saveTags);
+        saves.setDirty(pop, true);
       });
+      save.addEventListener('click', saveTags);
       pop.appendChild(save);
       cell.appendChild(pop);
     });
   });
 
-  var exportBtn = document.getElementById('editExport');
-  if (exportBtn) {
-    exportBtn.addEventListener('click', function () {
-      if (exportBtn.disabled) return;
-      exportBtn.disabled = true;
-      var active = document.activeElement;
-      if (active && active.hasAttribute && active.hasAttribute('data-path')) active.blur();
-      var pending = queue;
-      pending.then(function (json) {
-        if (json === null) {
-          exportBtn.disabled = false;
-          return;
-        }
-        window.location.href = exportBtn.getAttribute('data-export-url');
-      }, function () {
-        exportBtn.disabled = false;
+  try {
+    if (window.parent !== window && window.parent.location.origin === window.location.origin
+        && window.parent.M1ReportWorkspace) {
+      host = window.parent.M1ReportWorkspace.attach(window, data, {
+        collect: collect, lock: lock, sync: sync, checks: updateChecks, refresh: refresh
       });
-    });
-  }
+    }
+  } catch (error) { /* A cross-origin embed uses the standalone save queue. */ }
+  saves = host ? host.saves : reportSave.create(data.api, sync);
+  if (!host) saves.reset(data.rev, data.version_id);
+  sync(saves.snapshot(), false);
+
+  bar.retry.addEventListener('click', saves.retry);
+  bar.export.addEventListener('mousedown', function (event) {
+    // Collect the focused field in the click handler. A blur on pointer down can
+    // change the save status and move the toolbar before the click is delivered.
+    if (event.button === 0 && document.activeElement.hasAttribute('data-path')) {
+      event.preventDefault();
+    }
+  });
+  bar.export.addEventListener('click', async function (event) {
+    if (exporting || event.detail > 1) return;
+    if (host) {
+      host.exportReport();
+      return;
+    }
+    exporting = true;
+    var popup = null;
+    try {
+      popup = reportSave.openPrintTab();
+      collect();
+      lock(true);
+      var pin = await saves.flush();
+      popup.location.replace(reportSave.printUrl(bar.export.dataset.exportUrl, pin));
+    } catch (error) {
+      if (popup) popup.close();
+      setSaved(error.message || '保存失败，无法导出。', true);
+    } finally {
+      exporting = false;
+      lock(false);
+    }
+  });
 
   bar.prev.addEventListener('click', function () { step(-1); });
   bar.next.addEventListener('click', function () { step(1); });

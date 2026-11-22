@@ -24,6 +24,7 @@
     发展计划是独立文档：没有 First Meeting 或会后报告，也可以直接创建。
   </p>
 
+  {% if profile_href %}<p><a class="link" href="{{ profile_href }}">返回此学生的 Profiling 档案</a></p>{% endif %}
   <section style="margin-top:26px">
     <h3 class="h2">发展计划
       {% if can_create_direct %}<span class="r">
@@ -40,12 +41,15 @@
     <div id="m1HubTeam"></div>
   </section>
 
-  <section style="margin-top:30px">
+  <section id="meetings" style="margin-top:30px">
     <h3 class="h2">First Meeting
-      {% if can_create_first_meeting %}<span class="r">
-        <a class="btn s" href="/m1?student={{ student.id }}">+ 新建 First Meeting</a>
+      {% if meeting_creation.href %}<span class="r">
+        <a class="btn s" href="{{ meeting_creation.href }}">+ 新建首次会议</a>
       </span>{% endif %}
     </h3>
+    {% if meeting_creation.reason %}
+      <p class="hint">{{ meeting_creation.reason }}。{% if meeting_creation.y4_href %}<a class="link" href="{{ meeting_creation.y4_href }}">前往 Y4</a>{% endif %}</p>
+    {% endif %}
     <div class="cols2" id="m1HubPreps"></div>
   </section>
 </div>

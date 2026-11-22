@@ -86,8 +86,8 @@ def test_page_scripts_carry_the_screen_contract(client, m1db):
     home = client.get("/m1/assets/m1_home.js").get_data(as_text=True)
     student = client.get("/m1/assets/m1_student.js").get_data(as_text=True)
 
-    for text in ("未开始", "未安排会议的学生", "已开过的会议", "/api/m1/roster",
+    for text in ("未开始", "未安排会议的学生", "日期已过的会议", "/api/m1/roster",
                  "m1.list.who"):
         assert text in home
-    for text in ("/overview", "开始会后报告"):
+    for text in ("/overview", "data.work"):
         assert text in student

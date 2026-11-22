@@ -451,7 +451,7 @@ export default function StudentProfile() {
               旧版档案
             </a>
             {permissions.m1_access ? (
-              <a className={linkClass} href={"/m1?student=" + student.id}>
+              <a className={linkClass} href={data.m1_work?.href ?? "/m1?student=" + student.id}>
                 心有灵析
               </a>
             ) : null}
@@ -517,11 +517,16 @@ export default function StudentProfile() {
           ) : null}
           {visited.includes("m1") ? (
             <TabsContent value="m1" forceMount className="mt-0 data-[state=inactive]:hidden">
-              <EmptyPanel title="心有灵析在单独的平台里">
+              <EmptyPanel title="心有灵析">
                 {permissions.m1_access ? (
-                  <Button asChild>
-                    <a href={"/m1?student=" + student.id}>打开心有灵析</a>
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {data.m1_work?.next ? (
+                      <Button asChild><a href={data.m1_work.next.href}>{data.m1_work.next.label}</a></Button>
+                    ) : null}
+                    <Button asChild variant={data.m1_work?.next ? "outline" : "default"}>
+                      <a href={data.m1_work?.href ?? "/m1?student=" + student.id}>打开心有灵析</a>
+                    </Button>
+                  </div>
                 ) : (
                   <span>当前账号未开通心有灵析</span>
                 )}

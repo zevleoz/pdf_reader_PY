@@ -163,8 +163,10 @@ assert(hub.planStep('export_parent') === 'parent', 'parent step');
 assert(hub.planLabel({next_action: {action: 'confirm_brief'}}) === '确认教学简报', 'label');
 assert(hub.planHref({id: 5, next_action: {action: 'generate_parent'}}) ===
   '/m1/plans/5#step=parent', 'href');
-const next = hub.nextStepFor({student: {id: 9}, plans: []});
-assert(next.href === '/m1/plans?new_student=9&mode=direct', 'zero-meeting next step');
+const next = hub.nextStepFor({student: {id: 9}, meeting_creation: {href: '/m1?create_meeting=9'}});
+assert(next.href === '/m1?create_meeting=9', 'zero-meeting next step uses the server intent');
+const resume = hub.nextStepFor({work: {next: {href: '/m1/preps/7/report', label: '核对发布'}}});
+assert(resume.href === '/m1/preps/7/report', 'hub uses the shared resume action');
 """ % paths
     subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
 

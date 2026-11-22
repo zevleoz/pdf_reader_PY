@@ -156,3 +156,23 @@ def test_readonly_questionnaire_uses_source_answer_fields(assigned, monkeypatch)
     html = client.get(f"/m1/preps/{plan['prep_id']}/prep").get_data(as_text=True)
     for text in ('Fictional questionnaire', 'Fictional question', 'Visible answer'):
         assert text in html
+
+
+def test_read_only_co_mentor_can_print_saved_report_until_revoked(assigned, m1db):
+    client, plan = assigned
+    prep_id = plan["prep_id"]
+    report = report_store.get_report(prep_id)
+    page = client.get(f"/m1/preps/{prep_id}/report")
+    path = f"/m1/preps/{prep_id}/report/print"
+    assert page.status_code == 200
+    assert f'href="{path}"'.encode() in page.data
+    pin = {"expected_rev": report["rev"], "version_id": report["current_version_id"], "print": 1}
+    for query in (None, pin):
+        rendered = client.get(path, query_string=query)
+        assert rendered.status_code == 200
+        assert b'class="sheet draftmark"' in rendered.data and b"report_edit.js" not in rendered.data
+    assert client.post(f"/api/m1/preps/{prep_id}/report/publish", json=pin).status_code == 403
+    collab.remove_team_member(m1db.student_id, m1db.bob_id,
+                             {"user_id": m1db.admin_id, "role": "admin"})
+    for query in (None, pin):
+        assert client.get(path, query_string=query).status_code == 403

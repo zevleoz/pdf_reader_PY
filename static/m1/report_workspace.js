@@ -7,11 +7,13 @@
 
   var prepId = parseInt(root.getAttribute('data-prep-id'), 10);
   var studentName = root.getAttribute('data-student') || '';
-  var jobKey = 'm1_report_job_' + prepId;
 
   var SAVE_OK = '已保存';
   var SAVE_FAIL = '保存失败';
-  var CONFLICT = '内容已在别处更新，请刷新。';
+  var UPLOAD_FAIL = '上传失败，请重试。';
+  var uploadingTranscript = false;
+  var uploadingOther = false;
+  var transcriptAttempt = 0;
   var GENERATE_CONFIRM = '将生成新版本。当前版本和修改会保留，但不再显示。';
   var QUOTE_WARN = '引用在逐字稿中找不到';
 
@@ -54,20 +56,24 @@
     appendix: [],
     fixed: {},
     has_edits: false,
-    pending: 0,
-    conflict: false,
     polling: null,
-    saveQueue: Promise.resolve(),
     panelEls: {},
     tab: 'R1',
     step: null,
     stepped: false,
-    savedTranscript: '',
+    previewMode: false,
     transcriptSaving: null
   };
 
   var refs = {
     saved: document.getElementById('r4Saved'),
+    retry: document.getElementById('r4Retry'),
+    sourceSave: document.getElementById('r4SourceSave'),
+    sourceRetry: document.getElementById('r4SourceRetry'),
+    official: document.getElementById('r4Official'),
+    frame: document.getElementById('r4Preview'),
+    previewPane: document.getElementById('r4PreviewPane'),
+    previewToggle: document.getElementById('r4PreviewToggle'),
     tag: document.getElementById('r4Tag'),
     srcNote: document.getElementById('r4SrcNote'),
     exportTitle: document.getElementById('r4ExportTitle'),
@@ -77,6 +83,8 @@
     reopen: document.getElementById('r4Reopen'),
     publishedNote: document.getElementById('r4PublishedNote'),
     transcriptDrop: document.getElementById('r4Drop'),
+    transcriptPick: document.getElementById('r4TranscriptPick'),
+    transcriptError: document.getElementById('r4TranscriptError'),
     transcriptLine: document.getElementById('r4TranscriptLine'),
     transcriptName: document.getElementById('r4TranscriptName'),
     transcriptMeta: document.getElementById('r4TranscriptMeta'),
@@ -87,6 +95,8 @@
     auto: document.getElementById('r4Auto'),
     others: document.getElementById('r4Others'),
     otherDrop: document.getElementById('r4OtherDrop'),
+    otherPick: document.getElementById('r4OtherPick'),
+    otherError: document.getElementById('r4OtherError'),
     otherFile: document.getElementById('r4OtherFile'),
     cover: document.getElementById('r4Cover'),
     metaStudent: document.getElementById('r4MetaStudent'),
@@ -105,8 +115,15 @@
     needText: document.getElementById('r4NeedText'),
     tipCount: document.getElementById('r4TipCount'),
     tabs: document.getElementById('r4Tabs'),
+    content: document.getElementById('r4Content'),
     panels: document.getElementById('r4Panels')
   };
+
+  var reportSave = window.M1ReportSave;
+  var saves = reportSave.create(docUrl(''), renderSaveState, applySaveResult);
+  var debounced = new Set();
+  var frameEditor = null;
+  var action = null;
 
   /* ------------------------------------------------------------------ */
   /* 基础工具                                                            */
@@ -206,101 +223,93 @@
   /* ------------------------------------------------------------------ */
   /* 保存                                                                */
   /* ------------------------------------------------------------------ */
-  function updateUnload() {
-    if (state.pending > 0) window.addEventListener('beforeunload', onUnload);
-    else window.removeEventListener('beforeunload', onUnload);
-  }
-
   function onUnload(event) {
     event.preventDefault();
     event.returnValue = '';
   }
 
-  function applySaveResult(body) {
+  function updateActionButtons(snapshot) {
+    var blocked = (state.checks || []).some(function (c) { return c.level === 'block'; });
+    refs.print.disabled = !!action;
+    refs.previewToggle.disabled = !!action;
+    refs.reopen.disabled = !!action;
+    refs.publish.disabled = !!action || (blocked && !snapshot.dirty && !snapshot.pending);
+  }
+
+  function renderSaveState(snapshot) {
+    var unsaved = snapshot.dirty || snapshot.pending;
+    if (unsaved) window.addEventListener('beforeunload', onUnload);
+    else window.removeEventListener('beforeunload', onUnload);
+    if (snapshot.fault) setSaved(snapshot.fault.message || SAVE_FAIL, true);
+    else if (snapshot.saving) setSaved('保存中…');
+    else setSaved(unsaved ? '有未保存的修改' : SAVE_OK);
+    var retryable = !!snapshot.fault && snapshot.fault.status !== 409;
+    show(refs.retry, retryable);
+    show(refs.sourceRetry, retryable);
+    show(refs.sourceSave, !!snapshot.fault);
+    refs.sourceSave.textContent = snapshot.fault ? snapshot.fault.message : '';
+    updateActionButtons(snapshot);
+    if (frameEditor) frameEditor.sync(snapshot, !!action);
+  }
+
+  function applySaveResult(body, item) {
+    if (body.report) state.report = body.report;
     state.report.rev = body.rev;
     state.report.status = body.status;
+    state.report.current_version_id = body.version_id;
     state.report.label = STATUS_LABELS[body.status] || body.status;
-    state.checks = body.checks || [];
-    state.appendix = body.appendix || [];
-    state.has_edits = true;
+    if (body.checks) state.checks = body.checks;
+    if (body.appendix) state.appendix = body.appendix;
+    if (body.version_id && (item.endpoint === '/doc' || item.endpoint.indexOf('/evidence/') === 0)) {
+      state.has_edits = true;
+    }
     applyStatus();
     renderTodo();
     renderAppendixPanel();
-    setSaved(SAVE_OK);
-    (body.impacts || []).forEach(function (message) {
-      if (message) toast(message, 'info');
-    });
+    if (frameEditor && body.checks) frameEditor.checks(body.checks);
+    if (item.endpoint === '/doc' && item.body.changes[0].path[0] === 'meta' && frameEditor) {
+      frameEditor.refresh();
+    }
+    (body.impacts || []).forEach(function (message) { toast(message, 'info'); });
   }
 
   function saveDoc(path, value) {
-    state.pending += 1;
-    updateUnload();
-    var task = function () {
-      if (state.conflict) {
-        var blocked = new Error(CONFLICT);
-        blocked.r4Conflict = true;
-        throw blocked;
+    return saves.add('/doc', 'PUT', { changes: [{ path: path, value: value }] });
+  }
+
+  function bindDebounced(input, onChange, save) {
+    input.__r4Last = input.value;
+    input.__r4Dirty = false;
+    var timer = null;
+    function flush() {
+      clearTimeout(timer);
+      debounced.delete(flush);
+      var value = input.value;
+      if (input.__r4Dirty && value !== input.__r4Last) {
+        input.__r4Last = value;
+        save(value);
       }
-      return api(docUrl('/doc'), jsonOptions('PUT', {
-        rev: state.report.rev,
-        changes: [{ path: path, value: value }]
-      })).then(function (body) {
-        applySaveResult(body);
-        return body;
-      }).catch(function (error) {
-        if (error.status === 409) {
-          state.conflict = true;
-          setSaved(CONFLICT, true);
-        } else if (!error.r4Conflict) {
-          setSaved(SAVE_FAIL, true);
-          toast(error.message, 'error');
-        }
-        throw error;
-      });
-    };
-    var chained = state.saveQueue.then(task, task);
-    state.saveQueue = chained.catch(function () {});
-    chained.then(function () {
-      state.pending -= 1;
-      updateUnload();
-    }, function () {
-      state.pending -= 1;
-      updateUnload();
+      input.__r4Dirty = false;
+      saves.setDirty(flush, false);
+    }
+    input.addEventListener('input', function () {
+      if (onChange) onChange(input.value);
+      input.__r4Dirty = input.value !== input.__r4Last;
+      debounced.add(flush);
+      saves.setDirty(flush, input.__r4Dirty);
+      clearTimeout(timer);
+      timer = setTimeout(flush, 1500);
     });
-    return chained;
+    input.addEventListener('blur', flush);
   }
 
   function bindTextSave(input, path, mark) {
     if (!input) return;
     input.__r4Path = path;
-    input.__r4Mark = mark || null;
     if (path) input.setAttribute('data-path', pathKey(path));
-    input.__r4Last = input.value;
-    input.__r4Dirty = false;
-    var timer = null;
-
-    function flush() {
-      clearTimeout(timer);
-      if (!input.__r4Dirty || state.conflict) return;
-      if (state.report.status === 'published') return;
-      input.__r4Dirty = false;
-      var value = input.value;
-      if (value === input.__r4Last) return;
-      saveDoc(path, value).then(function () {
-        input.__r4Last = value;
-        setMark(input.__r4Mark, 'edited');
-      }).catch(function () {
-        input.__r4Dirty = true;
-      });
-    }
-
-    input.addEventListener('input', function () {
-      input.__r4Dirty = true;
-      setSaved('');
-      clearTimeout(timer);
-      timer = setTimeout(flush, 1500);
+    bindDebounced(input, null, function (value) {
+      saveDoc(path, value).then(function () { setMark(mark, 'edited'); });
     });
-    input.addEventListener('blur', flush);
   }
 
   function textAreaField(label, value) {
@@ -330,11 +339,14 @@
     button.type = 'button';
     button.setAttribute('role', 'tab');
     button.setAttribute('data-tab', key);
+    button.id = 'r4Tab-' + key;
+    button.setAttribute('aria-controls', 'r4Panel-' + key);
     button.addEventListener('click', function () { activateTab(key); });
     refs.tabs.appendChild(button);
     var panel = el('div', 'r4-panel');
     panel.id = 'r4Panel-' + key;
     panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', button.id);
     refs.panels.appendChild(panel);
     state.panelEls[key] = panel;
   }
@@ -348,6 +360,7 @@
       var on = buttons[i].getAttribute('data-tab') === key;
       buttons[i].className = 'r4-tab' + (on ? ' on' : '');
       buttons[i].setAttribute('aria-selected', on ? 'true' : 'false');
+      buttons[i].tabIndex = on ? 0 : -1;
     }
     Object.keys(state.panelEls).forEach(function (name) {
       state.panelEls[name].hidden = name !== key;
@@ -409,8 +422,13 @@
     if (hiddenSection && hiddenSection.hidden) showStep(hiddenSection.getAttribute('data-step'));
     var panel = target.closest ? target.closest('.r4-panel') : null;
     if (panel && panel.id.indexOf('r4Panel-') === 0) activateTab(panel.id.slice(8));
-    target.scrollIntoView({ block: 'center' });
-    if (typeof target.focus === 'function') target.focus();
+    var field = target.matches('button, input, textarea, select') ? target
+      : target.querySelector('summary, textarea, input, select, button') || target;
+    var fold = field.closest('details');
+    if (fold && field.tagName !== 'SUMMARY') fold.open = true;
+    if (field.tabIndex < 0 && !field.matches('button, input, textarea, select')) field.tabIndex = -1;
+    field.scrollIntoView({ block: 'center' });
+    field.focus({ preventScroll: true });
   }
 
   /* ------------------------------------------------------------------ */
@@ -473,27 +491,88 @@
     if (!window.confirm('删除这份资料？')) return;
     api('/api/m1/sources/' + item.id, { method: 'DELETE' }).then(function () {
       toast('已删除');
-      return load();
+      return refreshInputs();
     }).catch(function (error) {
       toast(error.message, 'error');
     });
   }
 
+  function uploadControl(kind) {
+    if (kind === 'transcript') {
+      return { pick: transcriptExists() ? refs.transcriptReplace : refs.transcriptPick,
+               error: refs.transcriptError, input: refs.transcriptFile };
+    }
+    return { pick: refs.otherPick, error: refs.otherError, input: refs.otherFile };
+  }
+
+  function clearUploadError(kind) {
+    var control = uploadControl(kind);
+    if (!control.error) return;
+    control.error.textContent = '';
+    control.error.hidden = true;
+  }
+
+  function showUploadError(kind, message) {
+    var control = uploadControl(kind);
+    if (control.error) {
+      control.error.textContent = message || UPLOAD_FAIL;
+      control.error.hidden = false;
+    }
+    if (control.input) control.input.value = '';
+    focusUploadControl(kind);
+  }
+
+  function syncUploadButtons(locked) {
+    var transcriptLocked = locked || uploadingTranscript || state.report.status === 'generating';
+    refs.transcriptPick.disabled = transcriptLocked;
+    refs.transcriptReplace.disabled = transcriptLocked;
+    refs.otherPick.disabled = locked || uploadingOther;
+  }
+
+  function setUploadBusy(kind, busy) {
+    if (kind === 'transcript') uploadingTranscript = busy;
+    else uploadingOther = busy;
+    syncUploadButtons(!!action || state.report.status === 'published');
+  }
+
+  function focusUploadControl(kind) {
+    if (state.step !== 'sources') return;
+    var target = uploadControl(kind).pick;
+    if (target && !target.disabled) target.focus();
+  }
+
   function uploadOther(file) {
-    if (!file) return;
+    if (!file || refs.otherPick.disabled) return;
+    clearUploadError('other');
+    setUploadBusy('other', true);
     var form = new FormData();
     form.append('file', file);
     form.append('category', 'report_other');
-    api('/api/m1/preps/' + prepId + '/sources', { method: 'POST', body: form })
-      .then(function () {
+    reportSave.request('/api/m1/preps/' + prepId + '/sources', { method: 'POST', body: form })
+      .then(function (body) {
         refs.otherFile.value = '';
+        setUploadBusy('other', false);
+        var source = body.source;
+        var others = state.inputs.others || [];
+        state.inputs.others = others.filter(function (item) { return item.id !== source.id; })
+          .concat({ id: source.id, label: source.label, filename: source.filename });
+        renderSources();
+        applyStatus();
+        focusUploadControl('other');
         toast('已上传');
-        return load();
       })
       .catch(function (error) {
-        refs.otherFile.value = '';
-        toast(error.message, 'error');
+        setUploadBusy('other', false);
+        showUploadError('other', error.message);
       });
+  }
+
+  function refreshInputs() {
+    return api(docUrl('')).then(function (body) {
+      state.inputs = body.inputs || {};
+      renderSources();
+      applyStatus();
+    });
   }
 
   function renderCover() {
@@ -568,22 +647,29 @@
     }
   }
 
-  function stopPolling() {
-    if (state.polling) {
-      clearInterval(state.polling);
-      state.polling = null;
-    }
+  var genStatus = document.getElementById('r4GenStatus');
+  var genRetry = document.getElementById('r4GenRetry');
+
+  function generationStatus(message, retry) {
+    genStatus.textContent = message;
+    show(genStatus, !!message);
+    show(genRetry, retry);
   }
 
-  function pollJob(jobId) {
+  function stopPolling() {
+    clearTimeout(state.polling);
+    state.polling = null;
+  }
+
+  function pollJob(jobId, failures) {
     stopPolling();
-    state.polling = setInterval(function () {
+    state.polling = setTimeout(function () {
       api('/api/m1/jobs/' + jobId).then(function (body) {
         var job = body.job || {};
+        generationStatus('', false);
         renderSteps(job.steps, job.message);
         if (job.status === 'done') {
           stopPolling();
-          try { localStorage.removeItem(jobKey); } catch (error) { /* 忽略 */ }
           load().then(function () {
             renderSteps(job.steps, '生成完成');
             show(refs.genOpen, true);
@@ -591,22 +677,19 @@
           });
         } else if (job.status === 'error') {
           stopPolling();
-          try { localStorage.removeItem(jobKey); } catch (error) { /* 忽略 */ }
           hideGenPanel();
-          toast(job.message || '生成失败', 'error');
+          generationStatus(job.message || '生成失败，已保留之前的报告。', false);
           load();
+        } else {
+          pollJob(jobId, 0);
         }
-      }).catch(function (error) {
+      }).catch(function () {
         stopPolling();
-        toast(error.message, 'error');
-        load();
+        var retry = (failures || 0) + 1;
+        generationStatus('暂时无法载入生成进度。', retry >= 4);
+        if (retry < 4) pollJob(jobId, retry);
       });
-    }, 2000);
-  }
-
-  function startStatusPoll() {
-    stopPolling();
-    state.polling = setInterval(function () { load(); }, 2000);
+    }, 2000 * ((failures || 0) + 1));
   }
 
   function resumeJobIfRunning() {
@@ -615,31 +698,24 @@
       return;
     }
     if (state.polling) return;
-    var stored = '';
-    try { stored = localStorage.getItem(jobKey) || ''; } catch (error) { stored = ''; }
     showGenPanel();
-    if (stored) {
-      renderSteps([], '生成任务运行中');
-      pollJob(stored);
-    } else {
-      renderSteps([], '生成任务运行中');
-      startStatusPoll();
-    }
+    var jobId = state.payload && state.payload.job_id;
+    if (jobId) pollJob(jobId, 0);
+    else generationStatus('生成正在进行，暂时无法载入进度。', true);
   }
 
-  function generate(confirmOverwrite) {
-    clearTimeout(transcriptTimer);
-    if (refs.transcriptText.value.trim() && !transcriptExists()) {
-      saveTranscript().then(function () { generate(confirmOverwrite); });
-      return;
-    }
-    if (refs.transcriptText.value.trim() && transcriptExists()) {
-      toast('逐字稿框里有没保存的文字：要替换现有逐字稿，请先点“用这段文字替换现有逐字稿”；不需要就清空它。', 'error');
-      replaceButton().hidden = false;
-      return;
-    }
-    if (state.transcriptSaving) {
-      state.transcriptSaving.then(function () { generate(confirmOverwrite); });
+  genRetry.addEventListener('click', function () {
+    generationStatus('', false);
+    load();
+  });
+
+  async function generate(confirmOverwrite) {
+    if (action) return;
+    try {
+      await flushEdits();
+    } catch (error) {
+      setSaved(error.message, true);
+      toast(error.message, 'error');
       return;
     }
     if (!confirmOverwrite && state.has_edits) {
@@ -653,7 +729,6 @@
         applyStatus();
         showGenPanel();
         renderSteps([], '生成任务运行中');
-        try { localStorage.setItem(jobKey, body.job_id); } catch (error) { /* 忽略 */ }
         pollJob(body.job_id);
       })
       .catch(function (error) {
@@ -676,8 +751,23 @@
     row.type = 'button';
     row.appendChild(el('span', 'r4-checklevel', check.level === 'block' ? '阻断' : '提示'));
     row.appendChild(el('span', '', check.message || ''));
-    row.addEventListener('click', function () { scrollToPath(check.path); });
-    item.appendChild(row);
+    if (check.path && check.path.length) {
+      row.addEventListener('click', function () {
+        if (!state.previewMode) scrollToPath(check.path);
+        else switchReviewMode(false).then(function (changed) {
+          if (changed) scrollToPath(check.path);
+        });
+      });
+      item.appendChild(row);
+    } else if (check.code === 'no_transcript') {
+      row.addEventListener('click', function () {
+        showStep('sources');
+        refs.transcriptPick.focus();
+      });
+      item.appendChild(row);
+    } else {
+      item.appendChild(el('p', 'hint', check.message || ''));
+    }
     return item;
   }
 
@@ -697,7 +787,7 @@
     refs.needCount.textContent = String(blockCount);
     refs.tipCount.textContent = String(tipCount);
     refs.needText.textContent = blockCount
-      ? '在报告的黄色框里补全。'
+      ? '选择待补全项，跳到对应的报告内容。'
       : '没有必须补全的地方。';
     refs.needText.className = blockCount ? 'hint' : 'hint r4-okline';
   }
@@ -752,6 +842,7 @@
   }
 
   function defaultStep() {
+    if (state.report.status === 'generating') return 'sources';
     var match = /step=(\w+)/.exec(window.location.hash || '');
     if (match && STEPS.indexOf(match[1]) >= 0) return match[1];
     return state.doc ? 'review' : 'sources';
@@ -759,21 +850,78 @@
 
   function loadSpeakers() {
     return api('/api/m1/preps/' + prepId + '/report/speakers').then(function (body) {
-      renderSpeakers(body.speakers || {});
+      if (!speakerChanges().controls.length) {
+        renderSpeakers(body.speakers || {});
+        applyStatus();
+      }
     }).catch(function () { /* card keeps its default text */ });
   }
 
   function loadPreview(force) {
-    var frame = document.getElementById('r4Preview');
+    var frame = refs.frame;
     var empty = document.getElementById('r4PreviewEmpty');
     if (!frame) return;
     var has = !!state.doc && state.report.status !== 'generating';
-    frame.hidden = !has;
+    show(refs.previewToggle, has);
+    show(refs.content, has && !state.previewMode);
+    show(refs.previewPane, has && state.previewMode);
+    frame.hidden = !has || !state.previewMode;
     if (empty) empty.hidden = has;
-    if (!has) return;
+    if (!has || !state.previewMode) return;
     var src = '/m1/preps/' + prepId + '/report/print?edit=1';
-    if (force || !frame.getAttribute('src')) frame.setAttribute('src', src);
+    if (force || !frame.getAttribute('src')) {
+      frameEditor = null;
+      frame.setAttribute('src', src);
+    }
   }
+
+  async function switchReviewMode(preview) {
+    if (state.previewMode === preview || action) return false;
+    action = 'preview';
+    try {
+      var ready = flushEdits();
+      if (frameEditor) frameEditor.lock(true);
+      applyStatus();
+      await ready;
+      state.previewMode = preview;
+      if (!preview) {
+        frameEditor = null;
+        refs.frame.removeAttribute('src');
+      }
+      refs.previewToggle.setAttribute('aria-pressed', String(preview));
+      refs.previewToggle.textContent = preview ? '返回分节审阅' : '查看打印版式';
+      if (!preview) await load();
+      loadPreview(preview);
+      return true;
+    } catch (error) {
+      setSaved(error.message, true);
+      return false;
+    } finally {
+      action = null;
+      if (frameEditor) frameEditor.lock(state.report.status === 'published');
+      applyStatus();
+    }
+  }
+
+  refs.previewToggle.addEventListener('click', function () {
+    switchReviewMode(!state.previewMode);
+  });
+
+  refs.tabs.addEventListener('keydown', function (event) {
+    var tabs = Array.from(refs.tabs.querySelectorAll('[role=tab]'));
+    var index = tabs.indexOf(event.target);
+    if (index < 0) return;
+    switch (event.key) {
+      case 'ArrowRight': index = (index + 1) % tabs.length; break;
+      case 'ArrowLeft': index = (index + tabs.length - 1) % tabs.length; break;
+      case 'Home': index = 0; break;
+      case 'End': index = tabs.length - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    activateTab(tabs[index].dataset.tab);
+    tabs[index].focus();
+  });
 
   function roleSelect(current) {
     var select = el('select');
@@ -854,30 +1002,36 @@
     applyFilter();
   }
 
-  function saveSpeakers() {
+  function speakerChanges() {
     var labels = {};
     var turns = {};
-    var labelSelects = document.querySelectorAll('#r4SpkLabels select');
-    for (var i = 0; i < labelSelects.length; i += 1) {
-      var item = labelSelects[i];
-      if (item.value && item.value !== item.__r4Role) labels[item.getAttribute('data-label')] = item.value;
-    }
-    var turnSelects = document.querySelectorAll('#r4SpkTurns select');
-    for (var j = 0; j < turnSelects.length; j += 1) {
-      var turn = turnSelects[j];
-      if (turn.value && turn.value !== turn.__r4Role) turns[turn.getAttribute('data-turn')] = turn.value;
-    }
-    if (!Object.keys(labels).length && !Object.keys(turns).length) {
-      toast('没有修改');
-      return;
-    }
-    api('/api/m1/preps/' + prepId + '/report/speakers', jsonOptions('PUT', { labels: labels, turns: turns }))
+    var controls = Array.from(root.querySelectorAll('#r4SpkLabels select, #r4SpkTurns select'))
+      .filter(function (item) { return item.value && item.value !== item.__r4Role; });
+    controls.forEach(function (item) {
+      if (item.hasAttribute('data-label')) labels[item.getAttribute('data-label')] = item.value;
+      else turns[item.getAttribute('data-turn')] = item.value;
+    });
+    return { labels: labels, turns: turns, controls: controls };
+  }
+
+  function saveSpeakers() {
+    var changes = speakerChanges();
+    if (!changes.controls.length) return false;
+    changes.controls.forEach(function (item) { item.__r4Role = item.value; });
+    saves.add('/speakers', 'PUT', { labels: changes.labels, turns: changes.turns })
       .then(function (body) {
-        renderSpeakers(body.speakers || {});
-        toast(body.notice || '已保存');
-      }).catch(function (error) {
-        toast(error.message, 'error');
+        if (!speakerChanges().controls.length) {
+          if (body.speakers) {
+            renderSpeakers(body.speakers);
+            applyStatus();
+          } else {
+            loadSpeakers();
+          }
+        }
+        toast(body.notice || SAVE_OK);
       });
+    saves.setDirty(saveSpeakers, false);
+    return true;
   }
 
   function renderExportState() {
@@ -1001,7 +1155,7 @@
     speaker.value = item.speaker || '待确认';
     speaker.disabled = locked;
     speaker.addEventListener('change', function () {
-      saveEvidence(item, { speaker: speaker.value }, speaker);
+      saveEvidence(item, { speaker: speaker.value });
     });
     speakerLabel.appendChild(speaker);
     tools.appendChild(speakerLabel);
@@ -1017,7 +1171,7 @@
     status.value = item.status || '待核实';
     status.disabled = locked;
     status.addEventListener('change', function () {
-      saveEvidence(item, { status: status.value }, status);
+      saveEvidence(item, { status: status.value });
     });
     statusLabel.appendChild(status);
     tools.appendChild(statusLabel);
@@ -1044,50 +1198,9 @@
     return wrap;
   }
 
-  function saveEvidence(item, fields, control) {
-    if (state.conflict || state.report.status === 'published') return;
-    state.pending += 1;
-    updateUnload();
-    var task = function () {
-      if (state.conflict) {
-        var blocked = new Error(CONFLICT);
-        blocked.r4Conflict = true;
-        throw blocked;
-      }
-      var payload = { rev: state.report.rev };
-      if (fields.status !== undefined) payload.status = fields.status;
-      if (fields.speaker !== undefined) payload.speaker = fields.speaker;
-      return api(docUrl('/evidence/' + item.id), jsonOptions('PUT', payload)).then(function (body) {
-        state.report.rev = body.rev;
-        state.report.status = body.status;
-        state.report.label = STATUS_LABELS[body.status] || body.status;
-        state.checks = body.checks || [];
-        state.has_edits = true;
-        applyStatus();
-        renderTodo();
-        setSaved(SAVE_OK);
-        return body;
-      }).catch(function (error) {
-        if (error.status === 409) {
-          state.conflict = true;
-          setSaved(CONFLICT, true);
-        } else if (!error.r4Conflict) {
-          setSaved(SAVE_FAIL, true);
-          toast(error.message, 'error');
-        }
-        control.value = fields.status !== undefined
-          ? (item.status || '待核实') : (item.speaker || '待确认');
-        throw error;
-      });
-    };
-    var chained = state.saveQueue.then(task, task);
-    state.saveQueue = chained.catch(function () {});
-    chained.then(function () {
-      state.pending -= 1;
-      updateUnload();
-    }, function () {
-      state.pending -= 1;
-      updateUnload();
+  function saveEvidence(item, fields) {
+    saves.add('/evidence/' + item.id, 'PUT', fields).then(function () {
+      Object.assign(item, fields);
     });
   }
 
@@ -1268,30 +1381,11 @@
 
   function bindPlanField(input, row, key, mark, index) {
     input.setAttribute('data-path', pathKey(['plan', index, key]));
-    input.__r4Last = input.value;
-    input.__r4Dirty = false;
-    var timer = null;
-    function flush() {
-      clearTimeout(timer);
-      if (!input.__r4Dirty || state.conflict) return;
-      if (state.report.status === 'published') return;
-      input.__r4Dirty = false;
-      row[key] = { text: input.value, src: 'edited' };
-      saveDoc(['plan'], planPayload()).then(function () {
-        input.__r4Last = input.value;
-        setMark(mark, 'edited');
-      }).catch(function () {
-        input.__r4Dirty = true;
-      });
-    }
-    input.addEventListener('input', function () {
-      input.__r4Dirty = true;
-      row[key] = { text: input.value, src: 'edited' };
-      setSaved('');
-      clearTimeout(timer);
-      timer = setTimeout(flush, 1500);
+    bindDebounced(input, function (value) {
+      row[key] = { text: value, src: 'edited' };
+    }, function () {
+      saveDoc(['plan'], planPayload()).then(function () { setMark(mark, 'edited'); });
     });
-    input.addEventListener('blur', flush);
   }
 
   function renderPlanPanel() {
@@ -1392,7 +1486,7 @@
   /* 状态与动作                                                          */
   /* ------------------------------------------------------------------ */
   function setEditable(locked) {
-    ['#r4Cover', '#r4Sources', '#r4GenerateCard', '#r4Content'].forEach(function (sel) {
+    ['#r4Cover', '#r4Sources', '#r4GenerateCard', '#r4Content', '#r4Speakers'].forEach(function (sel) {
       var node = root.querySelector(sel);
       if (!node) return;
       var controls = node.querySelectorAll('input, textarea, select, button');
@@ -1408,7 +1502,8 @@
       var remove = root.querySelectorAll('.r4-plan-remove');
       for (var j = 0; j < remove.length; j += 1) remove[j].disabled = plan.length <= 1;
     }
-    show(refs.publishedNote, locked);
+    syncUploadButtons(locked);
+    show(refs.publishedNote, state.report.status === 'published');
   }
 
   function renderTag() {
@@ -1430,12 +1525,20 @@
     var hasVersion = state.doc !== null;
     var locked = status === 'published';
     show(refs.print, hasVersion && ['ai_draft', 'needs_check', 'reviewing', 'approved', 'published'].indexOf(status) !== -1);
+    refs.print.textContent = status === 'approved' || status === 'published'
+      ? '下载正式报告（家长）' : '导出报告草稿（内部审阅）';
     show(refs.evidence, hasVersion && status !== 'draft' && status !== 'generating');
     show(refs.publish, hasVersion && ['ai_draft', 'needs_check', 'reviewing', 'approved'].indexOf(status) !== -1);
-    refs.publish.disabled = (state.checks || []).some(function (c) { return c.level === 'block'; });
+    updateActionButtons(saves.snapshot());
+    var official = state.payload && state.payload.official;
+    show(refs.official, !!official && official.rev !== state.report.rev);
+    if (official) {
+      refs.official.href = reportSave.printUrl(refs.print.dataset.exportUrl,
+        { expected_rev: official.rev, version_id: official.version_id });
+    }
     show(refs.reopen, status === 'approved' || status === 'published');
 
-    setEditable(locked);
+    setEditable(locked || !!action);
     renderGenerateState();
     renderExportState();
   }
@@ -1455,8 +1558,6 @@
     state.appendix = body.appendix || [];
     state.fixed = body.fixed || {};
     state.has_edits = !!body.has_edits;
-    state.conflict = false;
-
     renderSources();
     renderCover();
     renderTodo();
@@ -1467,7 +1568,13 @@
 
   function load() {
     return api(docUrl('')).then(function (body) {
+      var report = body.report;
+      var prev = saves.snapshot().pin;
+      if (!saves.reset(report.rev, report.current_version_id)) return;
       applyPayload(body);
+      if (prev && (prev.version_id !== report.current_version_id || prev.expected_rev !== report.rev)) {
+        loadPreview(true);
+      }
       if (!state.stepped) {
         state.stepped = true;
         showStep(defaultStep());
@@ -1488,44 +1595,127 @@
     generate(false);
   });
 
-  refs.publish.addEventListener('click', function () {
-    if (!window.confirm('确认正式发布？')) return;
-    api(docUrl('/publish'), { method: 'POST' }).then(function (body) {
-      state.report = body.report;
-      applyStatus();
-      setSaved(SAVE_OK);
-    }).catch(function (error) {
-      toast(error.message, 'error');
-    });
-  });
+  function flushEdits() {
+    clearTimeout(transcriptTimer);
+    if (frameEditor) frameEditor.collect();
+    debounced.forEach(function (flush) { flush(); });
+    saveSpeakers();
+    saveTranscript();
+    return saves.flush();
+  }
 
-  refs.reopen.addEventListener('click', function () {
-    api(docUrl('/reopen'), { method: 'POST' }).then(function (body) {
+  async function commitReview(kind, pin) {
+    try {
+      return await reportSave.request(docUrl('/' + kind), jsonOptions('POST', pin));
+    } catch (error) {
+      if (error.status && !error.uncertain) throw error;
+      // A lost response can follow a committed transition. Verify the resulting
+      // revision before refreshing the editor or offering another attempt.
+      var saved = await reportSave.request(docUrl(''), { cache: 'no-store' });
+      var report = saved.report;
+      if (report.rev === pin.expected_rev + 1 && report.current_version_id === pin.version_id
+          && report.status === (kind === 'publish' ? 'published' : 'reviewing')) {
+        return saved;
+      }
+      if (report.rev !== pin.expected_rev || report.current_version_id !== pin.version_id) {
+        saves.conflict();
+        throw saves.snapshot().fault;
+      }
+      throw error;
+    }
+  }
+
+  async function runReviewAction(kind) {
+    if (action) return;
+    if (kind === 'publish' && !window.confirm('确认正式发布？')) return;
+    var popup = null;
+    action = kind;
+    try {
+      if (kind === 'print') popup = reportSave.openPrintTab();
+      if (state.previewMode && state.step === 'review' && state.report.status !== 'published' && !frameEditor) {
+        throw new Error('报告预览仍在加载，请稍后重试。');
+      }
+      var ready = flushEdits();
+      if (frameEditor) frameEditor.lock(true);
+      applyStatus();
+      var pin = await ready;
+      if (!pin || !pin.version_id) throw new Error('还没有可导出的报告。');
+      if (kind === 'print') {
+        popup.location.replace(reportSave.printUrl(refs.print.dataset.exportUrl, pin));
+        return;
+      }
+      if (kind === 'reopen' && state.report.status === 'reviewing') return;
+      var body = await commitReview(kind, pin);
+      if (body.report.status === 'published' && frameEditor) frameEditor.lock(true);
+      if (body.report.status === 'published') {
+        state.payload.official = { rev: body.report.rev, version_id: body.report.current_version_id };
+      } else if (body.official) {
+        state.payload.official = body.official;
+      }
+      saves.reset(body.report.rev, body.report.current_version_id);
       state.report = body.report;
+      if (body.checks) state.checks = body.checks;
+      loadPreview(true);
       applyStatus();
       setSaved(SAVE_OK);
-      load();
-    }).catch(function (error) {
+    } catch (error) {
+      if (popup) popup.close();
+      if (error.status === 409 && error.body && error.body.rev) saves.conflict();
+      if (error.body && error.body.checks) {
+        state.checks = error.body.checks;
+        renderTodo();
+      }
+      setSaved(error.message, true);
       toast(error.message, 'error');
-    });
+    } finally {
+      action = null;
+      if (frameEditor) {
+        frameEditor.lock(state.report.status === 'published');
+        frameEditor.sync(saves.snapshot(), false);
+      }
+      applyStatus();
+    }
+  }
+
+  refs.print.addEventListener('click', function (event) {
+    if (event.detail <= 1) runReviewAction('print');
   });
+  refs.publish.addEventListener('click', function (event) {
+    if (event.detail <= 1) runReviewAction('publish');
+  });
+  refs.reopen.addEventListener('click', function (event) {
+    if (event.detail <= 1) runReviewAction('reopen');
+  });
+  refs.retry.addEventListener('click', saves.retry);
+  refs.sourceRetry.addEventListener('click', saves.retry);
 
   function uploadTranscript(chosen) {
+    if (uploadControl('transcript').pick.disabled) return;
     var file = chosen || (refs.transcriptFile.files && refs.transcriptFile.files[0]);
     if (!file) {
-      toast('请先选择文件', 'error');
+      showUploadError('transcript', '请先选择文件');
       return;
     }
+    clearUploadError('transcript');
+    setUploadBusy('transcript', true);
+    var attempt = transcriptAttempt += 1;
     var form = new FormData();
     form.append('file', file);
-    api(docUrl('/transcript'), { method: 'POST', body: form }).then(function (body) {
+    saves.add('/transcript', 'POST', form, function (error, canChooseAgain) {
+      if (canChooseAgain) setUploadBusy('transcript', false);
+      showUploadError('transcript', error.message);
+      if (!canChooseAgain && state.step === 'sources' && !refs.sourceRetry.hidden) {
+        refs.sourceRetry.focus();
+      }
+    }).then(function () {
+      if (attempt !== transcriptAttempt) return;
       refs.transcriptFile.value = '';
-      if (body.report) state.report = body.report;
+      setUploadBusy('transcript', false);
+      clearUploadError('transcript');
+      toast('逐字稿已上传');
       renderSources();
       applyStatus();
-      setSaved(SAVE_OK);
-    }).catch(function (error) {
-      toast(error.message, 'error');
+      focusUploadControl('transcript');
     });
   }
 
@@ -1553,55 +1743,75 @@
   }
 
   function saveTranscript(force) {
-    var text = refs.transcriptText.value;
-    var trimmed = text.trim();
-    if (!trimmed || trimmed === state.savedTranscript) return Promise.resolve(false);
-    if (transcriptExists() && !force) {
-      replaceButton().hidden = false;
+    var text = refs.transcriptText.value.trim();
+    if (!text || text === state.transcriptSaving) {
+      saves.setDirty(refs.transcriptText, false);
       return Promise.resolve(false);
     }
+    if (transcriptExists() && !force) {
+      replaceButton().hidden = false;
+      saves.setDirty(refs.transcriptText, true);
+      return Promise.resolve(false);
+    }
+    var fault = saves.snapshot().fault;
+    if (state.transcriptSaving && !(fault && (fault.status === 400 || fault.status === 422))) {
+      return Promise.resolve(false);
+    }
+    state.transcriptSaving = text;
     refs.transcriptMeta.textContent = '保存中…';
-    state.transcriptSaving = api(docUrl('/transcript'), jsonOptions('POST', { text: text }))
-      .then(function (body) {
-        if (body.report) state.report = body.report;
-        refs.transcriptText.value = '';
-        state.savedTranscript = '';
-        renderSources();
-        applyStatus();
-        setSaved(SAVE_OK);
-        return true;
-      }).catch(function (error) {
-        toast(error.message, 'error');
-        renderSources();
-        return false;
-      }).then(function (result) {
-        state.transcriptSaving = null;
-        return result;
-      });
-    return state.transcriptSaving;
+    var saved = saves.add('/transcript', 'POST', { text: text });
+    saves.setDirty(refs.transcriptText, false);
+    return saved.then(function () {
+      state.transcriptSaving = null;
+      if (refs.transcriptText.value.trim() === text) refs.transcriptText.value = '';
+      renderSources();
+      saves.setDirty(refs.transcriptText, !!refs.transcriptText.value.trim());
+      applyStatus();
+      return true;
+    });
   }
 
   if (refs.transcriptFile) {
     refs.transcriptFile.addEventListener('change', function () {
+      clearUploadError('transcript');
       if (!(refs.transcriptFile.files && refs.transcriptFile.files[0])) return;
       if (transcriptExists()) {
         var n = state.report.transcript_length;
         if (!window.confirm(REPLACE_CONFIRM.replace('%n', n))) {
           refs.transcriptFile.value = '';
+          focusUploadControl('transcript');
           return;
         }
       }
       uploadTranscript();
     });
+    refs.transcriptFile.addEventListener('cancel', function () {
+      clearUploadError('transcript');
+      focusUploadControl('transcript');
+    });
+  }
+
+  if (refs.transcriptPick) {
+    refs.transcriptPick.addEventListener('click', function (event) {
+      event.stopPropagation();
+      clearUploadError('transcript');
+      refs.transcriptFile.click();
+    });
   }
 
   if (refs.transcriptReplace) {
     refs.transcriptReplace.addEventListener('click', function () {
+      clearUploadError('transcript');
       refs.transcriptFile.click();
     });
   }
 
   if (refs.transcriptDrop) {
+    refs.transcriptDrop.addEventListener('click', function (event) {
+      if (event.target === refs.transcriptFile || refs.transcriptPick.disabled) return;
+      clearUploadError('transcript');
+      refs.transcriptFile.click();
+    });
     ['dragenter', 'dragover'].forEach(function (name) {
       refs.transcriptDrop.addEventListener(name, function (event) {
         event.preventDefault();
@@ -1617,9 +1827,13 @@
     refs.transcriptDrop.addEventListener('drop', function (event) {
       var file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
       if (!file) return;
+      clearUploadError('transcript');
       if (transcriptExists()) {
         var n = state.report.transcript_length;
-        if (!window.confirm(REPLACE_CONFIRM.replace('%n', n))) return;
+        if (!window.confirm(REPLACE_CONFIRM.replace('%n', n))) {
+          focusUploadControl('transcript');
+          return;
+        }
       }
       uploadTranscript(file);
     });
@@ -1627,12 +1841,28 @@
 
   if (refs.otherFile) {
     refs.otherFile.addEventListener('change', function () {
+      clearUploadError('other');
       var file = refs.otherFile.files && refs.otherFile.files[0];
       uploadOther(file);
     });
+    refs.otherFile.addEventListener('cancel', function () {
+      clearUploadError('other');
+      focusUploadControl('other');
+    });
+  }
+  if (refs.otherPick) {
+    refs.otherPick.addEventListener('click', function (event) {
+      event.stopPropagation();
+      clearUploadError('other');
+      refs.otherFile.click();
+    });
   }
   if (refs.otherDrop) {
-    refs.otherDrop.addEventListener('click', function () { refs.otherFile.click(); });
+    refs.otherDrop.addEventListener('click', function (event) {
+      if (event.target === refs.otherFile || refs.otherPick.disabled) return;
+      clearUploadError('other');
+      refs.otherFile.click();
+    });
     ['dragenter', 'dragover'].forEach(function (name) {
       refs.otherDrop.addEventListener(name, function (event) {
         event.preventDefault();
@@ -1646,12 +1876,14 @@
       });
     });
     refs.otherDrop.addEventListener('drop', function (event) {
+      clearUploadError('other');
       var file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
       uploadOther(file);
     });
   }
 
   refs.transcriptText.addEventListener('input', function () {
+    saves.setDirty(refs.transcriptText, !!refs.transcriptText.value.trim());
     clearTimeout(transcriptTimer);
     transcriptTimer = setTimeout(saveTranscript, 1500);
   });
@@ -1679,12 +1911,29 @@
   }
 
   var spkSave = document.getElementById('r4SpkSave');
-  if (spkSave) spkSave.addEventListener('click', saveSpeakers);
-
-  window.addEventListener('message', function (event) {
-    if (event.origin !== window.location.origin) return;
-    if (event.data && event.data.type === 'm1-report-edit') load();
+  if (spkSave) spkSave.addEventListener('click', function () {
+    if (!saveSpeakers()) toast('没有修改');
   });
+  document.getElementById('r4Speakers').addEventListener('change', function () {
+    saves.setDirty(saveSpeakers, speakerChanges().controls.length > 0);
+  });
+
+  window.M1ReportWorkspace = {
+    attach: function (source, data, editor) {
+      var path = new URL(refs.print.dataset.exportUrl, location.origin).pathname;
+      if (source !== refs.frame.contentWindow || source.location.origin !== location.origin
+          || source.location.pathname !== path || data.api !== docUrl('')) return null;
+      var pin = saves.snapshot().pin;
+      if (!pin) return null;
+      frameEditor = editor;
+      if (pin.expected_rev !== data.rev || pin.version_id !== data.version_id) saves.conflict();
+      return {
+        saves: saves,
+        exportReport: function () { runReviewAction('print'); },
+        refresh: function () { loadPreview(true); }
+      };
+    }
+  };
 
   window.addEventListener('hashchange', function () {
     var match = /step=(\w+)/.exec(window.location.hash || '');

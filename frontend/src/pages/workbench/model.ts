@@ -15,6 +15,7 @@ export type QueueItem =
   | { kind: "confirm"; student: Who; assignments: { id: number; questionnaire_title: string; source: string }[]; created_at: string | null }
   | { kind: "six_am"; student: Who; report_id: number | null; reviewed: number | null }
   | { kind: "first_touch"; student: Who; updated_at: string | null }
+  | { kind: "m1"; student: Who; task: { label: string; href: string; owner: string } }
   | { kind: "booking"; student: Who };
 export type Upcoming = {
   booking_id: number;

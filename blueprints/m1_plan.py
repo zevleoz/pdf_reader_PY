@@ -20,6 +20,7 @@ import m1.kb as kb
 import m1.plan_collaboration as collab
 import m1.plan_kb as plan_kb
 import m1.plan_store as pstore
+from m1 import job_attempts
 import m1.report_store as rstore
 import m1.sources as sources
 import m1.store as store
@@ -61,6 +62,10 @@ def _plan_or_error(plan_id: int, *, edit: bool = False):
         return None, _err("发展计划不存在", 404)
     if edit and not pstore.can_edit_plan(user, plan):
         return None, _err(_EDITABLE_MSG, 403)
+    scope = "plan_parent" if plan["parent_status"] == "generating" else "plan_internal"
+    if plan["status"] == "generating" or plan["parent_status"] == "generating":
+        job_attempts.current(scope, plan["id"])
+        plan = pstore.get_plan(plan["id"]) or plan
     return plan, None
 
 
@@ -171,6 +176,7 @@ def _payload(plan: dict) -> dict:
     parent = pstore.current_version(plan["id"], "parent")
     return {
         "plan": plan,
+        "job_id": _current_job_id(plan),
         "next_action": pstore.next_action(plan),
         "goals": _goal_rows(plan),
         "personal": {"notes": (plan.get("personal") or {}).get("notes", ""),
@@ -639,23 +645,29 @@ def _editable_plan(plan_id: int):
     return plan, None
 
 
-def _start_job(plan: dict, kind: str, *, part: str = "internal", previous=None,
-               **kwargs):
-    """拉起子进程；启动失败时还原生成前状态。"""
+def _start_job(plan: dict, kind: str, *, part: str | None = None, **kwargs):
     from m1 import plan_jobs
 
     if kind in ('plan_brief', 'plan_inputs', 'plan_goal', 'plan_personal'):
         kwargs['expected_rev'] = plan['rev']
+    scope = "plan_" + part if part else None
+    reserved_id = None
+    previous = None
+    if scope:
+        try:
+            reserved_id, previous = job_attempts.reserve(
+                scope, plan["id"], lambda: pstore.begin_generation(plan["id"], part),
+                plan_id=plan["id"], kind=kind)
+        except (pstore.StatusError, job_attempts.AttemptConflict) as exc:
+            return _err(str(exc), 409)
     try:
         job_id = plan_jobs.launch_job(
-            plan["id"], kind, actor_id=_user_id(), previous_status=previous, **kwargs)
-    except plan_jobs.JobLaunchError as exc:
-        if previous is not None:
-            try:
-                pstore.fail_generation(plan["id"], part, previous=previous)
-            except pstore.NotFound:
-                pass
-        return _err("任务启动失败：%s" % exc, 503)
+            plan["id"], kind, actor_id=_user_id(), previous_status=previous,
+            job_id=reserved_id, attempt_scope=scope, **kwargs)
+    except (OSError, plan_jobs.JobLaunchError):
+        if reserved_id:
+            job_attempts.cancel(scope, plan["id"], reserved_id)
+        return _err("任务未能启动，请重试。", 503)
     return jsonify({"ok": True, "job_id": job_id}), 202
 
 
@@ -703,10 +715,7 @@ def api_plan_generate(plan_id: int):
     blockers = pstore.generate_blockers(plan, use_old_report=use_old_report)
     if blockers:
         return _err(blockers[0], 409, blockers=blockers, next_action=pstore.next_action(plan))
-    previous, error = _run(lambda: pstore.begin_generation(plan["id"], "internal"))
-    if error:
-        return error
-    return _start_job(plan, "plan_generate", previous=previous,
+    return _start_job(plan, "plan_generate", part="internal",
                       use_old_report=use_old_report)
 
 
@@ -723,10 +732,7 @@ def api_plan_regenerate(plan_id: int):
         section = "overview" if section.strip() == "overview" else int(section.strip())
     if section not in ("overview", 1, 2, 3):
         return _err("section 只能是 overview、1、2 或 3", 400)
-    previous, error = _run(lambda: pstore.begin_generation(plan["id"], "internal"))
-    if error:
-        return error
-    return _start_job(plan, "plan_regen", previous=previous, section=section)
+    return _start_job(plan, "plan_regen", part="internal", section=section)
 
 
 @bp.route("/api/m1/plans/<int:plan_id>/parent/generate", methods=["POST"])
@@ -734,10 +740,7 @@ def api_plan_parent_generate(plan_id: int):
     plan, error = _plan_or_error(plan_id, edit=True)
     if error:
         return error
-    previous, error = _run(lambda: pstore.begin_generation(plan["id"], "parent"))
-    if error:
-        return error
-    return _start_job(plan, "plan_parent", part="parent", previous=previous)
+    return _start_job(plan, "plan_parent", part="parent")
 
 
 # ---------------------------------------------------------------------------
@@ -969,23 +972,11 @@ def _gen_steps():
             for key, label in plan_jobs.STEP_DEFS["plan_generate"]]
 
 
-def _current_job_id(plan_id: int):
-    """正在跑的生成任务（页面刷新后继续显示进度）。"""
-    from m1 import jobs
-
-    try:
-        paths = sorted(Path(jobs.JOB_DIR).glob("*.json"),
-                       key=lambda p: p.stat().st_mtime, reverse=True)
-    except OSError:
-        return None
-    for path in paths[:60]:
-        if path.name.endswith(".args.json"):
-            continue
-        job = jobs.read_job(path.stem)
-        if not job or int(job.get("plan_id") or 0) != int(plan_id):
-            continue
-        if job.get("status") in ("queued", "running"):
-            return path.stem
+def _current_job_id(plan: dict):
+    if plan["parent_status"] == "generating":
+        return job_attempts.current("plan_parent", plan["id"])
+    if plan["status"] == "generating":
+        return job_attempts.current("plan_internal", plan["id"])
     return None
 
 
@@ -1011,6 +1002,10 @@ def _state_label(plan: dict, internal) -> str:
 
 
 def _plan_page_context(plan: dict) -> dict:
+    if plan["status"] == "generating" or plan["parent_status"] == "generating":
+        scope = "plan_parent" if plan["parent_status"] == "generating" else "plan_internal"
+        job_attempts.current(scope, plan["id"])
+        plan = pstore.get_plan(plan["id"]) or plan
     user = _user()
     can_edit = pstore.can_edit_plan(user, plan)
     step1 = can_edit and plan["status"] in ("inputs", "review")
@@ -1028,7 +1023,7 @@ def _plan_page_context(plan: dict) -> dict:
     personal = plan.get("personal") or {}
     session_candidates = _session_candidates(doc, candidates)
     blockers = pstore.generate_blockers(plan)
-    job_id = _current_job_id(plan["id"])
+    job_id = _current_job_id(plan)
     kb_data = kb.load_kb()
     parent = pstore.current_version(plan["id"], "parent")
     parent_doc = (parent or {}).get("doc") or {}

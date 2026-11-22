@@ -4,10 +4,10 @@
 {% block crumbs %}<div class="cr"><b>学生</b></div>{% endblock %}
 
 {% block content %}
-<div id="m1Home" data-manager="{{ '1' if m1_manager else '0' }}" data-student-id="{{ student_id or '' }}" data-me-name="{{ current_display_name }}">
+<div id="m1Home" data-manager="{{ '1' if m1_manager else '0' }}" data-student-id="{{ student_id or '' }}" data-create-meeting="{{ '1' if create_meeting else '0' }}" data-me-name="{{ current_display_name }}">
   <div class="head">
     <div>
-      <h1 id="m1Count">学生<span>0</span></h1>
+      <h1 id="m1Count">学生<span aria-live="polite">—</span></h1>
       <p class="sub">{% if m1_manager %}搜索或打开学生，在「导师团队」分配导师。{% else %}每位学生一行，三份文档各一列：会前准备 → 会后报告 → 发展计划。点一行进学生页。{% endif %}</p>
     </div>
     <div class="acts">
@@ -16,10 +16,10 @@
   </div>
 
   <div class="tool">
-    <div class="vw" role="tablist" style="margin:0;border:0;flex:1;min-width:0">
-      <button class="on" type="button" data-view="all">全部<em>0</em></button>
-      <button type="button" data-view="todo">有待办<em>0</em></button>
-      <button type="button" data-view="done">已完成<em>0</em></button>
+    <div class="vw" role="group" aria-label="学生状态" style="margin:0;border:0;flex:1;min-width:0">
+      <button class="on" type="button" data-view="all" aria-pressed="true">全部<em>—</em></button>
+      <button type="button" data-view="todo" aria-pressed="false">有待办<em>—</em></button>
+      <button type="button" data-view="done" aria-pressed="false">已完成<em>—</em></button>
     </div>
     <div class="seg" role="group" aria-label="参与范围">
       <button{% if not m1_manager %} class="on"{% endif %} type="button" data-who="mine" aria-pressed="{{ 'false' if m1_manager else 'true' }}">我参与的</button>
@@ -28,13 +28,15 @@
     <label class="fld" style="width:220px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="m1Search" placeholder="搜索姓名或 Y4 编号" aria-label="搜索"></label>
   </div>
 
-  <div class="panel list" id="m1List"></div>
+  <div class="panel list" id="m1List" aria-busy="true">
+    <div class="empty" role="status"><b>正在加载学生…</b><span>请稍候。</span></div>
+  </div>
   <p class="hint" style="margin-top:10px">「下一步」按钮直接打开对应文档的对应步骤。发展计划显示最新的 Block。</p>
 </div>
 {% endblock %}
 
 {% block overlay %}
-<div class="pal dlg" id="addDlg" role="dialog" aria-modal="true" aria-labelledby="addDlgH" hidden><div>
+<div class="pal dlg" id="addDlg" role="dialog" aria-modal="true" aria-labelledby="addDlgH" tabindex="-1" hidden><div>
   <div class="dh"><b id="addDlgH">添加学生</b><button class="x" type="button" id="addDlgX" aria-label="关闭">×</button></div>
   <div class="db">
     <section data-pane="pick">

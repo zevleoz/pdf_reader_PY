@@ -65,6 +65,7 @@ export type PageData = {
   latest_report: { id: number; report_date: string | null } | null;
   six_am: { report_id: number; profile_id: number; version: number } | null;
   first_touch: FirstTouch;
+  m1_work?: { href: string; next: { label: string; href: string; owner: string } | null } | null;
   questionnaire_flags: OpenFlag[];
 };
 

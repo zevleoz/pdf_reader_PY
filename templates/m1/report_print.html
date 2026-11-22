@@ -92,7 +92,7 @@
   <span class="sub">{{ status_label }}</span>
   <span class="sp"></span>
   <button type="button" id="printClose">关闭</button>
-  {% if prep %}<a id="printEdit" href="/m1/preps/{{ prep.id }}/report/print?edit=1">修改文字</a>{% endif %}
+  {% if prep and can_edit %}<a id="printEdit" href="/m1/preps/{{ prep.id }}/report/print?edit=1">修改文字</a>{% endif %}
   <button type="button" class="pri" id="printGo">下载 PDF</button>
 </div>
 {% endif %}
@@ -100,7 +100,8 @@
 {% if editing %}
 <div class="edit-bar" id="editBar">
   <b>预览与修改</b>
-  <span class="sub" id="editSaved">直接点文字修改，离开输入框自动保存。</span>
+  <span class="sub" id="editSaved" aria-live="polite">直接点文字修改，离开输入框自动保存。</span>
+  <button type="button" id="editRetry" hidden>重试保存</button>
   <span class="sp"></span>
   <span class="edit-msg" id="editMsg"></span>
   <button type="button" id="editAck" hidden>已核对，保留</button>
@@ -585,6 +586,7 @@
     };
   })();
 </script>
+<script src="/m1/assets/report_save.js"></script>
 <script src="/m1/assets/report_edit.js"></script>
 {% endif %}
 </body>

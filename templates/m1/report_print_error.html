@@ -1,0 +1,9 @@
+{% extends "m1/_layout.html" %}
+{% block title %}无法导出会后报告{% endblock %}
+{% block content %}
+<section class="surface" style="max-width:560px;margin:40px auto;padding:24px">
+  <h1 class="h2">无法导出会后报告</h1>
+  <p id="print-error">{{ message }}</p>
+  <a class="btn s" href="/m1/preps/{{ prep.id }}/report">返回报告</a>
+</section>
+{% endblock %}

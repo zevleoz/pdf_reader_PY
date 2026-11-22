@@ -22,6 +22,7 @@ import db as _db
 import growth_talk_store as _gt
 import m1.jobs as m1_jobs
 import m1.store as store
+from m1 import job_attempts
 from app_utils import BASE_DIR
 from growth_talk.analysis import AnalysisError
 from m1 import (report_checks, report_jobs, report_kb, report_pipeline, report_prompts,
@@ -294,11 +295,16 @@ def client(rdb, monkeypatch):
 
 
 @pytest.fixture()
-def inline_jobs(monkeypatch, rdb):
+def inline_jobs(monkeypatch, rdb, tmp_path):
     """launch_job 在测试里同步跑完生成。"""
-    def launch(prep_id, report_id, *, previous_status="draft", actor_id=None):
-        report_pipeline.generate(prep_id, actor_id=actor_id)
-        return "a" * 32
+    monkeypatch.setattr(m1_jobs, "JOB_DIR", tmp_path)
+    def launch(prep_id, report_id, *, previous_status="draft", actor_id=None,
+               job_id=None, attempt_scope=None):
+        with job_attempts.worker(job_id, (attempt_scope, report_id)):
+            version = report_pipeline.generate(prep_id, actor_id=actor_id)
+        m1_jobs.write_job(job_id, prep_id=prep_id, report_id=report_id,
+                          kind="report", status="done", result={"version_id": version})
+        return job_id
     monkeypatch.setattr(report_jobs, "launch_job", launch)
 
 
@@ -683,7 +689,7 @@ def test_job_failure_restores_status_and_writes_chinese_error(rdb, fake, tmp_pat
         report_jobs.run_job("b" * 32, {"prep_id": rdb.prep_row["id"], "report_id": report["id"],
                                        "previous_status": previous, "actor_id": rdb.alice_id})
     job = m1_jobs.read_job("b" * 32)
-    assert job["status"] == "error" and job["message"].startswith("生成失败：")
+    assert job["status"] == "error" and job["message"].startswith("生成失败")
     assert job["prep_id"] == rdb.prep_row["id"]
     assert report_store.get_report(rdb.prep_row["id"])["status"] == "reviewing"
 
@@ -937,12 +943,21 @@ def doc_put(client, rdb, rev, changes):
     return client.put(url(rdb, "/doc"), json={"rev": rev, "changes": changes})
 
 
+def report_pin(report):
+    return {"expected_rev": report["rev"], "version_id": report["current_version_id"]}
+
+
+def publish_reviewed(client, rdb):
+    report = report_store.get_report(rdb.prep_row["id"])
+    return client.post(url(rdb, "/publish"), json=report_pin(report))
+
+
 def generated_via_api(client, rdb, fake, inline_jobs):
     admin_login(client, rdb)
     res = client.post(url(rdb, "/transcript"), json={"text": TRANSCRIPT})
     assert res.status_code == 200 and res.get_json()["report"]["transcript_length"] > 100
     res = client.post(url(rdb, "/generate"), json={})
-    assert res.status_code == 200 and res.get_json()["job_id"] == "a" * 32
+    assert res.status_code == 200 and m1_jobs.JOB_ID_RE.fullmatch(res.get_json()["job_id"])
     return client.get(url(rdb)).get_json()
 
 
@@ -958,7 +973,7 @@ def test_status_path(client, rdb, fake, inline_jobs):
     res = doc_put(client, rdb, rev, [{"path": ["review_advice"], "value": "改一下回顾建议。"}])
     assert res.status_code == 200 and res.get_json()["status"] == "reviewing"
     assert client.get(url(rdb)).get_json()["report"]["approved_by"] is None
-    res = client.post(url(rdb, "/publish"))
+    res = publish_reviewed(client, rdb)
     assert res.status_code == 200 and res.get_json()["report"]["status"] == "published"
     # 正式发布后保存被拒；重新打开后可改
     rev = client.get(url(rdb)).get_json()["report"]["rev"]
@@ -1330,4 +1345,5 @@ def test_report_tables_exist_on_fresh_boot(tmp_path):
     out = subprocess.run([sys.executable, "-c", code], cwd=BASE_DIR, env=env,
                          capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stderr[-2000:]
-    assert "['m1_report_speakers', 'm1_report_versions', 'm1_reports']" in out.stdout
+    assert ("['m1_report_official', 'm1_report_speakers', 'm1_report_versions', "
+            "'m1_report_writes', 'm1_reports']") in out.stdout

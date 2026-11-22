@@ -12,7 +12,7 @@ from test_profiling_stages import (code_of, mk_booking, mk_profile, mk_report, m
                                    world)
 
 KEYS = {"ok", "student", "permissions", "progress", "latest_report", "six_am",
-        "first_touch", "questionnaire_flags"}
+        "first_touch", "questionnaire_flags", "m1_work"}
 STUDENT_KEYS = {"id", "code", "name", "grade", "gender", "birthday", "school",
                 "advisor_name", "email", "phone"}
 PERM_KEYS = {"can_write", "is_admin", "full", "can_review", "m1_access"}
@@ -79,6 +79,27 @@ def test_viewer_is_read_only(env):
     perms = r.get_json()["permissions"]
     assert perms["can_write"] is False and perms["can_review"] is False
     assert perms["is_admin"] is False
+    assert r.get_json()["m1_work"] is None
+
+
+def test_m1_handoff_and_workbench_share_action_without_changing_profiling_progress(env):
+    from m1 import report_store, store
+
+    sid = mk_student("演练学生", advisor="Mine")
+    c = client(env, env.mine, "advisor", "Mine")
+    before = c.get("/api/profiling/workbench").get_json()["counts"]
+    prep = store.create_prep(sid, mentor_user_id=env.mine)
+    report = report_store.get_or_create_report(prep["id"], env.mine)
+    report_store.add_version(report["id"], y4_ratings={}, evidence=[], ai_doc={}, doc={},
+                             checks=[], manifest={}, status="ai_draft")
+
+    profile = fetch(c, sid).get_json()["m1_work"]
+    workbench = c.get("/api/profiling/workbench").get_json()
+    row = next(row for row in workbench["queue"] if row["kind"] == "m1")
+    assert profile["href"] == f"/m1/students/{sid}"
+    assert profile["next"] == row["task"]
+    assert profile["next"]["href"] == f"/m1/preps/{prep['id']}/report#step=review"
+    assert workbench["counts"] == before
 
 
 def test_own_scope_advisor_and_404s(env):

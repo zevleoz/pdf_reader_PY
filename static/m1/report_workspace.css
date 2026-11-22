@@ -45,7 +45,7 @@
 #r4Review .r4-spk-filter { display: inline-flex; gap: 6px; align-items: center; margin-top: 10px; }
 #r4Review .r4-fileline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 
-/* 旧版报告内容（#r4Legacy 内，保持可用） */
+/* 分节审阅 */
 #r4Review .r4-tabs {
   display: flex; flex-wrap: wrap; gap: 2px;
   padding: 0 16px; border-bottom: 1px solid var(--line);
@@ -132,4 +132,15 @@
   #r4Review .r4-preview { height: calc(100vh - 200px); }
   #r4Review .r4-spk-row { flex-wrap: wrap; }
   #r4Review .r4-actions .btn { flex: 1; }
+}
+
+#r4Review .r4-mode { margin: 14px 0; }
+#r4Review #r4NeedCard { margin: 16px 0; }
+#r4Review .r4-panel, #r4Review .r4-field { min-width: 0; }
+#r4Review .r4-check { text-align: left; overflow-wrap: anywhere; }
+#r4Review .r4-field textarea { width: 100%; min-height: 5rem; resize: vertical; }
+@container app (max-width: 540px) {
+  #r4Review .r4-panels, #r4Review .r4-tabs { padding-inline: 8px; }
+  #r4Review .r4-plan-top .inp { min-width: 0; max-width: 100%; }
+  #r4Review .r4-tab { white-space: normal; height: auto; min-height: 34px; }
 }

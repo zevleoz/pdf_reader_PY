@@ -27,5 +27,6 @@ def test_fresh_boot_creates_m1_tables(tmp_path):
                 "'m1_plan_edit_leases', 'm1_plan_files', 'm1_plan_patch_log', "
                 "'m1_plan_presence', 'm1_plan_section_versions', "
                 "'m1_plan_team_members', 'm1_plan_versions', 'm1_plans', 'm1_preps', "
-                "'m1_report_speakers', 'm1_report_versions', 'm1_reports', "
+                "'m1_report_official', 'm1_report_speakers', 'm1_report_versions', "
+                "'m1_report_writes', 'm1_reports', "
                 "'m1_sources', 'm1_versions']") in out.stdout

@@ -43,7 +43,7 @@ def new_steps(kind: str) -> List[Dict[str, Any]]:
 
 def launch_job(plan_id: int, kind: str, *, actor_id=None, code=None,
                section=None, use_old_report: bool = False,
-               previous_status: Optional[str] = None, expected_rev=None, source_version_id=None, activity_id=None) -> str:
+               previous_status: Optional[str] = None, expected_rev=None, source_version_id=None, activity_id=None, job_id=None, attempt_scope=None) -> str:
     """拉起生成子进程；启动窗口内退出则抛 :class:`JobLaunchError`。"""
     if kind not in KINDS:
         raise ValueError("未知的发展计划任务：%s" % kind)
@@ -51,7 +51,8 @@ def launch_job(plan_id: int, kind: str, *, actor_id=None, code=None,
     import subprocess
     import time
 
-    job_id = uuid.uuid4().hex
+    identity = [attempt_scope, int(plan_id)] if attempt_scope else None
+    job_id = job_id or uuid.uuid4().hex
     directory = Path(JOB_DIR)
     directory.mkdir(parents=True, exist_ok=True)
     args = {
@@ -64,7 +65,7 @@ def launch_job(plan_id: int, kind: str, *, actor_id=None, code=None,
         "section": section,
         "use_old_report": bool(use_old_report),
         "previous_status": previous_status,
-        "actor_id": actor_id,
+        "attempt": identity, "actor_id": actor_id,
     }
     args_path = directory / ("%s.args.json" % job_id)
     args_path.write_text(json.dumps(args, ensure_ascii=False), encoding="utf-8")
@@ -81,15 +82,10 @@ def launch_job(plan_id: int, kind: str, *, actor_id=None, code=None,
             start_new_session=True,
         )
     time.sleep(LAUNCH_GRACE_SECONDS)
-    if process.poll() is not None:
-        tail = ""
-        try:
-            tail = log_path.read_text(encoding="utf-8", errors="replace")[-2000:]
-        except OSError:
-            pass
-        message = "生成任务启动失败 (exit %s)" % process.returncode
+    if process.poll() is not None and (read_job(job_id) or {}).get("status") != "done":
+        message = "生成任务未能启动，请重试。"
         write_job(job_id, status="error",
-                  message=message + (("\n%s" % tail) if tail else ""),
+                  message=message,
                   plan_id=int(plan_id), kind=kind, section=section,
                   previous_status=previous_status, actor_id=actor_id,
                   steps=new_steps(kind))
@@ -100,6 +96,8 @@ def launch_job(plan_id: int, kind: str, *, actor_id=None, code=None,
 def run_job(job_id: str, args: Dict[str, Any]) -> int:
     """子进程入口：执行生成并维护状态文件与计划状态。"""
     from m1 import plan_pipeline, plan_store
+
+    from m1 import job_attempts
 
     plan_store.ensure_tables()
     plan_id = int(args.get("plan_id") or 0)
@@ -115,7 +113,8 @@ def run_job(job_id: str, args: Dict[str, Any]) -> int:
             "previous_status": previous_status, "actor_id": actor_id}
 
     def write(message: str, **fields: Any) -> None:
-        write_job(job_id, steps=steps, message=message, **meta, **fields)
+        with job_attempts.commit():
+            write_job(job_id, steps=steps, message=message, **meta, **fields)
 
     def progress(step: str, state: str, seconds: float = 0.0) -> None:
         label = dict(STEP_DEFS.get(kind) or []).get(step, step)
@@ -169,12 +168,12 @@ def run_job(job_id: str, args: Dict[str, Any]) -> int:
         else:
             raise ValueError("未知的发展计划任务：%s" % kind)
     except Exception as exc:
-        message = "生成失败：%s" % (str(exc).strip() or exc.__class__.__name__)
-        message = message[:1000]
+        message = "生成失败，请重试。"
         part = "parent" if kind == "plan_parent" else "internal"
         if kind in ("plan_generate", "plan_regen", "plan_parent"):
             try:
-                plan_store.fail_generation(plan_id, part, previous=previous_status)
+                with job_attempts.commit():
+                    plan_store.fail_generation(plan_id, part, previous=previous_status)
             except Exception:
                 pass
         write(message, status="error")
@@ -236,7 +235,13 @@ def main(argv: List[str]) -> int:
         return 2
     job_id, args_path = argv[1], Path(argv[2])
     args = json.loads(args_path.read_text(encoding="utf-8"))
-    return run_job(job_id, args)
+    from m1 import job_attempts
+
+    try:
+        with job_attempts.worker(job_id, args.get("attempt")):
+            return run_job(job_id, args)
+    except Exception:
+        return 1
 
 
 if __name__ == "__main__":

@@ -182,10 +182,9 @@ def test_edit_js_export_contract():
     js = EDIT_JS.read_text(encoding="utf-8")
     assert "getElementById('editExport')" in js
     assert "document.activeElement" in js
-    assert "active.blur()" in js
-    assert "var pending = queue" in js
-    assert "if (json === null)" in js
-    assert "window.location.href = exportBtn.getAttribute('data-export-url')" in js
+    assert "flushField(active)" in js
+    assert "await saves.flush()" in js
+    assert "reportSave.printUrl" in js
 
 
 def _edit_data(html):
@@ -231,7 +230,7 @@ def test_edit_js_plan_contract():
     assert js.count("savePlan") >= 4
     assert "innerHTML" not in js
     # 导出仍等待串行队列里的最后一次保存
-    assert "var pending = queue" in js
+    assert "await saves.flush()" in js
 
 
 def test_checks_follow_display(client, m1db):  # noqa: F811
@@ -250,17 +249,18 @@ def test_workspace_preview_markup(client, m1db):  # noqa: F811
     _login(client, m1db.admin_id, "admin")
     html = client.get(f"/m1/preps/{prep['id']}/report").get_data(as_text=True)
 
-    review = html.split('id="r4StepReview"', 1)[1].split('id="r4Legacy"', 1)[0]
+    review = html.split('id="r4StepReview"', 1)[1]
     assert 'data-step="review"' in _tag(html, "r4StepReview")
     assert 'id="r4Preview"' in review
     assert 'id="r4Regenerate"' in review
-    assert re.search(r'<div id="r4Legacy" hidden>', html)
+    assert re.search(r'<div class="desk" id="r4PreviewPane" hidden>', html)
+    assert 'id="r4Content"' in review
     assert 'id="r4Safety"' in review
 
 
 def test_edit_js_contract():
     js = EDIT_JS.read_text(encoding="utf-8")
-    for text in ("'/doc'", "报告还不完整", "m1-report-edit"):
+    for text in ("'/doc'", "报告还不完整", "M1ReportWorkspace.attach"):
         assert text in js, text
     assert "plaintext" not in js
     assert "innerHTML" not in js

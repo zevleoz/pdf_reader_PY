@@ -41,7 +41,7 @@ def test_step_nav(client, m1db):  # noqa: F811
 def test_sections_tagged(client, m1db):  # noqa: F811
     _, html = _page(client, m1db)
     sources = html.split('id="r4StepSources"', 1)[1].split('id="r4StepReview"', 1)[0]
-    review = html.split('id="r4StepReview"', 1)[1].split('id="r4Legacy"', 1)[0]
+    review = html.split('id="r4StepReview"', 1)[1]
     for element_id in ("r4Sources", "r4Cover", "r4GenerateCard"):
         assert 'id="%s"' % element_id in sources, element_id
     for element_id in ("r4Export", "r4NeedCard", "r4Speakers", "r4Preview"):
@@ -58,13 +58,14 @@ def test_no_save_buttons(client, m1db):  # noqa: F811
         assert 'id="%s"' % element_id not in html
 
 
-def test_export_link(client, m1db):  # noqa: F811
+def test_export_button(client, m1db):  # noqa: F811
     _, html = _page(client, m1db)
     export = html.split('id="r4Export"', 1)[1].split("</section>", 1)[0]
     assert 'id="r4Print"' in export
-    tag = re.search(r'<a[^>]*id="r4Print"[^>]*>', export).group(0)
-    assert re.search(r'href="[^"]+/report/print\?print=1"', tag)
-    text = export.split(tag, 1)[1].split("</a>", 1)[0]
+    tag = _tag(export, "r4Print")
+    assert tag.startswith('<button type="button"')
+    assert re.search(r'data-export-url="[^"]+/report/print\?print=1"', tag)
+    text = export.split(tag, 1)[1].split("</button>", 1)[0]
     assert text.strip() == "导出 PDF"
 
 
@@ -106,4 +107,7 @@ def test_js_print_shown_when_published():
 def test_js_generate_flushes_transcript():
     js = REPORT_JS.read_text(encoding="utf-8")
     body = js.split("function generate(", 1)[1].split("\n  function ", 1)[0]
-    assert "clearTimeout(transcriptTimer)" in body
+    assert "await flushEdits()" in body
+    barrier = js.split("function flushEdits(", 1)[1].split("\n  }", 1)[0]
+    assert "clearTimeout(transcriptTimer)" in barrier
+    assert "saveTranscript()" in barrier

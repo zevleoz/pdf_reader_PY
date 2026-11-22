@@ -2039,19 +2039,21 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None) -> int:
 
     doc = run("assemble", assemble)
 
-    draft = store.add_version(
-        prep["id"], "ai_draft", doc=doc, y4_snapshot=_y4_snapshot(auto),
-        kb_version=str(load_kb().get("version") or ""), evidence=evidence,
-        ai_output={"abilities": judgements,
-                   "priority": [row["code"] for row in priority_rows],
-                   "plan": plan.get("raw") or {}},
-        ai_generated_at=datetime.utcnow(), created_by=prep.get("created_by"),
-    )
-    store.add_version(
-        prep["id"], "edit", doc=copy.deepcopy(doc), y4_snapshot=_y4_snapshot(auto),
-        kb_version=str(load_kb().get("version") or ""), evidence=evidence,
-        ai_output=draft.get("ai_output") or {},
-        ai_generated_at=datetime.utcnow(), created_by=prep.get("created_by"),
-    )
-    store.set_status(prep["id"], "review")
+    from m1 import job_attempts
+
+    with job_attempts.commit():
+        draft = store.add_version(
+            prep["id"], "ai_draft", doc=doc, y4_snapshot=_y4_snapshot(auto),
+            kb_version=str(load_kb().get("version") or ""), evidence=evidence,
+            ai_output={"abilities": judgements,
+                       "priority": [row["code"] for row in priority_rows],
+                       "plan": plan.get("raw") or {}},
+            ai_generated_at=datetime.utcnow(), created_by=prep.get("created_by"), set_current=False,
+        )
+        store.add_version(
+            prep["id"], "edit", doc=copy.deepcopy(doc), y4_snapshot=_y4_snapshot(auto),
+            kb_version=str(load_kb().get("version") or ""), evidence=evidence,
+            ai_output=draft.get("ai_output") or {},
+            ai_generated_at=datetime.utcnow(), created_by=prep.get("created_by"), mark_ready=True,
+        )
     return draft["id"]

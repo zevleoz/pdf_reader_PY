@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import date
 from functools import wraps
+from urllib.parse import quote
 
-from flask import (Blueprint, abort, jsonify, render_template, request,
+from flask import (Blueprint, abort, jsonify, redirect, render_template, request,
                    send_from_directory, session)
 from jinja2 import TemplateNotFound
 from sqlalchemy.exc import OperationalError
@@ -27,6 +27,7 @@ import m1.report_store as rstore
 import m1.roster as roster
 import m1.sources as sources
 import m1.store as store
+from m1 import job_attempts, workflow
 from app_utils import BASE_DIR, page_login_required, role_required
 
 bp = Blueprint("m1", __name__)
@@ -324,6 +325,11 @@ def _prep_version(prep: dict):
 
 def _detail(prep: dict) -> dict:
     prep = _sanitize_prep(prep)
+    job_id = None
+    if prep["status"] == "generating":
+        job_id = job_attempts.current("prep", prep["id"])
+        if not job_id:
+            prep = _sanitize_prep(store.get_prep(prep["id"]) or prep)
     auto = _sanitize_auto(sources.auto_sources(prep["student_id"]))
     uploaded = [{k: v for k, v in row.items() if k != "stored_path"}
                 for row in store.list_sources(prep["id"])]
@@ -338,6 +344,7 @@ def _detail(prep: dict) -> dict:
     kb, fixed = _kb_payload()
     return {
         "ok": True,
+        "job_id": job_id,
         "can_edit": store.can_access_prep(_user(), prep["id"]),
         "prep": prep,
         "status": prep["status"],
@@ -358,8 +365,17 @@ def _detail(prep: dict) -> dict:
 @bp.route("/m1")
 @page_login_required
 def page_home():
-    student_id = request.args.get("student", type=int)
+    meeting_student = request.args.get("create_meeting", type=int)
+    if meeting_student:
+        student = _db.get_student(meeting_student)
+        if not student or not store.can_access_student(_user(), meeting_student):
+            abort(404)
+        if not _meeting_creation(student,
+                                 store.list_preps(user=_user(), student_id=meeting_student, limit=1)).get("href"):
+            return redirect(f"/m1/students/{meeting_student}#meetings")
+    student_id = meeting_student or request.args.get("student", type=int)
     return _render_page("m1/home.html", nav_active="students", student_id=student_id,
+                        create_meeting=bool(meeting_student),
                         ctx={"studentId": student_id})
 
 
@@ -421,14 +437,6 @@ def page_print(prep_id: int):
 # ---------------------------------------------------------------------------
 # 学生 / prep 列表
 # ---------------------------------------------------------------------------
-def _latest_plans(student_ids):
-    try:
-        return pstore.latest_by_student(student_ids)
-    except OperationalError:
-        pstore.ensure_tables()
-        return pstore.latest_by_student(student_ids)
-
-
 def _visible_plans(user):
     try:
         return pstore.list_plans(user, scope="all")
@@ -470,56 +478,30 @@ def _plan_cell(plan: dict | None):
             "label": label, "tone": tone, "step_url": _plan_step_url(plan)}
 
 
-def _is_past(value) -> bool:
-    return bool(value) and str(value)[:10] < date.today().isoformat()
+def _visible_work_sources(user, **kwargs):
+    try:
+        return roster.visible_sources(user, **kwargs)
+    except OperationalError:
+        pstore.ensure_tables()
+        return roster.visible_sources(user, **kwargs)
 
 
-def _next_step(prep: dict, report: dict | None, plan: dict | None):
-    """列表里的「下一步」：顺序固定，返回 None 表示没有可点的动作。"""
-    base = "/m1/preps/%d" % prep["id"]
-    if prep.get("can_edit") is False and not plan:
-        suffix = "/report" if (report or {}).get("started") else "/prep"
-        return {"label": "查看", "href": base + suffix, "primary": False}
-    if plan:
-        status = plan.get("status")
-        parent = plan.get("parent_status")
-        if status == "inputs":
-            label = "继续发展计划"
-        elif status == "generating":
-            label = "查看生成进度"
-        elif status == "review":
-            label = "审阅内部版"
-        elif status != "approved":
-            label = "打开发展计划"
-        elif parent == "generating":
-            label = "查看家长版生成"
-        elif parent == "draft":
-            label = "确认家长版"
-        elif parent == "confirmed":
-            label = "导出家长版"
-        elif parent == "exported":
-            label = "打开发展计划"
-        else:
-            label = "生成家长版"
-        return {"label": label, "href": _plan_step_url(plan), "primary": True}
-    if (report or {}).get("started"):
-        status = report.get("status")
-        if status == "published":
-            return {"label": "新建发展计划", "href": "/m1/plans?new=%d" % prep["id"],
-                    "primary": True}
-        if status == "generating":
-            label, suffix = "查看生成进度", "/report"
-        elif status == "draft":
-            label, suffix = "继续会后报告", "/report"
-        else:
-            label, suffix = "核对发布", "/report#step=review"
-        return {"label": label, "href": base + suffix, "primary": True}
-    if not prep.get("current_version_id"):
-        return {"label": "生成", "href": base + "/prep", "primary": False}
-    if prep.get("status") != "final":
-        return {"label": "去定稿", "href": base + "/prep#step=review", "primary": True}
-    return {"label": "上传逐字稿", "href": base + "/report",
-            "primary": _is_past(prep.get("meeting_date"))}
+def _attach_student_work(rows):
+    reports = rstore.list_overview([prep["id"] for row in rows for prep in row["_preps"]])
+    report_allowed = _can_manage_report()
+    for row in rows:
+        row.update(workflow.summarize(row["_preps"], row["_plans"], reports,
+                                      report_allowed=report_allowed))
+        row["hub_url"] = f"/m1/students/{row['student_id']}"
+    return reports
+
+
+def student_work_summary(student_id):
+    rows = _visible_work_sources(_user(), student_id=student_id, include_unassigned=True)
+    _attach_student_work(rows)
+    if not rows:
+        return {"next": None, "tasks": [], "workflow_state": "idle"}
+    return {key: rows[0][key] for key in ("next", "tasks", "workflow_state", "hub_url")}
 
 
 @bp.route("/api/m1/students")
@@ -543,7 +525,9 @@ def api_preps():
     user = _user()
     rows = store.list_preps(user=user, student_id=student_id, status=status)
     overview = rstore.list_overview([row["id"] for row in rows])
-    plans = _latest_plans([row["student_id"] for row in rows])
+    work_rows = _visible_work_sources(user, student_id=student_id)
+    overview.update(_attach_student_work(work_rows))
+    work = {row["student_id"]: row for row in work_rows}
     assigned = store.assigned_student_ids(user)
     for row in rows:
         found = overview.get(row["id"])
@@ -559,12 +543,12 @@ def api_preps():
             report_row = rstore.get_report(row["id"], with_transcript=False)
             published_at = (report_row or {}).get("published_at") or ""
         row["published_at"] = published_at
-        plan = plans.get(int(row["student_id"]))
+        plan = work.get(row["student_id"], {}).get("plan")
         row["plan"] = _plan_cell(plan)
         row["can_edit"] = store.can_access_prep(user, row["id"])
         row["report"]["can_edit"] = row["can_edit"] and _can_manage_report()
         row["assigned"] = row["student_id"] in assigned
-        row["next"] = _next_step(row, found, plan)
+        row["next"] = work.get(row["student_id"], {}).get("next")
     return jsonify({"ok": True, "me": user.get("user_id"), "preps": rows})
 
 
@@ -574,32 +558,19 @@ def api_roster():
     """Discovery uses the same student-wide read visibility as document routes."""
     user = _user()
     include_unassigned = request.args.get("include_unassigned") == "1"
-    try:
-        rows = roster.visible_sources(user, include_unassigned=include_unassigned)
-    except OperationalError:
-        pstore.ensure_tables()
-        rows = roster.visible_sources(user, include_unassigned=include_unassigned)
-    reports = rstore.list_overview([row["prep"]["id"] for row in rows if row["prep"]])
+    rows = _visible_work_sources(user, include_unassigned=include_unassigned)
+    reports = _attach_student_work(rows)
     for row in rows:
-        prep, plan = row["prep"], row["plan"]
-        report = reports.get(prep["id"]) if prep else None
-        row["hub_url"] = "/m1/students/%d" % row["student_id"]
-        # Navigation remains available after completion. A team assignment with
-        # no plan is pending work, even when the user has no creation action.
-        row["workflow_state"] = ("done" if plan and plan.get("status") == "approved"
-                                 and plan.get("parent_status") == "exported"
-                                 and not plan.get("parent_stale") else "todo")
-        # _next_step only uses the prep ID for prep/report actions. No fabricated
-        # prep is passed when discovery came solely from a plan or team.
+        prep = row["prep"]
         if prep:
-            row["next"] = _next_step(prep, report, plan)
+            report = reports.get(prep["id"])
             prep["has_doc"] = bool(prep.pop("current_version_id"))
             prep["report"] = ({k: report[k] for k in ("status", "label", "started")}
                               if report else {"status": "draft", "label": "未开始", "started": False})
-        else:
-            row["next"] = ({"label": "打开发展计划", "href": _plan_step_url(plan), "primary": True}
-                           if plan else None)
-        row["plan"] = _plan_cell(plan)
+        row["plan"] = _plan_cell(row["plan"])
+        row.pop("_preps")
+        row.pop("_plans")
+        row.pop("tasks")
     return jsonify({"ok": True, "me": user.get("user_id"), "students": rows})
 
 
@@ -652,28 +623,20 @@ def api_create_prep():
     if report is None:
         return _err("Y4 尚未完成", 400, reason="Y4 尚未完成")
 
-    # 同一学生已有未定稿的准备时直接复用（360 页按钮与列表入口一致）。
-    existing = [p for p in store.list_preps(user=user, student_id=student_id)
-                if p["status"] != "final"]
-    if existing:
-        prep = existing[0]
-        store.audit(user.get("user_id"), student_id, "m1.create_reused",
-                    {"prep_id": prep["id"]})
-        return jsonify({"ok": True, "prep": prep, "created": False})
-
     mentor_name = (user.get("display_name") or user.get("advisor_name") or "")
     attendees = []
     if mentor_name:
         attendees.append("%s（心有灵析 Mentor）" % mentor_name)
     if student.get("name"):
         attendees.append(student["name"])
-    prep = store.create_prep(
+    prep, created = store.create_first_prep(
         student_id, created_by=user.get("user_id"),
         mentor_user_id=user.get("user_id"), duration=duration,
         meeting_date=meeting_date, attendees=attendees,
     )
-    store.audit(user.get("user_id"), student_id, "m1.create", {"prep_id": prep["id"]})
-    return jsonify({"ok": True, "prep": prep, "created": True}), 201
+    store.audit(user.get("user_id"), student_id, "m1.create" if created else "m1.create_reused",
+                {"prep_id": prep["id"]})
+    return jsonify({"ok": True, "prep": prep, "created": created}), 201 if created else 200
 
 
 # ---------------------------------------------------------------------------
@@ -755,6 +718,8 @@ def api_prep_overview(prep_id: int):
 
     return jsonify({
         "ok": True,
+        "work": student_work_summary(prep["student_id"]),
+        "meeting_label": workflow.meeting_label(prep["meeting_date"]),
         "can_edit": store.can_access_prep(_user(), prep["id"]),
         "prep": prep,
         "auto": {
@@ -1040,19 +1005,26 @@ def api_generate(prep_id: int):
     prep, error = _api_prep(prep_id)
     if error:
         return error
-    if prep["status"] == "generating":
-        return _err("生成任务已在进行中", 409)
-
     from m1 import jobs as m1_jobs
 
-    previous = prep["status"]
-    store.set_status(prep_id, "generating")
+    def begin():
+        current = store.get_prep(prep_id)
+        if current["status"] == "generating":
+            raise job_attempts.AttemptConflict("生成任务已在进行中")
+        store.set_status(prep_id, "generating")
+        return current["status"]
+
+    actor = _user().get("user_id")
+    try:
+        reserved_id, previous = job_attempts.reserve("prep", prep_id, begin, prep_id=prep_id)
+    except job_attempts.AttemptConflict as exc:
+        return _err(str(exc), 409)
     try:
         job_id = m1_jobs.launch_job(prep_id, previous_status=previous,
-                                    actor_id=_user().get("user_id"))
-    except Exception as exc:
-        store.set_status(prep_id, previous)
-        return _err("生成任务启动失败：%s" % exc, 500)
+                                    actor_id=actor, job_id=reserved_id, attempt_scope="prep")
+    except Exception:
+        job_attempts.cancel("prep", prep_id, reserved_id)
+        return _err("生成任务未能启动，请重试。", 500)
 
     store.audit(_user().get("user_id"), prep["student_id"], "m1.generate",
                 {"prep_id": prep_id, "job_id": job_id,
@@ -1076,13 +1048,20 @@ def api_job_status(job_id: str):
             return _err("任务不存在", 404)
         if not pstore.can_view_plan(_user(), plan):
             return _err("无权访问该任务", 403)
-        return jsonify({"ok": True, "job": job})
+        if job.get("kind") in ("plan_generate", "plan_regen", "plan_parent"):
+            scope = "plan_parent" if job["kind"] == "plan_parent" else "plan_internal"
+            job_attempts.current(scope, plan["id"])
+        return jsonify({"ok": True, "job": m1_jobs.read_job(job_id) or job})
     prep = store.get_prep(job.get("prep_id") or 0)
     if not prep:
         return _err("任务不存在", 404)
     if not store.can_read_prep(_user(), prep["id"]):
         return _err("无权访问该任务", 403)
-    return jsonify({"ok": True, "job": job})
+    if job.get("report_id"):
+        job_attempts.current("report", job["report_id"])
+    else:
+        job_attempts.current("prep", prep["id"])
+    return jsonify({"ok": True, "job": m1_jobs.read_job(job_id) or job})
 
 
 def _student_overview_payload(student_id: int) -> dict:
@@ -1095,16 +1074,38 @@ def _student_overview_payload(student_id: int) -> dict:
         prep["can_edit"] = store.can_access_prep(_user(), prep["id"])
         prep["report"] = statuses.get(prep["id"]) or {}
     student = _db.get_student(student_id) or {}
-    can_access = store.can_access_student(_user(), student_id)
+    meeting = _meeting_creation(student, preps)
     return {'ok': True,
+            'work': student_work_summary(student_id),
+            'meeting_creation': meeting,
+            'profile_href': _profile_href(student),
             'student': {k: student.get(k) for k in ('id', 'name', 'student_code', 'grade', 'school')},
             'preps': preps, 'plans': plans,
             'can_create_direct': store.can_read_student(_user(), student_id),
-            'can_create_first_meeting': can_access,
+            'can_create_first_meeting': bool(meeting.get('href')),
             'can_manage_team': pstore.can_manage_team(_user()),
             'team': plan_collab.team_view(student_id),
             'create_plan': {'method': 'POST', 'href': '/api/m1/plans',
                             'source_mode': 'mentor_inputs', 'student_id': student_id}}
+
+
+def _profile_href(student, *, y4=False):
+    scope = app_utils._advisor_scope()
+    if scope is not None and (student.get("advisor_name") or "") != scope:
+        return ""
+    code = student.get("student_code")
+    return f"/app/students/{quote(code, safe='')}" + ("?tab=y4" if y4 else "") if code else ""
+
+
+def _meeting_creation(student, preps):
+    from growth_talk.y4_snapshot import latest_complete_y4
+
+    student_id = student["id"]
+    if preps or not store.can_access_student(_user(), student_id):
+        return {}
+    if latest_complete_y4(student_id) is None:
+        return {"reason": "Y4 尚未完成", "y4_href": _profile_href(student, y4=True)}
+    return {"href": f"/m1?create_meeting={student_id}"}
 
 
 def _can_view_student_hub(student_id: int) -> bool:
@@ -1132,5 +1133,7 @@ def page_student_hub(student_id):
     return _render_page('m1/student_hub.html', nav_active='students',
                         student=student, student_id=student_id,
                         can_create_direct=store.can_read_student(_user(), student_id),
-                        can_create_first_meeting=store.can_access_student(_user(), student_id),
+                        meeting_creation=_meeting_creation(
+                            student, store.list_preps(user=_user(), student_id=student_id, limit=1)),
+                        profile_href=_profile_href(student),
                         ctx={'student': student})

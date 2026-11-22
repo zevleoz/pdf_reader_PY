@@ -82,6 +82,9 @@
     <a class="{{ s3 }}" href="#step=parent" data-step="parent"{% if s3 == 'x' or not has_parent_step %} aria-disabled="true"{% endif %}><b>③ 家长版</b><small>预览修改 · 导出 PDF</small></a>
   </div>
 
+  <p class="hint" id="planProgressStatus" role="status" hidden></p>
+  <button type="button" class="btn s" id="planProgressRetry" hidden>重试载入进度</button>
+
   {% if not can_edit %}
   <p class="plan-ro">只读：只有负责导师 {{ plan.mentor_name }} 可以修改。</p>
   {% endif %}
@@ -776,9 +779,9 @@
         <span class="st {{ 's0' if parent_status == 'exported' else ('s1' if parent_status == 'draft' else 'sn') }}" id="parentStatusChip">{{ parent_labels.get(parent_status, parent_status) }}</span>
         {% if parent_editable and page_state.canApprove %}
         <button class="btn p" id="parentConfirmBtn">确认家长版</button>
-        <button class="btn" id="parentExportBtn">导出 PDF</button>
+        <button class="btn" id="parentExportBtn">下载家长版 PDF</button>
         {% elif parent_editable %}
-        <p class="hint">共同导师可以修改家长版，确认和导出由负责导师或管理员完成。</p>
+        <p class="hint">共同导师可以修改家长版，确认和导出由负责导师或管理员完成。下载后请由导师发送给家长。</p>
         {% endif %}
         <p class="hint" id="parentBlockSummary" style="margin:6px 0 0"{% if not parent_blocking %} hidden{% endif %}>
           {% if parent_blocking %}{{ parent_blocking|length }} 项待处理 · 先处理：{{ parent_blocking[0].label }}{% endif %}

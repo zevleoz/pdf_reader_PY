@@ -36,13 +36,6 @@
     });
   }
 
-  function today() {
-    var d = new Date();
-    return [d.getFullYear(),
-      String(d.getMonth() + 1).padStart(2, '0'),
-      String(d.getDate()).padStart(2, '0')].join('-');
-  }
-
   function md(value) {
     return value ? String(value).slice(5, 10) : '';
   }
@@ -98,74 +91,6 @@
     });
   }
 
-  function nextStep(data) {
-    var prep = data.prep;
-    var prepPart = data.prep_part;
-    var reportPart = data.report_part;
-    var base = '/m1/preps/' + prep.id;
-    var plan = (data.plans || [])[0];
-    if (!plan && (data.can_edit === false ||
-        (reportPart.started && data.report_can_edit === false))) {
-      return {sentence: '当前会议文档只读', button: '查看',
-        href: base + (reportPart.started ? '/report' : '/prep')};
-    }
-    if (!plan) {
-      if (reportPart.started) {
-        if (reportPart.status === 'published') {
-          return { sentence: '可以新建 Block 1 发展计划',
-            button: '新建发展计划', href: '/m1/plans?new=' + prep.id };
-        }
-        if (reportPart.status === 'generating') {
-          return { sentence: '会后报告正在生成', button: '查看生成进度', href: base + '/report' };
-        }
-        if (reportPart.status === 'draft') {
-          return { sentence: '继续准备并生成会后报告', button: '继续会后报告', href: base + '/report' };
-        }
-        return { sentence: '核对并正式发布会后报告', button: '核对发布',
-          href: base + '/report#step=review' };
-      }
-      if (!prepPart.has_doc) {
-        return { sentence: '生成会前准备 AI 初稿', button: '开始会前准备', href: base + '/prep' };
-      }
-      if (prepPart.status !== 'final') {
-        return { sentence: '审阅并定稿会前准备', button: '去定稿',
-          href: base + '/prep#step=review' };
-      }
-      return { sentence: '上传 First Meeting 逐字稿，生成会后报告', button: '开始会后报告',
-        href: base + '/report' };
-    }
-    var block = 'Block ' + plan.block_no;
-    if (plan.status === 'inputs') {
-      return { sentence: '确认 ' + block + ' 发展目标，生成内部教学计划',
-        button: '继续发展计划', href: plan.step_url };
-    }
-    if (plan.status === 'generating') {
-      return { sentence: block + ' 内部版正在生成', button: '查看生成进度', href: plan.step_url };
-    }
-    if (plan.status === 'review') {
-      return { sentence: '审阅并批准 ' + block + ' 内部版', button: '审阅内部版',
-        href: plan.step_url };
-    }
-    if (plan.parent_status === 'generating') {
-      return { sentence: block + ' 家长版正在生成', button: '查看生成进度',
-        href: plan.step_url };
-    }
-    if (plan.parent_status === 'none' || !plan.parent_status) {
-      return { sentence: '内部版已批准，可以生成 ' + block + ' 家长版',
-        button: '生成家长版', href: plan.step_url };
-    }
-    if (plan.parent_status === 'draft') {
-      return { sentence: '确认 ' + block + ' 家长版', button: '确认家长版',
-        href: plan.step_url };
-    }
-    if (plan.parent_status === 'exported') {
-      return { sentence: block + ' 发展计划已导出', button: '打开发展计划',
-        href: plan.step_url };
-    }
-    return { sentence: block + ' 家长版已确认', button: '导出家长版',
-      href: plan.step_url };
-  }
-
   function renderHead(data) {
     var host = document.getElementById('m1Ph');
     var prep = data.prep;
@@ -178,14 +103,16 @@
     left.appendChild(el('p', 'sub', sub.join(' · ')));
     host.appendChild(left);
 
-    var step = nextStep(data);
+    var step = (data.work || {}).next;
     var right = el('div', 'nx');
     right.appendChild(el('small', null, '下一步'));
-    right.appendChild(el('b', null, step.sentence));
-    var link = el('a', 'btn p');
-    link.href = step.href;
-    link.innerHTML = step.button + ' ' + ARROW;
-    right.appendChild(link);
+    right.appendChild(el('b', null, step && step.owner || (step ? '学生文档' : '当前没有待办')));
+    if (step && step.href) {
+      var link = el('a', 'btn p', step.label);
+      link.href = step.href;
+      link.insertAdjacentHTML('beforeend', ' ' + ARROW);
+      right.appendChild(link);
+    }
     host.appendChild(right);
   }
 
@@ -224,8 +151,8 @@
             ? ' · ' + md(prepPart.finalized_at) : ''),
         done: prepPart.status === 'final' },
       { title: 'First Meeting',
-        small: prep.meeting_date ? md(prep.meeting_date) : '日期待定',
-        done: !!prep.meeting_date && prep.meeting_date <= today() },
+        small: (prep.meeting_date ? md(prep.meeting_date) + ' · ' : '') + data.meeting_label,
+        done: false },
       { title: '会后报告', small: reportPart.status === 'published'
           ? '已发布' + (reportPart.published_at ? ' · ' + md(reportPart.published_at) : '')
           : reportPart.label,
@@ -236,7 +163,11 @@
       { title: '家长版', small: parentTrackLabel(plan), done: exported }
     ];
 
-    var nextIndex = cells.findIndex(function (cell) { return !cell.done; });
+    var next = (data.work || {}).next;
+    var nextIndex = next && next.actionable
+      ? { prep: 0, report: 2, plan: 3 }[next.kind]
+      : -1;
+    if (nextIndex === 3 && plan && plan.status === 'approved') nextIndex = 4;
     host.innerHTML = '';
     cells.forEach(function (cell, index) {
       var cls = cell.done ? 'd' : (index === nextIndex ? 'n' : 'x');
@@ -337,7 +268,7 @@
     var link = el('a', 'btn p');
     link.href = '/m1/preps/' + prep.id + '/report';
     if (data.report_can_edit === false) {
-      link.textContent = '查看';
+      link.textContent = '查看会后报告（只读）';
     } else if (!part.started) {
       link.innerHTML = UPLOAD + '上传逐字稿';
     } else {
@@ -345,7 +276,8 @@
     }
     acts.appendChild(link);
     if (part.has_version) {
-      var exported = el('a', 'btn', '导出 PDF');
+      var exported = el('a', 'btn', ['approved', 'published'].indexOf(part.status) >= 0
+        ? '下载正式报告（家长）' : '下载报告草稿（内部审阅）');
       exported.href = '/m1/preps/' + prep.id + '/report/print?print=1';
       exported.target = '_blank';
       acts.appendChild(exported);
@@ -439,7 +371,9 @@
 
     var plans = data.plans || [];
     if (!plans.length) {
-      host.appendChild(el('p', 'hint', '会后报告发布后，可以新建第一个 Block 的发展计划。'));
+      host.appendChild(el('p', 'hint', data.can_create_plan
+        ? '可以使用已有的会后报告草稿创建发展计划。'
+        : '会后报告生成草稿后，可以从报告创建发展计划。'));
       return;
     }
     plans.forEach(function (plan) { host.appendChild(renderPlanCard(plan, prep)); });

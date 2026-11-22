@@ -143,7 +143,9 @@ def test_generate_runs_overview_then_sessions_in_order(ready, monkeypatch):
 
 def test_prompts_never_include_transcript_private_notes_or_files(ready, monkeypatch):
     db, plan = ready
+    rstore.reopen(plan["report_id"])
     rstore.set_transcript(plan["report_id"], text="逐字稿机密标记：学生说……", filename="t.txt")
+    rstore.publish(plan["report_id"])
     pstore.save_personal(plan["id"], plan["rev"], "私下备注：父母刚离婚，请不要提到。")
     pstore.add_file(plan["id"], filename="meeting.txt",
                     text="会议记录原文：家长希望先练表达。", text_status="ok")
@@ -280,7 +282,9 @@ def _approved(plan, monkeypatch, fake):
 
 def test_parent_prompt_has_no_report_transcript_or_notes(ready, monkeypatch):
     _db, plan = ready
+    rstore.reopen(plan["report_id"])
     rstore.set_transcript(plan["report_id"], text="逐字稿机密标记：学生说……", filename="t.txt")
+    rstore.publish(plan["report_id"])
     pstore.save_personal(plan["id"], plan["rev"], "私下备注：父母刚离婚。")
     fake = FakeModel()
     version_id = _generate(pstore.get_plan(plan["id"]), monkeypatch, fake)

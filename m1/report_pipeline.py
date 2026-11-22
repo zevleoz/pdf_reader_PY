@@ -1441,7 +1441,7 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None,
         return result
 
     ctx = run("check", lambda: step_check(prep, report))
-    analysis = run("speakers", lambda: speakers.for_generation(report, _ask, actor_id))
+    analysis, generation_rev = run("speakers", lambda: speakers.for_generation(report, _ask, actor_id))
     turns = analysis["turns"] if analysis else []
     single_speaker = single_speaker_transcript(report.get("transcript_text") or "",
                                                turns or None)
@@ -1501,10 +1501,13 @@ def generate(prep_id: int, progress: Optional[ProgressCallback] = None,
                                         first_touch_text=ctx["first_touch_text"])
 
     checks = run("checks", finish)
-    saved = report_store.add_version(
-        report["id"], y4_ratings=ratings, evidence=evidence, ai_doc=doc,
-        doc=copy.deepcopy(doc), checks=checks, manifest=manifest,
-        status="ai_draft", safety=safety, created_by=actor_id)
+    from m1 import job_attempts
+
+    with job_attempts.commit():
+        saved = report_store.add_version(
+            report["id"], y4_ratings=ratings, evidence=evidence, ai_doc=doc,
+            doc=copy.deepcopy(doc), checks=checks, manifest=manifest,
+            status="ai_draft", safety=safety, created_by=actor_id, expected_rev=generation_rev)
     log.info("m1 report generated: report=%s version=%s evidence=%d checks=%d safety=%d",
              report["id"], saved["id"], len(evidence), len(checks), len(safety))
     return saved["id"]

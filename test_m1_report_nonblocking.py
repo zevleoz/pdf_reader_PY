@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from m1 import report_checks, report_kb, report_store
 from test_m1_report_core import (admin_login, doc_put, generated_via_api,  # noqa: F401
-                                 generate, client, fake, inline_jobs, rdb, url)
+                                 generate, client, fake, inline_jobs, publish_reviewed, rdb, url)
 from test_m1_store import m1db  # noqa: F401
 
 UNSUPPORTED_SENTENCE = "学生下课后在教室待着。"
@@ -46,7 +46,7 @@ def test_publish_directly_from_ai_draft_with_diagnostics(client, rdb, fake, inli
     assert payload["report"]["status"] == "ai_draft"
     assert any(c["code"] == "fact_unsupported" and c["level"] == "review"
                for c in payload["checks"])
-    res = client.post(url(rdb, "/publish"))
+    res = publish_reviewed(client, rdb)
     assert res.status_code == 200 and res.get_json()["report"]["status"] == "published"
 
 
@@ -61,17 +61,17 @@ def test_legacy_needs_check_publish_does_not_require_safety_ack(client, rdb, fak
         row.safety_ack_at = None
         sess.commit()
     assert payload["report"]["safety_ack_at"] is None
-    res = client.post(url(rdb, "/publish"))
+    res = publish_reviewed(client, rdb)
     assert res.status_code == 200 and res.get_json()["report"]["status"] == "published"
 
 
 def test_generating_or_missing_version_cannot_publish(client, rdb, fake, inline_jobs):
     admin_login(client, rdb)
-    assert client.post(url(rdb, "/publish")).status_code == 409
+    assert client.post(url(rdb, "/publish"), json={"expected_rev": 1, "version_id": 1}).status_code == 409
     generated_via_api(client, rdb, fake, inline_jobs)
     report = report_store.get_report(rdb.prep_row["id"])
     report_store.set_status(report["id"], "generating")
-    assert client.post(url(rdb, "/publish")).status_code == 409
+    assert publish_reviewed(client, rdb).status_code == 409
     assert report_store.get_report(rdb.prep_row["id"])["status"] == "generating"
 
 
@@ -85,7 +85,7 @@ def test_structurally_incomplete_draft_still_cannot_publish(client, rdb, fake, i
         report["id"], y4_ratings=version["y4_ratings"], evidence=version["evidence"],
         ai_doc=doc, doc=copy.deepcopy(doc), checks=[], manifest=version["manifest"],
         status="ai_draft")
-    res = client.post(url(rdb, "/publish"))
+    res = publish_reviewed(client, rdb)
     assert res.status_code == 400
     assert "阻断" in res.get_json()["error"]
     assert report_store.get_report(rdb.prep_row["id"])["status"] == "ai_draft"

@@ -782,7 +782,7 @@ def mark_report_read(plan_id: int, report_version_id: int, *,
 def add_version(plan_id: int, *, part: str, kind: str = "ai_draft",
                 ai_doc=None, doc=None, checks=None, manifest=None,
                 source_version_id: Optional[int] = None,
-                created_by=None) -> Dict[str, Any]:
+                created_by=None, mark_ready=False) -> Dict[str, Any]:
     if part not in PARTS:
         raise ValueError("未知版本类型：%s" % part)
     if kind not in KINDS:
@@ -808,6 +808,13 @@ def add_version(plan_id: int, *, part: str, kind: str = "ai_draft",
             plan.current_version_id = row.id
         else:
             plan.parent_version_id = row.id
+        if mark_ready:
+            if part == "internal":
+                plan.status = "review"
+            else:
+                plan.parent_status = "draft"
+            plan.gen_prev = None
+            _bump_document(sess, plan_id)
         _bump(plan)
         data = _version_row(sess, row)
         sess.commit()

@@ -12,7 +12,7 @@ import db
 from m1 import plan_collaboration as collab, plan_store as plans, store
 
 
-def visible_sources(user, *, include_unassigned=False) -> list[dict]:
+def visible_sources(user, *, include_unassigned=False, student_id=None) -> list[dict]:
     """One student row with latest readable prep and highest readable Block.
 
     Visibility follows student/prep read helpers and can_view_plan, without
@@ -33,6 +33,7 @@ def visible_sources(user, *, include_unassigned=False) -> list[dict]:
     prep = store.M1Prep
     plan = plans.M1Plan
     team = collab.PlanTeamMember
+    student_filter = db.Student.id == student_id if student_id is not None else True
     with Session(db.engine) as sess:
         account = sess.get(db.User, uid)
         if account is None or not account.is_active:
@@ -48,7 +49,7 @@ def visible_sources(user, *, include_unassigned=False) -> list[dict]:
             select(team.student_id, team.user_id, team.role)
             .join(db.User, db.User.id == team.user_id)
             .join(db.Student, db.Student.id == team.student_id)
-            .where(db.User.is_active == 1,
+            .where(db.User.is_active == 1, student_filter,
                    or_(raw_student, team.user_id == uid))).all()
         my_team = {r.student_id: r.role for r in memberships if r.user_id == uid}
         prep_rows = sess.execute(
@@ -58,7 +59,7 @@ def visible_sources(user, *, include_unassigned=False) -> list[dict]:
                    db.User.advisor_name, db.User.username)
             .join(db.Student, db.Student.id == prep.student_id)
             .outerjoin(db.User, db.User.id == prep.mentor_user_id)
-            .where(or_(raw_student, prep.mentor_user_id == uid, prep.student_id.in_(assigned)))
+            .where(student_filter, or_(raw_student, prep.mentor_user_id == uid, prep.student_id.in_(assigned)))
             .order_by(prep.updated_at.desc(), prep.id.desc())).all()
         readable_preps = {r.id for r in prep_rows}
         # A mentor assignment on any document grants student-wide discovery.
@@ -70,15 +71,17 @@ def visible_sources(user, *, include_unassigned=False) -> list[dict]:
             .join(db.Student, db.Student.id == plan.student_id)
             .outerjoin(plans.M1PlanVersion,
                        plans.M1PlanVersion.id == plan.parent_version_id)
-            .where(or_(raw_student, plan.student_id.in_(assigned),
+            .where(student_filter, or_(raw_student, plan.student_id.in_(assigned),
                        (plan.source_mode == "report") & plan.prep_id.in_(readable_preps)))
             .order_by(plan.block_no.desc(), plan.updated_at.desc(), plan.id.desc())).all()
         ids = ({r.student_id for r in memberships}
                | {r.student_id for r in prep_rows} | {r.student_id for r in plan_rows})
+        unassigned_visible = raw_student if student_id is not None else bool(settings["m1_admin"])
         students = sess.execute(
             select(db.Student.id, db.Student.name, db.Student.student_code,
                    db.Student.grade, db.Student.advisor_name)
-            .where(True if include_unassigned and settings["m1_admin"] else db.Student.id.in_(ids))
+            .where(student_filter, or_(db.Student.id.in_(ids),
+                   include_unassigned and unassigned_visible))
             .order_by(db.Student.name, db.Student.id)).all()
 
     rows = {}
@@ -92,7 +95,7 @@ def visible_sources(user, *, include_unassigned=False) -> list[dict]:
                       "student_code": s.student_code or "", "grade": s.grade or "",
                       "roles": roles, "participating": bool(roles),
                       "_advisor": (s.advisor_name or "").strip(),
-                      "prep": None, "plan": None}
+                      "prep": None, "plan": None, "_preps": [], "_plans": []}
     for sources, kind in ((prep_rows, "prep"), (plan_rows, "plan")):
         for source in sources:
             row = rows[source.student_id]
@@ -101,24 +104,28 @@ def visible_sources(user, *, include_unassigned=False) -> list[dict]:
             if source.created_by == uid and "creator" not in row["roles"]:
                 row["roles"].append("creator")
             row["participating"] = bool(row["roles"])
-            if row[kind] is not None:
-                continue
             if kind == "prep":
-                row[kind] = {"id": source.id, "meeting_date": source.meeting_date or "",
+                summary = {"id": source.id, "meeting_date": source.meeting_date or "",
                              "can_edit": bool(all_students or source.mentor_user_id == uid
                                               or (advisor and advisor == rows[source.student_id].get("_advisor"))),
                              "mentor_name": source.display_name or source.advisor_name
                              or source.username or "", "status": source.status,
                              "current_version_id": source.current_version_id}
             else:
-                row[kind] = {"id": source.id, "block_no": source.block_no,
+                can_approve = bool(settings["m1_admin"] or source.mentor_user_id == uid)
+                summary = {"id": source.id, "block_no": source.block_no,
                              "status": source.status,
                              "status_label": plans.STATUS_LABELS.get(source.status, source.status),
                              "parent_status": source.parent_status,
                              "parent_version_id": source.parent_version_id,
+                             "can_edit": can_approve or source.student_id in my_team,
+                             "can_approve": can_approve,
                              "parent_stale": bool(source.parent_version_id and (
                                  source.status != "approved" or
                                  (source.source_version_id or 0) != (source.current_version_id or 0)))}
+            row["_" + kind + "s"].append(summary)
+            if row[kind] is None:
+                row[kind] = summary
     for row in rows.values():
         row.pop("_advisor", None)
     return list(rows.values())
