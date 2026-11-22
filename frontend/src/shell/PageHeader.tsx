@@ -2,7 +2,12 @@ import * as React from "react";
 
 import { useCrumb } from "@/shell/crumbs";
 
-export default function PageHeader({ title, sub, actions }: { title: string; sub?: string; actions?: React.ReactNode }) {
+export default function PageHeader({ title, sub, actions, titleAction }: {
+  title: string;
+  sub?: string;
+  actions?: React.ReactNode;
+  titleAction?: React.ReactNode;
+}) {
   const { setTitle } = useCrumb();
 
   React.useEffect(() => {
@@ -17,7 +22,14 @@ export default function PageHeader({ title, sub, actions }: { title: string; sub
   return (
     <div className="grid grid-cols-1 gap-3 mb-[18px] md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:gap-6">
       <div>
-        <h1 className="text-title-sm md:text-title">{title}</h1>
+        {titleAction ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="min-w-0 break-words text-title-sm md:text-title">{title}</h1>
+            {titleAction}
+          </div>
+        ) : (
+          <h1 className="text-title-sm md:text-title">{title}</h1>
+        )}
         {sub ? <p className="mt-[7px] text-mute">{sub}</p> : null}
       </div>
       {actions ? <div>{actions}</div> : null}

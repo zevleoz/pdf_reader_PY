@@ -125,6 +125,86 @@ function MetaField({
   );
 }
 
+function StudentNameEditor({ studentId, name, onSaved }: {
+  studentId: number;
+  name: string;
+  onSaved: (name: string) => void;
+}) {
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const editButton = React.useRef<HTMLButtonElement>(null);
+  const errorId = React.useId();
+
+  function closeEditor() {
+    setDraft(null);
+    setError("");
+    requestAnimationFrame(() => editButton.current?.focus());
+  }
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (draft === null || saving) return;
+    const nextName = draft.trim();
+    if (!nextName) {
+      setError("姓名不能为空");
+      return;
+    }
+    if (nextName === name) {
+      closeEditor();
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    try {
+      const res = await putJSON<{ student: { name: string } }>("/api/students/" + studentId, { name: nextName });
+      onSaved(res.student.name);
+      closeEditor();
+    } catch (e) {
+      setError(errorText(e, "保存姓名失败，请重试"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (draft === null) {
+    return (
+      <Button ref={editButton} type="button" variant="ghost" aria-label="编辑学生姓名" onClick={() => setDraft(name)}>
+        <Pencil aria-hidden="true" />
+        改名
+      </Button>
+    );
+  }
+
+  return (
+    <form className="flex min-w-0 flex-wrap items-center gap-2" onSubmit={save}>
+      <Input
+        autoFocus
+        aria-label="学生姓名"
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        className="w-48 max-w-full"
+        value={draft}
+        disabled={saving}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          setError("");
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && !saving) {
+            event.preventDefault();
+            closeEditor();
+          }
+        }}
+      />
+      <Button type="submit" disabled={saving}>{saving ? "保存中…" : "保存"}</Button>
+      <Button type="button" variant="outline" disabled={saving} onClick={closeEditor}>取消</Button>
+      {error ? <p id={errorId} role="alert" className="basis-full text-sm text-attention">{error}</p> : null}
+    </form>
+  );
+}
+
 /* ------------------------------------------------------------ 六步进度 */
 function Tracker({ progress }: { progress: Progress }) {
   const currentKey = progress.done || !progress.next ? null : progress.next.key;
@@ -259,7 +339,11 @@ export default function StudentProfile() {
   const data = state.data;
   const { student, permissions } = data;
   const setStudent = (patch: Partial<typeof student>) =>
-    setState((s) => (s.status === "ready" ? { status: "ready", data: { ...s.data, student: { ...s.data.student, ...patch } } } : s));
+    setState((s) => (
+      s.status === "ready" && s.data.student.id === student.id
+        ? { status: "ready", data: { ...s.data, student: { ...s.data.student, ...patch } } }
+        : s
+    ));
 
   const openFlags = permissions.full ? data.questionnaire_flags : [];
   const flagCount = openFlags.reduce((n, f) => n + (f.flags || []).length, 0);
@@ -336,7 +420,21 @@ export default function StudentProfile() {
           ← 学生档案
         </Link>
 
-        <PageHeader title={student.name} actions={<div className="hidden md:block"><NextBox data={data} onSixAm={() => setTab("six_am")} /></div>} />
+        <PageHeader
+          title={student.name}
+          titleAction={permissions.can_write ? (
+            <StudentNameEditor
+              key={student.id}
+              studentId={student.id}
+              name={student.name}
+              onSaved={(name) => {
+                setStudent({ name });
+                notify("姓名已更新", "ok");
+              }}
+            />
+          ) : undefined}
+          actions={<div className="hidden md:block"><NextBox data={data} onSixAm={() => setTab("six_am")} /></div>}
+        />
 
         <div className="-mt-3 mb-4 text-sm">
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-mute">
