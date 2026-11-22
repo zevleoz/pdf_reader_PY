@@ -45,7 +45,7 @@ export default function FilesTab() {
   const res = useResource<{ reports: FileRow[] }>("files", base + "reports");
   const minutes = useResource<MinutesResp>("minutes", base + "minutes");
   const [busy, setBusy] = React.useState(false);
-  const [v1, setV1] = React.useState<Record<number, string>>({});
+  const [v1, setV1] = React.useState<Record<number, { href: string; studentName: string }>>({});
   const [older, setOlder] = React.useState(false);
 
   async function regenerate(id: number) {
@@ -59,7 +59,7 @@ export default function FilesTab() {
       if (!resp.ok) throw new Error(await failMessage(resp, "生成失败"));
       await saveResponse(resp, "凭远Y4评测报告.pdf");
       const v1name = resp.headers.get("X-V1-Filename");
-      if (v1name) setV1((m) => ({ ...m, [id]: "/output/" + v1name }));
+      if (v1name) setV1((m) => ({ ...m, [id]: { href: "/output/" + v1name, studentName: data.student.name } }));
       notify("PDF 已生成并下载", "ok");
     } catch (err) {
       notify(err instanceof Error && err.message ? err.message : "生成失败", "error");
@@ -121,9 +121,9 @@ export default function FilesTab() {
     return (
       <div>
         <FileLine name="Y4 综合报告" type="PDF" date={date}>
-          {v1[r.id] ? (
+          {v1[r.id]?.studentName === data.student.name ? (
             <Button variant="outline" size="sm" asChild>
-              <a href={v1[r.id]} target="_blank" rel="noreferrer">
+              <a href={v1[r.id].href} target="_blank" rel="noreferrer">
                 旧版
               </a>
             </Button>

@@ -31,6 +31,7 @@ export type BuildStatus = {
   job_id: number | null;
   position: number;
   pdf_ready: boolean;
+  name_stale?: boolean;
   built_at: string;
   stale: boolean;
   error: string;
@@ -102,7 +103,7 @@ export function useY4Upload() {
 
   React.useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, data.student.name]);
 
   const pending = isPending(status);
   React.useEffect(() => {
@@ -432,7 +433,7 @@ export function Y4UploadSection({ up, items, canEdit }: { up: Y4Upload; items: Y
         <span className="font-semibold sm:w-[200px]">报告</span>
         {canEdit ? (
           <Button size="sm" disabled={!anyDone || buildBusy} onClick={() => void build()}>
-            生成报告
+            {b.name_stale ? "重新生成报告" : "生成报告"}
           </Button>
         ) : null}
         {buildLine}
@@ -444,7 +445,9 @@ export function Y4UploadSection({ up, items, canEdit }: { up: Y4Upload; items: Y
             {b.built_at ? <span className="text-[12.5px] text-mute">{dtShort(b.built_at)}</span> : null}
           </>
         ) : null}
-        {b.stale ? <span className="text-[12.5px] text-s2">数据有更新，报告需要重新生成</span> : null}
+        {b.name_stale || b.stale ? (
+          <span className="text-[12.5px] text-s2">{b.name_stale ? "学生姓名已更新，报告需要重新生成" : "数据有更新，报告需要重新生成"}</span>
+        ) : null}
       </div>
       <div className="py-[7px]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">

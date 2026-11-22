@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from datetime import date
+from urllib.parse import unquote
 
 import pytest
 from flask import Flask
@@ -158,6 +159,41 @@ def test_route_returns_pdf_with_renderer_mocked(client, env, monkeypatch):
     assert resp.mimetype == "application/pdf"
     assert "UTF-8''" in resp.headers["Content-Disposition"]
     assert "Y4-2" in resp.headers["Content-Disposition"] or "%" in resp.headers["Content-Disposition"]
+
+
+def test_downloads_use_renamed_profile_without_changing_snapshot(client, env, monkeypatch, tmp_path):
+    new_name = "林晓同学"
+    renamed = client.put(f"/api/students/{env['student']}", json={"name": new_name})
+    assert renamed.status_code == 200
+    snapshot_before = _db.get_report_raw(env["b3"])["raw"]
+
+    def render_learning(raw, destination):
+        assert raw["student"]["name"] == new_name
+        assert raw["student"]["grade"] == snapshot_before["student"]["grade"]
+        assert raw["schema_124"] == snapshot_before["schema_124"]
+        destination.write_bytes(b"%PDF-1.4")
+
+    monkeypatch.setattr(render_y4_2, "render_pdf", render_learning)
+    directory = reports_api.OUTPUT_DIR
+    directory.mkdir()
+    monkeypatch.setattr(reports_api, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(reports_api, "_job_running", lambda: False)
+    monkeypatch.setattr(reports_api, "apply_report_data", lambda: {})
+
+    def render_full():
+        raw = json.loads((tmp_path / "report_data.json").read_text())
+        assert raw["student"]["name"] == new_name
+        assert raw["schema_124"] == snapshot_before["schema_124"]
+        for prefix in ("凭远Y4评测报告", "凭远Y4评测报告_v2"):
+            (directory / f"{prefix}_{new_name}.pdf").write_bytes(b"%PDF-1.4")
+
+    monkeypatch.setattr(reports_api._generate_module, "main", render_full)
+    for route in ("regenerate", "y4-2"):
+        response = client.post(f"/api/reports/{env['b3']}/{route}")
+        assert response.status_code == 200
+        assert new_name in unquote(response.headers["Content-Disposition"])
+        assert response.data.startswith(b"%PDF")
+    assert _db.get_report_raw(env["b3"])["raw"] == snapshot_before
 
 
 def _chrome_ok():

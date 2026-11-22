@@ -795,6 +795,14 @@ def get_report_raw(report_id: int) -> Optional[Dict[str, Any]]:
         }
 
 
+def report_snapshot_with_student_name(raw: Dict[str, Any], student_name: Optional[str]) -> Dict[str, Any]:
+    """Use the profile name for rendering without rewriting the stored report snapshot."""
+    name = (student_name or "").strip()
+    if not name:
+        return raw
+    return {**raw, "student": {**(raw.get("student") or {}), "name": name}}
+
+
 _B3D_STRING_CODES = ("motivation_type", "method_type")
 _B3D_LIST_KEYS = ("practice_dims", "practice_items", "exec_dims", "exec_items")
 

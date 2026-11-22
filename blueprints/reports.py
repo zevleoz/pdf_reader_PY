@@ -947,7 +947,7 @@ def api_report_regenerate(report_id):
     info = _db.get_report_raw(report_id)
     if not info:
         return jsonify({"ok": False, "error": "报告记录不存在"}), 404
-    raw = info.get("raw") or {}
+    raw = _db.report_snapshot_with_student_name(info.get("raw") or {}, info.get("student_name"))
     if not raw.get("schema_124"):
         return jsonify({"ok": False, "error": "该记录没有完整数据快照，无法重生成"}), 400
 
@@ -995,7 +995,7 @@ def api_report_y4_2(report_id):
     info = _db.get_report_raw(report_id)
     if not info:
         return jsonify({"ok": False, "error": "报告记录不存在"}), 404
-    raw = info.get("raw") or {}
+    raw = _db.report_snapshot_with_student_name(info.get("raw") or {}, info.get("student_name"))
 
     new_iter = str(BASE_DIR / "new_iteration")
     if new_iter not in sys.path:

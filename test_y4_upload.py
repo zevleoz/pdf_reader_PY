@@ -592,6 +592,18 @@ def test_build_uses_only_read_slots_and_sets_pdf_path(env, monkeypatch):
     dl = c.get(f"/students/{st['student_code']}/api/y4/build/file")
     assert dl.status_code == 200 and dl.data == b"%PDF-1 v2"
     assert c.get(f"/students/{st['student_code']}/api/y4/build/file?legacy=1").data == b"%PDF-1 v1"
+    # 修改档案姓名后，旧 PDF 不再作为当前档案下载；重新排队即可，无需重新读取。
+    new_name = "改名后同学"
+    _db.update_student(st["id"], name=new_name)
+    assert status(c, st)["build"]["name_stale"] is True
+    assert status(c, st)["build"]["pdf_ready"] is False
+    for suffix in ("", "?legacy=1"):
+        assert c.get(f"/students/{st['student_code']}/api/y4/build/file{suffix}").status_code == 409
+    assert c.post(f"/students/{st['student_code']}/api/y4/build").status_code == 200
+    run_all()
+    assert seen["snap"]["student"]["name"] == new_name
+    assert status(c, st)["build"]["name_stale"] is False
+    assert c.get(f"/students/{st['student_code']}/api/y4/build/file").status_code == 200
     # 之后再读一份新资料，已生成的 PDF 标为过期
     time.sleep(1.1)
     read(c, st, "B4")

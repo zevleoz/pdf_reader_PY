@@ -669,6 +669,9 @@ def api_y4_build_file(code):
     path = build.get(key) or ""
     if not path or not y4_upload._abs(path).exists():
         return jsonify({"ok": False, "error": "报告还没有生成"}), 404
+    raw = y4_upload.load_raw(rd["report_id"]) if rd["report_id"] else None
+    if y4_upload.build_name_is_stale(build, raw or {}, st.get("name") or ""):
+        return jsonify({"ok": False, "error": "学生姓名已更新，请重新生成报告后下载"}), 409
     name = f"凭远Y4评测报告_{(st.get('name') or '').replace('/', '_').replace(' ', '')}.pdf"
     r = send_file(str(y4_upload._abs(path)), mimetype="application/pdf",
                   as_attachment=True, download_name=name)

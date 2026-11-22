@@ -928,10 +928,11 @@ def _run_build(job: Dict[str, Any]) -> None:
             s.get("has_data") for s in rd["state"]["slots"].values()):
         raise ReadError("还没有读取过任何资料，不能生成报告")
     rid = rd["report_id"]
-    raw = load_raw(rid)
-    if raw is None:
+    record = _db.get_report_raw(rid)
+    if record is None:
         raise ReadError(MSG_UNEXPECTED)
     _set_build(rnd, state="running", error="")
+    raw = _db.report_snapshot_with_student_name(record["raw"], record["student_name"])
     snap = build_snapshot(raw, rd["state"])
     v1, v2 = _render_pdfs(snap)
     if v2 is None:
@@ -949,13 +950,30 @@ def _run_build(job: Dict[str, Any]) -> None:
     with _edit_raw(rid) as (_raw2, report):
         report.pdf_path = _rel(out2)
     _set_build(rnd, state="done", job_id=job["id"], built_at=_iso(), error="",
-               v2_path=_rel(out2), v1_path=out1)
+               v2_path=_rel(out2), v1_path=out1, student_name=(snap.get("student") or {}).get("name", ""))
     _finish_job(job["id"])
 
 
 # ---------------------------------------------------------------------------
 # 对外：状态
 # ---------------------------------------------------------------------------
+def build_name_is_stale(build: Dict[str, Any], raw: Dict[str, Any], student_name: str) -> bool:
+    name = (student_name or "").strip()
+    if not name or not (build.get("v1_path") or build.get("v2_path")):
+        return False
+    if "student_name" in build:
+        return build["student_name"] != name
+
+    # Older builds have no name metadata. Check both their filename and source snapshot.
+    snapshot_name = ((raw.get("student") or {}).get("name") or "").strip()
+    safe_name = name.replace("/", "_").replace("\\", "_").replace(" ", "")
+    return snapshot_name != name or any(
+        Path(build[key]).name != f"{prefix}_{safe_name}.pdf"
+        for key, prefix in (("v1_path", "凭远Y4评测报告"), ("v2_path", "凭远Y4评测报告_v2"))
+        if build.get(key)
+    )
+
+
 def status_payload(student: Dict[str, Any]) -> Dict[str, Any]:
     fail_stale_jobs()
     rd = current_round(student["id"], persist=False)
@@ -992,6 +1010,7 @@ def status_payload(student: Dict[str, Any]) -> Dict[str, Any]:
             rep = sess.get(_db.Report, rid)
             pdf = (rep.pdf_path or "").strip() if rep else ""
     ready = bool(pdf) and _abs(pdf).exists()
+    name_stale = build_name_is_stale(b, raw or {}, student.get("name") or "")
     built_at = b.get("built_at") or ""
     reads = [slots[s]["read_at"] for s in SLOTS if slots[s].get("read_at")]
     bstate = b.get("state") or "none"
@@ -1007,7 +1026,8 @@ def status_payload(student: Dict[str, Any]) -> Dict[str, Any]:
         "slots": slots,
         "build": {"state": bstate, "job_id": build_job["id"] if build_job else None,
                   "position": pos[build_job["id"]] if build_job else 0,
-                  "pdf_ready": ready, "built_at": built_at,
+                  "pdf_ready": ready and not name_stale, "built_at": built_at,
+                  "name_stale": name_stale,
                   "stale": bool(ready and built_at and any(r > built_at for r in reads)),
                   "error": b.get("error") or ""},
         "edited_codes_by_slot": edited_codes_by_slot(raw or {}),
