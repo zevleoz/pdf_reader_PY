@@ -315,7 +315,7 @@
         });
       }
 
-      function dayButton(k, compact, inDetails) {
+      function dayButton(k, inDetails) {
         var d = parseKey(k), ok = selectable(k), active = S.date === k;
         var label = human(k) + (ok ? '' : '，暂无可约时段');
         if (!inWindow(k)) { label = human(k) + '，不在可预约范围'; }
@@ -331,7 +331,7 @@
         var idx = DAY_KEYS.indexOf(S.date);
         var start = Math.max(0, Math.floor((idx < 0 ? 0 : idx) / 7) * 7);
         weekBox.innerHTML = DAY_KEYS.slice(start, start + 7).map(function (k) {
-          return dayButton(k, true, false);
+          return dayButton(k, false);
         }).join('');
       }
 
@@ -348,7 +348,7 @@
         var cells = DOW.map(function (d) { return '<span class="f-dow">' + d + '</span>'; }).join('');
         for (var i = 0; i < offset; i++) { cells += '<span></span>'; }
         for (var day = 1; day <= count; day++) {
-          cells += dayButton(m + '-' + pad(day), false, true);
+          cells += dayButton(m + '-' + pad(day), true);
         }
         monthBox.innerHTML = cells;
       }
@@ -399,7 +399,7 @@
         var list = months(), i = list.indexOf(S.month) + offset;
         if (i < 0 || i >= list.length) { return; }
         S.month = list[i]; renderMonth();
-        var btn = monthBox.querySelector('[data-month="' + offset + '"], [data-date]:not(:disabled)');
+        var btn = monthBox.querySelector('[data-date]:not(:disabled)');
         if (btn) { try { btn.focus({ preventScroll: true }); } catch (e) {} }
       }
 
