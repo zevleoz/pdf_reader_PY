@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
 
-import type { NavLink } from "@/lib/boot";
+import { useBoot, type NavLink } from "@/lib/boot";
 import { useGoLink } from "@/shell/useGoLink";
 
 import { pad2, weekday, type Upcoming } from "./model";
@@ -20,6 +20,7 @@ const miniClass = "flex w-full items-center gap-2.5 border-b border-line py-2 te
 /* ------------------------------------------------------------ 接下来的预约 */
 export function UpcomingList({ rows, bookingsLink }: { rows: Upcoming[]; bookingsLink: NavLink | null }) {
   const go = useGoLink();
+  const canAssign = useBoot().user.role === "admin";
   return (
     <section aria-label="接下来的预约">
       <SideTitle
@@ -52,14 +53,18 @@ export function UpcomingList({ rows, bookingsLink }: { rows: Upcoming[]; booking
               </span>
             </>
           );
-          return u.student_code ? (
-            <Link
-              key={u.booking_id}
-              to={"/students/" + encodeURIComponent(u.student_code) + "?tab=schedule"}
-              className={miniClass}
-            >
-              {body}
-            </Link>
+          const profile = u.student_code ? "/students/" + encodeURIComponent(u.student_code) : null;
+          return profile ? (
+            <div key={u.booking_id} className="flex items-center gap-2.5 border-b border-line py-2">
+              <Link to={profile} className="flex min-w-0 flex-1 items-center gap-2.5 hover:[&_b]:underline">
+                {body}
+              </Link>
+              {canAssign ? (
+                <Link to={profile + "?tab=schedule"} className="shrink-0 text-[12.5px] font-semibold text-hl hover:underline">
+                  分配测评师
+                </Link>
+              ) : null}
+            </div>
           ) : bookingsLink ? (
             <button key={u.booking_id} type="button" className={miniClass} onClick={() => go(bookingsLink)}>
               {body}
