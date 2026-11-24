@@ -23,8 +23,8 @@ export function NextAction({ data, onSixAm, only }: { data: PageData; onSixAm: (
     ) : (
       <div className="flex flex-wrap items-center gap-2 md:justify-end">
         <span className="text-sm">6AM 档案尚未生成</span>
-        <Button variant="outline" asChild>
-          <a href="/insights/six-am">打开 6AM</a>
+        <Button variant="outline" onClick={onSixAm}>
+          去生成 6AM
         </Button>
       </div>
     );

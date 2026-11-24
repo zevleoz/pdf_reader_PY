@@ -93,7 +93,7 @@ export function useY4Upload() {
       setStatus(s);
       setError("");
       if (finished || created) {
-        cache.invalidate("y4data");
+        cache.invalidate("y4data", "reports-y4-status");
         setDataVersion((v) => v + 1);
       }
     } catch (e) {

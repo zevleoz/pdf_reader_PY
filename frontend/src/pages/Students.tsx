@@ -1,11 +1,13 @@
 import * as React from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getJSON } from "@/lib/api";
+import { errorText, getJSON, postJSON } from "@/lib/api";
 import { useBoot } from "@/lib/boot";
 import { stageTitle, type Progress } from "@/lib/progress";
 import { cn } from "@/lib/utils";
@@ -57,9 +59,119 @@ function StageBar({ progress }: { progress: Progress }) {
   );
 }
 
+const EMPTY_FORM = { name: "", grade: "", school: "", advisor_name: "", phone: "" };
+
+/** B：未经预约直接建档。顾问账号的归属由服务端固定为本人。 */
+function AddStudentDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (code: string) => void;
+}) {
+  const [form, setForm] = React.useState(EMPTY_FORM);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  React.useEffect(() => {
+    if (open) {
+      setForm(EMPTY_FORM);
+      setError("");
+      setBusy(false);
+    }
+  }, [open]);
+
+  const set = (key: keyof typeof EMPTY_FORM) => (event: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((f) => ({ ...f, [key]: event.target.value }));
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    if (!form.name.trim()) {
+      setError("姓名不能为空");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await postJSON<{ ok: boolean; student: { code: string } }>("/api/profiling/students", {
+        name: form.name.trim(),
+        grade: form.grade.trim(),
+        school: form.school.trim(),
+        advisor_name: form.advisor_name.trim(),
+        phone: form.phone.trim(),
+      });
+      onCreated(res.student.code);
+    } catch (e) {
+      setError(errorText(e, "建档失败"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto shadow-none sm:rounded-none">
+        <DialogHeader>
+          <DialogTitle>添加学生</DialogTitle>
+        </DialogHeader>
+        <form className="grid gap-3" onSubmit={submit}>
+          <div className="grid gap-1.5">
+            <Label htmlFor="new-student-name">学生姓名</Label>
+            <Input
+              id="new-student-name"
+              autoFocus
+              maxLength={100}
+              disabled={busy}
+              value={form.name}
+              onChange={set("name")}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-student-grade">年级</Label>
+              <Input id="new-student-grade" maxLength={50} disabled={busy} value={form.grade} onChange={set("grade")} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-student-school">学校</Label>
+              <Input id="new-student-school" maxLength={200} disabled={busy} value={form.school} onChange={set("school")} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-student-advisor">顾问</Label>
+              <Input
+                id="new-student-advisor"
+                maxLength={100}
+                disabled={busy}
+                placeholder="默认跟随当前账号"
+                value={form.advisor_name}
+                onChange={set("advisor_name")}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-student-phone">电话</Label>
+              <Input id="new-student-phone" maxLength={50} disabled={busy} value={form.phone} onChange={set("phone")} />
+            </div>
+          </div>
+          {error ? <p role="alert" className="text-sm text-attention">{error}</p> : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
+              取消
+            </Button>
+            <Button type="submit" disabled={busy}>{busy ? "建档中…" : "建档并打开 360"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Students() {
   const boot = useBoot();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const [addOpen, setAddOpen] = React.useState(false);
   const q = params.get("q") || "";
   const stage = params.get("stage") || "";
   const sort = params.get("sort") === "name" ? "name" : "updated";
@@ -120,6 +232,9 @@ export default function Students() {
         sub={data ? "共 " + data.total + " 名学生" : undefined}
         actions={
           <div className="flex gap-2">
+            {boot.user.role !== "viewer" ? (
+              <Button onClick={() => setAddOpen(true)}>＋ 添加学生</Button>
+            ) : null}
             {boot.policy.detail_level === "full" ? (
               <Button variant="outline" asChild>
                 <a href="/api/export">导出 CSV</a>
@@ -267,6 +382,14 @@ export default function Students() {
           </Button>
         </div>
       ) : null}
+      <AddStudentDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onCreated={(code) => {
+          setAddOpen(false);
+          navigate("/students/" + encodeURIComponent(code));
+        }}
+      />
     </div>
   );
 }

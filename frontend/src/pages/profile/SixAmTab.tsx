@@ -643,10 +643,6 @@ export default function SixAmTab() {
             <Button disabled={genBusy} onClick={() => void generate()}>
               生成
             </Button>
-          ) : !writable ? (
-            <a className="text-sm underline" href="/insights/six-am">
-              打开 6AM
-            </a>
           ) : null}
         </div>
       </div>

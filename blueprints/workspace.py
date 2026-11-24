@@ -19,8 +19,8 @@ from zoneinfo import ZoneInfo
 
 from flask import Blueprint, render_template, session
 
-from app_utils import (DATA_DIR, JOB_FILE, _advisor_scope, login_required, role_required,
-                       visible_student_filter)
+from app_utils import (DATA_DIR, JOB_FILE, _advisor_scope, admin_required, login_required,
+                       role_required, visible_student_filter)
 from pipeline import STAGES, compute_stages
 
 bp = Blueprint("workspace", __name__)
@@ -217,6 +217,40 @@ def api_profiling_students():
         page=_int_arg("page", 1, 1), per_page=_int_arg("per_page", 50, 1, 200),
         sort=sort)
     return jsonify({"ok": True, **body})
+
+
+@bp.route("/api/profiling/students", methods=["POST"])
+@admin_required
+def api_create_profiling_student():
+    """B：名单直接建档（不经预约）。顾问只能建在自己名下。"""
+    from flask import jsonify, request
+    import db as _db
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "姓名不能为空"}), 400
+    if len(name) > 100:
+        return jsonify({"ok": False, "error": "姓名过长"}), 400
+    grade = (data.get("grade") or "").strip()[:50]
+    school = (data.get("school") or "").strip()[:200]
+    phone = (data.get("phone") or "").strip()[:50]
+    advisor = (data.get("advisor_name") or "").strip()[:100]
+
+    scope = _advisor_scope()
+    if scope is not None:
+        advisor = scope
+    if not advisor:
+        advisor = (session.get("advisor_name") or "").strip()
+
+    sid = _db.create_student(name, grade=grade, school=school,
+                             phone=phone, advisor_name=advisor)
+    with _db.Session(_db.engine) as sess:
+        code = sess.get(_db.Student, sid).student_code
+    return jsonify({"ok": True, "student": {
+        "id": sid, "code": code, "name": name, "grade": grade,
+        "school": school, "advisor_name": advisor,
+    }}), 201
 
 
 @bp.route("/api/profiling/students/<code>/progress")

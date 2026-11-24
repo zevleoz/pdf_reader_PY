@@ -6,7 +6,6 @@ import {
   MessagesSquare,
   Settings,
   Users,
-  Waypoints,
   Workflow,
   Wrench,
   type LucideIcon,
@@ -27,7 +26,6 @@ const MAIN: { label: string; icon: LucideIcon; key: string }[] = [
 
 const OLD: { key: string; label: string; icon: LucideIcon; keys: string[] }[] = [
   { key: "first_touch", label: "First Touch", icon: MessagesSquare, keys: ["first_touch", "first_touch.guide"] },
-  { key: "six_am", label: "6AM", icon: Waypoints, keys: ["insights.six-am"] },
   { key: "insights", label: "洞察", icon: ChartColumn, keys: ["insights.dashboard", "insights.y4-signals"] },
   {
     key: "tools",
@@ -37,6 +35,9 @@ const OLD: { key: string; label: string; icon: LucideIcon; keys: string[] }[] = 
   },
   { key: "system", label: "系统", icon: Settings, keys: ["system.users", "system.settings", "system.docs"] },
 ];
+
+/** 已并入学生档案、不再出现在主导航的旧入口（路由本身保留，旧深链仍可打开）。 */
+const HIDDEN = new Set(["insights.six-am"]);
 
 const OTHER_ICONS: Record<string, LucideIcon> = { m1: MessagesSquare, e4: FileText };
 
@@ -57,7 +58,7 @@ export function buildRail(boot: Boot): RailModel {
   }
 
   for (const o of OLD) o.keys.forEach((k) => used.add(k));
-  const unmapped = Array.from(byKey.keys()).filter((k) => !used.has(k));
+  const unmapped = Array.from(byKey.keys()).filter((k) => !used.has(k) && !HIDDEN.has(k));
 
   const old: RailSection[] = [];
   for (const o of OLD) {

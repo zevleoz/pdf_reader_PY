@@ -183,6 +183,47 @@ def test_search_chinese_pinyin_initials_and_code(env):
     assert none["total"] == 0
 
 
+# ── 直接建档（B） ─────────────────────────────────────────────────────
+def test_create_student_without_booking(env):
+    c = admin(env)
+    r = c.post("/api/profiling/students", json={
+        "name": "新同学", "grade": "G10", "school": "示例中学",
+        "advisor_name": "Mine", "phone": "13800000000"})
+    assert r.status_code == 201
+    body = r.get_json()
+    assert body["ok"] is True
+    assert body["student"]["code"].startswith("Y4-")
+    assert body["student"]["advisor_name"] == "Mine"
+
+    st, listing = get(c, q="新同学")
+    assert st == 200 and listing["total"] == 1
+    assert listing["rows"][0]["advisor_name"] == "Mine"
+    assert listing["rows"][0]["progress"]["next"]["key"] == "booking"
+
+
+def test_create_student_requires_name(env):
+    r = admin(env).post("/api/profiling/students", json={"name": "   "})
+    assert r.status_code == 400
+    assert r.get_json()["ok"] is False
+
+
+def test_create_student_viewer_forbidden(env):
+    c = client(env, env.viewer, "viewer")
+    r = c.post("/api/profiling/students", json={"name": "只读学生"})
+    assert r.status_code == 403
+    _, listing = get(admin(env), q="只读学生")
+    assert listing["total"] == 0
+
+
+def test_create_student_advisor_forces_own_scope(env):
+    c = client(env, env.mine, "advisor", "Mine")
+    r = c.post("/api/profiling/students", json={"name": "名下学生", "advisor_name": "Other"})
+    assert r.status_code == 201
+    assert r.get_json()["student"]["advisor_name"] == "Mine"
+    _, listing = get(c, q="名下学生")
+    assert [row["name"] for row in listing["rows"]] == ["名下学生"]
+
+
 # ── 批量取数不按学生数增长 ────────────────────────────────────────────
 def test_listing_30_students_runs_bounded_queries(env, world):
     for i in range(30):

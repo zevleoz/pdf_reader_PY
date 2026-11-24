@@ -19,6 +19,7 @@ import FirstTouchTab from "./profile/FirstTouchTab";
 import { NextBox } from "./profile/NextStep";
 import OverviewTab from "./profile/OverviewTab";
 import QuestionnaireTab from "./profile/QuestionnaireTab";
+import ReportsTab from "./profile/ReportsTab";
 import SixAmTab from "./profile/SixAmTab";
 import Y4Tab from "./profile/Y4Tab";
 
@@ -28,6 +29,7 @@ const TABS: { key: string; label: string }[] = [
   { key: "questionnaires", label: "问卷" },
   { key: "six_am", label: "6AM" },
   { key: "first_touch", label: "First Touch" },
+  { key: "reports", label: "报告交付" },
   { key: "m1", label: "心有灵析" },
   { key: "files", label: "文件" },
 ];
@@ -258,6 +260,7 @@ export default function StudentProfile() {
 
   // 标签下的滑动条：量当前标签的位置（标签文字、窗口宽度变化时重新量）
   const flagCountKey = state.status === "ready" ? state.data.questionnaire_flags.length : -1;
+  const studentKey = state.status === "ready" ? state.data.student.id : 0;
   React.useLayoutEffect(() => {
     const measure = () => {
       const el = listRef.current?.querySelector<HTMLElement>('[data-state="active"]');
@@ -266,7 +269,7 @@ export default function StudentProfile() {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [tab, state.status, flagCountKey]);
+  }, [tab, state.status, flagCountKey, studentKey]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -469,7 +472,7 @@ export default function StudentProfile() {
 
         <Tracker progress={data.progress} />
 
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs key={student.id} value={tab} onValueChange={setTab}>
           <TabsList
             ref={listRef}
             className="relative mb-[18px] mt-[18px] flex h-auto w-full gap-5 overflow-x-auto"
@@ -513,6 +516,11 @@ export default function StudentProfile() {
           {visited.includes("first_touch") ? (
             <TabsContent value="first_touch" forceMount className="mt-0 data-[state=inactive]:hidden">
               <FirstTouchTab />
+            </TabsContent>
+          ) : null}
+          {visited.includes("reports") ? (
+            <TabsContent value="reports" forceMount className="mt-0 data-[state=inactive]:hidden">
+              <ReportsTab />
             </TabsContent>
           ) : null}
           {visited.includes("m1") ? (
