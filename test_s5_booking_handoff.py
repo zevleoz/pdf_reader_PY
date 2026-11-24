@@ -199,6 +199,8 @@ def test_front_can_login_and_logout_through_guard(world):
     r = client.post("/api/admin/login", json={"username": "front_sh", "password": "pw"})
     assert r.status_code == 200, r.get_json()
     assert r.get_json()["role"] == "front"
+    landing = client.get("/platforms")
+    assert landing.status_code == 302 and landing.headers["Location"] == "/app/handoff"
     # 已登录前台仍可打开交接列表，也能正常退出
     assert client.get("/api/handoff/bookings").status_code == 200
     assert client.post("/api/admin/logout").status_code == 200

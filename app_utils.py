@@ -503,6 +503,8 @@ def register_front_desk_guard(app) -> None:
             return None
         if not is_authenticated() or session.get("role") != "front":
             return None
+        if path in ("/", "/platforms"):
+            return redirect("/app/handoff")
         if path in ("/login", "/logout", "/api/admin/login", "/api/admin/logout",
                     "/api/app/boot", "/api/locations", "/api/handoff/bookings"):
             return None
