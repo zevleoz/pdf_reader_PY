@@ -23,7 +23,7 @@ def _platform_cards() -> list:
 
     cards = [{
         "key": "profiling",
-        "title": "学生 Profiling",
+        "title": "PY Family Institute",
         "desc": "预约、Y4 报告、解读会、补充问卷、First Touch、6AM",
         "href": ("/app/handoff" if session.get("role") == "front"
                  else "/app/students" if session.get("role") == "viewer"

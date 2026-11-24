@@ -66,6 +66,7 @@ export default function Rail() {
   const boot = useBoot();
   const location = useLocation();
   const here = "/app" + location.pathname;
+  const platformTitle = boot.platforms.find((platform) => platform.key === "profiling")?.title;
   const multiPlatform = boot.platforms.length > 1;
   const model = React.useMemo(() => buildRail(boot), [boot]);
   const [openKey, setOpenKey] = React.useState<string | null>(null);
@@ -77,7 +78,7 @@ export default function Rail() {
     <div className="flex items-center gap-2.5 px-1.5 pb-[22px] text-left">
       <img src="/m1/assets/login_crest_white.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0" />
       <span>
-        <span className="block text-[14.5px] font-bold leading-tight">学生 Profiling</span>
+        <span className="block text-[14.5px] font-bold leading-tight">{platformTitle}</span>
         <span className="block text-xs leading-snug">{multiPlatform ? "切换平台" : "凭远 APP·ARK"}</span>
       </span>
     </div>

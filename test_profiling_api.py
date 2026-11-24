@@ -244,3 +244,34 @@ def test_listing_30_students_runs_bounded_queries(env, world):
     selects = [s for s in statements if s.lstrip().upper().startswith("SELECT")]
     print("query count for 30 students:", len(selects), "of", len(statements))
     assert len(selects) <= 20
+
+
+def test_delete_profiling_student_checks_role_and_scope(env):
+    own_id = mk_student("Own", advisor="Mine")
+    other_id = mk_student("Other", advisor="Someone else")
+    url = "/api/profiling/students/"
+    viewer = client(env, env.viewer, "viewer")
+    advisor = client(env, env.mine, "advisor", advisor="Mine")
+
+    assert viewer.delete(url + code_of(own_id)).status_code == 403
+    assert advisor.delete(url + code_of(other_id)).status_code == 404
+    assert advisor.delete(url + code_of(own_id)).get_json() == {"ok": True}
+    assert _db.get_student(own_id) is None
+    assert _db.get_student(other_id) is not None
+
+
+def test_delete_profiling_student_preserves_y4_report_and_round(env):
+    import y4_upload
+
+    reported = mk_student("Student with a Y4 report")
+    in_progress = mk_student("Student with a Y4 round")
+    report_id = mk_report(reported)
+    round_id = y4_upload.create_round(in_progress)
+    c = admin(env)
+
+    for student_id in (reported, in_progress):
+        response = c.delete("/api/profiling/students/" + code_of(student_id))
+        assert response.status_code == 409
+        assert _db.get_student(student_id) is not None
+    assert _db.get_report_student_id(report_id) == reported
+    assert y4_upload.get_round(round_id)["student_id"] == in_progress

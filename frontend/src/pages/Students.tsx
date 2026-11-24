@@ -1,13 +1,15 @@
 import * as React from "react";
+import { Ellipsis } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { errorText, getJSON, postJSON } from "@/lib/api";
+import { deleteJSON, errorText, getJSON, postJSON } from "@/lib/api";
 import { useBoot } from "@/lib/boot";
 import { stageTitle, type Progress } from "@/lib/progress";
 import { cn } from "@/lib/utils";
@@ -172,6 +174,13 @@ export default function Students() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [addOpen, setAddOpen] = React.useState(false);
+  const [menuCode, setMenuCode] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<Row | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState("");
+  const [notice, setNotice] = React.useState("");
+  const searchInput = React.useRef<HTMLInputElement>(null);
+  const canDelete = boot.user.role === "admin" || boot.user.role === "advisor";
   const uploadMode = ["admin", "advisor"].includes(boot.user.role) && params.get("action") === "upload";
   const profileLink = (code: string) =>
     "/students/" + encodeURIComponent(code) + (uploadMode ? "?tab=y4&sources=1" : "");
@@ -224,6 +233,23 @@ export default function Students() {
     };
   }, [q, stage, sort, page, reload]);
 
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await deleteJSON("/api/profiling/students/" + encodeURIComponent(deleteTarget.code));
+      if (data?.rows.length === 1 && page > 1) update({ page: String(page - 1) });
+      else setReload((value) => value + 1);
+      setNotice("已删除学生「" + deleteTarget.name + "」");
+      setDeleteTarget(null);
+    } catch (e) {
+      setDeleteError(errorText(e, "无法删除学生，请重试。"));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const counts: Record<string, number> = data ? data.counts : {};
   const allCount = Object.values(counts).reduce((sum, n) => sum + n, 0);
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.per_page)) : 1;
@@ -273,6 +299,7 @@ export default function Students() {
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
+          ref={searchInput}
           className="w-full max-w-sm"
           placeholder="搜索姓名、编号、学校、顾问…（支持拼音）"
           value={draft}
@@ -288,6 +315,8 @@ export default function Students() {
           <option value="name">姓名</option>
         </select>
       </div>
+
+      <p role="status" className={cn(notice ? "mb-3 text-sm" : "sr-only")}>{notice}</p>
 
       {error ? (
         <div className="py-10">
@@ -319,15 +348,45 @@ export default function Students() {
                     </TableRow>
                   ))
                 : data.rows.map((row) => (
-                    <TableRow key={row.code}>
+                    <TableRow
+                      key={row.code}
+                      onContextMenu={canDelete ? (event) => {
+                        event.preventDefault();
+                        setMenuCode(row.code);
+                      } : undefined}
+                    >
                       <TableCell>
-                        <Link
-                          to={profileLink(row.code)}
-                          className="font-semibold hover:underline"
-                        >
-                          {row.name || "—"}
-                        </Link>
-                        <div className="font-mono text-xs text-mute">{row.code}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="min-w-0">
+                            <Link to={profileLink(row.code)} className="font-semibold hover:underline">
+                              {row.name || "—"}
+                            </Link>
+                            <div className="font-mono text-xs text-mute">{row.code}</div>
+                          </div>
+                          {canDelete ? (
+                            <DropdownMenu
+                              open={menuCode === row.code}
+                              onOpenChange={(open) => setMenuCode(open ? row.code : null)}
+                            >
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="ml-auto h-8 w-8 shrink-0 text-mute"
+                                  aria-label={"学生操作 " + row.name}>
+                                  <Ellipsis />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start"
+                                onCloseAutoFocus={(event) => { if (deleteTarget) event.preventDefault(); }}>
+                                <DropdownMenuItem className="text-attention" onSelect={() => {
+                                  setDeleteError("");
+                                  setNotice("");
+                                  setDeleteTarget(row);
+                                }}>
+                                  删除学生
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell>{row.school || "—"}</TableCell>
                       <TableCell>{row.advisor_name || "—"}</TableCell>
@@ -385,6 +444,27 @@ export default function Students() {
           </Button>
         </div>
       ) : null}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null); }}>
+        <DialogContent className="w-[calc(100%-2rem)] sm:rounded-none"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            searchInput.current?.focus();
+          }}>
+          <DialogHeader>
+            <DialogTitle>删除学生档案</DialogTitle>
+            <DialogDescription className="break-words">
+              确认删除「{deleteTarget?.name}」（{deleteTarget?.code}）及其关联的问卷和纪要？删除后无法恢复。
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError ? <p role="alert" className="text-sm text-attention">{deleteError}</p> : null}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" disabled={deleting} onClick={() => setDeleteTarget(null)}>取消</Button>
+            <Button variant="destructive" disabled={deleting} onClick={() => void confirmDelete()}>
+              {deleting ? "正在删除…" : "确认删除"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AddStudentDialog
         open={addOpen}
         onOpenChange={setAddOpen}

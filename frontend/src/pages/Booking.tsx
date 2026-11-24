@@ -38,6 +38,26 @@ function firstDayIdx(weekStart: string): number {
   return i >= 0 && i <= 6 ? i : 0;
 }
 type Cell = { date: string; time: string };
+type Change = Cell & { open: boolean };
+type Paint = {
+  pointerId: number;
+  grid: HTMLDivElement;
+  from: Cell;
+  to: Cell;
+  open: boolean;
+  changes: Change[];
+};
+
+function readSlot(target: EventTarget | null) {
+  const button = target instanceof Element ? target.closest<HTMLButtonElement>("button[data-office-slot]") : null;
+  const date = button?.dataset.officeDate;
+  const time = button?.dataset.officeSlot;
+  return date && time ? { date, time } : null;
+}
+
+function between(value: string, a: string, b: string) {
+  return a <= b ? value >= a && value <= b : value >= b && value <= a;
+}
 
 function Dots({ n, cap }: { n: number; cap: number }) {
   return (
@@ -77,7 +97,8 @@ export default function Booking() {
   const [dayIdx, setDayIdx] = React.useState(() => firstDayIdx(mondayOf(todayKey())));
   const [toasts, setToasts] = React.useState<Toast[]>([]);
   const toastId = React.useRef(0);
-  const paint = React.useRef<{ to: boolean; changes: Map<string, { date: string; time: string; open: boolean }> } | null>(null);
+  const paint = React.useRef<Paint | null>(null);
+  const savingAvailability = React.useRef(false);
   const reqId = React.useRef(0);
 
   const notify = React.useCallback((text: string, kind: "ok" | "error" = "ok", undo?: () => void) => {
@@ -126,7 +147,7 @@ export default function Booking() {
   // 每 60 秒与窗口回到前台时刷新，让预约页上的新预约不用重载就出现
   React.useEffect(() => {
     const tick = () => {
-      if (!paint.current && !document.hidden) void load();
+      if (!paint.current && !savingAvailability.current && !document.hidden) void load();
     };
     const t = window.setInterval(tick, 60000);
     window.addEventListener("focus", tick);
@@ -197,8 +218,9 @@ export default function Booking() {
     setDayIdx(firstDayIdx(next));
   }
 
-  async function sendBulk(changes: { date: string; time: string; open: boolean }[]) {
-    if (!loc || !changes.length) return;
+  async function sendBulk(changes: Change[]) {
+    if (!loc || !changes.length || savingAvailability.current) return;
+    savingAvailability.current = true;
     try {
       const r = await postJSON<{ refused?: Cell[] }>("/api/availability/bulk", { location_id: loc.id, changes });
       setEditNote(
@@ -211,40 +233,84 @@ export default function Booking() {
     }
     await load();
     setOver({});
+    savingAvailability.current = false;
   }
 
-  function applyPaint(s: Slot) {
-    const p = paint.current;
-    if (!p || s.past) return;
-    const key = slotKey(s.date, s.time);
-    if (isOpen(s) === p.to && !p.changes.has(key)) return;
-    if (!p.to && s.count > 0) {
-      setEditNote("有预约的时段不能关闭");
-      return;
-    }
-    p.changes.set(key, { date: s.date, time: s.time, open: p.to });
-    setOver((o) => ({ ...o, [key]: p.to }));
+  function previewPaint(current: Paint, to: Cell) {
+    current.to = to;
+    const slots = week?.slots.filter((slot) => !slot.past
+      && between(slot.date, current.from.date, to.date)
+      && between(slot.time, current.from.time, to.time)
+      && slot.closed === current.open) || [];
+    current.changes = slots
+      .filter((slot) => current.open || slot.count === 0)
+      .map(({ date, time }) => ({ date, time, open: current.open }));
+    setEditNote(!current.open && slots.some((slot) => slot.count > 0) ? "有预约的时段不能关闭" : "");
+    setOver(Object.fromEntries(current.changes.map((change) => [slotKey(change.date, change.time), change.open])));
   }
 
-  function startPaint(s: Slot) {
-    if (!edit || s.past) return;
+  const stopPaint = React.useCallback(() => {
+    const current = paint.current;
+    if (!current) return null;
+    paint.current = null;
+    if (current.grid.hasPointerCapture(current.pointerId)) current.grid.releasePointerCapture(current.pointerId);
+    return current;
+  }, []);
+
+  const cancelPaint = React.useCallback(() => {
+    if (!stopPaint()) return;
+    setOver({});
     setEditNote("");
-    paint.current = { to: !isOpen(s), changes: new Map() };
-    applyPaint(s);
-  }
+  }, [stopPaint]);
 
   React.useEffect(() => {
-    const up = () => {
-      const p = paint.current;
-      paint.current = null;
-      if (p && p.changes.size) void sendBulk(Array.from(p.changes.values()));
+    window.addEventListener("blur", cancelPaint);
+    return () => window.removeEventListener("blur", cancelPaint);
+  }, [cancelPaint]);
+  React.useEffect(() => { if (!edit) cancelPaint(); }, [edit, cancelPaint]);
+
+  function startPaint(event: React.PointerEvent<HTMLDivElement>) {
+    if (!edit || event.button !== 0 || !event.isPrimary || savingAvailability.current || paint.current) return;
+    const cell = readSlot(event.target);
+    if (!cell) return;
+    const slot = slotMap.get(slotKey(cell.date, cell.time));
+    if (!slot || slot.past) return;
+    const current = {
+      pointerId: event.pointerId, grid: event.currentTarget,
+      from: cell, to: cell, open: slot.closed, changes: [],
     };
-    window.addEventListener("pointerup", up);
-    return () => window.removeEventListener("pointerup", up);
-  });
+    paint.current = current;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    previewPaint(current, cell);
+  }
+
+  function movePaint(event: React.PointerEvent<HTMLDivElement>) {
+    const current = paint.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    const cell = current.grid.contains(hit) ? readSlot(hit) : null;
+    if (cell && (current.to.date !== cell.date || current.to.time !== cell.time)) previewPaint(current, cell);
+  }
+
+  function finishPaint(event: React.PointerEvent<HTMLDivElement>) {
+    if (paint.current?.pointerId !== event.pointerId) return;
+    movePaint(event);
+    const current = stopPaint();
+    if (current) void sendBulk(current.changes);
+  }
+
+  const paintHandlers = {
+    onPointerDown: startPaint, onPointerMove: movePaint, onPointerUp: finishPaint,
+    onPointerCancel: (event: React.PointerEvent<HTMLDivElement>) => {
+      if (paint.current?.pointerId === event.pointerId) cancelPaint();
+    },
+    onLostPointerCapture: (event: React.PointerEvent<HTMLDivElement>) => {
+      if (paint.current?.pointerId === event.pointerId) cancelPaint();
+    },
+  };
 
   function toggleDay(s: Slot) {
-    if (!edit || s.past) return;
+    if (!edit || s.past || savingAvailability.current) return;
     if (isOpen(s) && s.count > 0) {
       setEditNote("有预约的时段不能关闭");
       return;
@@ -346,36 +412,31 @@ export default function Booking() {
         <button
           key={key}
           aria-label={label + " 未开放"}
+          data-office-date={s.date}
+          data-office-slot={s.time}
           className={cn(
             "flex h-7 items-center justify-center",
             edit
-              ? "cursor-cell bg-[repeating-linear-gradient(135deg,hsl(var(--line))_0_2px,transparent_2px_6px)]"
+              ? "touch-none cursor-cell bg-[repeating-linear-gradient(135deg,hsl(var(--line))_0_2px,transparent_2px_6px)]"
               : "cursor-default after:h-px after:w-3 after:bg-line",
           )}
-          onPointerDown={(e) => {
-            (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
-            startPaint(s);
-          }}
-          onPointerEnter={() => applyPaint(s)}
+          onClick={(event) => { if (event.detail === 0) toggleDay(s); }}
         />
       );
     return (
       <button
         key={key}
         aria-label={`${label}，已约 ${s.count} 人，余 ${cap - s.count}`}
+        data-office-date={s.date}
+        data-office-slot={s.time}
         className={cn(
-          "flex h-7 touch-none items-center justify-center gap-[3px] transition-colors",
+          "flex h-7 items-center justify-center gap-[3px] transition-colors",
           on ? "bg-hl text-white" : full ? "cursor-default bg-sunk" : "bg-sunk hover:bg-ink hover:text-background",
-          edit && "cursor-cell shadow-[inset_0_0_0_1.5px_hsl(var(--ink))]",
+          edit && "touch-none cursor-cell shadow-[inset_0_0_0_1.5px_hsl(var(--ink))]",
         )}
-        onPointerDown={(e) => {
-          if (!edit) return;
-          (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
-          startPaint(s);
-        }}
-        onPointerEnter={() => applyPaint(s)}
-        onClick={() => {
+        onClick={(event) => {
           if (!edit) pickSlot(s);
+          else if (event.detail === 0) toggleDay(s);
         }}
       >
         <Dots n={s.count} cap={cap} />
@@ -442,7 +503,7 @@ export default function Booking() {
 
           {edit ? (
             <div className="mb-2.5 flex flex-wrap items-center gap-2.5 bg-tint px-3 py-2 text-[13.5px]">
-              <span>点格子开关时段，按住可以拖动。修改立刻出现在发出去的预约页上。</span>
+              <span>点按一个格子，或按住拖选一段时段。修改立刻出现在发出去的预约页上。</span>
               {editNote ? <b className="text-attention">{editNote}</b> : null}
               <Button size="sm" className="ml-auto shadow-none" onClick={() => setEdit(false)}>
                 完成编辑
@@ -474,7 +535,7 @@ export default function Booking() {
             <Skeleton className="h-[420px] w-full" />
           ) : (
             <>
-              <div className="hidden select-none grid-cols-[50px_repeat(7,minmax(0,1fr))] gap-0.5 md:grid">
+              <div className="hidden select-none grid-cols-[50px_repeat(7,minmax(0,1fr))] gap-0.5 md:grid" {...paintHandlers}>
                 <span />
                 {days.map((d) => (
                   <div key={d} className="mb-0.5 border-b border-rule px-0.5 pb-1.5 pt-1 text-[12.5px] leading-tight text-mute">
@@ -515,7 +576,7 @@ export default function Booking() {
                     </button>
                   ))}
                 </div>
-                <div className="grid grid-cols-3 gap-1">
+                <div className="grid grid-cols-3 gap-1" {...paintHandlers}>
                   {TIMES.map((t) => {
                     const s = slotMap.get(slotKey(dayDate, t));
                     if (!s) return null;
@@ -528,12 +589,18 @@ export default function Booking() {
                         key={t}
                         type="button"
                         disabled={dis && !(edit && !s.past)}
+                        data-office-date={s.date}
+                        data-office-slot={s.time}
                         className={cn(
                           "flex h-[46px] flex-col items-center justify-center text-[13px] font-semibold leading-tight shadow-[inset_0_0_0_1px_hsl(var(--line))] disabled:opacity-30",
+                          edit && "touch-none",
                           on && "bg-ink text-background",
                           !open && "bg-[repeating-linear-gradient(135deg,hsl(var(--line))_0_2px,transparent_2px_6px)] shadow-none",
                         )}
-                        onClick={() => (edit ? toggleDay(s) : pickSlot(s))}
+                        onClick={(event) => {
+                          if (!edit) pickSlot(s);
+                          else if (event.detail === 0) toggleDay(s);
+                        }}
                       >
                         {t}
                         <small className="text-[11.5px] font-normal opacity-70">{open ? "余 " + Math.max(0, left) : "未开放"}</small>

@@ -1253,7 +1253,11 @@ def complete_booking(booking_id: int) -> int:
 
 # ─── Delete operations ─────────────────────────────────────────
 
-def delete_student(student_id: int) -> None:
+class StudentHasY4Records(ValueError):
+    """Raised when guarded deletion finds a Y4 report or assessment round."""
+
+
+def delete_student(student_id: int, *, protect_y4: bool = False) -> None:
     """Delete a student and all their dependent records.
 
     开启 SQLite ForeignKey 后，直接删 students 会因子表外键引用而失败；
@@ -1274,6 +1278,18 @@ def delete_student(student_id: int) -> None:
         has_qstore = False
 
     with Session(engine) as sess:
+        if protect_y4:
+            from y4_upload import Y4Round
+
+            if engine.dialect.name == "sqlite":
+                sess.connection().exec_driver_sql("BEGIN IMMEDIATE")
+            else:
+                sess.execute(select(Student.id).where(Student.id == student_id).with_for_update())
+            report = select(Report.id).where(Report.student_id == student_id).limit(1)
+            round_ = select(Y4Round.id).where(Y4Round.student_id == student_id).limit(1)
+            if sess.execute(report).first() or sess.execute(round_).first():
+                raise StudentHasY4Records("此档案关联 Y4 记录，已保留档案和报告。")
+
         # 1. 问卷子系统：tokens / responses / drafts 依赖 assignments，先清理
         if has_qstore:
             sess.execute(delete(QuestionnaireScore).where(

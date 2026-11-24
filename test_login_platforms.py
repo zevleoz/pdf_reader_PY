@@ -109,7 +109,7 @@ def test_admin_sees_profiling_and_m1(app, world):
     resp = _client(app, world.admin_id, "admin").get("/platforms")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert "学生 Profiling" in html
+    assert "PY Family Institute" in html
     assert '<span class="pf-title">心有灵析</span>' in html
     assert "First Meeting：会前准备" in html
     assert "M1 会前准备" not in html

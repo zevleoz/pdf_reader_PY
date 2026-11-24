@@ -67,7 +67,7 @@ def test_home_is_m1_not_profiling(client, m1db):
 def test_home_nav_is_m1_and_other_platforms_only(client, m1db):
     _login(client, m1db.admin_id, "admin")
     html = client.get("/m1").get_data(as_text=True)
-    assert "学生 Profiling" in html
+    assert "PY Family Institute" in html
     assert ">心有灵析<" in html
     assert "报告生成" not in html
     assert "学生档案" not in html

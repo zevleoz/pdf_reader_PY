@@ -77,10 +77,9 @@ def _m1_nav() -> list:
     """M1 自己的导航：只有 M1 与其他平台，不出现 Profiling 的分组。"""
     from blueprints import auth
 
-    profiling = next((c for c in auth._platform_cards() if c["key"] == "profiling"),
-                     {"href": "/workspace"})
+    profiling = next(card for card in auth._platform_cards() if card["key"] == "profiling")
     other = [{"key": "platforms", "label": "所有平台", "href": "/platforms", "icon": "file"},
-             {"key": "profiling", "label": "学生 Profiling", "href": profiling["href"],
+             {"key": "profiling", "label": profiling["title"], "href": profiling["href"],
               "icon": "users"}]
     e4_url = os.environ.get("E4_URL", "").strip()
     if e4_url:

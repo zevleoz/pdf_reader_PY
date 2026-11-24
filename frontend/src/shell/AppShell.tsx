@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useBoot } from "@/lib/boot";
 import { CrumbProvider, PARENT_LABELS, useCrumb } from "@/shell/crumbs";
 import { PaletteProvider, SearchButton } from "@/shell/palette";
 import Rail from "@/shell/Rail";
@@ -30,6 +31,8 @@ function TopBar() {
 }
 
 export default function AppShell() {
+  const { platforms } = useBoot();
+  const platformTitle = platforms.find((platform) => platform.key === "profiling")?.title;
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -41,7 +44,7 @@ export default function AppShell() {
           </div>
           <div className="md:flex md:h-screen md:flex-col">
             <div className="flex h-14 items-center bg-shell px-4 text-shell-foreground md:hidden">
-              <div className="font-bold">学生 Profiling</div>
+              <div className="font-bold">{platformTitle}</div>
               <SearchButton compact />
               <Button
                 variant="ghost"

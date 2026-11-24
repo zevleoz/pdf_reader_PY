@@ -253,6 +253,26 @@ def api_create_profiling_student():
     }}), 201
 
 
+@bp.route("/api/profiling/students/<code>", methods=["DELETE"])
+@role_required("admin", "advisor")
+def api_delete_profiling_student(code):
+    from flask import jsonify
+    from sqlalchemy.exc import IntegrityError
+    import db as _db
+
+    student = _db.get_student_by_code(code)
+    scope = _advisor_scope()
+    if not student or (scope is not None and (student.get("advisor_name") or "") != scope):
+        return jsonify({"ok": False, "error": "学生不存在或不可访问"}), 404
+    try:
+        _db.delete_student(student["id"], protect_y4=True)
+    except _db.StudentHasY4Records as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 409
+    except IntegrityError:
+        return jsonify({"ok": False, "error": "此档案仍有关联记录，请核对后重试。"}), 409
+    return jsonify({"ok": True})
+
+
 @bp.route("/api/profiling/students/<code>/progress")
 @login_required
 def api_profiling_student_progress(code):

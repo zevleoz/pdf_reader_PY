@@ -123,9 +123,7 @@ export default function Workbench() {
         <>
           <div className="grid grid-cols-1 items-start gap-7 md:grid-cols-[minmax(0,1fr)_270px] lg:grid-cols-[minmax(0,1fr)_320px]">
             <section aria-label="待处理" className="min-w-0">
-              <SideTitle>
-                待处理<small className="text-[12.5px] font-normal text-mute">最紧急的在最上面</small>
-              </SideTitle>
+              <SideTitle>待处理</SideTitle>
               {queue.length === 0 ? (
                 <div className="px-4 py-11 text-center text-mute">
                   <b className="mb-1 block text-base text-ink">今天的事都处理完了</b>
