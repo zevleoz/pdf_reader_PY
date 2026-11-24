@@ -49,6 +49,8 @@ def api_app_boot():
             "display_name": user["display_name"],
             "role": role,
             "role_label": app_utils.ROLE_LABELS.get(role, role),
+            "is_assessor": int(user.get("is_assessor") or 0),
+            "office_id": user.get("office_id"),
         },
         "policy": app_utils.account_policy(),
         "nav": app_utils.nav_for_role(role),

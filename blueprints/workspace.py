@@ -339,6 +339,31 @@ def api_profiling_student(code):
     })
 
 
+@bp.route("/api/profiling/students/<code>/schedule")
+@login_required
+def api_profiling_student_schedule(code):
+    """档案「预约与分配」：该生预约、来源、经办人与测评师。"""
+    from flask import jsonify
+    import db as _db
+    import questionnaire_store as _qs
+
+    st = _db.get_student_by_code(code)
+    scope = _advisor_scope()
+    if not st or (scope is not None and (st.get("advisor_name") or "") != scope):
+        return jsonify({"ok": False, "error": "学生不存在"}), 404
+    acct = _qs.get_student_account(st["id"])
+    return jsonify({
+        "ok": True,
+        "bookings": _db.get_student_bookings(st["id"]),
+        "can_assign": session.get("role") == "admin",
+        "account": {
+            "exists": bool(acct),
+            "username": (acct or {}).get("username") or "",
+            "is_active": (acct or {}).get("is_active") or 0,
+        },
+    })
+
+
 @bp.route("/api/profiling/students/<code>/y4")
 @login_required
 def api_profiling_student_y4(code):

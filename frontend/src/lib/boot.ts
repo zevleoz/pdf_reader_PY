@@ -4,7 +4,7 @@ export type NavLink = { key: string; label: string; href: string; icon?: string;
 export type NavGroup = { key: string; title: string; links: NavLink[] };
 export type Platform = { key: string; title: string; desc: string; href: string; blank: boolean };
 export type Boot = {
-  user: { display_name: string; role: string; role_label: string };
+  user: { display_name: string; role: string; role_label: string; is_assessor?: number; office_id?: number | null };
   policy: { role: string; student_scope: string; detail_level: string; m1_access: number | boolean };
   nav: NavGroup[];
   platforms: Platform[];

@@ -75,6 +75,8 @@ def api_users_create():
             m1_admin=data.get("m1_admin"),
             detail_level=data.get("detail_level"),
             m1_access=data.get("m1_access"),
+            is_assessor=data.get("is_assessor") or 0,
+            office_id=data.get("office_id"),
         )
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -99,6 +101,10 @@ def api_users_update(user_id):
             kwargs[k] = "" if data[k] is None else data[k]
     if "is_active" in data:
         kwargs["is_active"] = 1 if data["is_active"] else 0
+    if "is_assessor" in data:
+        kwargs["is_assessor"] = 1 if data["is_assessor"] else 0
+    if "office_id" in data:
+        kwargs["office_id"] = data["office_id"]
     if "m1_admin" in data:
         kwargs["m1_admin"] = 0 if data["m1_admin"] is None else data["m1_admin"]
     # 防锁死：不能停用自己，也不能停用/降权最后一个 admin

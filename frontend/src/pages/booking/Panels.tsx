@@ -27,6 +27,7 @@ export function SlotPanel({
   setPicked,
   onBooked,
   onClose,
+  requesterDefault,
 }: {
   slot: Slot;
   cap: number;
@@ -36,11 +37,13 @@ export function SlotPanel({
   setPicked: (p: Picked | null) => void;
   onBooked: (id: number, label: string) => void;
   onClose: () => void;
+  requesterDefault: string;
 }) {
   const [q, setQ] = React.useState("");
   const [hits, setHits] = React.useState<StudentHit[]>([]);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
+  const [source, setSource] = React.useState("internal");
   const left = cap - slot.count;
   const hidden = Math.max(0, slot.count - slot.bookings.length);
 
@@ -75,6 +78,8 @@ export function SlotPanel({
       const body: Record<string, unknown> = {
         location_id: loc.id,
         appointment_time: slot.date + "T" + slot.time + ":00",
+        source,
+        requester_name: requesterDefault,
       };
       if ("isNew" in picked) body.new_name = picked.name;
       else body.student_code = picked.code;
@@ -162,6 +167,22 @@ export function SlotPanel({
               ) : null}
             </div>
           ) : null}
+          <div className="mt-2 grid grid-cols-[64px_minmax(0,1fr)] items-center gap-2 text-[13px]">
+            <span className="text-mute">来源</span>
+            <select
+              aria-label="预约来源"
+              className="h-9 w-full border border-line bg-background px-2 text-[13.5px]"
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+            >
+              <option value="internal">内部代约</option>
+              <option value="walk_in">到店</option>
+              <option value="referral">转介绍</option>
+              <option value="other">其他</option>
+            </select>
+            <span className="text-mute">经办</span>
+            <span className="truncate text-ink-2">{requesterDefault || "当前账号"}</span>
+          </div>
           {err ? <p className="mt-2 text-[13px] text-attention">{err}</p> : null}
           <div className="mt-3 flex gap-2">
             <Button className="flex-1 shadow-none" disabled={!picked || busy} onClick={confirm}>
@@ -188,16 +209,20 @@ export function WeekPanel({
   cap,
   locName,
   onJump,
+  onOpenBooking,
 }: {
   slots: Slot[];
   cap: number;
   locName: string;
   onJump: (s: Slot) => void;
+  onOpenBooking: (id: number) => void;
 }) {
   void cap;
-  const rows: { key: string; slot: Slot; name: string | null; code?: string }[] = [];
+  const rows: { key: string; slot: Slot; name: string | null; code?: string; id?: number }[] = [];
   for (const s of slots) {
-    s.bookings.forEach((b) => rows.push({ key: "b" + b.id, slot: s, name: b.student_name, code: b.student_code }));
+    s.bookings.forEach((b) => rows.push({
+      key: "b" + b.id, slot: s, name: b.student_name, code: b.student_code, id: b.id,
+    }));
     const hidden = s.count - s.bookings.length;
     if (hidden > 0) rows.push({ key: "h" + s.date + s.time, slot: s, name: null });
   }
@@ -215,7 +240,7 @@ export function WeekPanel({
               key={r.key}
               type="button"
               className="flex w-full items-center gap-2.5 border-b border-line py-2 text-left hover:bg-sunk"
-              onClick={() => onJump(r.slot)}
+              onClick={() => (r.id ? onOpenBooking(r.id) : onJump(r.slot))}
             >
               <Mark name={r.name || "·"} />
               <span className="min-w-0 flex-1">
@@ -250,8 +275,21 @@ export function SendPanel({
   onClose: () => void;
   notify: (t: string, kind?: "ok" | "error") => void;
 }) {
-  const url = window.location.origin + "/booking?loc=" + loc.id;
-  const msg = `您好，这是 Y4 测评的预约页（${loc.name}）。请选择日期和时间，填写学生姓名后提交，需提前一天预约。\n${url}`;
+  const [invite, setInvite] = React.useState("");
+  const [inviteErr, setInviteErr] = React.useState("");
+  React.useEffect(() => {
+    let live = true;
+    setInvite("");
+    setInviteErr("");
+    postJSON<{ url: string }>("/api/bookings/invite", { location_id: loc.id, source: "parent" })
+      .then((r) => live && setInvite(window.location.origin + r.url))
+      .catch((e) => live && setInviteErr(errorText(e, "无法生成邀请链接")));
+    return () => {
+      live = false;
+    };
+  }, [loc.id]);
+  const url = invite || window.location.origin + "/booking?loc=" + loc.id;
+  const msg = `您好，这是 Y4 测评的预约页（${loc.name}）。请选择日期和时间，填写学生姓名后提交，需提前一天预约。此链接只能预约一次。\n${url}`;
   async function copy() {
     try {
       await navigator.clipboard.writeText(msg);
@@ -288,10 +326,11 @@ export function SendPanel({
         src={"/booking?loc=" + loc.id}
         className="mx-auto mb-3 block h-[520px] w-[360px] max-w-full border border-line bg-background"
       />
-      <p className="mb-2 text-[12.5px] text-mute">这是发出去的页面，可以直接试。提交后左边日历会更新。公司老师和家长用同一个链接。</p>
+      <p className="mb-2 text-[12.5px] text-mute">这是发出去的页面，可以直接试。邀请链接带经办归属，只能用一次；提交后左边日历会更新。</p>
+      {inviteErr ? <p className="mb-2 text-[13px] text-attention">{inviteErr}</p> : null}
       <div className={cn("mb-3 whitespace-pre-wrap break-all bg-sunk p-3 text-[13.5px] leading-relaxed")}>{msg}</div>
-      <Button className="w-full shadow-none" onClick={copy}>
-        复制链接和话术
+      <Button className="w-full shadow-none" onClick={copy} disabled={!invite}>
+        {invite ? "复制邀请链接和话术" : "正在生成邀请链接…"}
       </Button>
     </div>
   );

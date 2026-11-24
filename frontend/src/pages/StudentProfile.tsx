@@ -20,11 +20,13 @@ import { NextBox } from "./profile/NextStep";
 import OverviewTab from "./profile/OverviewTab";
 import QuestionnaireTab from "./profile/QuestionnaireTab";
 import ReportsTab from "./profile/ReportsTab";
+import ScheduleTab from "./profile/ScheduleTab";
 import SixAmTab from "./profile/SixAmTab";
 import Y4Tab from "./profile/Y4Tab";
 
 const TABS: { key: string; label: string }[] = [
   { key: "overview", label: "概览" },
+  { key: "schedule", label: "预约与分配" },
   { key: "y4", label: "Y4 画像" },
   { key: "questionnaires", label: "问卷" },
   { key: "six_am", label: "6AM" },
@@ -496,6 +498,11 @@ export default function StudentProfile() {
           {visited.includes("overview") ? (
             <TabsContent value="overview" forceMount className="mt-0 data-[state=inactive]:hidden">
               <OverviewTab />
+            </TabsContent>
+          ) : null}
+          {visited.includes("schedule") ? (
+            <TabsContent value="schedule" forceMount className="mt-0 data-[state=inactive]:hidden">
+              <ScheduleTab />
             </TabsContent>
           ) : null}
           {visited.includes("y4") ? (

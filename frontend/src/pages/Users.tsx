@@ -60,6 +60,7 @@ export default function Users() {
   const [notice, setNotice] = React.useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [busyIds, setBusyIds] = React.useState<Set<number>>(new Set());
+  const [locations, setLocations] = React.useState<{ id: number; name: string }[]>([]);
   const busyRef = React.useRef<Set<number>>(new Set());
   const listSeq = React.useRef(0);
 
@@ -117,7 +118,12 @@ export default function Users() {
   }, [identityReload]);
 
   React.useEffect(() => {
-    if (identity.status === "ready") void loadList();
+    if (identity.status === "ready") {
+      void loadList();
+      getJSON<{ locations: { id: number; name: string }[] }>("/api/locations")
+        .then((r) => setLocations(r.locations))
+        .catch(() => setLocations([]));
+    }
   }, [identity.status, loadList]);
 
   function markBusy(id: number, busy: boolean) {
@@ -171,6 +177,14 @@ export default function Users() {
 
   function changeScope(user: UserRow, scope: string) {
     void runRowMutation(user.id, { student_scope: scope }, PERM_OK);
+  }
+
+  function changeOffice(user: UserRow, officeId: string) {
+    void runRowMutation(user.id, { office_id: officeId }, "办公室已更新");
+  }
+
+  function changeAssessor(user: UserRow, checked: boolean) {
+    void runRowMutation(user.id, { is_assessor: checked ? 1 : 0 }, "测评师设置已更新");
   }
 
   function changeDetail(user: UserRow, detail: string) {
@@ -328,7 +342,9 @@ export default function Users() {
             !listState.data.limited && "lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]",
           )}
         >
-          {listState.data.limited ? null : <UserCreateForm busy={creating} onCreate={createUser} />}
+          {listState.data.limited ? null : (
+            <UserCreateForm busy={creating} locations={locations} onCreate={createUser} />
+          )}
 
           <section className="min-w-0 border-t-2 border-rule pt-[9px]" aria-labelledby="users-list-title">
             <div className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -361,7 +377,10 @@ export default function Users() {
                 limited={listState.data.limited === true}
                 meId={identity.me.user_id}
                 busyIds={busyIds}
+                locations={locations}
                 onRole={changeRole}
+                onOffice={changeOffice}
+                onAssessor={changeAssessor}
                 onScope={changeScope}
                 onDetail={changeDetail}
                 onM1={changeM1}

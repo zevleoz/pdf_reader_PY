@@ -220,6 +220,7 @@
         var body = { student_name: name, school: document.getElementById('fSchool').value.trim(),
           advisor_name: document.getElementById('fAdv').value.trim(), notes: document.getElementById('fNotes').value.trim(),
           single_parent: document.getElementById('fSingle').checked, location_id: S.loc.id,
+          invite: new URLSearchParams(location.search).get('invite') || '',
           appointment_time: S.date + 'T' + S.time + ':00' };
         S.busy = true; S.error = ''; render();
         fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })

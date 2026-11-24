@@ -1,4 +1,4 @@
-export type Role = "admin" | "advisor" | "viewer";
+export type Role = "admin" | "advisor" | "viewer" | "front";
 
 export type UserRow = {
   id: number;
@@ -11,6 +11,8 @@ export type UserRow = {
   m1_access?: number;
   m1_admin?: number;
   is_active?: number;
+  is_assessor?: number;
+  office_id?: number | null;
 };
 
 export type ListResponse = { ok: boolean; users: UserRow[]; limited?: boolean; error?: string };
@@ -40,14 +42,17 @@ export type CreatePayload = {
   student_scope: string;
   detail_level: string;
   m1_access: number;
+  is_assessor: number;
+  office_id: number | null;
 };
 
-export const ROLE_LABEL: Record<string, string> = { admin: "管理员", advisor: "顾问", viewer: "只读" };
+export const ROLE_LABEL: Record<string, string> = { admin: "管理员", advisor: "顾问", viewer: "只读", front: "前台" };
 
 export const ROLE_DEFAULTS: Record<Role, { student_scope: string; detail_level: string; m1_access: boolean }> = {
   admin: { student_scope: "all", detail_level: "full", m1_access: true },
   advisor: { student_scope: "own", detail_level: "full", m1_access: true },
   viewer: { student_scope: "all", detail_level: "summary", m1_access: false },
+  front: { student_scope: "none", detail_level: "summary", m1_access: false },
 };
 
 export const PERM_OK = "权限已更新，最多 1 分钟内生效";

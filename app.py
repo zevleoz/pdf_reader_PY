@@ -199,8 +199,10 @@ def create_app() -> Flask:
         return redirect("/login")
 
     # --- 管理端模板上下文（Layout 契约，所有蓝图模板共享；须在注册蓝图前） ---
-    from app_utils import register_admin_context, get_csrf_token, dt_short
+    from app_utils import (register_admin_context, register_front_desk_guard,
+                           get_csrf_token, dt_short)
     register_admin_context(app)
+    register_front_desk_guard(app)
     # CSRF token 注入：所有模板可调用 {{ csrf_token() }}（5.4 最小实现）
     app.context_processor(lambda: {"csrf_token": get_csrf_token})
     # 时间戳过滤器：模板用 {{ iso|dt_short }} 统一到分钟（面板/学生端共用）

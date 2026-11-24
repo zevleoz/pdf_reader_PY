@@ -129,6 +129,8 @@ def current_user() -> dict:
         "role": session.get("role") or "",
         "advisor_name": session.get("advisor_name") or "",
         "display_name": session.get("display_name") or "",
+        "is_assessor": int(session.get("is_assessor") or 0),
+        "office_id": session.get("office_id"),
         **{k: policy[k] for k in ("student_scope", "detail_level", "m1_access", "m1_admin")},
     }
 
@@ -163,7 +165,7 @@ def can_use_m1() -> bool:
 _SESSION_USER_TTL = 60
 _SESSION_USER_CACHE: dict = {}
 _SESSION_SYNC_FIELDS = ("role", "advisor_name", "student_scope", "detail_level", "m1_access",
-                        "m1_admin")
+                        "m1_admin", "is_assessor", "office_id")
 
 
 def invalidate_session_user(user_id) -> None:
@@ -309,11 +311,17 @@ def visible_student_filter(stmt):
 # ---------------------------------------------------------------------------
 # Advisor 数据隔离（2.0）：凡可定位到个体学生/报告的查询与操作，advisor 仅限名下
 # ---------------------------------------------------------------------------
+# 前台账号的哨兵范围：不匹配任何真实顾问姓名，从而拒绝一切学生/报告查询
+NO_STUDENT_SCOPE = "\x00__no_student_scope__"
+
+
 def _advisor_scope() -> Optional[str]:
-    """student_scope=own 的账号返回其 advisor_name；其他返回 None（表示不隔离）。"""
+    """student_scope=own 返回 advisor_name；none（前台）返回哨兵；其他返回 None。"""
     policy = account_policy()
     if policy['student_scope'] == 'own':
         return policy['advisor_name']
+    if policy['student_scope'] == 'none':
+        return NO_STUDENT_SCOPE
     return None
 
 
@@ -392,7 +400,7 @@ def minutes_scoped(f):
 # ---------------------------------------------------------------------------
 # 管理端导航与模板上下文（Agent B Layout 契约：02-admin-ui-framework.md 5.3/5.4）
 # ---------------------------------------------------------------------------
-ROLE_LABELS = {"admin": "管理员", "advisor": "顾问", "viewer": "只读"}
+ROLE_LABELS = {"admin": "管理员", "advisor": "顾问", "viewer": "只读", "front": "前台"}
 
 # 七组导航严格按 spec 5.1。key 即 ``nav_active`` 取值；子项 ``roles`` 缺省表示
 # 所有已登录角色可见，显式声明时按角色过滤（过滤后无可见项的分组整组隐藏）。
@@ -457,11 +465,22 @@ def _other_platform_links() -> List[dict]:
     return links
 
 
+FRONT_NAV = [
+    {"key": "tools", "title": "预约", "links": [
+        {"key": "tools.bookings", "label": "今日预约交接", "href": "/app/handoff",
+         "icon": "calendar"},
+    ]},
+]
+
+
 def nav_for_role(role: str) -> List[dict]:
     """按角色过滤管理端导航；过滤后无可见项的分组整组隐藏。
 
     当前页高亮与分组展开由模板依据 ``nav_active`` 计算，本函数不感知请求视图。
+    前台账号只保留预约交接一个入口，不进入档案/报告后台。
     """
+    if role == "front":
+        return [dict(g) for g in FRONT_NAV]
     groups = []
     for group in ADMIN_NAV:
         source = _other_platform_links() if group["key"] == "other" else group["links"]
@@ -473,6 +492,27 @@ def nav_for_role(role: str) -> List[dict]:
         g["links"] = links
         groups.append(g)
     return groups
+
+
+def register_front_desk_guard(app) -> None:
+    """前台账号只允许预约交接相关请求，其余后台/档案/下载一律 403。"""
+    @app.before_request
+    def _front_desk_guard():
+        if session.get("role") != "front":
+            return None
+        path = request.path or "/"
+        if path.startswith("/static/") or path.startswith("/app/assets/"):
+            return None
+        if path in ("/login", "/logout", "/api/admin/login", "/api/admin/logout",
+                    "/api/app/boot", "/api/locations", "/api/handoff/bookings"):
+            return None
+        if path == "/app" or path.startswith("/app/"):
+            return None  # SPA 外壳可打开，数据接口仍受下面白名单限制
+        parts = [p for p in path.split("/") if p]
+        if len(parts) >= 4 and parts[0] == "api" and parts[1] == "booking" \
+                and parts[2].isdigit() and parts[3] == "handoff":
+            return None
+        return jsonify({"ok": False, "error": "前台账号只能处理预约与账号交接"}), 403
 
 
 def register_admin_context(app) -> None:

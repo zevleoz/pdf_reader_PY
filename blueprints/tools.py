@@ -6,7 +6,8 @@ import os
 from datetime import date, timedelta
 from typing import Any, Dict, List
 
-from flask import Blueprint, jsonify, render_template, request, send_file
+from flask import (Blueprint, current_app, jsonify, render_template, request,
+                   send_file)
 
 import db as _db
 import extract
@@ -16,7 +17,7 @@ from minutes_docx import build_minutes_docx
 from app_utils import (BASE_DIR, DATA_DIR, admin_required, role_required,
                        student_scoped, minutes_scoped, _student_forbidden,
                        _report_forbidden, _minutes_forbidden, can_see_full,
-                       _advisor_scope)
+                       _advisor_scope, current_user)
 from ai_client import (_assemble_e4_protocol, _build_phase1_md_text,
                        _build_qualification_view, _build_y4_interpret_context,
                        _build_y4_payload, _dashscope_chat,
@@ -743,6 +744,108 @@ def api_locations():
         {"id": l["id"], "name": l["name"]} for l in _db.list_locations(active_only=True)]})
 
 
+# ---------------------------------------------------------------------------
+# Task C：预约来源 / 家长邀请 / 交接 / 测评师分配
+# ---------------------------------------------------------------------------
+BOOKING_SOURCE_LABELS = {
+    "internal": "内部代约",
+    "parent": "家长预约",
+    "walk_in": "到店",
+    "referral": "转介绍",
+    "other": "其他",
+}
+
+
+def _source_label(source: str) -> str:
+    return BOOKING_SOURCE_LABELS.get(source or "", "家长预约")
+
+
+def _clean_source(value, default: str = "parent") -> str:
+    source = (value or "").strip()
+    return source if source in BOOKING_SOURCE_LABELS else default
+
+
+def _invite_serializer():
+    from itsdangerous import URLSafeTimedSerializer
+    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"],
+                                  salt="youth-booking-invite")
+
+
+def _make_invite(location_id: int, source: str) -> str:
+    user = current_user()
+    return _invite_serializer().dumps({
+        "loc": int(location_id),
+        "source": _clean_source(source, "parent"),
+        "by": user.get("user_id"),
+        "name": user.get("display_name") or "",
+        "advisor_name": user.get("advisor_name") or "",
+    })
+
+
+def _read_invite(token: str):
+    if not token:
+        return None
+    try:
+        return _invite_serializer().loads(token, max_age=60 * 60 * 24 * 30)
+    except Exception:
+        return None
+
+
+def _handoff_forbidden(booking: dict):
+    """预约交接的访问控制：admin 全量；advisor 仅名下；front 仅当日本办公室。"""
+    user = current_user()
+    role = user.get("role")
+    if role == "admin":
+        return None
+    if role == "advisor":
+        scope = _advisor_scope()
+        if scope is not None and (booking.get("advisor_name") or "") != scope:
+            return _err("无权访问该预约", 403)
+        return None
+    if role == "front":
+        if booking.get("status") == "cancelled":
+            return _err("该预约已取消", 403)
+        if booking.get("appointment_date") != date.today().isoformat():
+            return _err("前台只能处理当天的预约", 403)
+        db_user = _db.get_user_by_id(user.get("user_id") or 0) or {}
+        office = db_user.get("office_id")
+        if office and int(booking.get("location_id") or 0) != int(office):
+            return _err("不属于当前办公室的预约", 403)
+        return None
+    return _err("无权访问该预约", 403)
+
+
+def _handoff_payload(booking: dict) -> dict:
+    import questionnaire_store as _qs
+    account = _qs.get_student_account(booking["student_id"]) if booking.get("student_id") else None
+    return {
+        **booking,
+        "source_label": _source_label(booking.get("source") or ""),
+        "account": {
+            "exists": bool(account),
+            "username": (account or {}).get("username") or "",
+            "is_active": (account or {}).get("is_active") or 0,
+            "created_at": (account or {}).get("created_at"),
+        },
+        "portal_url": "/student/login",
+    }
+
+
+@bp.route("/api/bookings/invite", methods=["POST"])
+@role_required('admin', 'advisor')
+def api_booking_invite():
+    """生成家长预约邀请链接（30 天有效，落单后不可复用）。"""
+    data = request.get_json(force=True, silent=True) or {}
+    loc_id, bad = _resolve_location(data.get("location_id"), active_only=True)
+    if bad:
+        return bad
+    token = _make_invite(loc_id, data.get("source") or "parent")
+    return jsonify({"ok": True, "invite_token": token,
+                    "url": f"/booking?invite={token}&loc={loc_id}",
+                    "source": _clean_source(data.get("source"), "parent"),
+                    "source_label": _source_label(_clean_source(data.get("source"), "parent"))})
+
+
 @bp.route("/api/booking", methods=["POST"])
 def api_booking():
     """公开预约：每次都新建学生（不按姓名匹配已有学生）。"""
@@ -753,9 +856,31 @@ def api_booking():
     appt_time, bad = _parse_appt(data)
     if bad:
         return bad
-    loc_id, bad = _resolve_location(data.get("location_id"), active_only=True)
-    if bad:
-        return bad
+    invite = (data.get("invite") or "").strip()
+    invite_data = _read_invite(invite) if invite else None
+    if invite and not invite_data:
+        return _err("邀请链接无效或已过期", 400)
+    if invite_data:
+        if _db.get_booking_by_invite(invite):
+            return _err("该邀请链接已预约过，请联系顾问", 409)
+        loc_id, bad = _resolve_location(invite_data.get("loc"), active_only=True)
+        if bad:
+            return bad
+        requested_loc = data.get("location_id")
+        if requested_loc not in (None, "") and int(requested_loc) != int(loc_id):
+            return _err("邀请链接与所选办公室不一致", 400)
+        source = _clean_source(invite_data.get("source"), "parent")
+        requester_name = invite_data.get("name") or ""
+        created_by = invite_data.get("by")
+        advisor_name = invite_data.get("advisor_name") or ""
+    else:
+        loc_id, bad = _resolve_location(data.get("location_id"), active_only=True)
+        if bad:
+            return bad
+        source = "parent"
+        requester_name = ""
+        created_by = None
+        advisor_name = (data.get("advisor_name") or "").strip()
     bad = _date_window_error(appt_time.date(), allow_today=False) or _slot_error(loc_id, appt_time)
     if bad:
         return bad
@@ -764,13 +889,17 @@ def api_booking():
         student_id, booking_id = _db.create_booking_with_student(
         student_name=name,
         appointment_time=appt_time,
-        advisor_name=(data.get("advisor_name") or "").strip(),
+        advisor_name=advisor_name,
         school=(data.get("school") or "").strip(),
         single_parent="true" if sp in (True, "true", "1", 1, "on") else "false",
         notes=data.get("notes", ""),
         location_id=loc_id,
         match_existing=False,
         capacity=SLOT_CAPACITY,
+        source=source,
+        requester_name=requester_name,
+        created_by=created_by,
+        invite_token=invite or None,
         )
     except _db.SlotUnavailable as e:
         return _slot_race_error(e)
@@ -885,6 +1014,11 @@ def api_booking_staff():
     new_name = (data.get("new_name") or "").strip()
     if bool(code) == bool(new_name):
         return _err("请二选一：选择已有学生，或填写新学生姓名")
+    user = current_user()
+    source = _clean_source(data.get("source"), "internal")
+    requester_name = (data.get("requester_name") or "").strip() \
+        or user.get("display_name") or ""
+    created_by = user.get("user_id")
     if code:
         st = _db.get_student_by_code(code)
         if not st:
@@ -897,18 +1031,183 @@ def api_booking_staff():
                 student_name=st["name"], appointment_time=appt_time,
                 advisor_name=st.get("advisor_name") or "", school=st.get("school") or "",
                 single_parent=st.get("single_parent") or "false",
-                student_id=st["id"], location_id=loc_id, capacity=SLOT_CAPACITY)
+                student_id=st["id"], location_id=loc_id, capacity=SLOT_CAPACITY,
+                source=source, requester_name=requester_name, created_by=created_by)
         except _db.SlotUnavailable as e:
             return _slot_race_error(e)
-        return jsonify({"ok": True, "booking_id": booking_id})
+        return jsonify({"ok": True, "booking_id": booking_id,
+                        "source": source, "source_label": _source_label(source)})
     try:
         _sid, booking_id = _db.create_booking_with_student(
             student_name=new_name, appointment_time=appt_time,
             advisor_name=_advisor_scope() or "", location_id=loc_id,
-            match_existing=False, capacity=SLOT_CAPACITY)
+            match_existing=False, capacity=SLOT_CAPACITY,
+            source=source, requester_name=requester_name, created_by=created_by)
     except _db.SlotUnavailable as e:
         return _slot_race_error(e)
-    return jsonify({"ok": True, "booking_id": booking_id})
+    return jsonify({"ok": True, "booking_id": booking_id,
+                    "source": source, "source_label": _source_label(source)})
+
+
+@bp.route("/api/handoff/bookings")
+@role_required('admin', 'advisor', 'front')
+def api_handoff_bookings():
+    """当日预约交接列表。前台只看到自己办公室，且只返回当日。"""
+    import questionnaire_store as _qs
+    user = current_user()
+    role = user.get("role")
+    day = date.today()
+    loc_id = None
+    if role == "front":
+        db_user = _db.get_user_by_id(user.get("user_id") or 0) or {}
+        loc_id = db_user.get("office_id")
+    else:
+        raw = (request.args.get("date") or "").strip()
+        if raw:
+            try:
+                day = date.fromisoformat(raw)
+            except ValueError:
+                return _err("日期格式错误")
+        raw_loc = (request.args.get("loc") or "").strip()
+        if raw_loc:
+            loc_id, bad = _resolve_location(raw_loc, active_only=False)
+            if bad:
+                return bad
+    bookings = _db.get_bookings_for_date(day, loc_id)
+    scope = _advisor_scope()
+    if role != "front" and scope is not None:
+        bookings = [b for b in bookings if b.get("advisor_name") == scope]
+    for b in bookings:
+        acct = _qs.get_student_account(b["student_id"]) if b.get("student_id") else None
+        b["source_label"] = _source_label(b.get("source") or "")
+        b["account"] = {"exists": bool(acct), "username": (acct or {}).get("username") or ""}
+    return jsonify({"ok": True, "date": day.isoformat(), "bookings": bookings})
+
+
+@bp.route("/api/booking/<int:booking_id>/handoff")
+@role_required('admin', 'advisor', 'front')
+def api_booking_handoff(booking_id):
+    booking = _db.get_booking_detail(booking_id)
+    if not booking:
+        return _err("预约不存在", 404)
+    denied = _handoff_forbidden(booking)
+    if denied:
+        return denied
+    return jsonify({"ok": True, "booking": _handoff_payload(booking)})
+
+
+@bp.route("/api/booking/<int:booking_id>/handoff/account", methods=["POST"])
+@role_required('admin', 'advisor', 'front')
+def api_booking_handoff_account(booking_id):
+    """生成/复用该预约学生的 Y4 账号；重试始终返回同一账号。"""
+    import questionnaire_store as _qs
+    booking = _db.get_booking_detail(booking_id)
+    if not booking:
+        return _err("预约不存在", 404)
+    denied = _handoff_forbidden(booking)
+    if denied:
+        return denied
+    if not booking.get("student_id"):
+        return _err("该预约尚未关联学生", 400)
+    result = _qs.ensure_student_account(booking["student_id"])
+    return jsonify({
+        "ok": True,
+        "booking_id": booking_id,
+        "student_id": booking["student_id"],
+        "student_code": booking.get("student_code") or "",
+        "username": result["username"],
+        "password": result.get("password"),
+        "created": bool(result.get("created")),
+        "portal_url": "/student/login",
+    })
+
+
+@bp.route("/api/booking/<int:booking_id>/handoff/reset", methods=["POST"])
+@role_required('admin', 'advisor', 'front')
+def api_booking_handoff_reset(booking_id):
+    """重置该预约学生密码；账号与预约/学生的关联不变。"""
+    import questionnaire_store as _qs
+    booking = _db.get_booking_detail(booking_id)
+    if not booking:
+        return _err("预约不存在", 404)
+    denied = _handoff_forbidden(booking)
+    if denied:
+        return denied
+    if not booking.get("student_id"):
+        return _err("该预约尚未关联学生", 400)
+    result = _qs.reset_student_password(booking["student_id"])
+    if not result.get("ok"):
+        return _err(result.get("error") or "重置失败", 400)
+    return jsonify({"ok": True, "booking_id": booking_id,
+                    "student_id": booking["student_id"],
+                    "username": result["username"], "password": result["password"],
+                    "created": False, "portal_url": "/student/login"})
+
+
+@bp.route("/api/booking/<int:booking_id>/assessor-candidates")
+@role_required('admin')
+def api_booking_assessor_candidates(booking_id):
+    booking = _db.get_booking_detail(booking_id)
+    if not booking:
+        return _err("预约不存在", 404)
+    return jsonify({"ok": True, "candidates": _db.get_assessor_candidates(booking)})
+
+
+@bp.route("/api/booking/<int:booking_id>/assign", methods=["POST"])
+@role_required('admin')
+def api_booking_assign(booking_id):
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        assessor_id = int(data.get("assessor_id"))
+    except (TypeError, ValueError):
+        return _err("请选择测评师")
+    try:
+        _db.assign_booking_assessor(booking_id, assessor_id)
+    except ValueError as e:
+        return _err(str(e), 409 if "已有" in str(e) else 400)
+    return jsonify({"ok": True, "booking": _db.get_booking_detail(booking_id)})
+
+
+@bp.route("/api/assessor/availability", methods=["GET", "POST"])
+@role_required('admin', 'advisor')
+def api_assessor_availability():
+    """测评师维护自己的可约时段。"""
+    user = _db.get_user_by_id(current_user().get("user_id") or 0)
+    if not user or not user.get("is_assessor"):
+        return _err("当前账号不是测评师", 403)
+    if request.method == "GET":
+        raw = (request.args.get("start") or "").strip()
+        try:
+            start = date.fromisoformat(raw) if raw else date.today()
+        except ValueError:
+            return _err("日期格式错误")
+        try:
+            days = min(max(int(request.args.get("days") or 14), 1), 31)
+        except ValueError:
+            days = 14
+        return jsonify({
+            "ok": True,
+            "start": start.isoformat(),
+            "days": days,
+            "time_slots": list(_db.TIME_SLOTS),
+            "office_id": user.get("office_id"),
+            "availability": _db.list_assessor_availability(user["id"], start, days),
+        })
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        day = date.fromisoformat(str(data.get("date") or ""))
+    except ValueError:
+        return _err("日期格式错误")
+    slots = data.get("slots") or []
+    if not isinstance(slots, list):
+        return _err("slots 格式错误")
+    loc_id = data.get("location_id") or user.get("office_id")
+    try:
+        _db.set_assessor_availability(user["id"], loc_id, day, slots)
+    except ValueError as e:
+        return _err(str(e))
+    return jsonify({"ok": True, "date": day.isoformat(),
+                    "availability": _db.list_assessor_availability(user["id"], day, 1)})
 
 
 @bp.route("/api/availability")

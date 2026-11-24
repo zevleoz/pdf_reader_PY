@@ -15,6 +15,8 @@ type FormState = {
   student_scope: string;
   detail_level: string;
   m1_access: boolean;
+  office_id: string;
+  is_assessor: boolean;
 };
 
 function initialForm(): FormState {
@@ -24,6 +26,8 @@ function initialForm(): FormState {
     role: "viewer",
     advisor_name: "",
     display_name: "",
+    office_id: "",
+    is_assessor: false,
     ...ROLE_DEFAULTS.viewer,
   };
 }
@@ -37,15 +41,18 @@ function applyRole(form: FormState, role: Role): FormState {
     student_scope,
     detail_level: defaults.detail_level,
     m1_access: defaults.m1_access,
+    is_assessor: role === "front" ? false : form.is_assessor,
     advisor_name: student_scope === "own" ? form.advisor_name : "",
   };
 }
 
 export default function UserCreateForm({
   busy,
+  locations,
   onCreate,
 }: {
   busy: boolean;
+  locations: { id: number; name: string }[];
   onCreate: (payload: CreatePayload) => Promise<string | null>;
 }) {
   const [form, setForm] = React.useState<FormState>(initialForm);
@@ -54,7 +61,9 @@ export default function UserCreateForm({
 
   const isAdmin = form.role === "admin";
   const isViewer = form.role === "viewer";
+  const isFront = form.role === "front";
   const showAdvisor = form.student_scope === "own";
+  const needsOffice = isFront || form.is_assessor;
 
   function changeRole(role: Role) {
     setForm((current) => applyRole(current, role));
@@ -88,6 +97,10 @@ export default function UserCreateForm({
       setError("名下学生范围需要绑定顾问姓名");
       return;
     }
+    if (needsOffice && !form.office_id) {
+      setError(isFront ? "前台账号需要绑定办公室" : "测评师需要绑定办公室");
+      return;
+    }
 
     const failure = await onCreate({
       username,
@@ -98,6 +111,8 @@ export default function UserCreateForm({
       student_scope: form.student_scope,
       detail_level: form.detail_level,
       m1_access: form.m1_access ? 1 : 0,
+      office_id: form.office_id ? Number(form.office_id) : null,
+      is_assessor: form.is_assessor ? 1 : 0,
     });
     if (failure) {
       setError(failure);
@@ -151,8 +166,36 @@ export default function UserCreateForm({
             <option value="viewer">只读</option>
             <option value="advisor">顾问</option>
             <option value="admin">管理员</option>
+            <option value="front">前台</option>
           </select>
         </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="noff">办公室{needsOffice ? "（必填）" : "（可选）"}</Label>
+          <select
+            id="noff"
+            className={CONTROL_CLASS}
+            value={form.office_id}
+            disabled={busy}
+            onChange={(event) => setForm((current) => ({ ...current, office_id: event.target.value }))}
+          >
+            <option value="">未绑定</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-ink"
+            checked={form.is_assessor}
+            disabled={busy || isFront}
+            onChange={(event) => setForm((current) => ({ ...current, is_assessor: event.target.checked }))}
+          />
+          <span>可接待 Y4（测评师）</span>
+        </label>
 
         {showAdvisor ? (
           <div className="grid gap-1.5">
@@ -186,11 +229,12 @@ export default function UserCreateForm({
             id="nsc"
             className={CONTROL_CLASS}
             value={form.student_scope}
-            disabled={busy || isAdmin}
+            disabled={busy || isAdmin || isFront}
             onChange={(event) => changeScope(event.target.value)}
           >
             <option value="all">全部学生</option>
             <option value="own">名下学生</option>
+            {isFront ? <option value="none">无档案范围</option> : null}
           </select>
         </div>
 
@@ -200,7 +244,7 @@ export default function UserCreateForm({
             id="ndl"
             className={CONTROL_CLASS}
             value={form.detail_level}
-            disabled={busy || isAdmin}
+            disabled={busy || isAdmin || isFront}
             onChange={(event) => setForm((current) => ({ ...current, detail_level: event.target.value }))}
           >
             <option value="full">完整</option>
@@ -215,7 +259,7 @@ export default function UserCreateForm({
               type="checkbox"
               className="h-4 w-4 accent-ink"
               checked={form.m1_access}
-              disabled={busy || isAdmin || isViewer}
+              disabled={busy || isAdmin || isViewer || isFront}
               onChange={(event) => setForm((current) => ({ ...current, m1_access: event.target.checked }))}
             />
             <span>心有灵析</span>
@@ -238,7 +282,7 @@ export default function UserCreateForm({
         ) : null}
 
         <p className="text-xs leading-relaxed text-mute">
-          完整：可看家长联系方式、问卷答案和分数、解读会纪要，可导出。概要：只看学生档案、Y4、问卷完成状态和 6AM。
+          完整：可看家长联系方式、问卷答案和分数、解读会纪要，可导出。概要：只看学生档案、Y4、问卷完成状态和 6AM。前台：仅当日预约与账号交接，无档案与报告入口。
         </p>
       </form>
     </section>

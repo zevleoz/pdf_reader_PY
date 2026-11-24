@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Pencil, Send } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Pencil, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +9,8 @@ import { useBoot } from "@/lib/boot";
 import { cn } from "@/lib/utils";
 import PageHeader from "@/shell/PageHeader";
 
+import AssessorPanel from "./booking/AssessorPanel";
+import HandoffPanel from "./booking/HandoffPanel";
 import { SendPanel, SlotPanel, WeekPanel } from "./booking/Panels";
 import {
   TIMES,
@@ -68,6 +70,8 @@ export default function Booking() {
   const [presetName, setPresetName] = React.useState("");
   const [send, setSend] = React.useState(false);
   const [edit, setEdit] = React.useState(false);
+  const [handoffId, setHandoffId] = React.useState<number | null>(null);
+  const [myAvail, setMyAvail] = React.useState(false);
   const [over, setOver] = React.useState<Record<string, boolean>>({});
   const [editNote, setEditNote] = React.useState("");
   const [dayIdx, setDayIdx] = React.useState(() => firstDayIdx(mondayOf(todayKey())));
@@ -176,6 +180,8 @@ export default function Booking() {
 
   function pickSlot(s: { date: string; time: string }) {
     setSend(false);
+    setHandoffId(null);
+    setMyAvail(false);
     setSel({ date: s.date, time: s.time });
     const mon = mondayOf(s.date);
     if (mon !== weekStart) {
@@ -252,10 +258,12 @@ export default function Booking() {
   function onBooked(id: number, label: string) {
     setSel(null);
     setPicked(null);
+    setHandoffId(id);
     if (presetCode) clearPreset();
     notify("已预约 " + label, "ok", async () => {
       try {
         await postJSON("/api/booking/" + id + "/cancel");
+        setHandoffId(null);
         notify("已撤销");
       } catch (e) {
         notify(errorText(e, "撤销失败"), "error");
@@ -279,11 +287,29 @@ export default function Booking() {
             setEdit(!edit);
             setSel(null);
             setSend(false);
+            setHandoffId(null);
+            setMyAvail(false);
             setEditNote("");
           }}
         >
           <Pencil />
           {edit ? "完成编辑" : "编辑开放时段"}
+        </Button>
+      ) : null}
+      {boot.user.is_assessor ? (
+        <Button
+          variant={myAvail ? "default" : "outline"}
+          className={cn("shadow-none", !myAvail && "border-rule")}
+          onClick={() => {
+            setMyAvail(!myAvail);
+            setSel(null);
+            setSend(false);
+            setHandoffId(null);
+            setEdit(false);
+          }}
+        >
+          <CalendarClock />
+          我的可约时段
         </Button>
       ) : null}
       <Button
@@ -292,6 +318,8 @@ export default function Booking() {
           setSend(true);
           setSel(null);
           setEdit(false);
+          setHandoffId(null);
+          setMyAvail(false);
         }}
         disabled={!loc}
       >
@@ -521,12 +549,16 @@ export default function Booking() {
         <aside
           className={cn(
             "md:sticky md:top-4",
-            (selSlot || send) &&
+            (selSlot || send || handoffId || myAvail) &&
               "max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:max-h-[72vh] max-md:overflow-auto max-md:bg-background max-md:p-4 max-md:shadow-[0_-14px_34px_-14px_rgba(0,0,0,.4)]",
           )}
         >
           {send && loc && locs ? (
             <SendPanel locs={locs} loc={loc} setLoc={(id) => setLocId(id)} onClose={() => setSend(false)} notify={notify} />
+          ) : handoffId ? (
+            <HandoffPanel bookingId={handoffId} onClose={() => setHandoffId(null)} />
+          ) : myAvail ? (
+            <AssessorPanel onClose={() => setMyAvail(false)} />
           ) : selSlot && loc ? (
             <SlotPanel
               slot={selSlot}
@@ -536,13 +568,29 @@ export default function Booking() {
               picked={picked}
               setPicked={setPicked}
               onBooked={onBooked}
+              requesterDefault={boot.user.display_name}
               onClose={() => {
                 setSel(null);
                 if (!presetCode) setPicked(null);
               }}
             />
           ) : week && loc ? (
-            <WeekPanel slots={week.slots} cap={cap} locName={loc.name} onJump={(s) => setSel({ date: s.date, time: s.time })} />
+            <WeekPanel
+              slots={week.slots}
+              cap={cap}
+              locName={loc.name}
+              onJump={(s) => {
+                setHandoffId(null);
+                setMyAvail(false);
+                setSel({ date: s.date, time: s.time });
+              }}
+              onOpenBooking={(id) => {
+                setSel(null);
+                setSend(false);
+                setMyAvail(false);
+                setHandoffId(id);
+              }}
+            />
           ) : null}
         </aside>
       </div>

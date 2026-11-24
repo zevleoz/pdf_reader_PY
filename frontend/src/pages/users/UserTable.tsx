@@ -9,7 +9,10 @@ type Props = {
   limited: boolean;
   meId: number;
   busyIds: ReadonlySet<number>;
+  locations: { id: number; name: string }[];
   onRole: (user: UserRow, role: Role) => void;
+  onOffice: (user: UserRow, officeId: string) => void;
+  onAssessor: (user: UserRow, checked: boolean) => void;
   onScope: (user: UserRow, scope: string) => void;
   onDetail: (user: UserRow, detail: string) => void;
   onM1: (user: UserRow, checked: boolean) => void;
@@ -99,19 +102,21 @@ function LimitedTable({ users, meId, busyIds, onM1 }: Pick<Props, "users" | "meI
 }
 
 export default function UserTable(props: Props) {
-  const { users, limited, meId, busyIds, onRole, onScope, onDetail, onM1, onM1Admin, onToggleActive, onResetPassword, onEditAdvisor, onDelete } = props;
+  const { users, limited, meId, busyIds, locations, onRole, onOffice, onAssessor, onScope, onDetail, onM1, onM1Admin, onToggleActive, onResetPassword, onEditAdvisor, onDelete } = props;
 
   if (limited) {
     return <LimitedTable users={users} meId={meId} busyIds={busyIds} onM1={onM1} />;
   }
 
   return (
-    <Table className="min-w-[1000px]">
+    <Table className="min-w-[1180px]">
       <TableHeader>
         <TableRow>
           <TableHead>账号</TableHead>
           <TableHead>显示名</TableHead>
           <TableHead>角色</TableHead>
+          <TableHead>办公室</TableHead>
+          <TableHead>测评师</TableHead>
           <TableHead>绑定顾问</TableHead>
           <TableHead>可见学生</TableHead>
           <TableHead>可见内容</TableHead>
@@ -142,20 +147,46 @@ export default function UserTable(props: Props) {
                   <option value="admin">管理员</option>
                   <option value="advisor">顾问</option>
                   <option value="viewer">只读</option>
+                  <option value="front">前台</option>
                 </select>
+              </TableCell>
+              <TableCell>
+                <select
+                  className={ROW_CONTROL_CLASS}
+                  value={user.office_id ?? ""}
+                  disabled={busy}
+                  aria-label={"办公室：" + user.username}
+                  onChange={(event) => onOffice(user, event.target.value)}
+                >
+                  <option value="">未绑定</option>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </TableCell>
+              <TableCell>
+                <Check
+                  checked={user.is_assessor === 1}
+                  disabled={busy || user.role === "front" || user.role === "viewer"}
+                  label="测评师"
+                  ariaLabel={"测评师：" + user.username}
+                  onChange={(checked) => onAssessor(user, checked)}
+                />
               </TableCell>
               <TableCell className="break-words">{user.advisor_name || "—"}</TableCell>
               <TableCell>
                 <select
                   className={ROW_CONTROL_CLASS}
                   value={user.student_scope || "all"}
-                  disabled={busy || admin}
+                  disabled={busy || admin || user.role === "front"}
                   aria-label={"可见学生：" + user.username}
                   onChange={(event) => onScope(user, event.target.value)}
                 >
                   <option value="all">全部学生</option>
                   <option value="own">名下学生</option>
+                  {user.role === "front" ? <option value="none">无档案范围</option> : null}
                 </select>
+                {user.role === "front" ? <div className="mt-1 text-[11.5px] text-mute">仅当日预约交接</div> : null}
               </TableCell>
               <TableCell>
                 <select

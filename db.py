@@ -18,7 +18,7 @@ from typing import List, Optional, Dict, Any, Tuple
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, Date, DateTime,
-    ForeignKey, select, insert, update, delete, func, event
+    ForeignKey, select, insert, update, delete, func, event, inspect, text
 )
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import declarative_base, Session
@@ -114,6 +114,25 @@ class Booking(Base):
     single_parent = Column(String(10), default="false")
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Task C：预约来源、经办人、测评师分配与邀请链接
+    source = Column(String(30), nullable=True)
+    requester_name = Column(String(100), nullable=True)
+    created_by = Column(Integer, nullable=True)
+    assessor_id = Column(Integer, nullable=True)
+    assigned_at = Column(DateTime, nullable=True)
+    invite_token = Column(String(255), nullable=True)
+
+
+class AssessorAvailability(Base):
+    """测评师自己维护的可约时段；无记录时沿用办公室开放状态。"""
+    __tablename__ = "assessor_availability"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    assessor_id = Column(Integer, nullable=False, index=True)
+    location_id = Column(Integer, nullable=True)
+    date = Column(Date, nullable=False)
+    time_slot = Column(String(10), nullable=False)
+    is_available = Column(Integer, default=1)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Availability(Base):
@@ -206,6 +225,9 @@ class User(Base):
     m1_access = Column(Integer, nullable=True)
     # 心有灵析管理（仅 advisor 有意义；生效值见 effective_account_settings）
     m1_admin = Column(Integer, nullable=True)
+    # Task C：测评师身份与所属办公室（前台账号也用 office_id 限定接待范围）
+    is_assessor = Column(Integer, nullable=False, default=0)
+    office_id = Column(Integer, nullable=True)
 
 
 def init_db() -> None:
@@ -241,6 +263,10 @@ def init_db() -> None:
     except Exception as e:
         print(f"[DB] y4_jobs 补列失败 (非致命): {e}")
     _migrate_schema()
+    try:
+        _ensure_ops_schema()
+    except Exception as e:
+        print(f"[DB] 预约/测评师字段补列失败 (非致命): {e}")
     try:
         ensure_locations()
     except Exception as e:
@@ -491,6 +517,43 @@ def _migrate_schema() -> None:
                 pass
 
     conn.close()
+
+
+def _ensure_ops_schema() -> None:
+    """跨 SQLite/PostgreSQL 幂等补齐 Task C 字段与唯一索引。"""
+    insp = inspect(engine)
+    tables = set(insp.get_table_names())
+
+    def add_columns(table: str, columns) -> None:
+        if table not in tables:
+            return
+        existing = {c["name"] for c in insp.get_columns(table)}
+        with engine.begin() as conn:
+            for name, ddl in columns:
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+    add_columns("bookings", [
+        ("source", "VARCHAR(30)"),
+        ("requester_name", "VARCHAR(100)"),
+        ("created_by", "INTEGER"),
+        ("assessor_id", "INTEGER"),
+        ("assigned_at", "DATETIME"),
+        ("invite_token", "VARCHAR(255)"),
+    ])
+    add_columns("users", [
+        ("is_assessor", "INTEGER NOT NULL DEFAULT 0"),
+        ("office_id", "INTEGER"),
+    ])
+    with engine.begin() as conn:
+        # 同一测评师同一时刻只能接待一个预约；已取消的预约不占用。
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_booking_assessor_slot "
+            "ON bookings (assessor_id, appointment_time) "
+            "WHERE assessor_id IS NOT NULL AND status != 'cancelled'"))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_assessor_availability_slot "
+            "ON assessor_availability (assessor_id, date, time_slot)"))
 
 
 # ─── Student CRUD ───────────────────────────────────────────────
@@ -1014,7 +1077,11 @@ def add_booking(student_name: str, appointment_time: datetime,
                 school: str = "", single_parent: str = "false",
                 student_id: Optional[int] = None,
                 location_id: Optional[int] = None,
-                capacity: Optional[int] = None) -> int:
+                capacity: Optional[int] = None,
+                source: Optional[str] = None,
+                requester_name: Optional[str] = None,
+                created_by: Optional[int] = None,
+                invite_token: Optional[str] = None) -> int:
     """Create a booking. Returns booking id. capacity 给定时原子检查容量/关闭，失败抛 SlotUnavailable。"""
     with Session(engine) as sess:
         _lock_and_check_slot(sess, location_id, appointment_time, capacity)
@@ -1030,6 +1097,10 @@ def add_booking(student_name: str, appointment_time: datetime,
             advisor_name=advisor_name,
             school=school,
             single_parent=single_parent,
+            source=source,
+            requester_name=requester_name,
+            created_by=created_by,
+            invite_token=invite_token,
         )
         result = sess.execute(stmt)
         _touch_location(sess, location_id)
@@ -1043,7 +1114,11 @@ def create_booking_with_student(student_name: str, appointment_time: datetime,
                                 notes: str = "",
                                 location_id: Optional[int] = None,
                                 match_existing: bool = True,
-                                capacity: Optional[int] = None) -> tuple:
+                                capacity: Optional[int] = None,
+                                source: Optional[str] = None,
+                                requester_name: Optional[str] = None,
+                                created_by: Optional[int] = None,
+                                invite_token: Optional[str] = None) -> tuple:
     """Create student + booking in one transaction. Returns (student_id, booking_id).
 
     match_existing=True（旧行为）按姓名复用已有学生；公开预约链接传 False，一律新建学生。
@@ -1082,7 +1157,9 @@ def create_booking_with_student(student_name: str, appointment_time: datetime,
                     appointment_time=appointment_time, status="pending",
                     notes=notes, advisor_name=advisor_name,
                     school=school, single_parent=single_parent,
-                    location_id=location_id))
+                    location_id=location_id, source=source,
+                    requester_name=requester_name, created_by=created_by,
+                    invite_token=invite_token))
                 booking_id = result.lastrowid
                 _touch_location(sess, location_id)
                 sess.commit()
@@ -1123,6 +1200,11 @@ def get_bookings(status: Optional[str] = None) -> List[Dict[str, Any]]:
                 "single_parent": booking.single_parent,
                 "location_id": booking.location_id,
                 "created_at": booking.created_at.isoformat() if booking.created_at else None,
+                "source": booking.source or "",
+                "requester_name": booking.requester_name or "",
+                "created_by": booking.created_by,
+                "assessor_id": booking.assessor_id,
+                "assigned_at": booking.assigned_at.isoformat() if booking.assigned_at else None,
                 "report_count": report_count,
             })
         return results
@@ -1480,17 +1562,20 @@ def get_booking_counts_range(start_date: date, end_date: date,
 
 
 def get_week_bookings(location_id: int, start_date: date, days: int = 7) -> List[Dict[str, Any]]:
-    """某办公室 [start_date, start_date+days) 内的非取消预约，附学生编号。"""
+    """某办公室 [start_date, start_date+days) 内的非取消预约，附学生编号与测评师。"""
+    from sqlalchemy.orm import aliased
+    assessor = aliased(User)
     with Session(engine) as sess:
-        stmt = (select(Booking, Student.student_code)
+        stmt = (select(Booking, Student.student_code, assessor.display_name)
                 .outerjoin(Student, Student.id == Booking.student_id)
+                .outerjoin(assessor, assessor.id == Booking.assessor_id)
                 .where(Booking.status != "cancelled",
                        Booking.location_id == location_id,
                        Booking.appointment_time >= start_date,
                        Booking.appointment_time < start_date + timedelta(days=days))
                 .order_by(Booking.appointment_time, Booking.id))
         out = []
-        for b, code in sess.execute(stmt).all():
+        for b, code, assessor_name in sess.execute(stmt).all():
             out.append({
                 "id": b.id,
                 "student_name": b.student_name,
@@ -1498,8 +1583,243 @@ def get_week_bookings(location_id: int, start_date: date, days: int = 7) -> List
                 "status": b.status,
                 "advisor_name": b.advisor_name,
                 "appointment_time": b.appointment_time,
+                "source": b.source or "",
+                "requester_name": b.requester_name or "",
+                "assessor_id": b.assessor_id,
+                "assessor_name": assessor_name or "",
             })
         return out
+
+
+# ─── Task C：预约交接 / 测评师分配 / 可约时段 ─────────────────────
+
+def get_booking_detail(booking_id: int) -> Optional[Dict[str, Any]]:
+    """单条预约（含学生编号、办公室、经办人和测评师姓名）。"""
+    from sqlalchemy.orm import aliased
+    assessor = aliased(User)
+    creator = aliased(User)
+    with Session(engine) as sess:
+        stmt = (select(Booking, Student.student_code, Location.name,
+                       assessor.display_name, assessor.id, creator.display_name)
+                .outerjoin(Student, Student.id == Booking.student_id)
+                .outerjoin(Location, Location.id == Booking.location_id)
+                .outerjoin(assessor, assessor.id == Booking.assessor_id)
+                .outerjoin(creator, creator.id == Booking.created_by)
+                .where(Booking.id == int(booking_id)))
+        row = sess.execute(stmt).first()
+        if not row:
+            return None
+        b, code, loc_name, assessor_name, assessor_id, creator_name = row
+        return {
+            "id": b.id,
+            "student_id": b.student_id,
+            "student_name": b.student_name,
+            "student_code": code or "",
+            "appointment_time": b.appointment_time.isoformat() if b.appointment_time else None,
+            "appointment_date": b.appointment_time.date().isoformat() if b.appointment_time else "",
+            "appointment_slot": b.appointment_time.strftime("%H:%M") if b.appointment_time else "",
+            "status": b.status,
+            "location_id": b.location_id,
+            "location_name": loc_name or "",
+            "source": b.source or "",
+            "requester_name": b.requester_name or "",
+            "created_by": b.created_by,
+            "created_by_name": creator_name or "",
+            "advisor_name": b.advisor_name or "",
+            "assessor_id": assessor_id,
+            "assessor_name": assessor_name or "",
+            "assigned_at": b.assigned_at.isoformat() if b.assigned_at else None,
+        }
+
+
+def get_bookings_for_date(day: date, location_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """某天未取消的预约，按时间升序。前台交接列表使用。"""
+    from sqlalchemy.orm import aliased
+    assessor = aliased(User)
+    with Session(engine) as sess:
+        stmt = (select(Booking, Student.student_code, Location.name, assessor.display_name)
+                .outerjoin(Student, Student.id == Booking.student_id)
+                .outerjoin(Location, Location.id == Booking.location_id)
+                .outerjoin(assessor, assessor.id == Booking.assessor_id)
+                .where(Booking.status != "cancelled",
+                       Booking.appointment_time >= day,
+                       Booking.appointment_time < day + timedelta(days=1)))
+        if location_id is not None:
+            stmt = stmt.where(Booking.location_id == int(location_id))
+        stmt = stmt.order_by(Booking.appointment_time, Booking.id)
+        return [
+            {
+                "id": b.id,
+                "student_id": b.student_id,
+                "student_name": b.student_name,
+                "student_code": code or "",
+                "appointment_time": b.appointment_time.isoformat(),
+                "appointment_slot": b.appointment_time.strftime("%H:%M"),
+                "status": b.status,
+                "location_id": b.location_id,
+                "location_name": loc_name or "",
+                "advisor_name": b.advisor_name or "",
+                "source": b.source or "",
+                "requester_name": b.requester_name or "",
+                "assessor_id": b.assessor_id,
+                "assessor_name": assessor_name or "",
+            }
+            for b, code, loc_name, assessor_name in sess.execute(stmt).all()
+        ]
+
+
+def get_booking_by_invite(token: str) -> Optional[Dict[str, Any]]:
+    """邀请链接是否已落单（用于拒绝重复使用同一链接）。"""
+    with Session(engine) as sess:
+        row = sess.execute(select(Booking.id).where(Booking.invite_token == token)).first()
+        return {"booking_id": row[0]} if row else None
+
+
+def get_student_bookings(student_id: int) -> List[Dict[str, Any]]:
+    """某学生的全部预约（用于档案「预约与分配」），附测评师与经办人姓名。"""
+    from sqlalchemy.orm import aliased
+    assessor = aliased(User)
+    creator = aliased(User)
+    with Session(engine) as sess:
+        stmt = (select(Booking, Location.name, assessor.display_name, assessor.id,
+                       creator.display_name)
+                .outerjoin(Location, Location.id == Booking.location_id)
+                .outerjoin(assessor, assessor.id == Booking.assessor_id)
+                .outerjoin(creator, creator.id == Booking.created_by)
+                .where(Booking.student_id == int(student_id))
+                .order_by(Booking.appointment_time.desc(), Booking.id.desc()))
+        out = []
+        for b, loc_name, assessor_name, assessor_id, creator_name in sess.execute(stmt).all():
+            out.append({
+                "id": b.id,
+                "appointment_time": b.appointment_time.isoformat() if b.appointment_time else None,
+                "appointment_date": b.appointment_time.date().isoformat() if b.appointment_time else "",
+                "appointment_slot": b.appointment_time.strftime("%H:%M") if b.appointment_time else "",
+                "status": b.status,
+                "location_id": b.location_id,
+                "location_name": loc_name or "",
+                "source": b.source or "",
+                "requester_name": b.requester_name or "",
+                "created_by_name": creator_name or "",
+                "assessor_id": assessor_id,
+                "assessor_name": assessor_name or "",
+                "assigned_at": b.assigned_at.isoformat() if b.assigned_at else None,
+            })
+        return out
+
+
+def get_assessor_candidates(booking: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """与预约同办公室、该时段未关闭且未撞单的启用测评师。"""
+    appt = datetime.fromisoformat(booking["appointment_time"])
+    day, slot = appt.date(), appt.strftime("%H:%M")
+    with Session(engine) as sess:
+        users = sess.execute(
+            select(User, Location.name)
+            .outerjoin(Location, Location.id == User.office_id)
+            .where(User.is_assessor == 1, User.is_active == 1,
+                   User.role.in_(("admin", "advisor")))
+            .order_by(User.display_name, User.id)
+        ).all()
+        closed = {r.assessor_id for r in sess.execute(
+            select(AssessorAvailability).where(
+                AssessorAvailability.date == day,
+                AssessorAvailability.time_slot == slot,
+                AssessorAvailability.is_available == 0)).all()}
+        busy = {r[0] for r in sess.execute(
+            select(Booking.assessor_id).where(
+                Booking.assessor_id.isnot(None),
+                Booking.status != "cancelled",
+                Booking.appointment_time == appt,
+                Booking.id != booking["id"])).all()}
+        out = []
+        for u, office_name in users:
+            if u.office_id is None or int(u.office_id) != int(booking["location_id"] or 0):
+                continue
+            if u.id in closed or u.id in busy:
+                continue
+            out.append({
+                "id": u.id,
+                "display_name": u.display_name or u.username,
+                "username": u.username,
+                "office_id": u.office_id,
+                "office_name": office_name or "",
+                "assigned": int(u.id) == int(booking.get("assessor_id") or 0),
+            })
+        return out
+
+
+def assign_booking_assessor(booking_id: int, assessor_id: int) -> None:
+    """原子分配测评师。校验同办公室、可约、未撞单；失败抛 ValueError。"""
+    with Session(engine) as sess:
+        booking = sess.get(Booking, int(booking_id))
+        if not booking or booking.status == "cancelled":
+            raise ValueError("预约不存在或已取消")
+        user = sess.get(User, int(assessor_id))
+        if not user or not int(user.is_active or 0) or not int(user.is_assessor or 0):
+            raise ValueError("该账号不是可用测评师")
+        if user.role not in ("admin", "advisor"):
+            raise ValueError("该账号不是可用测评师")
+        if user.office_id is None or int(user.office_id) != int(booking.location_id or 0):
+            raise ValueError("测评师不属于该办公室")
+        day, slot = booking.appointment_time.date(), booking.appointment_time.strftime("%H:%M")
+        closed = sess.execute(select(AssessorAvailability.id).where(
+            AssessorAvailability.assessor_id == int(assessor_id),
+            AssessorAvailability.date == day,
+            AssessorAvailability.time_slot == slot,
+            AssessorAvailability.is_available == 0)).first()
+        if closed:
+            raise ValueError("该测评师此时间不可约")
+        conflict = sess.execute(select(Booking.id).where(
+            Booking.assessor_id == int(assessor_id),
+            Booking.status != "cancelled",
+            Booking.appointment_time == booking.appointment_time,
+            Booking.id != int(booking_id))).first()
+        if conflict:
+            raise ValueError("该测评师在此时间已有其他预约")
+        booking.assessor_id = int(assessor_id)
+        booking.assigned_at = datetime.utcnow()
+        try:
+            sess.commit()
+        except IntegrityError:
+            sess.rollback()
+            raise ValueError("该测评师在此时间已有其他预约")
+
+
+def list_assessor_availability(assessor_id: int, start: date, days: int = 14) -> Dict[str, Dict[str, bool]]:
+    """测评师 [start, start+days) 的可约状态；无记录不返回（默认沿用办公室开放）。"""
+    end = start + timedelta(days=days - 1)
+    with Session(engine) as sess:
+        rows = sess.execute(select(AssessorAvailability).where(
+            AssessorAvailability.assessor_id == int(assessor_id),
+            AssessorAvailability.date >= start,
+            AssessorAvailability.date <= end)).scalars().all()
+        out: Dict[str, Dict[str, bool]] = {}
+        for r in rows:
+            out.setdefault(r.date.isoformat(), {})[r.time_slot] = bool(r.is_available)
+        return out
+
+
+def set_assessor_availability(assessor_id: int, location_id: Optional[int], day: date,
+                              slots: List[Dict[str, Any]]) -> None:
+    """批量写入测评师某天的可约状态（幂等 upsert）。"""
+    with Session(engine) as sess:
+        for item in slots:
+            slot = str(item.get("time_slot") or "")
+            if slot not in TIME_SLOTS:
+                raise ValueError("时间不在可预约时段内")
+            want = 1 if item.get("is_available") else 0
+            row = sess.execute(select(AssessorAvailability).where(
+                AssessorAvailability.assessor_id == int(assessor_id),
+                AssessorAvailability.date == day,
+                AssessorAvailability.time_slot == slot)).scalars().first()
+            if row:
+                row.is_available = want
+                row.location_id = location_id
+            else:
+                sess.add(AssessorAvailability(
+                    assessor_id=int(assessor_id), location_id=location_id,
+                    date=day, time_slot=slot, is_available=want))
+        sess.commit()
 
 
 def get_availability_range(start_date: date, end_date: date,
@@ -2838,14 +3158,16 @@ def get_dimension_balance() -> Dict[str, Any]:
 
 # ─── User CRUD（2.0 角色体系）──────────────────────────────────
 
-VALID_ROLES = ("admin", "advisor", "viewer")
-VALID_STUDENT_SCOPES = ("all", "own")
+VALID_ROLES = ("admin", "advisor", "viewer", "front")
+VALID_STUDENT_SCOPES = ("all", "own", "none")
 VALID_DETAIL_LEVELS = ("full", "summary")
 # 角色默认值：(student_scope, detail_level, m1_access)
 ROLE_ACCOUNT_DEFAULTS = {
     "admin": ("all", "full", 1),
     "advisor": ("own", "full", 1),
     "viewer": ("all", "summary", 0),
+    # 前台只处理当日预约与账号交接，不获得任何学生档案范围
+    "front": ("none", "summary", 0),
 }
 # 未知角色（未登录等）一律按最窄范围处理
 _UNKNOWN_ROLE_ACCOUNT = ("own", "summary", 0)
@@ -2876,9 +3198,12 @@ def effective_account_settings(role, student_scope=None, detail_level=None,
             m1 = 1 if int(m1_access) else 0
         except (TypeError, ValueError):
             m1 = defaults[2]
-    m1 = 0 if role == "viewer" else m1
+    m1 = 0 if role in ("viewer", "front") else m1
+    scope = student_scope if student_scope in VALID_STUDENT_SCOPES else defaults[0]
+    if role == "front":
+        scope = "none"
     return {
-        "student_scope": student_scope if student_scope in VALID_STUDENT_SCOPES else defaults[0],
+        "student_scope": scope,
         "detail_level": detail_level if detail_level in VALID_DETAIL_LEVELS else defaults[1],
         "m1_access": m1,
         "m1_admin": _flag01(m1_admin) if (role == "advisor" and m1 == 1) else 0,
@@ -2911,6 +3236,8 @@ def _account_values_to_store(role, advisor_name, student_scope, detail_level,
     if role == "admin":
         scope, detail, m1 = ROLE_ACCOUNT_DEFAULTS["admin"]
         return {"student_scope": scope, "detail_level": detail, "m1_access": m1}
+    if role == "front":
+        return {"student_scope": "none", "detail_level": "summary", "m1_access": 0}
     if student_scope == "own" and not (advisor_name or "").strip():
         raise ValueError("名下学生范围需要绑定顾问姓名")
     m1 = None if m1_access in (None, "") else m1_access
@@ -2940,6 +3267,8 @@ def _row_to_user_dict(u: "User") -> Dict[str, Any]:
         "advisor_name": u.advisor_name or "",
         "display_name": u.display_name or "",
         "is_active": int(u.is_active or 0),
+        "is_assessor": int(u.is_assessor or 0),
+        "office_id": u.office_id,
         "created_at": u.created_at.isoformat() if u.created_at else None,
         **effective_account_settings(u.role, u.student_scope, u.detail_level, u.m1_access,
                                     u.m1_admin),
@@ -2977,7 +3306,8 @@ def list_users() -> List[Dict[str, Any]]:
 def create_user(username: str, password: str, role: str,
                 advisor_name: str = "", display_name: str = "",
                 student_scope: Optional[str] = None, detail_level: Optional[str] = None,
-                m1_access: Any = None, m1_admin: Any = None) -> int:
+                m1_access: Any = None, m1_admin: Any = None,
+                is_assessor: Any = 0, office_id: Optional[int] = None) -> int:
     """创建用户，返回 id。role 必须是 VALID_ROLES 之一，username 唯一。"""
     from werkzeug.security import generate_password_hash
     username = (username or "").strip()
@@ -2992,6 +3322,13 @@ def create_user(username: str, password: str, role: str,
         student_scope, detail_level, m1_access)
     account = _account_values_to_store(role, advisor_name, student_scope, detail_level, m1_access)
     account["m1_admin"] = _clean_m1_admin(m1_admin) if role == "advisor" else None
+    if role == "front":
+        is_assessor = 0
+    office = int(office_id) if office_id not in (None, "") else None
+    if role == "front" and office is None:
+        raise ValueError("前台账号需要绑定办公室")
+    if _flag01(is_assessor) and office is None:
+        raise ValueError("测评师需要绑定办公室")
     with Session(engine) as sess:
         if sess.execute(select(User).where(User.username == username)).first():
             raise ValueError(f"用户名已存在: {username}")
@@ -3002,6 +3339,8 @@ def create_user(username: str, password: str, role: str,
             advisor_name=advisor_name or None,
             display_name=display_name or None,
             is_active=1,
+            is_assessor=_flag01(is_assessor),
+            office_id=office,
             **account,
         )
         result = sess.execute(stmt)
@@ -3014,8 +3353,9 @@ def update_user(user_id: int, password: Optional[str] = None,
                 display_name: Optional[str] = None,
                 is_active: Optional[int] = None,
                 student_scope: Optional[str] = None, detail_level: Optional[str] = None,
-                m1_access: Any = None, m1_admin: Any = None) -> bool:
-    """更新用户可控字段（改密/改角色/停用/改名/可见范围）。返回是否更新成功。
+                m1_access: Any = None, m1_admin: Any = None,
+                is_assessor: Any = None, office_id: Any = None) -> bool:
+    """更新用户可控字段（改密/改角色/停用/改名/可见范围/测评师）。返回是否更新成功。
 
     可见范围三项：None 不改，"" 恢复角色默认值。改角色且未同时提供时恢复新角色的默认值，
     避免原角色的范围（如 admin 的全部 + 完整）被带到新角色。
@@ -3037,6 +3377,10 @@ def update_user(user_id: int, password: Optional[str] = None,
         values["display_name"] = display_name or None
     if is_active is not None:
         values["is_active"] = int(bool(is_active))
+    if office_id is not None:
+        values["office_id"] = int(office_id) if office_id != "" else None
+    if is_assessor is not None:
+        values["is_assessor"] = _flag01(is_assessor)
     account_touched = (role is not None or advisor_name is not None or student_scope is not None
                        or detail_level is not None or m1_access is not None)
     if not values and not account_touched and m1_admin is None:
@@ -3066,6 +3410,17 @@ def update_user(user_id: int, password: Optional[str] = None,
                 values["m1_admin"] = m1_admin
             elif role is not None and role != row.role:
                 values["m1_admin"] = None
+        current = sess.get(User, int(user_id))
+        if not current:
+            return False
+        final_role = role if role is not None else current.role
+        if final_role == "front":
+            values["is_assessor"] = 0
+            if values.get("office_id", current.office_id) in (None, ""):
+                raise ValueError("前台账号需要绑定办公室")
+        if int(values.get("is_assessor", current.is_assessor or 0)) \
+                and values.get("office_id", current.office_id) in (None, ""):
+            raise ValueError("测评师需要绑定办公室")
         result = sess.execute(update(User).where(User.id == int(user_id)).values(**values))
         sess.commit()
         return result.rowcount > 0
