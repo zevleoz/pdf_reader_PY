@@ -7,7 +7,6 @@ import Kit from "@/pages/Kit";
 import Students from "@/pages/Students";
 import Questionnaires from "@/pages/Questionnaires";
 import StudentProfile from "@/pages/StudentProfile";
-import Flow from "@/pages/Flow";
 import Workbench from "@/pages/Workbench";
 import Booking from "@/pages/Booking";
 import Handoff from "@/pages/Handoff";
@@ -32,6 +31,12 @@ function FrontGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** 旧「Profiling 流程」地址：研究院回学生名单，前台沿用预约交接入口。 */
+function FlowRedirect() {
+  const boot = useBoot();
+  return <Navigate to={boot.user.role === "front" ? "/handoff" : "/students"} replace />;
+}
+
 export default function App() {
   return (
     <TooltipProvider>
@@ -44,7 +49,7 @@ export default function App() {
                 <Route path="students" element={<Students />} />
                 <Route path="questionnaires" element={<Questionnaires />} />
                 <Route path="students/:code" element={<StudentProfile />} />
-                <Route path="flow" element={<Flow />} />
+                <Route path="flow" element={<FlowRedirect />} />
                 <Route path="workbench" element={<Workbench />} />
                 <Route path="booking" element={<Booking />} />
                 <Route path="handoff" element={<Handoff />} />

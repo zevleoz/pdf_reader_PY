@@ -53,7 +53,11 @@ export function UpcomingList({ rows, bookingsLink }: { rows: Upcoming[]; booking
             </>
           );
           return u.student_code ? (
-            <Link key={u.booking_id} to={"/students/" + encodeURIComponent(u.student_code)} className={miniClass}>
+            <Link
+              key={u.booking_id}
+              to={"/students/" + encodeURIComponent(u.student_code) + "?tab=schedule"}
+              className={miniClass}
+            >
               {body}
             </Link>
           ) : bookingsLink ? (

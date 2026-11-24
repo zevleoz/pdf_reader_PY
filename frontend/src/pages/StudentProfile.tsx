@@ -26,7 +26,7 @@ import Y4Tab from "./profile/Y4Tab";
 
 const TABS: { key: string; label: string }[] = [
   { key: "overview", label: "概览" },
-  { key: "schedule", label: "预约与分配" },
+  { key: "schedule", label: "预约安排" },
   { key: "y4", label: "Y4 画像" },
   { key: "questionnaires", label: "问卷" },
   { key: "six_am", label: "6AM" },
