@@ -499,7 +499,7 @@ def register_front_desk_guard(app) -> None:
     @app.before_request
     def _front_desk_guard():
         path = request.path or "/"
-        if path.startswith("/static/") or path.startswith("/app/assets/"):
+        if path.startswith(("/static/", "/app/assets/")) or path == "/m1/assets/login_crest_white.png":
             return None
         if not is_authenticated() or session.get("role") != "front":
             return None

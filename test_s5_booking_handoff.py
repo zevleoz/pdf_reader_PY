@@ -187,10 +187,12 @@ def test_front_desk_only_today_office_and_no_backend_access(world):
 
 def test_front_can_login_and_logout_through_guard(world):
     from blueprints import auth as auth_bp
+    from blueprints import m1 as m1_bp
 
     app = Flask(__name__)
     app.secret_key = "test-secret"
     app.register_blueprint(auth_bp.bp)
+    app.register_blueprint(m1_bp.bp)
     app.register_blueprint(tools_bp.bp)
     app_utils.register_front_desk_guard(app)
     client = app.test_client()
@@ -201,6 +203,8 @@ def test_front_can_login_and_logout_through_guard(world):
     assert r.get_json()["role"] == "front"
     landing = client.get("/platforms")
     assert landing.status_code == 302 and landing.headers["Location"] == "/app/handoff"
+    assert client.get("/m1/assets/login_crest_white.png").status_code == 200
+    assert client.get("/m1").status_code == 403
     # 已登录前台仍可打开交接列表，也能正常退出
     assert client.get("/api/handoff/bookings").status_code == 200
     assert client.post("/api/admin/logout").status_code == 200

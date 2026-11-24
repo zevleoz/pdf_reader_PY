@@ -30,6 +30,8 @@ def _platform_cards() -> list:
                  else "/app/workbench"),
         "blank": False,
     }]
+    if session.get("role") == "front":
+        return cards
     if app_utils.can_use_m1():
         labels = "、".join(part["label"] for part in M1_PARTS if part["enabled"])
         cards.append({
