@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Search } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { errorText, getJSON, postJSON } from "@/lib/api";
@@ -310,6 +311,7 @@ function Y4Editor({ reportId, query, onClose, up }: { reportId: number; query: s
 
 export default function Y4Tab() {
   const { data } = useProfile();
+  const [params] = useSearchParams();
   const res = useY4Data();
   const [q, setQ] = React.useState("");
   const [editing, setEditing] = React.useState(false);
@@ -317,7 +319,7 @@ export default function Y4Tab() {
   const up = useY4Upload();
   const states: Record<string, string> = {empty:"未上传", queued:"排队中", reading:"读取中", done:"已读取", failed:"读取失败"};
   return <Gate res={res}>{d => <div>
-    {!editing ? <details className="yr-sources">
+    {!editing ? <details className="yr-sources" open={params.get("sources") === "1" || undefined}>
       <summary>Y4 资料<span className="yr-source-status">{["A2","B3","B4","B6"].map(slot => <span key={slot}>{slot} · {up.status ? states[up.status.slots[slot]?.state] || "—" : "加载中"}</span>)}</span></summary>
       <div className="yr-source-content"><Y4UploadSection up={up} items={d.items} canEdit={data.permissions.can_write} /></div>
     </details> : null}

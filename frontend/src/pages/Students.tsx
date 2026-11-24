@@ -172,6 +172,9 @@ export default function Students() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [addOpen, setAddOpen] = React.useState(false);
+  const uploadMode = ["admin", "advisor"].includes(boot.user.role) && params.get("action") === "upload";
+  const profileLink = (code: string) =>
+    "/students/" + encodeURIComponent(code) + (uploadMode ? "?tab=y4&sources=1" : "");
   const q = params.get("q") || "";
   const stage = params.get("stage") || "";
   const sort = params.get("sort") === "name" ? "name" : "updated";
@@ -228,7 +231,7 @@ export default function Students() {
   return (
     <div>
       <PageHeader
-        title="学生档案"
+        title={uploadMode ? "选择要上传资料的学生" : "学生档案"}
         sub={data ? "共 " + data.total + " 名学生" : undefined}
         actions={
           <div className="flex gap-2">
@@ -319,7 +322,7 @@ export default function Students() {
                     <TableRow key={row.code}>
                       <TableCell>
                         <Link
-                          to={"/students/" + encodeURIComponent(row.code)}
+                          to={profileLink(row.code)}
                           className="font-semibold hover:underline"
                         >
                           {row.name || "—"}
@@ -387,7 +390,7 @@ export default function Students() {
         onOpenChange={setAddOpen}
         onCreated={(code) => {
           setAddOpen(false);
-          navigate("/students/" + encodeURIComponent(code));
+          navigate(profileLink(code));
         }}
       />
     </div>

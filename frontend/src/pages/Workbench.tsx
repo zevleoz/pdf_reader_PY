@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import PageHeader from "@/shell/PageHeader";
 import { useGoLink } from "@/shell/useGoLink";
 
+import AssessorPanel from "./booking/AssessorPanel";
 import { PackageDialog, type Pkg } from "./workbench/Dialogs";
 import { weekday, type Notify, type QueueItem, type WorkbenchData } from "./workbench/model";
 import QueueList, { itemKey } from "./workbench/QueueList";
@@ -33,6 +34,7 @@ export default function Workbench() {
   const [reload, setReload] = React.useState(0);
   const [removed, setRemoved] = React.useState<string[]>([]);
   const [pkg, setPkg] = React.useState<Pkg | null>(null);
+  const [showAvailability, setShowAvailability] = React.useState(false);
   const [notice, setNotice] = React.useState<{ text: string; kind: "ok" | "error" } | null>(null);
   const noticeTimer = React.useRef<number | undefined>(undefined);
   const notify: Notify = React.useCallback((text, kind = "ok") => {
@@ -72,13 +74,24 @@ export default function Workbench() {
           找预约时段
         </Button>
       ) : null}
-      {canWrite ? (
-        <Button className="rounded-none shadow-none" asChild>
-          <a href="/generate">
-            <Upload />
-            上传测评报告
-          </a>
+      {boot.user.is_assessor ? (
+        <Button variant="outline" className="rounded-none border-rule shadow-none"
+          aria-expanded={showAvailability} onClick={() => setShowAvailability(!showAvailability)}>
+          我的可约时段
         </Button>
+      ) : null}
+      {canWrite ? (
+        <>
+          <Button variant="outline" className="rounded-none shadow-none" asChild>
+            <Link to="/questionnaires?create=1">新建问卷任务</Link>
+          </Button>
+          <Button className="rounded-none shadow-none" asChild>
+            <Link to="/students?action=upload">
+              <Upload />
+              上传测评报告
+            </Link>
+          </Button>
+        </>
       ) : null}
       <a href="/workspace" className="self-center text-[13px] text-mute underline-offset-2 hover:underline">
         旧版工作台
@@ -140,6 +153,11 @@ export default function Workbench() {
               <UpcomingList rows={data.upcoming} bookingsLink={bookingsLink} />
             </div>
           </div>
+          {showAvailability && boot.user.is_assessor ? (
+            <section className="mt-7 border-t-2 border-rule pt-3">
+              <AssessorPanel onClose={() => setShowAvailability(false)} />
+            </section>
+          ) : null}
         </>
       )}
 

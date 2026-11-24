@@ -1,16 +1,22 @@
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { getJSON } from "@/lib/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-import { Empty, Section, useProfile, useResource } from "./common";
+import { Empty, Section, useProfile } from "./common";
 
-type Y4Build = { state?: string; pdf_ready?: boolean; built_at?: string };
-type Y4Status = { ok: boolean; report_id: number | null; build: Y4Build };
+type Y4Status = {
+  round_id: number | null;
+  report_id: number | null;
+  build: { state: string; pdf_ready: boolean; name_stale: boolean };
+};
 
-function y4State(build: Y4Build | undefined, canWrite: boolean): string {
-  if (!canWrite) return "只读账号";
-  if (!build) return "读取中…";
+function y4State(status: Y4Status | null | undefined): string {
+  if (status === undefined) return "读取中…";
+  if (status === null) return "无法读取报告状态";
+  const { build } = status;
+  if (build.name_stale) return "学生姓名已更新，现有成品已过期";
   if (build.pdf_ready) return "可下载";
   if (build.state === "queued" || build.state === "running") return "生成中";
   return "尚未生成";
@@ -19,17 +25,24 @@ function y4State(build: Y4Build | undefined, canWrite: boolean): string {
 /** B：报告交付集中到个案内。只呈现现有成品与入口，不重新生成、不改版本选择。 */
 export default function ReportsTab() {
   const { data, setTab } = useProfile();
-  const { student, permissions, latest_report, six_am, first_touch } = data;
-  const canWrite = permissions.can_write;
+  const { student, latest_report, six_am, first_touch } = data;
   const base = "/students/" + encodeURIComponent(student.code) + "/api/y4";
-  const status = useResource<Y4Status>("reports-y4-status", canWrite ? base + "/status" : null);
-  const y4Build = status.data?.build;
-  const y4Ready = !!y4Build?.pdf_ready && canWrite;
+  const [status, setStatus] = React.useState<Y4Status | null>();
+  React.useEffect(() => {
+    let active = true;
+    getJSON<Y4Status>(base + "/status")
+      .then((result) => { if (active) setStatus(result); })
+      .catch(() => { if (active) setStatus(null); });
+    return () => { active = false; };
+  }, [base, student.name]);
+  const y4Ready = !!status?.build.pdf_ready;
+  const round = status?.round_id ? "轮次 #" + status.round_id
+    : status?.report_id ? "报告 #" + status.report_id : "—";
   const ftReports = first_touch.restricted ? [] : first_touch.reports || [];
 
   return (
     <div>
-      <Section title="报告预览与下载" sub="沿用现有接口与账号权限，不在此处重新生成">
+      <Section title="报告与下载">
         <div className="overflow-x-auto">
           <Table className="min-w-[620px]">
             <TableHeader>
@@ -44,9 +57,9 @@ export default function ReportsTab() {
               <TableRow>
                 <TableCell className="font-semibold">Y4 综合测评报告</TableCell>
                 <TableCell className="font-mono">
-                  {latest_report ? "报告 " + (latest_report.report_date || "—") : "—"}
+                  {y4Ready ? "v2 · " + round : round}
                 </TableCell>
-                <TableCell>{latest_report ? y4State(y4Build, canWrite) : "尚未生成"}</TableCell>
+                <TableCell>{y4State(status)}</TableCell>
                 <TableCell className="whitespace-nowrap text-right">
                   <span className="inline-flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setTab("y4")}>

@@ -18,7 +18,7 @@ from typing import List, Optional, Dict, Any, Tuple
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, Date, DateTime,
-    ForeignKey, select, insert, update, delete, func, event, inspect, text
+    ForeignKey, Index, select, insert, update, delete, func, event, inspect, text
 )
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import declarative_base, Session
@@ -121,6 +121,11 @@ class Booking(Base):
     assessor_id = Column(Integer, nullable=True)
     assigned_at = Column(DateTime, nullable=True)
     invite_token = Column(String(255), nullable=True)
+    staff_request_id = Column(String(36), nullable=True)
+    __table_args__ = (
+        Index("ux_booking_invite", "invite_token", unique=True),
+        Index("ux_booking_staff_request", "created_by", "staff_request_id", unique=True),
+    )
 
 
 class AssessorAvailability(Base):
@@ -538,14 +543,18 @@ def _ensure_ops_schema() -> None:
         ("requester_name", "VARCHAR(100)"),
         ("created_by", "INTEGER"),
         ("assessor_id", "INTEGER"),
-        ("assigned_at", "DATETIME"),
+        ("assigned_at", "TIMESTAMP"),
         ("invite_token", "VARCHAR(255)"),
+        ("staff_request_id", "VARCHAR(36)"),
     ])
     add_columns("users", [
         ("is_assessor", "INTEGER NOT NULL DEFAULT 0"),
         ("office_id", "INTEGER"),
     ])
     with engine.begin() as conn:
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_booking_invite ON bookings (invite_token)"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_booking_staff_request "
+                          "ON bookings (created_by, staff_request_id)"))
         # 同一测评师同一时刻只能接待一个预约；已取消的预约不占用。
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS ux_booking_assessor_slot "
@@ -1081,7 +1090,8 @@ def add_booking(student_name: str, appointment_time: datetime,
                 source: Optional[str] = None,
                 requester_name: Optional[str] = None,
                 created_by: Optional[int] = None,
-                invite_token: Optional[str] = None) -> int:
+                invite_token: Optional[str] = None,
+                staff_request_id: Optional[str] = None) -> int:
     """Create a booking. Returns booking id. capacity 给定时原子检查容量/关闭，失败抛 SlotUnavailable。"""
     with Session(engine) as sess:
         _lock_and_check_slot(sess, location_id, appointment_time, capacity)
@@ -1101,6 +1111,7 @@ def add_booking(student_name: str, appointment_time: datetime,
             requester_name=requester_name,
             created_by=created_by,
             invite_token=invite_token,
+            staff_request_id=staff_request_id,
         )
         result = sess.execute(stmt)
         _touch_location(sess, location_id)
@@ -1118,7 +1129,8 @@ def create_booking_with_student(student_name: str, appointment_time: datetime,
                                 source: Optional[str] = None,
                                 requester_name: Optional[str] = None,
                                 created_by: Optional[int] = None,
-                                invite_token: Optional[str] = None) -> tuple:
+                                invite_token: Optional[str] = None,
+                                staff_request_id: Optional[str] = None) -> tuple:
     """Create student + booking in one transaction. Returns (student_id, booking_id).
 
     match_existing=True（旧行为）按姓名复用已有学生；公开预约链接传 False，一律新建学生。
@@ -1159,7 +1171,7 @@ def create_booking_with_student(student_name: str, appointment_time: datetime,
                     school=school, single_parent=single_parent,
                     location_id=location_id, source=source,
                     requester_name=requester_name, created_by=created_by,
-                    invite_token=invite_token))
+                    invite_token=invite_token, staff_request_id=staff_request_id))
                 booking_id = result.lastrowid
                 _touch_location(sess, location_id)
                 sess.commit()
@@ -1673,6 +1685,14 @@ def get_booking_by_invite(token: str) -> Optional[Dict[str, Any]]:
     with Session(engine) as sess:
         row = sess.execute(select(Booking.id).where(Booking.invite_token == token)).first()
         return {"booking_id": row[0]} if row else None
+
+
+def get_staff_booking_by_request(created_by: int, request_id: str) -> Optional[Dict[str, Any]]:
+    with Session(engine) as sess:
+        row = sess.execute(select(Booking.id, Booking.source).where(
+            Booking.created_by == created_by, Booking.staff_request_id == request_id,
+        )).first()
+        return {"booking_id": row.id, "source": row.source} if row else None
 
 
 def get_student_bookings(student_id: int) -> List[Dict[str, Any]]:

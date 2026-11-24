@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
+from uuid import UUID
 from datetime import date, timedelta
 from typing import Any, Dict, List
 
 from flask import (Blueprint, current_app, jsonify, render_template, request,
                    send_file)
+from sqlalchemy.exc import IntegrityError
 
 import db as _db
 import extract
@@ -774,6 +777,7 @@ def _invite_serializer():
 def _make_invite(location_id: int, source: str) -> str:
     user = current_user()
     return _invite_serializer().dumps({
+        "nonce": secrets.token_urlsafe(12),
         "loc": int(location_id),
         "source": _clean_source(source, "parent"),
         "by": user.get("user_id"),
@@ -809,7 +813,7 @@ def _handoff_forbidden(booking: dict):
             return _err("前台只能处理当天的预约", 403)
         db_user = _db.get_user_by_id(user.get("user_id") or 0) or {}
         office = db_user.get("office_id")
-        if office and int(booking.get("location_id") or 0) != int(office):
+        if not office or booking.get("location_id") != office:
             return _err("不属于当前办公室的预约", 403)
         return None
     return _err("无权访问该预约", 403)
@@ -902,7 +906,13 @@ def api_booking():
         invite_token=invite or None,
         )
     except _db.SlotUnavailable as e:
+        if invite and _db.get_booking_by_invite(invite):
+            return _err("该邀请链接已预约过，请联系顾问", 409)
         return _slot_race_error(e)
+    except IntegrityError:
+        if invite and _db.get_booking_by_invite(invite):
+            return _err("该邀请链接已预约过，请联系顾问", 409)
+        raise
     return jsonify({"ok": True, "booking_id": booking_id, "student_id": student_id})
 
 
@@ -1001,6 +1011,26 @@ def api_bookings_week():
 def api_booking_staff():
     """员工代约：student_code 关联已有学生，或 new_name 新建学生。可约今天。"""
     data = request.get_json(force=True, silent=True) or {}
+    user = current_user()
+    created_by = user["user_id"]
+    request_id = data.get("request_id")
+    if request_id is not None:
+        try:
+            request_id = str(UUID(request_id))
+        except (AttributeError, TypeError, ValueError):
+            return _err("预约请求编号无效")
+
+    def existing_booking():
+        return _db.get_staff_booking_by_request(created_by, request_id) if request_id else None
+
+    def receipt(booking_id, source):
+        return jsonify({"ok": True, "booking_id": booking_id,
+                        "source": source, "source_label": _source_label(source)})
+
+    existing = existing_booking()
+    if existing:
+        return receipt(**existing)
+
     loc_id, bad = _resolve_location(data.get("location_id"), active_only=False)
     if bad:
         return bad
@@ -1009,44 +1039,41 @@ def api_booking_staff():
         return bad
     bad = _date_window_error(appt_time.date(), allow_today=True) or _slot_error(loc_id, appt_time)
     if bad:
-        return bad
+        existing = existing_booking()
+        return receipt(**existing) if existing else bad
     code = (data.get("student_code") or "").strip()
     new_name = (data.get("new_name") or "").strip()
     if bool(code) == bool(new_name):
         return _err("请二选一：选择已有学生，或填写新学生姓名")
-    user = current_user()
     source = _clean_source(data.get("source"), "internal")
-    requester_name = (data.get("requester_name") or "").strip() \
-        or user.get("display_name") or ""
-    created_by = user.get("user_id")
-    if code:
-        st = _db.get_student_by_code(code)
-        if not st:
-            return _err("找不到该学生", 404)
-        scope = _advisor_scope()
-        if scope is not None and (st.get("advisor_name") or "") != scope:
-            return _err("无权访问该学生", 403)
-        try:
-            booking_id = _db.add_booking(
-                student_name=st["name"], appointment_time=appt_time,
-                advisor_name=st.get("advisor_name") or "", school=st.get("school") or "",
-                single_parent=st.get("single_parent") or "false",
-                student_id=st["id"], location_id=loc_id, capacity=SLOT_CAPACITY,
-                source=source, requester_name=requester_name, created_by=created_by)
-        except _db.SlotUnavailable as e:
-            return _slot_race_error(e)
-        return jsonify({"ok": True, "booking_id": booking_id,
-                        "source": source, "source_label": _source_label(source)})
+    requester_name = (data.get("requester_name") or "").strip() or user.get("display_name") or ""
+    scope = _advisor_scope()
+    shared = dict(appointment_time=appt_time, location_id=loc_id, capacity=SLOT_CAPACITY,
+                  source=source, requester_name=requester_name, created_by=created_by,
+                  staff_request_id=request_id)
+
     try:
-        _sid, booking_id = _db.create_booking_with_student(
-            student_name=new_name, appointment_time=appt_time,
-            advisor_name=_advisor_scope() or "", location_id=loc_id,
-            match_existing=False, capacity=SLOT_CAPACITY,
-            source=source, requester_name=requester_name, created_by=created_by)
-    except _db.SlotUnavailable as e:
-        return _slot_race_error(e)
-    return jsonify({"ok": True, "booking_id": booking_id,
-                    "source": source, "source_label": _source_label(source)})
+        if code:
+            st = _db.get_student_by_code(code)
+            if not st:
+                return _err("找不到该学生", 404)
+            if scope is not None and (st.get("advisor_name") or "") != scope:
+                return _err("无权访问该学生", 403)
+            booking_id = _db.add_booking(
+                student_name=st["name"], advisor_name=st.get("advisor_name") or "",
+                school=st.get("school") or "", single_parent=st.get("single_parent") or "false",
+                student_id=st["id"], **shared)
+        else:
+            _, booking_id = _db.create_booking_with_student(
+                student_name=new_name, advisor_name=scope or "", match_existing=False, **shared)
+    except (_db.SlotUnavailable, IntegrityError) as exc:
+        existing = existing_booking()
+        if existing:
+            return receipt(**existing)
+        if isinstance(exc, _db.SlotUnavailable):
+            return _slot_race_error(exc)
+        raise
+    return receipt(booking_id, source)
 
 
 @bp.route("/api/handoff/bookings")
@@ -1061,6 +1088,8 @@ def api_handoff_bookings():
     if role == "front":
         db_user = _db.get_user_by_id(user.get("user_id") or 0) or {}
         loc_id = db_user.get("office_id")
+        if not loc_id:
+            return _err("当前账号未配置办公室", 403)
     else:
         raw = (request.args.get("date") or "").strip()
         if raw:

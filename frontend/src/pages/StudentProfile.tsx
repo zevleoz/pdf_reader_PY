@@ -527,7 +527,7 @@ export default function StudentProfile() {
           ) : null}
           {visited.includes("reports") ? (
             <TabsContent value="reports" forceMount className="mt-0 data-[state=inactive]:hidden">
-              <ReportsTab />
+              {tab === "reports" ? <ReportsTab /> : null}
             </TabsContent>
           ) : null}
           {visited.includes("m1") ? (

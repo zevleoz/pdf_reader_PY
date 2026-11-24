@@ -342,7 +342,7 @@ export default function Questionnaires() {
     }
   }
 
-  async function openCreate() {
+  const openCreate = React.useCallback(async () => {
     setCreateOpen(true);
     setForm({ student_id: "", questionnaire_id: "", reason: "" });
     try {
@@ -355,7 +355,16 @@ export default function Questionnaires() {
     } catch {
       notify("加载选项失败", "error");
     }
-  }
+  }, [notify]);
+
+  React.useEffect(() => {
+    if (!canWrite || params.get("create") !== "1") return;
+    const next = new URLSearchParams(params);
+    next.delete("create");
+    setParams(next, { replace: true });
+    void openCreate();
+  }, [canWrite, params, setParams, openCreate]);
+
   async function doCreate() {
     if (!form.student_id || !form.questionnaire_id) {
       notify("请选择学生与问卷", "error");

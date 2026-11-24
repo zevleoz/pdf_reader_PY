@@ -498,10 +498,10 @@ def register_front_desk_guard(app) -> None:
     """前台账号只允许预约交接相关请求，其余后台/档案/下载一律 403。"""
     @app.before_request
     def _front_desk_guard():
-        if session.get("role") != "front":
-            return None
         path = request.path or "/"
         if path.startswith("/static/") or path.startswith("/app/assets/"):
+            return None
+        if not is_authenticated() or session.get("role") != "front":
             return None
         if path in ("/login", "/logout", "/api/admin/login", "/api/admin/logout",
                     "/api/app/boot", "/api/locations", "/api/handoff/bookings"):

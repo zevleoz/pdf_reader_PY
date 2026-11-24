@@ -653,9 +653,18 @@ def ensure_student_account(student_id: int) -> Dict[str, Any]:
         obj = StudentAccount(student_id=int(student_id), username=username,
                              password_hash=generate_password_hash(password), is_active=1)
         sess.add(obj)
-        sess.flush()                       # 拿到自增主键（SQLite / PostgreSQL 通用）
-        account_id = obj.id
-        sess.commit()
+        try:
+            sess.flush()
+            account_id = obj.id
+            sess.commit()
+        except IntegrityError:
+            sess.rollback()
+            existing = sess.execute(select(StudentAccount)
+                                    .where(StudentAccount.student_id == int(student_id))).scalar_one_or_none()
+            if existing is None:
+                raise
+            return {"account_id": existing.id, "username": existing.username,
+                    "password": None, "created": False}
         return {"account_id": account_id, "username": username,
                 "password": password, "created": True}
 

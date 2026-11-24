@@ -1,5 +1,8 @@
 """Task C 验收：内部预约来源、账号交接、测评师分配、前台隔离。"""
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time, timedelta
+from threading import Barrier
+from uuid import uuid4
 
 import pytest
 from flask import Flask
@@ -18,6 +21,7 @@ def world(tmp_path, monkeypatch):
     _db.Base.metadata.create_all(engine)
     monkeypatch.setattr(_db, "engine", engine)
     monkeypatch.setattr(_qs, "engine", engine)
+    monkeypatch.setattr(app_utils, "_SESSION_USER_CACHE", {})
     _db.ensure_locations()
     locs = {l["name"]: l["id"] for l in _db.list_locations()}
     sh = locs.get("上海") or next(iter(locs.values()))
@@ -171,7 +175,7 @@ def test_front_desk_only_today_office_and_no_backend_access(world):
     # 直达后台接口全部拒绝
     assert front.get(f"/api/profiling/students/{code1}").status_code == 403
     assert front.get(f"/api/students/{code1}/y4").status_code == 403
-    assert front.get(f"/api/students/{code1}/y4/report").status_code == 403
+    assert front.get(f"/students/{code1}/api/y4/build/file").status_code == 403
     assert front.get(f"/api/bookings/week?loc={world['sh']}").status_code == 403
     assert front.get(f"/api/students").status_code == 403
 
@@ -252,3 +256,91 @@ def test_profile_schedule_exposes_assignment(world):
     assert row["assessor_id"] == world["a_sh"]
     assert row["assessor_name"] == "张测评"
     assert row["source"] == "internal"
+
+
+def test_role_change_to_front_applies_before_backend_route(world):
+    from blueprints import students as students_bp
+
+    app = world["app"]
+    app.register_blueprint(students_bp.bp)
+    client = app.test_client()
+    login(client, world["advisor"], "advisor", "李顾问", advisor_name="李顾问")
+    assert client.get("/students/absent/api/y4/build/file").status_code == 404
+    _db.update_user(world["advisor"], role="front", office_id=world["sh"])
+    app_utils.invalidate_session_user(world["advisor"])
+    assert client.get("/students/absent/api/y4/build/file").status_code == 403
+
+
+def test_staff_retry_reuses_booking_and_student_across_sessions(world):
+    request_id = str(uuid4())
+    d, slot = tomorrow()
+    start = Barrier(2)
+
+    def submit(_):
+        client = world["app"].test_client()
+        login(client, world["advisor"], "advisor", "李顾问", advisor_name="李顾问")
+        start.wait(timeout=10)
+        return client.post("/api/bookings/staff", json={
+            "location_id": world["sh"], "new_name": "重复确认测试",
+            "appointment_time": f"{d.isoformat()}T{slot}:00", "request_id": request_id,
+        })
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first, second = pool.map(submit, range(2))
+    assert first.status_code == second.status_code == 200
+    assert first.get_json() == second.get_json()
+    with _db.Session(world["engine"]) as sess:
+        assert sess.query(_db.Booking).filter_by(staff_request_id=request_id).count() == 1
+        assert sess.query(_db.Student).filter_by(name="重复确认测试").count() == 1
+
+
+def test_same_second_invites_are_distinct_and_concurrent_redemption_is_single_use(world):
+    owner = world["app"].test_client()
+    login(owner, world["advisor"], "advisor", "李顾问", advisor_name="李顾问")
+    payload = {"location_id": world["sh"], "source": "referral"}
+    first = owner.post("/api/bookings/invite", json=payload).get_json()["invite_token"]
+    second = owner.post("/api/bookings/invite", json=payload).get_json()["invite_token"]
+    assert first != second
+    d, _ = tomorrow()
+    start = Barrier(2)
+
+    def redeem(slot):
+        client = world["app"].test_client()
+        start.wait(timeout=10)
+        return client.post("/api/booking", json={
+            "location_id": world["sh"], "student_name": "一次性邀请测试",
+            "appointment_time": f"{d.isoformat()}T{slot}:00", "invite": first,
+        })
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(redeem, ("10:00", "11:00")))
+    assert sorted(r.status_code for r in responses) == [200, 409]
+    with _db.Session(world["engine"]) as sess:
+        assert sess.query(_db.Booking).filter_by(invite_token=first).count() == 1
+        assert sess.query(_db.Student).filter_by(name="一次性邀请测试").count() == 1
+
+
+def test_concurrent_account_handoff_reuses_existing_account(world, monkeypatch):
+    admin = world["app"].test_client()
+    login(admin, world["admin"], "admin", "总管")
+    booking = staff_booking(admin, world["sh"], "并发账号向导").get_json()["booking_id"]
+    original_hash = _qs.generate_password_hash
+    before_insert = Barrier(2)
+
+    def synchronized_hash(password):
+        before_insert.wait(timeout=10)
+        return original_hash(password)
+
+    monkeypatch.setattr(_qs, "generate_password_hash", synchronized_hash)
+
+    def issue(_):
+        client = world["app"].test_client()
+        login(client, world["admin"], "admin", "总管")
+        return client.post(f"/api/booking/{booking}/handoff/account")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(issue, range(2)))
+    assert [r.status_code for r in responses] == [200, 200]
+    accounts = [r.get_json() for r in responses]
+    assert len({(a["student_id"], a["username"]) for a in accounts}) == 1
+    assert sum(a["created"] for a in accounts) == sum(bool(a["password"]) for a in accounts) == 1

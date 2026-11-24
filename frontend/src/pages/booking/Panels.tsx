@@ -44,6 +44,7 @@ export function SlotPanel({
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
   const [source, setSource] = React.useState("internal");
+  const request = React.useRef<{ body: string; id: string } | null>(null);
   const left = cap - slot.count;
   const hidden = Math.max(0, slot.count - slot.bookings.length);
 
@@ -83,7 +84,14 @@ export function SlotPanel({
       };
       if ("isNew" in picked) body.new_name = picked.name;
       else body.student_code = picked.code;
-      const r = await postJSON<{ ok: boolean; booking_id: number }>("/api/bookings/staff", body);
+      const payload = JSON.stringify(body);
+      if (request.current?.body !== payload) {
+        request.current = { body: payload, id: crypto.randomUUID() };
+      }
+      const r = await postJSON<{ ok: boolean; booking_id: number }>(
+        "/api/bookings/staff", { ...body, request_id: request.current.id },
+      );
+      request.current = null;
       onBooked(r.booking_id, picked.name + " · " + md(slot.date) + " " + slot.time);
     } catch (e) {
       setErr(errorText(e, "预约失败"));
