@@ -13,15 +13,7 @@ import { useGoLink } from "@/shell/useGoLink";
 import { PackageDialog, type Pkg } from "./workbench/Dialogs";
 import { weekday, type Notify, type QueueItem, type WorkbenchData } from "./workbench/model";
 import QueueList, { itemKey } from "./workbench/QueueList";
-import { JobCard, RecentList, SideTitle, UpcomingList } from "./workbench/Side";
-
-const STRIP: { key: keyof WorkbenchData["counts"]; label: string }[] = [
-  { key: "booking", label: "预约" },
-  { key: "y4_report", label: "Y4 报告" },
-  { key: "interpretation", label: "解读会" },
-  { key: "six_am", label: "6AM" },
-  { key: "done", label: "已完成" },
-];
+import { SideTitle, UpcomingList } from "./workbench/Side";
 
 function findLink(groups: { links: NavLink[] }[], key: string): NavLink | null {
   for (const g of groups) {
@@ -116,19 +108,6 @@ export default function Workbench() {
         </div>
       ) : (
         <>
-          <div className="mb-[26px] grid auto-cols-[92px] grid-flow-col overflow-x-auto border-t-2 border-rule md:auto-cols-auto md:grid-flow-row md:grid-cols-5 md:overflow-visible">
-            {STRIP.map((cell, i) => (
-              <Link
-                key={cell.key}
-                to={"/students?stage=" + cell.key}
-                className={cn("px-3 pb-3 pt-2.5 text-left transition-colors hover:bg-sunk", i > 0 && "border-l border-line")}
-              >
-                <b className="block text-[30px] font-bold leading-[1.1] tracking-tight">{data.counts[cell.key]}</b>
-                <small className="text-[12.5px] text-ink-2">{cell.label}</small>
-              </Link>
-            ))}
-          </div>
-
           <div className="grid grid-cols-1 items-start gap-7 md:grid-cols-[minmax(0,1fr)_270px] lg:grid-cols-[minmax(0,1fr)_320px]">
             <section aria-label="待处理" className="min-w-0">
               <SideTitle>
@@ -158,9 +137,7 @@ export default function Workbench() {
             </section>
 
             <div className="flex flex-col gap-[26px]">
-              {data.job ? <JobCard initial={data.job} notify={notify} /> : null}
               <UpcomingList rows={data.upcoming} bookingsLink={bookingsLink} />
-              <RecentList />
             </div>
           </div>
         </>
