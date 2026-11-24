@@ -2,268 +2,534 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>预约测评 · 凭远 APP·ARK</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>家长预约 · 凭远家庭研究院</title>
   <style>
-    :root { --red:#E2001A; --ink:#111; --ink2:#333; --mute:#6B6B6B; --line:#E4E4E4; --sunk:#F4F4F4; }
-    * { box-sizing:border-box; }
-    html, body { margin:0; background:#fff; color:var(--ink);
-      font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
-      font-size:15px; line-height:1.5; }
-    button, input, textarea { font:inherit; color:inherit; border-radius:0; }
+    :root { --f-paper:#FAF7F2; --f-card:#FFFDF8; --f-ink:#211C15; --f-soft:#6B655E;
+      --f-line:#E4DED3; --f-brand:#A8312C; --f-brand-soft:#FBEFED; --f-sunk:#F3EDE4; }
+    *, *::before, *::after { box-sizing:border-box; }
+    [hidden] { display:none !important; }
+    html, body { margin:0; background:var(--f-paper); color:var(--f-ink); }
+    body { font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased;
+      font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",Roboto,Arial,sans-serif; }
+    button, input, select, textarea { font:inherit; color:inherit; border-radius:0; }
     button { cursor:pointer; }
-    button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+    a { color:inherit; text-decoration:none; }
+    :focus-visible { outline:2px solid var(--f-brand); outline-offset:2px; }
 
-    .bar { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:2px solid var(--ink); }
-    .crest { width:32px; height:32px; background:var(--red); flex:none; display:flex; align-items:center; justify-content:center; }
-    .crest img { width:24px; height:24px; display:block; }
-    .bar b { font-size:15px; font-weight:800; letter-spacing:.02em; }
-    .bar .loc { margin-left:auto; font-size:13px; font-weight:600; color:var(--ink2); }
+    .f-top { position:sticky; top:0; z-index:20; background:rgba(250,247,242,.94);
+      -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border-bottom:1px solid var(--f-line); }
+    .f-top-in { max-width:640px; margin:0 auto; padding:10px 18px 0; display:flex; align-items:center; gap:10px; }
+    .f-top-in img { height:24px; width:auto; display:block; }
+    .f-top-in span { font-size:12px; color:var(--f-soft); letter-spacing:.08em; }
+    .f-tabs { max-width:640px; margin:0 auto; padding:0 18px; display:flex; }
+    .f-tabs a { min-height:44px; display:inline-flex; align-items:center; margin-right:20px; padding:0 1px;
+      font-size:14px; font-weight:600; color:var(--f-soft); border-bottom:3px solid transparent; }
+    .f-tabs a[aria-current="page"] { color:var(--f-brand); border-bottom-color:var(--f-brand); }
 
-    .wrap { max-width:560px; margin:0 auto; padding:20px 16px 40px; }
-    h1 { margin:0 0 4px; font-size:26px; font-weight:800; letter-spacing:-.01em; line-height:1.2; }
-    h2 { margin:20px 0 8px; font-size:13px; font-weight:700; color:var(--mute); letter-spacing:.04em; }
-    .sub { margin:0 0 16px; color:var(--mute); font-size:13px; }
-    .back { background:none; border:0; padding:8px 0; margin:0 0 4px; font-size:13px; font-weight:600; color:var(--ink2); min-height:44px; }
+    .f-wrap { max-width:640px; margin:0 auto; padding:16px 18px 40px; }
+    .f-hero { padding:8px 0 4px; }
+    .f-hero h1 { margin:0; font:650 30px/1.25 "Songti SC","STSong","Source Han Serif SC","Noto Serif SC",Georgia,serif; }
+    .f-hero p { margin:6px 0 0; color:var(--f-soft); font-size:13.5px; }
 
-    .opts { display:grid; gap:8px; margin-top:12px; }
-    .opt { display:flex; align-items:center; justify-content:space-between; min-height:56px; padding:0 14px; background:#fff;
-      border:1px solid var(--ink); font-size:17px; font-weight:700; text-align:left; }
-    .opt:hover { background:var(--sunk); }
+    form { margin-top:12px; }
+    .f-field { display:block; margin:18px 0 14px; font-size:13.5px; font-weight:600; color:var(--f-soft); }
+    .f-field input[type=text] { display:block; width:100%; min-height:46px; margin-top:5px; padding:10px 12px;
+      border:1px solid var(--f-line); border-radius:8px; background:#fff; color:var(--f-ink);
+      font-size:16px; font-weight:400; }
+    .f-field input[type=text]:focus { border-color:var(--f-brand); outline:none; }
+    .f-req { color:var(--f-brand); }
 
-    .dstrip { display:flex; gap:4px; overflow-x:auto; padding-bottom:6px; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
-    .dstrip button { flex:none; width:54px; min-height:64px; padding:6px 0; background:#fff; border:1px solid var(--line);
-      text-align:center; font-size:12px; line-height:1.25; color:var(--mute); scroll-snap-align:start; }
-    .dstrip b { display:block; font-size:18px; color:var(--ink); font-weight:700; }
-    .dstrip small { display:block; font-size:12px; min-height:15px; color:var(--mute); }
-    .dstrip button.on { background:var(--ink); border-color:var(--ink); color:#fff; }
-    .dstrip button.on b, .dstrip button.on small { color:#fff; }
-    .dstrip button[disabled] { opacity:.35; cursor:not-allowed; }
+    .f-office { display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px 0; border-block:1px solid var(--f-line); margin-bottom:4px;
+      font-size:14px; font-weight:600; color:var(--f-ink); }
+    .f-office select { min-width:52%; min-height:44px; padding:6px 10px; border:1px solid var(--f-line);
+      border-radius:8px; background:#fff; font-size:16px; font-weight:600; }
+    .f-office select:disabled { color:var(--f-soft); background:var(--f-sunk); }
+    .f-hint { margin:-2px 0 10px; font-size:12.5px; color:var(--f-soft); }
 
-    .tms { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; }
-    .tms button { min-height:52px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2px;
-      background:#fff; border:1px solid var(--ink); font-size:15px; font-weight:700; line-height:1.2; }
-    .tms small { font-size:12px; font-weight:400; color:var(--mute); }
-    .tms button:hover:not([disabled]) { background:var(--sunk); }
-    .tms button.on { background:var(--red); border-color:var(--red); color:#fff; }
-    .tms button.on small { color:#fff; }
-    .tms button[disabled] { cursor:not-allowed; border-color:var(--line); color:var(--mute); background:#fff; }
-    .tms button.off[disabled] { background:repeating-linear-gradient(135deg, var(--line) 0 2px, #fff 2px 7px); }
-    .none { padding:20px 0; color:var(--mute); font-size:13px; }
+    .f-cal { margin-top:16px; }
+    .f-cal h2 { margin:0 0 8px; font-size:14px; font-weight:700; letter-spacing:.02em; }
+    .f-week { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+    .f-day { min-height:58px; padding:4px 0 5px; border:1px solid var(--f-line); border-radius:7px;
+      background:#fff; color:var(--f-soft); font-size:11px; line-height:1.25; text-align:center;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .f-day b { display:block; font-size:16.5px; font-weight:700; color:var(--f-ink); font-variant-numeric:tabular-nums; }
+    .f-day[aria-pressed="true"] { background:var(--f-brand); border-color:var(--f-brand); color:#fff; }
+    .f-day[aria-pressed="true"] b { color:#fff; }
+    .f-day:disabled { opacity:.38; cursor:not-allowed; }
 
-    .go { width:100%; min-height:50px; margin-top:18px; border:0; background:var(--red); color:#fff; font-size:16px; font-weight:700; }
-    .go[disabled] { opacity:.4; cursor:not-allowed; }
+    .f-more { margin-top:6px; }
+    .f-more > summary { min-height:44px; display:flex; align-items:center; gap:6px; cursor:pointer;
+      color:var(--f-brand); font-size:13.5px; font-weight:600; }
+    .f-more > summary::marker { color:var(--f-brand); }
+    .f-month-nav { display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:4px 0 8px; }
+    .f-month-nav b { font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; }
+    .f-month-nav button { width:44px; height:44px; border:1px solid var(--f-line); border-radius:8px;
+      background:#fff; font-size:18px; line-height:1; }
+    .f-month-nav button:disabled { opacity:.35; cursor:not-allowed; }
+    .f-matrix { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+    .f-dow { padding:3px 0 5px; text-align:center; font-size:11px; color:var(--f-soft); }
+    .f-cell { min-height:44px; border:1px solid var(--f-line); border-radius:6px; background:#fff;
+      font-size:13.5px; font-variant-numeric:tabular-nums; }
+    .f-cell[aria-pressed="true"] { background:var(--f-brand); border-color:var(--f-brand); color:#fff; font-weight:700; }
+    .f-cell:disabled { opacity:.3; cursor:not-allowed; }
+    .f-cell.is-out { border-style:dashed; opacity:.22; }
 
-    .sum { padding:12px 14px; margin:0 0 16px; border:1px solid var(--ink); font-weight:700; }
-    .sum small { display:block; font-weight:400; color:var(--mute); font-size:13px; }
-    label.f { display:block; margin:0 0 14px; font-size:13px; font-weight:600; color:var(--ink2); }
-    label.f input[type=text], label.f textarea { display:block; width:100%; margin-top:5px; padding:10px 12px; border:1px solid var(--ink);
-      background:#fff; font-size:16px; font-weight:400; color:var(--ink); }
-    label.f input[type=text] { min-height:46px; }
-    .req { color:var(--red); }
-    .chk { display:flex; align-items:center; gap:10px; min-height:44px; margin:0 0 14px; font-size:15px; }
-    .chk input { width:20px; height:20px; margin:0; accent-color:var(--red); }
-    .msg { margin:12px 0 0; padding:10px 12px; border:1px solid #F5C8C8; background:#FDECEC; color:#B3001B; font-size:13px; }
+    .f-time { margin-top:18px; }
+    .f-time h3 { margin:0; font-size:14px; font-weight:700; }
+    .f-zone { margin-left:6px; font-size:12px; font-weight:500; color:var(--f-soft); }
+    .f-daylabel { margin:2px 0 8px; font-size:12.5px; color:var(--f-soft); }
+    .f-times { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+    .f-time-btn { min-height:46px; border:1px solid var(--f-line); border-radius:7px; background:#fff;
+      font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
+    .f-time-btn:hover:not(:disabled) { background:var(--f-sunk); }
+    .f-time-btn[aria-pressed="true"] { background:var(--f-brand); border-color:var(--f-brand); color:#fff; }
+    .f-time-btn:disabled { color:var(--f-soft); border-color:var(--f-line); cursor:not-allowed;
+      background:repeating-linear-gradient(135deg, var(--f-sunk) 0 2px, #fff 2px 7px); }
+    .f-none { margin:0; padding:12px 0; color:var(--f-soft); font-size:13px; }
 
-    .ok { border-top:4px solid var(--red); padding-top:18px; }
-    .ok h1 { font-size:32px; }
-    .ok dl { margin:16px 0; border-top:1px solid var(--ink); }
-    .ok dl div { display:flex; justify-content:space-between; gap:16px; padding:10px 0; border-bottom:1px solid var(--line); }
-    .ok dt { color:var(--mute); font-size:13px; }
-    .ok dd { margin:0; font-weight:700; text-align:right; }
-    .ghost { width:100%; min-height:48px; background:#fff; border:1px solid var(--ink); font-size:15px; font-weight:700; }
+    .f-error { margin:12px 0 0; padding:10px 12px; border:1px solid #E7C9C4; border-radius:8px;
+      background:var(--f-brand-soft); color:#8E3A31; font-size:13px; }
+
+    .f-consent { display:flex; flex-wrap:wrap; align-items:center; gap:2px 12px;
+      padding:10px 0; border-top:1px solid var(--f-line); }
+    .f-consent > label { display:flex; align-items:center; gap:8px; min-height:44px; font-size:14px; }
+    .f-consent input { width:18px; height:18px; margin:0; accent-color:var(--f-brand); }
+    .f-consent details { width:100%; color:var(--f-brand); font-size:13px; }
+    .f-consent summary { min-height:40px; display:flex; align-items:center; cursor:pointer; font-weight:600; }
+    .f-consent p { margin:2px 0 0; color:var(--f-soft); font-size:13px; line-height:1.6; }
+
+    .f-submit { margin-top:6px; padding:4px 0 0; display:flex; flex-direction:column; gap:8px; }
+    .f-summary { font-size:13px; color:var(--f-soft); overflow-wrap:anywhere; }
+    .f-summary b { color:var(--f-ink); }
+    .f-go { width:100%; min-height:50px; border:0; border-radius:8px; background:var(--f-brand);
+      color:#fff; font-size:16px; font-weight:700; }
+    .f-go:disabled { opacity:.55; cursor:not-allowed; }
+    .f-ghost { width:100%; min-height:48px; margin-top:10px; border:1px solid var(--f-ink); border-radius:8px;
+      background:#fff; font-size:15px; font-weight:700; }
+
+    .f-ok { margin-top:20px; border-top:4px solid var(--f-brand); padding-top:20px; }
+    .f-ok h1 { margin:0; font:650 30px/1.25 "Songti SC","STSong","Source Han Serif SC","Noto Serif SC",Georgia,serif; }
+    .f-ok dl { margin:16px 0 4px; border-top:1px solid var(--f-ink); }
+    .f-ok dl div { display:flex; justify-content:space-between; gap:16px; padding:10px 0; border-bottom:1px solid var(--f-line); }
+    .f-ok dt { color:var(--f-soft); font-size:13px; }
+    .f-ok dd { margin:0; font-weight:700; text-align:right; overflow-wrap:anywhere; }
+    .f-ok .f-help { margin:12px 0 0; color:var(--f-soft); font-size:13px; }
+    .f-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 
     @media (min-width:640px) {
-      .wrap { padding-top:36px; }
-      h1 { font-size:32px; }
-      .tms { grid-template-columns:repeat(4, minmax(0,1fr)); }
+      .f-wrap { padding-top:28px; }
+      .f-hero h1 { font-size:34px; }
+      .f-times { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    }
+    @media (max-width:360px) {
+      .f-wrap, .f-top-in, .f-tabs { padding-left:14px; padding-right:14px; }
+      .f-hero h1 { font-size:26px; }
+      .f-day { min-height:54px; font-size:10.5px; }
+      .f-day b { font-size:15.5px; }
+      .f-time-btn { font-size:14px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior:auto !important; }
     }
   </style>
 </head>
 <body>
-  <header class="bar">
-    <span class="crest"><img src="/m1/assets/login_crest_white.png" alt="" onerror="this.style.display='none'"></span>
-    <b>凭远 APP·ARK</b>
-    <span class="loc" id="locName"></span>
+  <header class="f-top">
+    <div class="f-top-in">
+      <img src="/branding/logo_inline.png" alt="凭远教育" onerror="this.style.display='none'" />
+      <span>家庭研究院 · Youth</span>
+    </div>
+    <nav class="f-tabs" aria-label="家庭门户">
+      <a href="/booking" aria-current="page">家长预约</a>
+      <a href="/student/login">学生问卷</a>
+    </nav>
   </header>
 
-  <main class="wrap" id="app" aria-live="polite"></main>
+  <main class="f-wrap">
+    <section id="formView">
+      <header class="f-hero">
+        <h1>预约 Y4 测评</h1>
+        <p>为孩子选择合适的到访时间。确认后老师会另行交接学生的 Y4 账号。</p>
+      </header>
+
+      <form id="f" novalidate>
+        <label class="f-office" for="fLoc">
+          <span>预约地点</span>
+          <select id="fLoc" name="location" aria-label="预约办公室"></select>
+        </label>
+        <p class="f-hint" id="inviteHint" hidden>该预约链接已指定办公室；如需更换，请联系顾问。</p>
+
+        <section class="f-cal" aria-labelledby="dHeading">
+          <h2 id="dHeading">选择日期</h2>
+          <div class="f-week" id="weekBox" role="group" aria-label="本周可选日期"></div>
+          <details class="f-more" id="monthDetails">
+            <summary>完整日历</summary>
+            <div class="f-month-nav">
+              <button type="button" id="prevMonth" data-month="-1" aria-label="上个月">‹</button>
+              <b id="monthLabel" aria-live="polite"></b>
+              <button type="button" id="nextMonth" data-month="1" aria-label="下个月">›</button>
+            </div>
+            <div class="f-matrix" id="monthBox" role="group" aria-label="本月可选日期"></div>
+          </details>
+        </section>
+
+        <section class="f-time" aria-labelledby="tHeading">
+          <h3 id="tHeading">选择时间 <span class="f-zone">北京时间</span></h3>
+          <p class="f-daylabel" id="dayLabel"></p>
+          <div class="f-times" id="timeBox" role="group" aria-label="可选时段" aria-busy="false"></div>
+        </section>
+
+        <p class="f-error" id="err" role="alert" hidden></p>
+
+        <label class="f-field" for="fName">学生姓名 <span class="f-req">*</span>
+          <input type="text" id="fName" name="student" autocomplete="off" maxlength="100"
+                 placeholder="请输入学生姓名" required />
+        </label>
+
+        <div class="f-consent">
+          <label for="fConsent"><input type="checkbox" id="fConsent" required /> 我已阅读并同意</label>
+          <details>
+            <summary>信息安全须知</summary>
+            <p>须知正文由团队提供；正式文案核准前，此处保留说明位置，不作为已发布条款。</p>
+          </details>
+        </div>
+
+        <div class="f-submit">
+          <span class="f-summary" id="fSummary" aria-live="polite">请选择预约时间</span>
+          <button type="submit" class="f-go" id="fGo">确认预约</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="doneView" class="f-ok" role="status" hidden>
+      <h1>已预约</h1>
+      <dl>
+        <div><dt>办公室</dt><dd id="doneLoc"></dd></div>
+        <div><dt>日期</dt><dd id="doneDate"></dd></div>
+        <div><dt>时间</dt><dd id="doneTime"></dd></div>
+        <div><dt>学生</dt><dd id="doneName"></dd></div>
+      </dl>
+      <p class="f-help">老师会另行交接学生的 Y4 账号，学生可在同一门户登录作答。</p>
+      <a class="f-go" style="display:flex;align-items:center;justify-content:center;margin-top:14px" href="/student/login">前往学生登录</a>
+      <button type="button" class="f-ghost" id="againBtn">再预约一位</button>
+    </section>
+  </main>
 
   <script>
     (function () {
       var TIMES = ['09:00','09:30','10:00','10:30','11:00','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
+      var CAP = 4;
       var WD = ['周日','周一','周二','周三','周四','周五','周六'];
-      var app = document.getElementById('app');
-      var locNameEl = document.getElementById('locName');
-      var S = { offices: [], loc: null, fixedLoc: false, step: 'office', date: null, time: null,
-                slots: null, monthOk: {}, error: '', busy: false, done: null };
+      var DOW = ['一','二','三','四','五','六','日'];
+
+      var formView = document.getElementById('formView');
+      var doneView = document.getElementById('doneView');
+      var form = document.getElementById('f');
+      var locSel = document.getElementById('fLoc');
+      var weekBox = document.getElementById('weekBox');
+      var monthBox = document.getElementById('monthBox');
+      var monthLabel = document.getElementById('monthLabel');
+      var timeBox = document.getElementById('timeBox');
+      var dayLabel = document.getElementById('dayLabel');
+      var errBox = document.getElementById('err');
+      var nameEl = document.getElementById('fName');
+      var consentEl = document.getElementById('fConsent');
+      var summaryEl = document.getElementById('fSummary');
+      var goBtn = document.getElementById('fGo');
+      var prevBtn = document.getElementById('prevMonth');
+      var nextBtn = document.getElementById('nextMonth');
+
+      var S = { offices: [], locId: null, date: null, month: null, time: null, slots: null,
+                openDay: {}, error: '', busy: false, done: null,
+                invite: new URLSearchParams(location.search).get('invite') || '' };
 
       function esc(v) { var d = document.createElement('div'); d.textContent = v == null ? '' : String(v); return d.innerHTML; }
       function pad(n) { return (n < 10 ? '0' : '') + n; }
       function dkey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
       function parseKey(k) { var p = k.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
       function human(k) { var d = parseKey(k); return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + WD[d.getDay()]; }
-      function locName() { return S.loc ? S.loc.name : ''; }
+      function officeName() { var o = S.offices.filter(function (x) { return x.id === S.locId; })[0]; return o ? o.name : ''; }
       function getJSON(url) { return fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j.ok, data: j }; }); }); }
 
-      function days() {
+      var DAYS = (function () {
         var out = [], t = new Date(); t.setHours(0, 0, 0, 0);
         for (var i = 1; i <= 29; i++) { var d = new Date(t); d.setDate(t.getDate() + i); out.push(d); }
         return out;
-      }
+      })();
+      var DAY_KEYS = DAYS.map(dkey);
 
-      function setStep(step) { S.step = step; S.error = ''; render(); window.scrollTo(0, 0); }
+      function months() {
+        var out = [];
+        DAY_KEYS.forEach(function (k) { var m = k.slice(0, 7); if (out.indexOf(m) === -1) { out.push(m); } });
+        return out;
+      }
+      function inWindow(k) { return DAY_KEYS.indexOf(k) !== -1; }
+      function selectable(k) { return inWindow(k) && S.openDay[k] !== false; }
+
+      function setError(msg) { S.error = msg || ''; errBox.textContent = S.error; errBox.hidden = !S.error; }
+      function clearError() { setError(''); }
 
       function loadMonth() {
-        return getJSON('/api/availability/month?loc=' + S.loc.id).then(function (r) {
-          S.monthOk = {};
+        return getJSON('/api/availability/month?loc=' + encodeURIComponent(S.locId)).then(function (r) {
+          S.openDay = {};
           if (!r.ok) { return; }
           var data = r.data.data || {}, booked = r.data.bookings || {};
-          days().forEach(function (d) {
-            var k = dkey(d), rec = {};
+          DAY_KEYS.forEach(function (k) {
+            var rec = {};
             (data[k] || []).forEach(function (e) { rec[e.time_slot] = e.is_available; });
-            S.monthOk[k] = TIMES.some(function (t) {
+            S.openDay[k] = TIMES.some(function (t) {
               var open = rec[t] === undefined ? true : rec[t];
-              return open && ((booked[k] || {})[t] || 0) < 4;
+              return open && ((booked[k] || {})[t] || 0) < CAP;
             });
           });
+        }).catch(function () { S.openDay = {}; });
+      }
+
+      function ensureDate() {
+        if (S.date && selectable(S.date)) { S.month = S.date.slice(0, 7); return; }
+        S.date = null;
+        for (var i = 0; i < DAY_KEYS.length; i++) {
+          if (selectable(DAY_KEYS[i])) { S.date = DAY_KEYS[i]; break; }
+        }
+        if (!S.date) { S.date = DAY_KEYS[0]; }
+        S.month = S.date.slice(0, 7);
+      }
+
+      function loadSlots(k) {
+        S.slots = null; timeBox.setAttribute('aria-busy', 'true'); renderTimes();
+        var token = S.locId + '|' + k;
+        getJSON('/api/availability?date=' + encodeURIComponent(k) + '&loc=' + encodeURIComponent(S.locId)).then(function (r) {
+          if (S.locId + '|' + S.date !== token) { return; }
+          timeBox.setAttribute('aria-busy', 'false');
+          if (!r.ok) { S.slots = []; setError((r.data && r.data.error) || '加载失败，请重试'); }
+          else { S.slots = r.data.slots || []; }
+          renderTimes();
+        }).catch(function () {
+          if (S.locId + '|' + S.date === token) {
+            timeBox.setAttribute('aria-busy', 'false');
+            S.slots = []; setError('加载失败，请重试'); renderTimes();
+          }
         });
       }
 
-      function loadSlots() {
-        S.slots = null; render();
-        var k = S.date;
-        getJSON('/api/availability?date=' + k + '&loc=' + S.loc.id).then(function (r) {
-          if (S.date !== k) { return; }
-          if (!r.ok) { S.slots = []; S.error = (r.data && r.data.error) || '加载失败，请重试'; }
-          else { S.slots = r.data.slots || []; }
-          render();
-        }).catch(function () { if (S.date === k) { S.slots = []; S.error = '加载失败，请重试'; render(); } });
+      function dayButton(k, compact, inDetails) {
+        var d = parseKey(k), ok = selectable(k), active = S.date === k;
+        var label = human(k) + (ok ? '' : '，暂无可约时段');
+        if (!inWindow(k)) { label = human(k) + '，不在可预约范围'; }
+        var cls = inDetails && !inWindow(k) ? 'f-cell is-out' : (inDetails ? 'f-cell' : 'f-day');
+        var inner = inDetails
+          ? String(d.getDate())
+          : '<small>' + (d.getDate() === 1 ? (d.getMonth() + 1) + '月' : '周' + DOW[(d.getDay() + 6) % 7]) + '</small><b>' + d.getDate() + '</b>';
+        return '<button type="button" class="' + cls + '" data-date="' + k + '" aria-label="' + esc(label) + '"' +
+          ' aria-pressed="' + (active ? 'true' : 'false') + '"' + (ok ? '' : ' disabled') + '>' + inner + '</button>';
       }
 
-      function chooseLoc(loc) {
-        S.loc = loc; S.date = null; S.time = null; S.slots = null;
-        locNameEl.textContent = loc.name;
-        loadMonth().then(function () { setStep('pick'); });
-      }
-
-      function viewOffice() {
-        return '<h1>预约测评</h1><p class="sub">请选择办公室。</p><div class="opts">' +
-          S.offices.map(function (o) { return '<button class="opt" data-act="loc" data-id="' + o.id + '">' + esc(o.name) + '<span aria-hidden="true">›</span></button>'; }).join('') +
-          '</div>';
-      }
-
-      function viewPick() {
-        var strip = days().map(function (d, i) {
-          var k = dkey(d), ok = S.monthOk[k] !== false;
-          var m = (i === 0 || d.getDate() === 1) ? (d.getMonth() + 1) + '月' : '';
-          return '<button data-act="date" data-k="' + k + '"' + (ok ? '' : ' disabled') + (S.date === k ? ' class="on"' : '') + '>' +
-            '<small>' + m + '</small>' + WD[d.getDay()] + '<b>' + d.getDate() + '</b></button>';
+      function renderWeek() {
+        var idx = DAY_KEYS.indexOf(S.date);
+        var start = Math.max(0, Math.floor((idx < 0 ? 0 : idx) / 7) * 7);
+        weekBox.innerHTML = DAY_KEYS.slice(start, start + 7).map(function (k) {
+          return dayButton(k, true, false);
         }).join('');
-        var times;
-        if (!S.date) { times = '<p class="none">请先选择日期。</p>'; }
-        else if (S.slots === null) { times = '<p class="none">加载中…</p>'; }
-        else if (!S.slots.length) { times = '<p class="none">当天没有可显示的时段。</p>'; }
-        else {
-          times = '<div class="tms">' + S.slots.map(function (s) {
-            var t = s.time_slot, full = s.is_open && s.booked_count >= s.capacity;
-            if (!s.is_open) { return '<button class="off" disabled>' + t + '<small>未开放</small></button>'; }
-            if (full) { return '<button disabled>' + t + '<small>已满</small></button>'; }
-            return '<button data-act="time" data-t="' + t + '"' + (S.time === t ? ' class="on"' : '') + '>' + t + '</button>';
-          }).join('') + '</div>';
+      }
+
+      function renderMonth() {
+        var list = months();
+        var m = S.month || list[0];
+        var y = +m.slice(0, 4), mo = +m.slice(5, 7) - 1;
+        var first = new Date(y, mo, 1);
+        var count = new Date(y, mo + 1, 0).getDate();
+        var offset = (first.getDay() + 6) % 7;
+        monthLabel.textContent = y + '年' + (mo + 1) + '月';
+        prevBtn.disabled = list.indexOf(m) <= 0;
+        nextBtn.disabled = list.indexOf(m) >= list.length - 1;
+        var cells = DOW.map(function (d) { return '<span class="f-dow">' + d + '</span>'; }).join('');
+        for (var i = 0; i < offset; i++) { cells += '<span></span>'; }
+        for (var day = 1; day <= count; day++) {
+          cells += dayButton(m + '-' + pad(day), false, true);
         }
-        return (S.fixedLoc ? '' : '<button class="back" data-act="toOffice">‹ 更换办公室</button>') +
-          '<h1>选择日期和时间</h1><p class="sub">需提前一天预约，可选未来 30 天。</p>' +
-          '<h2>日期</h2><div class="dstrip">' + strip + '</div><h2>时间</h2>' + times +
-          (S.error ? '<p class="msg" role="alert">' + esc(S.error) + '</p>' : '') +
-          '<button class="go" data-act="toForm"' + (S.date && S.time ? '' : ' disabled') + '>下一步</button>';
+        monthBox.innerHTML = cells;
       }
 
-      function viewForm() {
-        return '<button class="back" data-act="toPick">‹ 返回</button><h1>填写信息</h1>' +
-          '<p class="sum">' + esc(human(S.date)) + ' ' + esc(S.time) + '<small>' + esc(locName()) + '</small></p>' +
-          '<form id="f" novalidate>' +
-          '<label class="f" for="fName">学生姓名 <span class="req">*</span><input type="text" id="fName" autocomplete="off" maxlength="100"></label>' +
-          '<label class="f" for="fSchool">学校<input type="text" id="fSchool" autocomplete="off" maxlength="200"></label>' +
-          '<label class="f" for="fAdv">顾问<input type="text" id="fAdv" autocomplete="off" maxlength="100"></label>' +
-          '<label class="chk" for="fSingle"><input type="checkbox" id="fSingle"> 单亲家庭/离异</label>' +
-          '<label class="f" for="fNotes">备注<textarea id="fNotes" rows="2"></textarea></label>' +
-          (S.error ? '<p class="msg" role="alert">' + esc(S.error) + '</p>' : '') +
-          '<button class="go" type="submit"' + (S.busy ? ' disabled' : '') + '>' + (S.busy ? '提交中…' : '确认预约') + '</button></form>';
+      function renderTimes() {
+        if (!S.date) { timeBox.innerHTML = '<p class="f-none">请先选择日期。</p>'; return; }
+        if (S.slots === null) { timeBox.innerHTML = '<p class="f-none">加载中…</p>'; return; }
+        if (!S.slots.length) { timeBox.innerHTML = '<p class="f-none">当天没有可显示的时段。</p>'; return; }
+        timeBox.innerHTML = S.slots.map(function (s) {
+          var full = s.is_open && s.booked_count >= (s.capacity || CAP);
+          var open = s.is_open && !full;
+          var note = full ? '，已满' : (!s.is_open ? '，未开放' : '');
+          return '<button type="button" class="f-time-btn" data-time="' + esc(s.time_slot) + '"' +
+            ' aria-label="' + esc(s.time_slot + note) + '"' +
+            ' aria-pressed="' + (S.time === s.time_slot ? 'true' : 'false') + '"' +
+            (open ? '' : ' disabled') + '>' + esc(s.time_slot) + '</button>';
+        }).join('');
       }
 
-      function viewDone() {
+      function renderDayLabel() { dayLabel.textContent = S.date ? human(S.date) + ' · ' + officeName() : ''; }
+
+      function renderSummary() {
+        if (S.date && S.time) {
+          summaryEl.innerHTML = '<b>' + esc(human(S.date)) + ' ' + esc(S.time) + '</b> · ' + esc(officeName());
+        } else {
+          summaryEl.textContent = '请选择预约时间';
+        }
+      }
+
+      function focusDate(k) {
+        var el = weekBox.querySelector('[data-date="' + k + '"]') || monthBox.querySelector('[data-date="' + k + '"]');
+        if (el) { try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } }
+      }
+
+      function pickDate(k) {
+        if (!selectable(k) || S.date === k) { return; }
+        S.date = k; S.time = null; S.month = k.slice(0, 7); clearError();
+        renderWeek(); renderMonth(); renderDayLabel(); renderSummary(); loadSlots(k); focusDate(k);
+      }
+
+      function pickTime(t) {
+        S.time = t; clearError(); renderTimes(); renderSummary();
+        var el = timeBox.querySelector('[data-time="' + t + '"]');
+        if (el) { try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } }
+      }
+
+      function shiftMonth(offset) {
+        var list = months(), i = list.indexOf(S.month) + offset;
+        if (i < 0 || i >= list.length) { return; }
+        S.month = list[i]; renderMonth();
+        var btn = monthBox.querySelector('[data-month="' + offset + '"], [data-date]:not(:disabled)');
+        if (btn) { try { btn.focus({ preventScroll: true }); } catch (e) {} }
+      }
+
+      function refreshAll(loadDates) {
+        return (loadDates ? loadMonth() : Promise.resolve()).then(function () {
+          ensureDate();
+          renderWeek(); renderMonth(); renderDayLabel(); renderSummary();
+          loadSlots(S.date);
+        });
+      }
+
+      function fillOffices() {
+        locSel.innerHTML = S.offices.map(function (o) {
+          return '<option value="' + o.id + '">' + esc(o.name) + '</option>';
+        }).join('');
+        locSel.value = String(S.locId);
+      }
+
+      function showDone() {
         var d = S.done;
-        return '<div class="ok"><h1>已预约</h1><dl>' +
-          '<div><dt>办公室</dt><dd>' + esc(d.loc) + '</dd></div>' +
-          '<div><dt>日期</dt><dd>' + esc(human(d.date)) + '</dd></div>' +
-          '<div><dt>时间</dt><dd>' + esc(d.time) + '</dd></div>' +
-          '<div><dt>学生</dt><dd>' + esc(d.name) + '</dd></div></dl>' +
-          '<button class="ghost" data-act="again">再预约一位</button></div>';
+        document.getElementById('doneLoc').textContent = d.loc;
+        document.getElementById('doneDate').textContent = human(d.date);
+        document.getElementById('doneTime').textContent = d.time;
+        document.getElementById('doneName').textContent = d.name;
+        formView.hidden = true; doneView.hidden = false;
+        window.scrollTo(0, 0);
+        var link = doneView.querySelector('a.f-go');
+        if (link) { link.focus({ preventScroll: true }); }
       }
 
-      function render() {
-        var keep = {};
-        ['fName', 'fSchool', 'fAdv', 'fNotes'].forEach(function (id) { var el = document.getElementById(id); if (el) { keep[id] = el.value; } });
-        var sg = document.getElementById('fSingle'); if (sg) { keep.fSingle = sg.checked; }
-        app.innerHTML = S.step === 'office' ? viewOffice() : S.step === 'pick' ? viewPick() : S.step === 'form' ? viewForm() : viewDone();
-        Object.keys(keep).forEach(function (id) { var el = document.getElementById(id); if (el) { if (id === 'fSingle') { el.checked = keep[id]; } else { el.value = keep[id]; } } });
-        var f = document.getElementById('f');
-        if (f) { f.addEventListener('submit', submit); }
+      function backToForm() {
+        S.done = null; S.time = null; S.busy = false;
+        nameEl.value = ''; consentEl.checked = false;
+        goBtn.disabled = false; goBtn.textContent = '确认预约';
+        formView.hidden = false; doneView.hidden = true; clearError();
+        window.scrollTo(0, 0);
+        refreshAll(true);
+        nameEl.focus({ preventScroll: true });
       }
 
-      function submit(e) {
+      function onSubmit(e) {
         e.preventDefault();
         if (S.busy) { return; }
-        var name = document.getElementById('fName').value.trim();
-        if (!name) { S.error = '请填写学生姓名'; render(); return; }
-        var body = { student_name: name, school: document.getElementById('fSchool').value.trim(),
-          advisor_name: document.getElementById('fAdv').value.trim(), notes: document.getElementById('fNotes').value.trim(),
-          single_parent: document.getElementById('fSingle').checked, location_id: S.loc.id,
-          invite: new URLSearchParams(location.search).get('invite') || '',
-          appointment_time: S.date + 'T' + S.time + ':00' };
-        S.busy = true; S.error = ''; render();
-        fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j.ok, data: j }; }); })
+        var name = nameEl.value.trim();
+        if (!S.date || !S.time) {
+          setError('请选择预约日期和时间。');
+          document.getElementById('tHeading').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        if (!name) { setError('请填写学生姓名。'); nameEl.focus(); return; }
+        if (!consentEl.checked) { setError('请先阅读并同意信息安全须知。'); consentEl.focus(); return; }
+        clearError();
+        S.busy = true; goBtn.disabled = true; goBtn.textContent = '提交中…';
+        var body = {
+          student_name: name,
+          location_id: S.locId,
+          appointment_time: S.date + 'T' + S.time + ':00',
+          consent: true,
+          invite: S.invite
+        };
+        fetch('/api/booking', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j.ok, data: j }; }); })
           .then(function (r) {
-            S.busy = false;
+            S.busy = false; goBtn.disabled = false; goBtn.textContent = '确认预约';
             if (!r.ok) {
-              S.error = (r.data && r.data.error) || '提交失败，请重试';
-              if (/已满|已关闭/.test(S.error)) { S.time = null; S.step = 'pick'; loadMonth().then(loadSlots); return; }
-              render(); return;
+              var raw = (r.data && r.data.error) || '提交失败，请重试';
+              if (/已满/.test(raw)) {
+                S.time = null; renderSummary();
+                setError('该时段刚被约满，请重新选择时间。');
+                loadMonth().then(function () {
+                  renderWeek(); renderMonth(); renderDayLabel(); loadSlots(S.date);
+                });
+              } else if (/已关闭/.test(raw)) {
+                S.time = null; renderSummary();
+                setError('该时段暂不可约，请选择其他时间。');
+                loadSlots(S.date);
+              } else {
+                setError(raw);
+              }
+              return;
             }
-            S.done = { loc: locName(), date: S.date, time: S.time, name: name };
-            S.step = 'done'; render(); window.scrollTo(0, 0);
+            S.done = { loc: officeName(), date: S.date, time: S.time, name: name };
+            showDone();
           })
-          .catch(function () { S.busy = false; S.error = '网络错误，请重试'; render(); });
+          .catch(function () {
+            S.busy = false; goBtn.disabled = false; goBtn.textContent = '确认预约';
+            setError('网络错误，请重试。');
+          });
       }
 
-      app.addEventListener('click', function (e) {
-        var el = e.target.closest('[data-act]'); if (!el || el.disabled) { return; }
-        var a = el.getAttribute('data-act');
-        if (a === 'loc') {
-          var id = +el.getAttribute('data-id');
-          chooseLoc(S.offices.filter(function (o) { return o.id === id; })[0]);
-        } else if (a === 'date') { S.date = el.getAttribute('data-k'); S.time = null; S.error = ''; loadSlots(); }
-        else if (a === 'time') { S.time = el.getAttribute('data-t'); render(); }
-        else if (a === 'toForm') { setStep('form'); }
-        else if (a === 'toPick') { setStep('pick'); }
-        else if (a === 'toOffice') { S.loc = null; locNameEl.textContent = ''; setStep('office'); }
-        else if (a === 'again') {
-          S.date = null; S.time = null; S.slots = null; S.done = null;
-          loadMonth().then(function () { setStep('pick'); });
-        }
+      locSel.addEventListener('change', function () {
+        S.locId = +locSel.value; S.time = null; S.slots = null; clearError();
+        refreshAll(true);
       });
+
+      document.addEventListener('click', function (e) {
+        var el = e.target.closest('button');
+        if (!el || el.disabled) { return; }
+        var k = el.getAttribute('data-date');
+        if (k) { pickDate(k); return; }
+        var t = el.getAttribute('data-time');
+        if (t) { pickTime(t); return; }
+        var m = el.getAttribute('data-month');
+        if (m) { shiftMonth(+m); return; }
+      });
+
+      document.getElementById('againBtn').addEventListener('click', backToForm);
+      form.addEventListener('submit', onSubmit);
 
       var want = new URLSearchParams(location.search).get('loc');
       getJSON('/api/locations').then(function (r) {
         S.offices = (r.ok && r.data.locations) || [];
-        if (!S.offices.length) { app.innerHTML = '<h1>预约测评</h1><p class="sub">暂时无法预约。</p>'; return; }
+        if (!S.offices.length) {
+          formView.innerHTML = '<header class="f-hero"><h1>预约 Y4 测评</h1><p>暂时无法预约，请稍后再试。</p></header>';
+          return;
+        }
         var pre = want ? S.offices.filter(function (o) { return String(o.id) === want; })[0] : null;
-        if (pre) { S.fixedLoc = true; chooseLoc(pre); }
-        else if (S.offices.length === 1) { S.fixedLoc = true; chooseLoc(S.offices[0]); }
-        else { render(); }
-      }).catch(function () { app.innerHTML = '<h1>预约测评</h1><p class="sub">加载失败，请刷新重试。</p>'; });
+        S.locId = (pre || S.offices[0]).id;
+        fillOffices();
+        if (S.invite) {
+          locSel.disabled = true;
+          document.getElementById('inviteHint').hidden = false;
+        }
+        refreshAll(true);
+      }).catch(function () {
+        formView.innerHTML = '<header class="f-hero"><h1>预约 Y4 测评</h1><p>加载失败，请刷新重试。</p></header>';
+      });
     })();
   </script>
 </body>

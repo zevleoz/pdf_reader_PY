@@ -650,8 +650,9 @@ def student_login():
     if not acc:
         rate_fail_record(scope="student-login")
         if request.is_json:
-            return _err("账号或密码错误", 401)
-        return render_template("student/login.html", error="账号或密码错误",
+            return _err("账号或密码错误，请核对后重试；如尚未收到账号，请联系顾问。", 401)
+        return render_template("student/login.html",
+                               error="账号或密码错误，请核对后重试；如尚未收到账号，请联系顾问。",
                                next=(data.get("next") or "/student/home"), username=username)
     rate_fail_clear(scope="student-login")
     session["student_account_id"] = acc["account_id"]
