@@ -1,7 +1,9 @@
-"""认证蓝图：登录页 / 登录 / 登出 / 会话检查。"""
+"""认证蓝图：登录页 / 登录 / 登出 / 会话检查 / 本人账号与改密。"""
 from __future__ import annotations
 
 import os
+from functools import wraps
+from hmac import compare_digest
 
 from flask import (Blueprint, jsonify, redirect, render_template, request,
                    session)
@@ -106,6 +108,76 @@ def logout():
     """GET /logout：清 session 后回登录页（用户直接敲 URL 的场景）。"""
     session.clear()
     return redirect("/login")
+
+
+def _csrf_required(view):
+    """校验与登录/Cookie 同源的 CSRF token（前端 api.ts 统一带 X-CSRF-Token）。"""
+    @wraps(view)
+    def checked(*args, **kwargs):
+        expected = session.get("_csrf_token") or ""
+        supplied = request.headers.get("X-CSRF-Token", "")
+        if not expected or not compare_digest(expected.encode("utf-8"),
+                                               supplied.encode("utf-8")):
+            return jsonify({"ok": False, "error": "请求校验失败，请刷新页面后重试"}), 403
+        return view(*args, **kwargs)
+    return checked
+
+
+def _is_internal_staff() -> bool:
+    """个人设置只给内部老师与管理员；前台只处理预约交接。"""
+    return session.get("role") in ("admin", "advisor", "viewer")
+
+
+@bp.route("/api/account")
+@app_utils.login_required
+def api_account_profile():
+    """当前登录账号（供个人设置页显示只读登录名）。"""
+    if not _is_internal_staff():
+        return jsonify({"ok": False, "error": "无权访问"}), 403
+    user = _db.get_user_by_id(session["user_id"])
+    if not user:
+        return jsonify({"ok": False, "error": "用户不存在"}), 404
+    return jsonify({
+        "ok": True,
+        "username": user["username"],
+        "display_name": user.get("display_name") or user["username"],
+        "role": user["role"],
+        "role_label": app_utils.ROLE_LABELS.get(user["role"], user["role"]),
+    })
+
+
+@bp.route("/api/account/password", methods=["POST"])
+@app_utils.login_required
+@_csrf_required
+def api_account_password():
+    """本人修改登录密码：用户取自会话，校验当前密码后一次性更新哈希。"""
+    if not _is_internal_staff():
+        return jsonify({"ok": False, "error": "无权访问"}), 403
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求格式不正确"}), 400
+    allowed = {"current_password", "new_password", "confirm_password"}
+    if set(data) - allowed:
+        return jsonify({"ok": False, "error": "只能修改本人登录密码"}), 400
+    current = data.get("current_password") or ""
+    new = data.get("new_password") or ""
+    confirm = data.get("confirm_password") or ""
+    if not current or not new or not confirm:
+        return jsonify({"ok": False, "error": "请填写当前密码、新密码和确认新密码"}), 400
+    if new != confirm:
+        return jsonify({"ok": False, "error": "两次输入的新密码不一致"}), 400
+    user = _db.get_user_by_id(session["user_id"])
+    if not user:
+        return jsonify({"ok": False, "error": "用户不存在"}), 404
+    if not _db.verify_user(user["username"], current):
+        return jsonify({"ok": False, "error": "当前密码不正确"}), 400
+    if not _db.update_user(user["id"], password=new):
+        return jsonify({"ok": False, "error": "密码未更新，请稍后重试"}), 500
+    app_utils.invalidate_session_user(user["id"])
+    return jsonify({
+        "ok": True,
+        "message": "密码已修改。当前登录状态保持有效，下次登录请使用新密码。",
+    })
 
 
 @bp.route("/api/admin/check")
