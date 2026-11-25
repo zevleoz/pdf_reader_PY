@@ -12,10 +12,10 @@ from test_profiling_stages import (code_of, mk_booking, mk_profile, mk_report, m
                                    world)
 
 KEYS = {"ok", "student", "permissions", "progress", "latest_report", "six_am",
-        "first_touch", "questionnaire_flags", "m1_work"}
+        "first_touch", "questionnaire_flags"}
 STUDENT_KEYS = {"id", "code", "name", "grade", "gender", "birthday", "school",
                 "advisor_name", "email", "phone"}
-PERM_KEYS = {"can_write", "is_admin", "full", "can_review", "m1_access"}
+PERM_KEYS = {"can_write", "is_admin", "full", "can_review"}
 
 
 def mk_contact_student(name="联系人", advisor="Mine"):
@@ -49,7 +49,7 @@ def test_admin_full_detail(env):
     assert body["student"]["phone"] == "13800000000"
     perms = body["permissions"]
     assert perms["can_write"] and perms["is_admin"] and perms["full"] and perms["can_review"]
-    assert perms["m1_access"] is True
+    assert "m1_access" not in perms
     assert body["latest_report"] is None and body["six_am"] is None
     assert not body["first_touch"].get("restricted")
     assert isinstance(body["questionnaire_flags"], list)
@@ -79,27 +79,35 @@ def test_viewer_is_read_only(env):
     perms = r.get_json()["permissions"]
     assert perms["can_write"] is False and perms["can_review"] is False
     assert perms["is_admin"] is False
-    assert r.get_json()["m1_work"] is None
+    assert "m1_work" not in r.get_json()
 
 
-def test_m1_handoff_and_workbench_share_action_without_changing_profiling_progress(env):
+def test_m1_removed_from_profile_and_workbench(env):
+    """任务 M：M1 待办不进入 Family Institute 首页，档案接口也不再下发 m1_work。"""
     from m1 import report_store, store
 
     sid = mk_student("演练学生", advisor="Mine")
-    c = client(env, env.mine, "advisor", "Mine")
+    uid = _db.create_user("m1-both", "pw-123456", "advisor", advisor_name="Mine",
+                          student_scope="all", detail_level="full", m1_access=1)
+    app_utils._SESSION_USER_CACHE.clear()
+    c = client(env, uid, "advisor", "Mine")
     before = c.get("/api/profiling/workbench").get_json()["counts"]
-    prep = store.create_prep(sid, mentor_user_id=env.mine)
-    report = report_store.get_or_create_report(prep["id"], env.mine)
+    prep = store.create_prep(sid, mentor_user_id=uid)
+    report = report_store.get_or_create_report(prep["id"], uid)
     report_store.add_version(report["id"], y4_ratings={}, evidence=[], ai_doc={}, doc={},
                              checks=[], manifest={}, status="ai_draft")
 
-    profile = fetch(c, sid).get_json()["m1_work"]
+    profile = fetch(c, sid).get_json()
+    assert "m1_work" not in profile
     workbench = c.get("/api/profiling/workbench").get_json()
-    row = next(row for row in workbench["queue"] if row["kind"] == "m1")
-    assert profile["href"] == f"/m1/students/{sid}"
-    assert profile["next"] == row["task"]
-    assert profile["next"]["href"] == f"/m1/preps/{prep['id']}/report#step=review"
+    assert all(row["kind"] != "m1" for row in workbench["queue"])
     assert workbench["counts"] == before
+
+    # 主管理员同样只看到本站事项
+    adm = admin(env)
+    assert "m1_work" not in fetch(adm, sid).get_json()
+    assert all(row["kind"] != "m1"
+               for row in adm.get("/api/profiling/workbench").get_json()["queue"])
 
 
 def test_own_scope_advisor_and_404s(env):

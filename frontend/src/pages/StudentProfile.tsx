@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { recordRecent } from "@/lib/recent";
 import PageHeader from "@/shell/PageHeader";
 
-import { EmptyPanel, ProfileCtx, ResourceCache, type Notify, type OpenFlag, type PageData } from "./profile/common";
+import { ProfileCtx, ResourceCache, type Notify, type OpenFlag, type PageData } from "./profile/common";
 import FilesTab from "./profile/FilesTab";
 import FirstTouchTab from "./profile/FirstTouchTab";
 import { NextBox } from "./profile/NextStep";
@@ -32,7 +32,6 @@ const TABS: { key: string; label: string }[] = [
   { key: "six_am", label: "6AM" },
   { key: "first_touch", label: "First Touch" },
   { key: "reports", label: "报告交付" },
-  { key: "m1", label: "心有灵析" },
   { key: "files", label: "文件" },
 ];
 const TAB_KEYS = TABS.map((t) => t.key);
@@ -416,8 +415,6 @@ export default function StudentProfile() {
         student.phone ? "电话：" + student.phone : null,
       ].filter(Boolean)
     : [];
-  const linkClass = "text-mute underline-offset-2 hover:underline";
-
   return (
     <ProfileCtx.Provider value={{ data, code, cache, notify, setTab, refreshProgress, refreshPage, y4Dim, setY4Dim, reviewFlag }}>
       <div>
@@ -451,21 +448,6 @@ export default function StudentProfile() {
             ))}
           </p>
           {contact.length > 0 ? <p className="mt-1 break-all text-mute">{contact.join(" · ")}</p> : null}
-          <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-            <a className={linkClass} href={"/students/" + encodeURIComponent(student.code)}>
-              旧版档案
-            </a>
-            {permissions.m1_access ? (
-              <a className={linkClass} href={data.m1_work?.href ?? "/m1?student=" + student.id}>
-                心有灵析
-              </a>
-            ) : null}
-            {permissions.is_admin ? (
-              <a className={linkClass} href={"/first-touch/archive/" + student.id}>
-                First Touch 归档
-              </a>
-            ) : null}
-          </p>
         </div>
 
         <div className="mb-4 md:hidden">
@@ -528,24 +510,6 @@ export default function StudentProfile() {
           {visited.includes("reports") ? (
             <TabsContent value="reports" forceMount className="mt-0 data-[state=inactive]:hidden">
               {tab === "reports" ? <ReportsTab /> : null}
-            </TabsContent>
-          ) : null}
-          {visited.includes("m1") ? (
-            <TabsContent value="m1" forceMount className="mt-0 data-[state=inactive]:hidden">
-              <EmptyPanel title="心有灵析">
-                {permissions.m1_access ? (
-                  <div className="flex flex-wrap items-center gap-3">
-                    {data.m1_work?.next ? (
-                      <Button asChild><a href={data.m1_work.next.href}>{data.m1_work.next.label}</a></Button>
-                    ) : null}
-                    <Button asChild variant={data.m1_work?.next ? "outline" : "default"}>
-                      <a href={data.m1_work?.href ?? "/m1?student=" + student.id}>打开心有灵析</a>
-                    </Button>
-                  </div>
-                ) : (
-                  <span>当前账号未开通心有灵析</span>
-                )}
-              </EmptyPanel>
             </TabsContent>
           ) : null}
           {visited.includes("files") ? (

@@ -295,7 +295,7 @@ def api_profiling_student(code):
     from sqlalchemy import select
     import db as _db
     import profiling_stages as ps
-    from app_utils import account_policy, can_see_full
+    from app_utils import can_see_full
     from blueprints.students import _first_touch_context, _questionnaire_flags
 
     st = _db.get_student_by_code(code)
@@ -306,7 +306,6 @@ def api_profiling_student(code):
     full = can_see_full()
     role = session.get("role")
     can_write = role != "viewer"
-    policy = account_policy()
 
     with _db.Session(_db.engine) as sess:
         latest = sess.execute(
@@ -326,13 +325,6 @@ def api_profiling_student(code):
             six_am = {"report_id": latest[0], "profile_id": prof["id"],
                       "version": prof["version"]}
 
-    m1_work = None
-    if policy.get("m1_access") and role in ("admin", "advisor"):
-        from blueprints.m1 import student_work_summary
-        work = student_work_summary(st["id"])
-        if work.get("hub_url"):
-            m1_work = {"href": work["hub_url"], "next": work["next"]}
-
     return jsonify({
         "ok": True,
         "student": {
@@ -348,9 +340,7 @@ def api_profiling_student(code):
             "is_admin": role == "admin",
             "full": full,
             "can_review": bool(can_write and full),
-            "m1_access": bool(policy.get("m1_access")),
         },
-        "m1_work": m1_work,
         "progress": ps.progress_for_student(st["id"]),
         "latest_report": latest_report,
         "six_am": six_am,
@@ -703,16 +693,6 @@ def api_profiling_workbench():
     for sid in ft_ids:
         queue.append({"kind": "first_touch", "student": who(sid),
                       "updated_at": ft_at.get(sid)})
-
-    from app_utils import account_policy
-    if can_write and account_policy().get("m1_access"):
-        from blueprints.m1 import _attach_student_work, _user
-        from m1.roster import visible_sources
-        rows = [row for row in visible_sources(_user()) if row["student_id"] in students]
-        _attach_student_work(rows)
-        for row in rows:
-            if row["workflow_state"] == "todo":
-                queue.append({"kind": "m1", "student": who(row["student_id"]), "task": row["next"]})
 
     # booking：下一步是预约
     for sid in newest_first([sid for sid, p in prog.items()
