@@ -1,6 +1,7 @@
 """学生蓝图：学生列表 / 360° 档案页 / 报告列表 / 重命名 / 删除。"""
 from __future__ import annotations
 
+import io
 import json
 
 from flask import Blueprint, abort, jsonify, render_template, request, session
@@ -554,6 +555,112 @@ def api_student_six_am(code):
             "profile": prof,
         })
     return jsonify({"ok": True, "profiles": out})
+
+
+# ---------------------------------------------------------------------------
+# 6AM PDF 成品（任务 N）：按学生、报告轮次与档案版本保存的独立导出链路。
+# 与 Y4 完全分离：不读写 Y4 成品、版本选择或取件路由。
+# ---------------------------------------------------------------------------
+def _six_am_pdf_root():
+    """6AM PDF 存储根目录；测试可用 SIX_AM_PDF_DIR 指向临时目录。"""
+    import os
+    from pathlib import Path
+    from app_utils import DATA_DIR
+    env = os.environ.get("SIX_AM_PDF_DIR")
+    return Path(env) if env else (DATA_DIR / "six_am_pdfs")
+
+
+def _six_am_profile_row(st, profile_id):
+    """取该学生名下的 6AM 档案；不存在或跨学生一律 None（对外按 404）。"""
+    row = _db.get_six_am_profile(int(profile_id))
+    if not row or row.get("student_id") != st["id"]:
+        return None
+    return row
+
+
+def _six_am_profile_json(row):
+    try:
+        return json.loads(row.get("profile_json") or "{}")
+    except Exception:
+        return {}
+
+
+def _six_am_pdf_item(st, row):
+    from six_am import pdf_store
+    prof = _six_am_profile_json(row)
+    return pdf_store.status(
+        _six_am_pdf_root(), st["id"], row["id"], prof,
+        version=row.get("version"), report_id=row.get("report_id"),
+        created_at=row.get("created_at"))
+
+
+@bp.route("/students/<code>/api/six-am/pdf-status")
+@page_login_required
+def api_six_am_pdf_status(code):
+    st, err = _scoped_student(code)
+    if err:
+        return jsonify({"ok": False, "error": err[0]}), err[1]
+    dates = {r["id"]: r.get("report_date") for r in _db.get_student_reports(st["id"])}
+    items = []
+    for r in _db.get_six_am_profiles_by_student(st["id"]):
+        item = _six_am_pdf_item(st, r)
+        item["report_date"] = dates.get(r.get("report_id"))
+        items.append(item)
+    return jsonify({"ok": True, "items": items})
+
+
+@bp.route("/students/<code>/api/six-am/<int:profile_id>/pdf", methods=["POST"])
+@admin_required
+def api_six_am_pdf_generate(code, profile_id):
+    """生成或重试该档案版本的 PDF。已就绪时直接复用，不重复生成。"""
+    from six_am import pdf_store
+    st, err = _scoped_student(code)
+    if err:
+        return jsonify({"ok": False, "error": err[0]}), err[1]
+    row = _six_am_profile_row(st, profile_id)
+    if not row:
+        return jsonify({"ok": False, "error": "6AM 档案不存在"}), 404
+    prof = _six_am_profile_json(row)
+    item = pdf_store.generate(
+        _six_am_pdf_root(), st["id"], row["id"], prof,
+        student=prof.get("student") or {"name": st.get("name") or "", "grade": st.get("grade") or ""},
+        version=row.get("version"), report_id=row.get("report_id"),
+        created_at=row.get("created_at"))
+    return jsonify({"ok": True, "item": item})
+
+
+@bp.route("/students/<code>/api/six-am/<int:profile_id>/pdf/file")
+@page_login_required
+def api_six_am_pdf_file(code, profile_id):
+    """预览（默认 inline）或下载（?download=1）已生成的 6AM PDF；不触发生成。"""
+    from flask import send_file
+    from urllib.parse import quote
+    from six_am import pdf_store
+    st, err = _scoped_student(code)
+    if err:
+        return jsonify({"ok": False, "error": err[0]}), err[1]
+    row = _six_am_profile_row(st, profile_id)
+    if not row:
+        return jsonify({"ok": False, "error": "6AM 档案不存在"}), 404
+    prof = _six_am_profile_json(row)
+    item = pdf_store.status(
+        _six_am_pdf_root(), st["id"], row["id"], prof,
+        version=row.get("version"), report_id=row.get("report_id"),
+        created_at=row.get("created_at"))
+    if item["state"] == "stale":
+        return jsonify({"ok": False, "error": "档案已更新，请重新生成 PDF", "state": "stale"}), 409
+    if item["state"] != "ready":
+        return jsonify({"ok": False, "error": "PDF 尚未生成", "state": item["state"]}), 404
+    blob = pdf_store.read_artifact(_six_am_pdf_root(), st["id"], row["id"])
+    if blob is None:
+        return jsonify({"ok": False, "error": "PDF 尚未生成", "state": "missing"}), 404
+    name = pdf_store.pdf_filename(st.get("name") or "", row.get("version"))
+    download = request.args.get("download") == "1"
+    r = send_file(io.BytesIO(blob), mimetype="application/pdf",
+                  as_attachment=download, download_name=name)
+    disp = "attachment" if download else "inline"
+    r.headers["Content-Disposition"] = "%s; filename*=UTF-8''%s" % (disp, quote(name))
+    return r
 
 
 # ---------------------------------------------------------------------------
