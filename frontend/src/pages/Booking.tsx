@@ -16,7 +16,6 @@ import {
   TIMES,
   addDays,
   bookable,
-  dayKey,
   md,
   mondayOf,
   nextOpen,
@@ -83,7 +82,7 @@ export default function Booking() {
   const [locId, setLocId] = React.useState<number | null>(null);
   const [weekStart, setWeekStart] = React.useState(() => mondayOf(todayKey()));
   const [week, setWeek] = React.useState<Week | null>(null);
-  const [ahead, setAhead] = React.useState<Slot[]>([]);
+  const [ahead, setAhead] = React.useState<{ locId: number; start: string; slots: Slot[] } | null>(null);
   const [failed, setFailed] = React.useState(false);
   const [sel, setSel] = React.useState<Cell | null>(null);
   const [picked, setPicked] = React.useState<Picked | null>(null);
@@ -122,17 +121,17 @@ export default function Booking() {
   const load = React.useCallback(async () => {
     if (locId == null) return;
     const id = ++reqId.current;
-    const thisMon = mondayOf(todayKey());
+    const today = todayKey();
+    const nextWeek = addDays(today, 7);
+    const starts = new Set([weekStart, today, nextWeek]);
+    const fetchWeek = (start: string) => getJSON<Week>(`/api/bookings/week?loc=${locId}&start=${start}`);
     try {
-      const q = (s: string) => `/api/bookings/week?loc=${locId}&start=${s}`;
-      const [w, a, b] = await Promise.all([
-        getJSON<Week>(q(weekStart)),
-        weekStart === thisMon ? Promise.resolve(null) : getJSON<Week>(q(thisMon)),
-        getJSON<Week>(q(addDays(thisMon, 7))),
-      ]);
+      const weeks = new Map(await Promise.all(Array.from(starts, async (start) =>
+        [start, await fetchWeek(start)] as const,
+      )));
       if (id !== reqId.current) return;
-      setWeek(w);
-      setAhead([...(a || w).slots, ...(weekStart === addDays(thisMon, 7) ? w : b).slots]);
+      setWeek(weeks.get(weekStart)!);
+      setAhead({ locId, start: today, slots: [...weeks.get(today)!.slots, ...weeks.get(nextWeek)!.slots] });
       setFailed(false);
     } catch {
       if (id === reqId.current) setFailed(true);
@@ -197,7 +196,15 @@ export default function Booking() {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const isOpen = (s: Slot) => over[slotKey(s.date, s.time)] ?? !s.closed;
   const selSlot = sel ? slotMap.get(slotKey(sel.date, sel.time)) || null : null;
-  const chips = nextOpen(ahead.filter((s) => s.date >= todayKey()), cap, 3);
+  const today = todayKey();
+  const upcoming = ahead?.locId === locId && ahead.start === today ? ahead.slots : null;
+  const chips = nextOpen(upcoming ?? [], cap, 3);
+  const openUpcoming = upcoming?.filter((s) => !s.past && !s.closed) ?? [];
+  const emptyMessage = failed ? "无法读取最近时段"
+    : !upcoming ? "正在读取时段…"
+    : openUpcoming.length === 0 ? "未来两周暂无开放时段"
+    : openUpcoming.every((s) => s.capacity === 0) ? "未来两周暂无可用测评师，请检查排班"
+    : "未来两周暂无空位";
 
   function pickSlot(s: { date: string; time: string }) {
     setSend(false);
@@ -399,7 +406,8 @@ export default function Booking() {
     const key = slotKey(s.date, s.time);
     const open = isOpen(s);
     const sCap = s.capacity ?? cap;
-    const full = open && s.count >= sCap && !edit;
+    const full = !bookable(s, cap) && !edit;
+    const noAssessor = sCap === 0;
     const on = sel?.date === s.date && sel?.time === s.time;
     const label = `${md(s.date)} ${s.time}`;
     const names = (s.assessors || []).map((a) => a.display_name).join("、");
@@ -428,8 +436,10 @@ export default function Booking() {
     return (
       <button
         key={key}
-        aria-label={`${label}，已约 ${s.count} 人，余 ${sCap - s.count}${names ? "，可约老师 " + names : ""}`}
-        title={names ? "可约老师：" + names : undefined}
+        disabled={!edit && noAssessor}
+        aria-label={noAssessor ? label + " 暂无可用测评师"
+          : `${label}，已约 ${s.count} 人，余 ${Math.max(0, sCap - s.count)}${names ? "，可约老师 " + names : ""}`}
+        title={noAssessor ? "暂无可用测评师" : names ? "可约老师：" + names : undefined}
         data-office-date={s.date}
         data-office-slot={s.time}
         className={cn(
@@ -442,12 +452,11 @@ export default function Booking() {
           else if (event.detail === 0) toggleDay(s);
         }}
       >
-        <Dots n={s.count} cap={sCap} />
+        {noAssessor ? <span className="text-xs text-mute">—</span> : <Dots n={s.count} cap={sCap} />}
       </button>
     );
   };
 
-  const today = todayKey();
   const dayDate = days[dayIdx] || days[0];
 
   return (
@@ -490,7 +499,7 @@ export default function Booking() {
         <div className="min-w-0">
           <div className="mb-3.5 flex flex-wrap items-center gap-2">
             <span className="text-[13px] font-semibold text-ink-2">最近可约</span>
-            {chips.length === 0 ? <span className="text-[13px] text-mute">{week ? "近两周没有空位" : ""}</span> : null}
+            {chips.length === 0 ? <span className="text-[13px] text-mute">{emptyMessage}</span> : null}
             {chips.map((s) => (
               <button
                 key={slotKey(s.date, s.time)}
@@ -499,7 +508,7 @@ export default function Booking() {
                 onClick={() => pickSlot(s)}
               >
                 {md(s.date)} {wdOf(s.date)} {s.time}
-                <small className="text-[12.5px] font-medium opacity-70">余 {cap - s.count}</small>
+                <small className="text-[12.5px] font-medium opacity-70">余 {(s.capacity ?? cap) - s.count}</small>
               </button>
             ))}
           </div>
@@ -607,7 +616,7 @@ export default function Booking() {
                         }}
                       >
                         {t}
-                        <small className="text-[11.5px] font-normal opacity-70">{open ? "余 " + Math.max(0, left) : "未开放"}</small>
+                        <small className="text-[11.5px] font-normal opacity-70">{!open ? "未开放" : sCap === 0 ? "暂无测评师" : "余 " + Math.max(0, left)}</small>
                       </button>
                     );
                   })}
@@ -629,7 +638,7 @@ export default function Booking() {
           ) : handoffId ? (
             <HandoffPanel bookingId={handoffId} onClose={() => setHandoffId(null)} />
           ) : myAvail ? (
-            <AssessorPanel onClose={() => setMyAvail(false)} />
+            <AssessorPanel onClose={() => setMyAvail(false)} onSaved={() => void load()} />
           ) : selSlot && loc ? (
             <SlotPanel
               slot={selSlot}

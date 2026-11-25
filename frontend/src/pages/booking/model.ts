@@ -54,7 +54,8 @@ export function mondayOf(s: string): string {
   const d = parseDay(s);
   return addDays(s, -((d.getDay() + 6) % 7));
 }
-export const todayKey = () => dayKey(new Date());
+const beijingDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Shanghai" });
+export const todayKey = () => beijingDate.format(new Date());
 export const md = (s: string) => {
   const d = parseDay(s);
   return d.getMonth() + 1 + "/" + d.getDate();
@@ -68,7 +69,7 @@ export function updatedText(iso: string | null | undefined): string {
   if (isNaN(d.getTime())) return "";
   const p = (n: number) => (n < 10 ? "0" : "") + n;
   const hm = p(d.getHours()) + ":" + p(d.getMinutes());
-  const same = dayKey(d) === todayKey();
+  const same = dayKey(d) === dayKey(new Date());
   return (same ? "今天 " : d.getMonth() + 1 + " 月 " + d.getDate() + " 日 ") + hm + " 已更新";
 }
 

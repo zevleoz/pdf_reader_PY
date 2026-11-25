@@ -711,8 +711,12 @@ def _staff_booking_location(raw, *, active_only):
     return _resolve_location(raw, active_only=active_only)
 
 
+def _booking_now():
+    return datetime.now(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
+
+
 def _date_window_error(d: date, *, allow_today: bool):
-    today = date.today()
+    today = _booking_now().date()
     first = today if allow_today else today + timedelta(days=1)
     last = today + timedelta(days=BOOKING_MAX_DAYS_AHEAD)
     if d < first or d > last:
@@ -988,10 +992,10 @@ def api_booking_cancel(booking_id):
 @admin_required
 def api_bookings_week():
     """某办公室一周 7 天 x 14 时段。顾问只看到自己学生的姓名，计数含全部。"""
-    from datetime import datetime
     loc_id, bad = _resolve_location(request.args.get("loc"), active_only=False)
     if bad:
         return bad
+    now = _booking_now()
     start_str = request.args.get("start", "")
     if start_str:
         try:
@@ -999,13 +1003,12 @@ def api_bookings_week():
         except ValueError:
             return _err("日期格式错误")
     else:
-        today = date.today()
+        today = now.date()
         start = today - timedelta(days=today.weekday())
     avail = _db.get_availability_range(start, start + timedelta(days=6), loc_id)
     bookings = _db.get_week_bookings(loc_id, start)
     capacities = _db.slot_capacity_range(start, start + timedelta(days=6), loc_id)
     scope = _advisor_scope()
-    now = datetime.now()
     cells = []
     for i in range(7):
         d = start + timedelta(days=i)
@@ -1380,7 +1383,7 @@ def _availability_month(*, public):
     loc_id, bad = _resolve_location(request.args.get("loc"), active_only=True)
     if bad:
         return bad
-    today = date.today()
+    today = _booking_now().date()
     end = today + timedelta(days=BOOKING_MAX_DAYS_AHEAD)
     range_data = _db.get_availability_range(today, end, loc_id)
     booking_counts = _db.get_booking_counts_range(today, end, loc_id)

@@ -25,7 +25,7 @@ function within(index: number, a: number, b: number) {
   return index >= Math.min(a, b) && index <= Math.max(a, b);
 }
 
-export default function AssessorPanel({ onClose }: { onClose: () => void }) {
+export default function AssessorPanel({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
   const [data, setData] = React.useState<Avail | null>(null);
   const [start, setStart] = React.useState(todayKey());
   const [busy, setBusy] = React.useState(false);
@@ -106,6 +106,7 @@ export default function AssessorPanel({ onClose }: { onClose: () => void }) {
     setData({ ...data, availability: { ...data.availability, ...saved } });
     setErr(failed.join("；"));
     setBusy(false);
+    if (Object.keys(saved).length) onSaved?.();
   }
 
   function startRange(event: React.PointerEvent<HTMLDivElement>) {
