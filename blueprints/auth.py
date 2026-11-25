@@ -162,18 +162,14 @@ def api_account_password():
     current = data.get("current_password") or ""
     new = data.get("new_password") or ""
     confirm = data.get("confirm_password") or ""
-    if not current or not new or not confirm:
+    if any(not isinstance(value, str) or not value for value in (current, new, confirm)):
         return jsonify({"ok": False, "error": "请填写当前密码、新密码和确认新密码"}), 400
     if new != confirm:
         return jsonify({"ok": False, "error": "两次输入的新密码不一致"}), 400
-    user = _db.get_user_by_id(session["user_id"])
-    if not user:
-        return jsonify({"ok": False, "error": "用户不存在"}), 404
-    if not _db.verify_user(user["username"], current):
+    user_id = session["user_id"]
+    if not _db.change_own_password(user_id, current, new):
         return jsonify({"ok": False, "error": "当前密码不正确"}), 400
-    if not _db.update_user(user["id"], password=new):
-        return jsonify({"ok": False, "error": "密码未更新，请稍后重试"}), 500
-    app_utils.invalidate_session_user(user["id"])
+    app_utils.invalidate_session_user(user_id)
     return jsonify({
         "ok": True,
         "message": "密码已修改。当前登录状态保持有效，下次登录请使用新密码。",

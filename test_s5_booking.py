@@ -131,9 +131,9 @@ def test_capacity_is_per_office(app, world):
     assert r.status_code == 409
     assert _public(c, d, loc=bj, name="北京的").status_code == 200
     slots = c.get(f"/api/availability?date={d}&loc={sh}").get_json()["slots"]
-    assert next(s for s in slots if s["time_slot"] == "10:00")["booked_count"] == 4
+    assert next(s for s in slots if s["time_slot"] == "10:00")["is_available"] is False
     slots = c.get(f"/api/availability?date={d}&loc={bj}").get_json()["slots"]
-    assert next(s for s in slots if s["time_slot"] == "10:00")["booked_count"] == 1
+    assert next(s for s in slots if s["time_slot"] == "10:00")["is_available"] is True
 
 
 def test_closed_slot_is_per_office(app, admin):
@@ -170,9 +170,10 @@ def test_old_calls_without_loc_use_shanghai(app, admin):
     with Session(_db.engine) as sess:
         assert sess.execute(select(_db.Booking.location_id)).scalar() == sh
     slots = c.get(f"/api/availability?date={d}").get_json()["slots"]
-    assert next(s for s in slots if s["time_slot"] == "10:00")["booked_count"] == 1
+    assert next(s for s in slots if s["time_slot"] == "10:00")["is_available"] is True
     month = c.get("/api/availability/month").get_json()
-    assert month["ok"] and month["bookings"][d.isoformat()]["10:00"] == 1
+    assert month["ok"] and month["open_days"][d.isoformat()] is True
+    assert not {"capacity", "bookings", "data"}.intersection(month)
     # 旧的 POST /api/availability 不带 location_id → 上海
     r = admin.post("/api/availability", json={"date": d.isoformat(),
                    "slots": [{"time_slot": "11:00", "is_available": False}]})
@@ -250,7 +251,7 @@ def test_staff_booking_requires_login_and_undo_by_cancel(app, admin, world):
                                                    "new_name": "撤销"}).get_json()["booking_id"]
     assert admin.post(f"/api/booking/{bid}/cancel").get_json()["ok"]
     slots = app.test_client().get(f"/api/availability?date={d}&loc={sh}").get_json()["slots"]
-    assert next(s for s in slots if s["time_slot"] == "10:00")["booked_count"] == 0
+    assert next(s for s in slots if s["time_slot"] == "10:00")["is_available"] is True
 
 
 # ── 批量开关 ──────────────────────────────────────────────────

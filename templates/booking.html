@@ -221,7 +221,6 @@
   <script>
     (function () {
       var TIMES = ['09:00','09:30','10:00','10:30','11:00','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
-      var CAP = 4;
       var WD = ['周日','周一','周二','周三','周四','周五','周六'];
       var DOW = ['一','二','三','四','五','六','日'];
 
@@ -276,16 +275,7 @@
         return getJSON('/api/availability/month?loc=' + encodeURIComponent(S.locId)).then(function (r) {
           S.openDay = {};
           if (!r.ok) { return; }
-          var data = r.data.data || {}, booked = r.data.bookings || {}, caps = r.data.capacity || {};
-          DAY_KEYS.forEach(function (k) {
-            var rec = {};
-            (data[k] || []).forEach(function (e) { rec[e.time_slot] = e.is_available; });
-            S.openDay[k] = TIMES.some(function (t) {
-              var open = rec[t] === undefined ? true : rec[t];
-              var cap = (caps[k] && caps[k][t] !== undefined) ? caps[k][t] : CAP;
-              return open && ((booked[k] || {})[t] || 0) < cap;
-            });
-          });
+          S.openDay = r.data.open_days || {};
         }).catch(function () { S.openDay = {}; });
       }
 
@@ -359,8 +349,8 @@
         if (S.slots === null) { timeBox.innerHTML = '<p class="f-none">加载中…</p>'; return; }
         if (!S.slots.length) { timeBox.innerHTML = '<p class="f-none">当天没有可显示的时段。</p>'; return; }
         timeBox.innerHTML = S.slots.map(function (s) {
-          var full = s.is_open && s.booked_count >= (s.capacity || CAP);
-          var open = s.is_open && !full;
+          var full = s.is_open && !s.is_available;
+          var open = s.is_available;
           var note = full ? '，已满' : (!s.is_open ? '，未开放' : '');
           return '<button type="button" class="f-time-btn" data-time="' + esc(s.time_slot) + '"' +
             ' aria-label="' + esc(s.time_slot + note) + '"' +

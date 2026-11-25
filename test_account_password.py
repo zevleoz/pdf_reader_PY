@@ -167,3 +167,28 @@ def test_admin_and_viewer_can_change_own_password(app, world):
         resp = _change(client, current=old, new="brand-new", confirm="brand-new")
         assert resp.status_code == 200
         assert _db.verify_user(username, "brand-new") is not None
+
+
+
+def test_concurrent_password_changes_accept_the_same_current_value_once(app, world):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    barrier = Barrier(2)
+
+    def attempt(replacement):
+        client = _client(app, world["teacher"], "advisor")
+        barrier.wait(timeout=5)
+        return _change(client, current="old-pass", new=replacement,
+                       confirm=replacement).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(attempt, ("replacement-one", "replacement-two")))
+    assert sorted(results) == [200, 400]
+    assert _db.verify_user("teacher", "old-pass") is None
+
+
+def test_password_fields_must_be_strings(app, world):
+    client = _client(app, world["teacher"], "advisor")
+    assert _change(client, current="old-pass", new=1234, confirm=1234).status_code == 400
+    assert _db.verify_user("teacher", "old-pass") is not None

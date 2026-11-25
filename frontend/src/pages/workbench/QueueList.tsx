@@ -23,11 +23,11 @@ const KIND_LABEL: Record<QueueItem["kind"], string> = {
 
 /** 左栏按步骤分段；空组隐藏。问卷反馈（flag）排在同组 confirm 之前。 */
 const GROUPS: { key: string; label: string; kinds: QueueItem["kind"][] }[] = [
-  { key: "booking", label: "待预约", kinds: ["booking"] },
   { key: "questionnaires", label: "补充问卷", kinds: ["flag", "confirm"] },
-  { key: "first_touch", label: "First Touch", kinds: ["first_touch"] },
   { key: "six_am", label: "6AM", kinds: ["six_am"] },
+  { key: "first_touch", label: "First Touch", kinds: ["first_touch"] },
   { key: "m1", label: "心有灵析", kinds: ["m1"] },
+  { key: "booking", label: "待预约", kinds: ["booking"] },
 ];
 
 function GroupTitle({ label, count }: { label: string; count: number }) {

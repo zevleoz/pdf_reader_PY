@@ -24,6 +24,7 @@ export type Upcoming = {
   appointment_time: string;
   advisor_name: string;
   source: string;
+  can_assign: boolean;
 };
 export type PendingAssignment = {
   booking_id: number;

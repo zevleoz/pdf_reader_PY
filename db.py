@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import json
 import math
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
@@ -1158,11 +1159,11 @@ class SlotUnavailable(Exception):
 
 
 def _lock_booking_location(sess: Session, location_id: int) -> None:
-    """Serialize slot writes for this office with all other booking entry points."""
+    """Serialize scheduling writes since an assessor can cover multiple offices."""
     if sess.bind.dialect.name == "sqlite":
         sess.connection().exec_driver_sql("BEGIN IMMEDIATE")
     else:
-        sess.execute(select(Location.id).where(Location.id == location_id).with_for_update())
+        sess.execute(select(Location.id).order_by(Location.id).with_for_update()).all()
 
 
 def _lock_and_check_slot(sess: Session, location_id: Optional[int],
@@ -1184,11 +1185,8 @@ def _check_slot(sess: Session, location_id: int, appt_time: datetime, capacity: 
     booked = sess.execute(select(func.count(Booking.id)).where(
         Booking.location_id == location_id, Booking.status != "cancelled",
         Booking.appointment_time == appt_time)).scalar() or 0
-    # Task H：该办公室配置了测评师时，每个可用老师只贡献一份容量；未配置的老办公室沿用原容量。
-    configured = _authorized_assessor_ids(sess, int(location_id))
-    effective = capacity
-    if configured:
-        effective = min(capacity, len(_assessor_ids_available(sess, int(location_id), appt_time)))
+    schedule = _staffing_snapshot(sess, d, d)
+    effective = _slot_capacity(schedule, location_id, appt_time, capacity)
     if booked >= effective:
         raise SlotUnavailable("full", booked, effective)
 
@@ -1926,59 +1924,114 @@ def _assessor_ids_available(sess: Session, location_id: int, appt: datetime) -> 
     return out
 
 
-def slot_staffing(location_id: int, appt: datetime) -> int:
-    """该办公室该时段可承接的测评师数量；未配置测评师返回 -1。"""
-    with Session(engine) as sess:
-        if not _authorized_assessor_ids(sess, int(location_id)):
-            return -1
-        return len(_assessor_ids_available(sess, int(location_id), appt))
+def _staffing_snapshot(sess: Session, start: date, end: date):
+    """Load cross-office staff, explicit exceptions and occupancy once for a date range."""
+    modes = {(uid, office): mode for uid, office, mode in sess.execute(select(
+        AssessorOfficeSetting.assessor_id, AssessorOfficeSetting.office_id, AssessorOfficeSetting.mode
+    ))}
+    staff = defaultdict(list)
+    for user, office in sess.execute(select(UserOffice.user_id, UserOffice.office_id).join(
+        User, User.id == UserOffice.user_id
+    ).where(User.is_assessor == 1, User.is_active == 1, User.role.in_(("admin", "advisor")))):
+        staff[office].append(user)
+    for _, office in modes:
+        # A staffed office stays staffed when its last authorization is revoked.
+        staff.setdefault(office, [])
+    exceptions = {(user, office, day, slot): bool(open_) for user, office, day, slot, open_
+                  in sess.execute(select(
+        AssessorAvailability.assessor_id, AssessorAvailability.location_id, AssessorAvailability.date,
+        AssessorAvailability.time_slot, AssessorAvailability.is_available,
+    ).where(AssessorAvailability.date.between(start, end)))}
+    bookings = defaultdict(list)
+    for uid, office, at, assessor in sess.execute(select(
+        Booking.id, Booking.location_id, Booking.appointment_time, Booking.assessor_id,
+    ).where(Booking.appointment_time >= datetime.combine(start, datetime.min.time()),
+            Booking.appointment_time < datetime.combine(end + timedelta(days=1), datetime.min.time()),
+            Booking.status != "cancelled")):
+        bookings[at].append((uid, office, assessor))
+    return modes, staff, exceptions, bookings
+
+
+def _slot_options(schedule, at):
+    modes, staff, exceptions, _ = schedule
+    day, time_slot = at.date(), at.strftime("%H:%M")
+    return {
+        office: [user for user in users if exceptions.get(
+            (user, office, day, time_slot), modes.get((user, office)) == "legacy")]
+        for office, users in staff.items()
+    }
+
+
+def _staffing_match(options, bookings):
+    """Find a maximum assignment for unassigned bookings while fixed allocations stay pinned."""
+    busy = {assessor for _, _, assessor in bookings if assessor is not None}
+    matched = {}
+
+    def place(office, visited):
+        for assessor in options[office]:
+            if assessor in busy or assessor in visited:
+                continue
+            visited.add(assessor)
+            if assessor not in matched or place(matched[assessor], visited):
+                matched[assessor] = office
+                return True
+        return False
+
+    for _, office, assessor in bookings:
+        if assessor is None and office in options:
+            place(office, set())
+    return matched, place
+
+
+def _slot_capacity(schedule, location_id, at, hard_cap):
+    if location_id not in schedule[1]:
+        return hard_cap
+    bookings = schedule[3].get(at, ())
+    booked = sum(office == location_id for _, office, _ in bookings)
+    _, place = _staffing_match(_slot_options(schedule, at), bookings)
+    capacity = min(booked, hard_cap)
+    while capacity < hard_cap and place(location_id, set()):
+        capacity += 1
+    return capacity
 
 
 def effective_slot_capacity(location_id: Optional[int], appt: datetime,
                             hard_cap: Optional[int] = None) -> int:
-    """公开时段容量：未配置测评师的老办公室沿用 4；配置后每个测评师只算一份容量。"""
     cap = int(hard_cap if hard_cap is not None else SLOT_CAPACITY)
     if location_id is None:
         return cap
-    staffed = slot_staffing(int(location_id), appt)
-    return cap if staffed < 0 else min(cap, staffed)
+    with Session(engine) as sess:
+        return _slot_capacity(_staffing_snapshot(sess, appt.date(), appt.date()), location_id, appt, cap)
 
 
 def slot_capacity_range(start: date, end: date, location_id: int,
                         hard_cap: Optional[int] = None) -> Dict[str, Dict[str, int]]:
-    """按月返回每个日期/时段的有效容量；办公室未配置测评师时返回空 map（沿用原容量）。"""
+    """Capacity including pending reservations that compete for assessors in other offices."""
     cap = int(hard_cap if hard_cap is not None else SLOT_CAPACITY)
     with Session(engine) as sess:
-        ids = _authorized_assessor_ids(sess, int(location_id))
-        if not ids:
-            return {}
-        modes = {}
-        for aid in ids:
-            setting = sess.get(AssessorOfficeSetting, (aid, int(location_id)))
-            modes[aid] = bool(setting and setting.mode == "legacy")
-        rows = sess.execute(select(AssessorAvailability).where(
-            AssessorAvailability.assessor_id.in_(ids),
-            AssessorAvailability.location_id == int(location_id),
-            AssessorAvailability.date >= start,
-            AssessorAvailability.date <= end)).scalars().all()
-        record = {}
-        for r in rows:
-            record[(r.assessor_id, r.date.isoformat(), r.time_slot)] = bool(r.is_available)
-        out: Dict[str, Dict[str, int]] = {}
-        day = start
-        while day <= end:
-            iso = day.isoformat()
-            slot_map = {}
-            for slot in TIME_SLOTS:
-                available = 0
-                for aid in ids:
-                    state = record.get((aid, iso, slot))
-                    if state is True or (state is None and modes.get(aid)):
-                        available += 1
-                slot_map[slot] = min(cap, available)
-            out[iso] = slot_map
-            day += timedelta(days=1)
-        return out
+        schedule = _staffing_snapshot(sess, start, end)
+    if location_id not in schedule[1]:
+        return {}
+    out = {}
+    for offset in range((end - start).days + 1):
+        day = start + timedelta(days=offset)
+        out[day.isoformat()] = {
+            slot: _slot_capacity(schedule, location_id,
+                                 datetime.fromisoformat(f"{day}T{slot}"), cap)
+            for slot in TIME_SLOTS
+        }
+    return out
+
+
+def _can_pin_assessor(options, bookings, booking_id, assessor_id):
+    if any(other != booking_id and chosen == assessor_id for other, _, chosen in bookings):
+        return False
+    before, _ = _staffing_match(options, bookings)
+    updated = [(other, office, assessor_id if other == booking_id else chosen)
+               for other, office, chosen in bookings]
+    after, _ = _staffing_match(options, updated)
+    was_unassigned = any(other == booking_id and chosen is None for other, _, chosen in bookings)
+    return len(after) + was_unassigned >= len(before)
 
 
 def get_slot_assessors(location_id: int, appt: datetime) -> List[Dict[str, Any]]:
@@ -2028,6 +2081,8 @@ def get_assessor_candidates(booking: Dict[str, Any]) -> List[Dict[str, Any]]:
                 Booking.status != "cancelled",
                 Booking.appointment_time == appt,
                 Booking.id != booking["id"])).all()}
+        capacity = _staffing_snapshot(sess, day, day)
+        options, bookings = _slot_options(capacity, appt), capacity[3].get(appt, ())
         out = []
         for u in users:
             uid = int(u.id)
@@ -2038,7 +2093,7 @@ def get_assessor_candidates(booking: Dict[str, Any]) -> List[Dict[str, Any]]:
                     continue
             elif uid not in legacy_default:
                 continue
-            if uid in busy:
+            if uid in busy or not _can_pin_assessor(options, bookings, booking["id"], uid):
                 continue
             out.append({
                 "id": uid,
@@ -2054,6 +2109,7 @@ def get_assessor_candidates(booking: Dict[str, Any]) -> List[Dict[str, Any]]:
 def assign_booking_assessor(booking_id: int, assessor_id: int) -> None:
     """原子分配测评师。校验办公室授权、可约、未撞单；失败抛 ValueError。"""
     with Session(engine) as sess:
+        _lock_booking_location(sess, 0)
         booking = sess.get(Booking, int(booking_id))
         if not booking or booking.status == "cancelled":
             raise ValueError("预约不存在或已取消")
@@ -2086,6 +2142,11 @@ def assign_booking_assessor(booking_id: int, assessor_id: int) -> None:
             Booking.id != int(booking_id))).first()
         if conflict:
             raise ValueError("该测评师在此时间已有其他预约")
+        capacity = _staffing_snapshot(sess, day, day)
+        appt = booking.appointment_time
+        if not _can_pin_assessor(_slot_options(capacity, appt), capacity[3].get(appt, ()),
+                                 booking.id, int(assessor_id)):
+            raise ValueError("该测评师已有其他预约占位，请选择其他老师")
         booking.assessor_id = int(assessor_id)
         booking.assigned_at = datetime.utcnow()
         try:
@@ -2137,6 +2198,13 @@ def set_assessor_availability(assessor_id: int, location_id: Optional[int], day:
     if location_id in (None, ""):
         raise ValueError("请选择办公室")
     with Session(engine) as sess:
+        _lock_booking_location(sess, int(location_id))
+        assessor = sess.get(User, int(assessor_id))
+        office = sess.get(Location, int(location_id))
+        if not assessor or not assessor.is_active or not assessor.is_assessor or assessor.role not in ("admin", "advisor"):
+            raise PermissionError("当前账号不是测评师")
+        if not office or not office.active or not sess.get(UserOffice, (assessor.id, office.id)):
+            raise PermissionError("无权使用该办公室")
         for item in slots:
             slot = str(item.get("time_slot") or "")
             if slot not in TIME_SLOTS:
@@ -3655,6 +3723,7 @@ def _sync_user_offices(sess: Session, user_id: int, office_ids, primary_id=None)
 def set_user_offices(user_id: int, office_ids, primary_id=None) -> List[int]:
     """公开入口：设置某账号的办公室授权，并同步排班起点标记。"""
     with Session(engine) as sess:
+        _lock_booking_location(sess, 0)
         user = sess.get(User, int(user_id))
         if not user:
             raise ValueError("用户不存在")
@@ -3868,6 +3937,8 @@ def update_user(user_id: int, password: Optional[str] = None,
     if not values and not account_touched and m1_admin is None and not offices_touched:
         return False
     with Session(engine) as sess:
+        if offices_touched or role is not None or is_assessor is not None or is_active is not None:
+            _lock_booking_location(sess, 0)
         if account_touched:
             row = sess.get(User, int(user_id))
             if not row:
@@ -3961,6 +4032,23 @@ def delete_user(user_id: int) -> bool:
         result = sess.execute(delete(User).where(User.id == int(user_id)))
         sess.commit()
         return result.rowcount > 0
+
+
+def change_own_password(user_id: int, current: str, replacement: str) -> bool:
+    """Compare and replace the active account's existing password hash."""
+    from werkzeug.security import check_password_hash, generate_password_hash
+
+    with Session(engine) as sess:
+        previous = sess.scalar(select(User.password_hash).where(
+            User.id == user_id, User.is_active == 1, User.role.in_(("admin", "advisor", "viewer"))))
+        if not previous or not check_password_hash(previous, current):
+            return False
+        changed = sess.execute(update(User).where(
+            User.id == user_id, User.is_active == 1, User.password_hash == previous,
+            User.role.in_(("admin", "advisor", "viewer"))
+        ).values(password_hash=generate_password_hash(replacement))).rowcount
+        sess.commit()
+        return changed == 1
 
 
 def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:

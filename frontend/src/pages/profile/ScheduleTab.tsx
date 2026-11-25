@@ -18,6 +18,7 @@ type Booking = {
   created_by_name: string;
   assessor_id: number | null;
   assessor_name: string;
+  can_assign: boolean;
 };
 type ScheduleResp = {
   bookings: Booking[];
@@ -156,7 +157,7 @@ export default function ScheduleTab() {
               <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px]">
                 <span className="text-mute">测评师</span>
                 <b className={b.assessor_name ? "" : "text-mute"}>{b.assessor_name || "未分配"}</b>
-                {body.can_assign && b.status !== "cancelled" ? (
+                {b.can_assign && b.status !== "cancelled" ? (
                   <Button
                     variant="outline"
                     size="sm"

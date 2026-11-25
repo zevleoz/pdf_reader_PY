@@ -27,7 +27,7 @@ def world(tmp_path, monkeypatch):
     locs = {l["name"]: l["id"] for l in _db.list_locations()}
     sh, bj, sz = locs["上海"], locs["北京"], locs["深圳"]
     admin = _db.create_user("admin", "pw", "admin", display_name="总管",
-                            is_assessor=1, office_id=sh)
+                            is_assessor=1, office_ids=[sh, bj, sz])
     chen = _db.create_user("chen", "pw", "advisor", display_name="陈老师",
                            advisor_name="陈老师", is_assessor=1,
                            office_ids=[sh, sz])
@@ -108,11 +108,15 @@ def test_candidates_follow_office_authorization_and_immediate_conflict(world):
     assert world["chen"] in candidate_ids(client, sz_booking)
 
     sh_booking = staff_booking(client, world["sh"], "上海同学").get_json()["booking_id"]
-    assigned = client.post(f"/api/booking/{sh_booking}/assign",
+    # Chen is currently the only way to honor the Shenzhen booking.
+    assert world["chen"] not in candidate_ids(client, sh_booking)
+    assert client.post(f"/api/booking/{sh_booking}/assign",
+                       json={"assessor_id": world["chen"]}).status_code == 409
+    assigned = client.post(f"/api/booking/{sz_booking}/assign",
                            json={"assessor_id": world["chen"]})
     assert assigned.status_code == 200, assigned.get_json()
-    # 同一时刻不能既在上海又在深圳：深圳候选即时移除陈老师
-    assert world["chen"] not in candidate_ids(client, sz_booking)
+    assert world["chen"] not in candidate_ids(client, sh_booking)
+    assert world["zhou"] in candidate_ids(client, sh_booking)
 
 
 def test_assessor_cannot_edit_unauthorized_office(world):
@@ -153,7 +157,8 @@ def test_public_capacity_counts_named_staff_without_leaking_names(world):
     day = date.today() + timedelta(days=1)
     public = client.get(f"/api/availability?date={day.isoformat()}&loc={world['bj']}").get_json()
     slot = next(s for s in public["slots"] if s["time_slot"] == "10:00")
-    assert slot["capacity"] == 1
+    assert slot == {"time_slot": "10:00", "is_available": True, "is_open": True}
+    assert set(public) == {"ok", "date", "location_id", "slots"}
     body = str(public)
     assert "北京老师" not in body and "assessor" not in body
 
@@ -180,9 +185,9 @@ def test_revoke_office_lists_future_assignments_and_blocks_new_ones(world):
     assert _db.list_user_office_ids(world["chen"]) == [world["sh"]]
     assert any(item["booking_id"] == booking for item in body["reassignments"])
 
-    new_booking = staff_booking(client, world["sz"], "撤权后同学", slot="13:00").get_json()["booking_id"]
-    assert world["chen"] not in candidate_ids(client, new_booking)
-    denied = client.post(f"/api/booking/{new_booking}/assign", json={"assessor_id": world["chen"]})
+    assert staff_booking(client, world["sz"], "撤权后同学", slot="13:00").status_code == 409
+    assert world["chen"] not in candidate_ids(client, booking)
+    denied = client.post(f"/api/booking/{booking}/assign", json={"assessor_id": world["chen"]})
     assert denied.status_code == 400
     # 历史及已约记录保留，只是不再新增
     kept = _db.get_booking_detail(booking)
@@ -273,3 +278,86 @@ def test_migration_backfills_legacy_single_office_idempotently(tmp_path, monkeyp
         index_sql = conn.execute(_db.text(
             "SELECT sql FROM sqlite_master WHERE name='ux_assessor_availability_slot'")).scalar()
     assert "location_id" in index_sql
+
+
+def test_public_and_partner_race_cannot_double_count_a_teacher(world, monkeypatch):
+    import hashlib
+    import json
+
+    from blueprints.partner_reservations import bp
+
+    token = "F" * 43
+    monkeypatch.delenv("Y4_PARTNERS_FILE", raising=False)
+    monkeypatch.setenv("Y4_PARTNERS_JSON", json.dumps([{
+        "id": "school-test", "enabled": True, "scopes": ["booking"],
+        "credentials": [{"sha256": hashlib.sha256(token.encode()).hexdigest(), "scopes": ["booking"]}],
+    }]))
+    world["app"].register_blueprint(bp)
+    day = date.today() + timedelta(days=1)
+    for assessor in (world["admin"], world["zhou"]):
+        _db.set_assessor_availability(assessor, world["sh"], day, [
+            {"time_slot": "10:30", "is_available": False},
+        ])
+    _db.set_assessor_availability(world["chen"], world["sz"], day, [
+        {"time_slot": "10:30", "is_available": True},
+    ])
+    barrier = Barrier(2)
+
+    def public_booking():
+        barrier.wait(timeout=5)
+        return world["app"].test_client().post("/api/booking", json={
+            "student_name": "公开虚构学生", "location_id": world["sh"],
+            "appointment_time": f"{day}T10:30:00",
+        })
+
+    def partner_booking():
+        barrier.wait(timeout=5)
+        return world["app"].test_client().post("/api/partners/v1/y4/reservations",
+            base_url="https://example.test", headers={"Authorization": "Bearer " + token}, json={
+                "student_name": "合作虚构学生", "location_id": world["sz"],
+                "external_reservation_id": "fictional-reservation", "external_student_id": "fictional-student",
+                "appointment_time": f"{day}T10:30:00+08:00",
+            })
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        requests = [pool.submit(public_booking), pool.submit(partner_booking)]
+        replies = [reply.result(timeout=10) for reply in requests]
+    assert sum(response.status_code == 409 for response in replies) == 1, [r.json for r in replies]
+    assert sum(response.status_code in (200, 201) for response in replies) == 1
+    assert replies[0].status_code != 409 or "/" not in replies[0].json["error"]
+
+
+def test_scoped_admin_cannot_edit_or_assign_outside_office(world):
+    client = world["app"].test_client()
+    login(client, world["admin"])
+    booking = staff_booking(client, world["bj"], "虚构测试档案").json["booking_id"]
+    scoped_admin = _db.create_user("one-office-admin", "synthetic", "admin", office_id=world["sh"])
+    login(client, scoped_admin)
+    assert client.get(f"/api/booking/{booking}/assessor-candidates").status_code == 403
+    assert client.post(f"/api/booking/{booking}/assign", json={"assessor_id": world["a_bj"]}).status_code == 403
+    assert client.post("/api/availability/bulk", json={"location_id": world["bj"], "changes": []}).status_code == 403
+
+
+def test_multi_office_booking_and_invite_require_explicit_office(world):
+    admin = world["app"].test_client()
+    login(admin, world["admin"])
+    assert admin.post("/api/bookings/invite", json={}).status_code == 400
+    assert staff_booking(admin, None, "未选办公室").status_code == 400
+    assert admin.post("/api/bookings/invite", json={"location_id": world["sh"]}).status_code == 200
+
+    teacher = world["app"].test_client()
+    login(teacher, world["a_bj"], "advisor")
+    invite = teacher.post("/api/bookings/invite", json={}).get_json()
+    assert f"loc={world['bj']}" in invite["url"]
+
+
+def test_public_offset_time_books_the_same_beijing_slot(world):
+    public = world["app"].test_client()
+    tomorrow = date.today() + timedelta(days=1)
+    booked = public.post("/api/booking", json={
+        "location_id": world["sh"], "student_name": "时区核对",
+        "appointment_time": f"{tomorrow}T02:00:00Z",
+    })
+    assert booked.status_code == 200
+    booking = _db.get_booking_detail(booked.get_json()["booking_id"])
+    assert booking["appointment_time"] == f"{tomorrow}T10:00:00"

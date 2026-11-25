@@ -41,6 +41,7 @@ def get_availability(location_id: int, day: date) -> dict:
     availability = {row["time_slot"]: row["is_available"]
                     for row in db.get_availability(day, location_id)}
     counts = db.get_slot_booking_counts(day, location_id)
+    capacities = db.slot_capacity_range(day, day, location_id).get(day.isoformat(), {})
     return {
         "location_id": location_id,
         "date": day.isoformat(),
@@ -49,8 +50,7 @@ def get_availability(location_id: int, day: date) -> dict:
             {
                 "appointment_time": _local_iso(datetime.combine(day, time.fromisoformat(slot))),
                 "is_available": availability.get(slot, True) and counts.get(slot, 0) <
-                db.effective_slot_capacity(
-                    location_id, datetime.combine(day, time.fromisoformat(slot)), db.SLOT_CAPACITY),
+                capacities.get(slot, db.SLOT_CAPACITY),
             }
             for slot in db.TIME_SLOTS
         ],

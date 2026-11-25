@@ -372,10 +372,15 @@ def api_profiling_student_schedule(code):
     if not st or (scope is not None and (st.get("advisor_name") or "") != scope):
         return jsonify({"ok": False, "error": "学生不存在"}), 404
     acct = _qs.get_student_account(st["id"])
+    bookings = _db.get_student_bookings(st["id"])
+    can_assign = _wb_can_assign()
+    offices = _wb_office_ids() if can_assign else []
+    for booking in bookings:
+        booking["can_assign"] = can_assign and (not offices or booking["location_id"] in offices)
     return jsonify({
         "ok": True,
-        "bookings": _db.get_student_bookings(st["id"]),
-        "can_assign": session.get("role") == "admin",
+        "bookings": bookings,
+        "can_assign": can_assign,
         "account": {
             "exists": bool(acct),
             "username": (acct or {}).get("username") or "",
@@ -554,11 +559,14 @@ def _wb_upcoming(mode, bound, scope):
     elif scope is not None:
         stmt = stmt.where(_db.Booking.student_id.isnot(None),
                           _db.Student.advisor_name == scope)
+    can_assign = _wb_can_assign()
+    offices = _wb_office_ids() if can_assign else []
     with _db.Session(_db.engine) as sess:
         return [{"booking_id": b.id, "student_name": b.student_name,
                  "student_code": code or None,
                  "appointment_time": b.appointment_time.isoformat(),
-                 "advisor_name": b.advisor_name or "", "source": b.source or ""}
+                 "advisor_name": b.advisor_name or "", "source": b.source or "",
+                 "can_assign": can_assign and (not offices or b.location_id in offices)}
                 for b, code in sess.execute(stmt).all()]
 
 
@@ -566,30 +574,13 @@ _WB_ASSIGN_LIMIT = 20
 
 
 def _wb_can_assign():
-    """是否可处理「待分配测评师」。
-
-    沿用档案预约接口现行判断（``api_profiling_student_schedule`` 的 ``can_assign``）。
-    多办公室与具名排班落地后，这里改为消费统一的「可以分配此预约」服务端判断。
-    """
     return session.get("role") == "admin"
 
 
 def _wb_office_ids():
-    """账号被授权的办公室；多办公室权限落地后直接消费其服务端结果。"""
     import db as _db
 
-    getter = getattr(_db, "list_user_office_ids", None)
-    uid = session.get("user_id")
-    if getter and uid:
-        try:
-            ids = [int(x) for x in getter(uid) if x not in (None, "")]
-        except (TypeError, ValueError):
-            ids = []
-        if ids:
-            return ids
-    office_id = session.get("office_id")
-    return [int(office_id)] if office_id not in (None, "") else []
-
+    return _db.list_user_office_ids(session["user_id"])
 
 def _wb_pending_assignments(mode, bound, scope):
     """待分配测评师：有效、待服务且尚未分配的预约，按预约时间从近到远。

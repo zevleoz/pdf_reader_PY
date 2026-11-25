@@ -275,7 +275,7 @@
     async function loadAvailability() {
       const content = document.getElementById('availabilityContent');
       try {
-        const resp = await fetch('/api/availability/month');
+        const resp = await fetch('/api/bookings/availability/month');
         const data = await resp.json();
         availData = data.data || {};
         bookingData = data.bookings || {};
