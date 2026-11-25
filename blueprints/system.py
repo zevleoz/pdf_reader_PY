@@ -1,7 +1,8 @@
 """系统蓝图：公开 API 文档页 + 用户管理（仅 admin）。"""
 from __future__ import annotations
 
-from flask import Blueprint, abort, jsonify, render_template, request, session
+from flask import (Blueprint, abort, jsonify, redirect, render_template,
+                   request, session)
 
 import db as _db
 import app_utils
@@ -42,10 +43,12 @@ def system_users_page():
 
 
 @bp.route("/system/settings")
-@role_required('admin')
+@app_utils.login_required
 def system_settings_page():
-    """设置模块打桩页（B 包 5.4）：避免侧边栏「系统」组出现死链。"""
-    return render_template("system_settings.html", nav_active="system.settings")
+    """旧「设置」入口：内部账号统一到个人设置（账号与密码）页。"""
+    if session.get("role") == "front":
+        abort(403)
+    return redirect("/app/settings")
 
 
 @bp.route("/api/users")

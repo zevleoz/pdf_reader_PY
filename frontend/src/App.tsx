@@ -12,6 +12,7 @@ import Booking from "@/pages/Booking";
 import Handoff from "@/pages/Handoff";
 import QuestionnaireBank from "@/pages/QuestionnaireBank";
 import Users from "@/pages/Users";
+import Settings from "@/pages/Settings";
 import Minutes from "@/pages/Minutes";
 import FirstTouch from "@/pages/first-touch/FirstTouch";
 import NotFound from "@/pages/NotFound";
@@ -57,6 +58,7 @@ export default function App() {
                 <Route path="first-touch/students/:sid" element={<FirstTouch />} />
                 <Route path="questionnaire-bank" element={<QuestionnaireBank />} />
                 <Route path="users" element={<Users />} />
+                <Route path="settings" element={<Settings />} />
                 <Route path="kit" element={<Kit />} />
                 <Route path="*" element={<NotFound />} />
               </Route>

@@ -1,6 +1,6 @@
 import * as React from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { LogOut, type LucideIcon } from "lucide-react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { LogOut, Settings, type LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { logout, useBoot } from "@/lib/boot";
@@ -163,6 +163,12 @@ export default function Rail() {
       </nav>
 
       <div className="mt-auto">
+        {boot.user.role !== "front" ? (
+          <Link to="/settings" className={rowClass("old", here === "/app/settings")}>
+            <Settings size={16} className="shrink-0" aria-hidden />
+            <span>个人设置</span>
+          </Link>
+        ) : null}
         <div className="flex items-center gap-2 px-1.5 pt-2.5 text-[12.5px] leading-tight">
           <div className="flex h-7 w-7 items-center justify-center bg-shell-foreground text-shell font-bold">
             {boot.user.display_name.slice(0, 1)}
