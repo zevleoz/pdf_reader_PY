@@ -13,6 +13,7 @@ viewer 角色只读开放：页面根节点带 data-role，JS 隐藏所有写操
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -522,11 +523,36 @@ def _wb_now():
     return datetime.now(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
 
 
+def _primary_admin_user_id():
+    """主管理员账号标识（显式配置，与办公室默认测评师配置相互独立）。
+
+    读取 ``WORKBENCH_PRIMARY_ADMIN_USER_ID``；用作工作台首次进入的默认范围判断，
+    不使用显示名、用户名或角色推断。
+    """
+    raw = (os.environ.get("WORKBENCH_PRIMARY_ADMIN_USER_ID") or "").strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
+
+
+def _is_primary_admin():
+    uid = session.get("user_id")
+    primary = _primary_admin_user_id()
+    try:
+        return bool(primary and uid and int(uid) == primary)
+    except (TypeError, ValueError):
+        return False
+
+
 def _workbench_mode():
     """工作台范围：``mine``（账号绑定的顾问名下）或 ``all``（账号可访问范围）。
 
-    先按账号权限确定可选范围，再按 mode 收窄：仅有名下学生权限的账号请求 all
-    也不会扩大范围；未绑定顾问的账号默认 all，且不显示个人切换。
+    显式点选的 mode 优先于默认值。默认值：主管理员账号（显式配置的稳定用户 ID）
+    即使绑定了顾问姓名也进入 ``all``；其他绑定顾问的账号进入 ``mine``；未绑定顾问
+    的账号进入 ``all``。仅有名下学生权限的账号请求 all 也不会扩大范围。
     """
     from flask import request
 
@@ -537,8 +563,10 @@ def _workbench_mode():
         mode = "all"
     elif requested == "mine" and bound:
         mode = "mine"
+    elif bound and not (can_all and _is_primary_admin()):
+        mode = "mine"
     else:
-        mode = "mine" if bound else "all"
+        mode = "all"
     return mode, bound, can_all
 
 

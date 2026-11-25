@@ -47,6 +47,7 @@
 | `FT_LLM_API_KEY` | 选 | First Touch（Growth Talk）AI 调用专用 key；未设置时依次回退 `DASHSCOPE_API_KEY`、`extract.py` 内置默认 key。全部缺失时分析作业报「AI 服务未配置（DASHSCOPE_API_KEY），请联系管理员」 |
 | `FT_LLM_BASE_URL` | 选 | OpenAI 兼容端点，缺省 `https://dashscope.aliyuncs.com/compatible-mode/v1`；调用路径为 `{BASE_URL}/chat/completions` |
 | `FT_LLM_MODEL` | 选 | First Touch 文本 AI 模型，缺省 `qwen-plus` |
+| `WORKBENCH_PRIMARY_ADMIN_USER_ID` | 选 | 主管理员账号的稳定 `users.id`。该账号即使绑定顾问姓名，工作台首次进入也默认「全部事项」；JSN 及其他绑定顾问的账号仍默认「我的学生」。留空不启用 |
 
 > 已移除：`FIRST_TOUCH_DIRECTORY_TOKEN`、`CRM_INTEGRATION_TOKEN` 与 `YUGUO_*`
 > 不再被任何代码读取（Yuguo/CRM 集成已下线）；若 `.env.production` 仍保留这些值可安全清除。

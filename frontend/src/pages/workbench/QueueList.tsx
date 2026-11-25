@@ -30,9 +30,9 @@ const GROUPS: { key: string; label: string; kinds: QueueItem["kind"][] }[] = [
   { key: "booking", label: "待预约", kinds: ["booking"] },
 ];
 
-function GroupTitle({ label, count }: { label: string; count: number }) {
+function GroupTitle({ label, count, first }: { label: string; count: number; first: boolean }) {
   return (
-    <h3 className="mt-5 flex items-baseline gap-1.5 border-t-2 border-rule pt-[9px] text-sm font-bold first:mt-0">
+    <h3 className={cn("flex items-baseline gap-1.5 text-sm font-bold", !first && "mt-7")}>
       {label}
       <span className="text-[12.5px] font-medium text-mute">· {count}</span>
     </h3>
@@ -56,7 +56,7 @@ export function AssignList({ rows }: { rows: PendingAssignment[] }) {
         return (
           <div
             key={r.booking_id}
-            className="grid items-center gap-x-3 gap-y-1 border-b border-line py-[11px] md:grid-cols-[minmax(0,1fr)_auto_auto]"
+            className="grid items-center gap-x-3 gap-y-1 py-2.5 md:grid-cols-[minmax(0,1fr)_auto_auto]"
           >
             <div className="min-w-0">
               {profile ? (
@@ -249,23 +249,28 @@ export default function QueueList({
     }
   }
 
-  function renderRow(item: QueueItem) {
+  function renderRow(item: QueueItem, groupLabel: string) {
     const alert = item.kind === "flag";
+    const subLabel = KIND_LABEL[item.kind] === groupLabel ? null : KIND_LABEL[item.kind];
     return (
       <div
         key={itemKey(item)}
         className={cn(
-          "grid items-center gap-x-3 gap-y-1 border-b border-line py-[11px] md:grid-cols-[92px_minmax(0,1fr)_auto]",
+          "grid items-center gap-x-3 gap-y-1 py-2.5 md:grid-cols-[minmax(0,1fr)_auto]",
           alert && "bg-tint shadow-[-12px_0_0_hsl(var(--tint)),12px_0_0_hsl(var(--tint))]",
         )}
       >
-        <span className={cn("text-[12.5px] font-medium text-mute", alert && "font-bold text-hl")}>
-          {KIND_LABEL[item.kind]}
-        </span>
         <div className="min-w-0">
-          <Link to={"/students/" + encodeURIComponent(item.student.code)} className="font-bold hover:underline">
-            {item.student.name || "—"}
-          </Link>
+          <span className="flex flex-wrap items-baseline gap-x-2">
+            <Link to={"/students/" + encodeURIComponent(item.student.code)} className="font-bold hover:underline">
+              {item.student.name || "—"}
+            </Link>
+            {subLabel ? (
+              <span className={cn("text-[12.5px] font-semibold", alert ? "text-hl" : "text-mute")}>
+                {subLabel}
+              </span>
+            ) : null}
+          </span>
           <small className="block text-[12.5px] leading-[1.3] text-mute">{detailOf(item)}</small>
         </div>
         <div className="flex flex-wrap gap-1.5 md:justify-end">{actionOf(item)}</div>
@@ -280,8 +285,8 @@ export default function QueueList({
         if (rows.length === 0) return null;
         return (
           <section key={g.key} aria-label={g.label}>
-            <GroupTitle label={g.label} count={rows.length} />
-            {rows.map(renderRow)}
+            <GroupTitle label={g.label} count={rows.length} first={g === GROUPS[0]} />
+            {rows.map((item) => renderRow(item, g.label))}
           </section>
         );
       })}
