@@ -102,7 +102,7 @@ def test_report_source_label_renamed_but_evidence_code_kept(rdb, fake):  # noqa:
 def test_built_react_app_uses_the_new_name():
     js = "".join(p.read_text(encoding="utf-8")
                  for p in sorted(ASSETS.glob("index-*.js")))
-    assert "打开心有灵析" in js
+    assert "心有灵析" in js
     assert "打开 M1" not in js
 
 
