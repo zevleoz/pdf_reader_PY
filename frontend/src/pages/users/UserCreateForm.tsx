@@ -15,7 +15,7 @@ type FormState = {
   student_scope: string;
   detail_level: string;
   m1_access: boolean;
-  office_id: string;
+  office_ids: number[];
   is_assessor: boolean;
 };
 
@@ -26,7 +26,7 @@ function initialForm(): FormState {
     role: "viewer",
     advisor_name: "",
     display_name: "",
-    office_id: "",
+    office_ids: [],
     is_assessor: false,
     ...ROLE_DEFAULTS.viewer,
   };
@@ -97,7 +97,7 @@ export default function UserCreateForm({
       setError("名下学生范围需要绑定顾问姓名");
       return;
     }
-    if (needsOffice && !form.office_id) {
+    if (needsOffice && form.office_ids.length === 0) {
       setError(isFront ? "前台账号需要绑定办公室" : "测评师需要绑定办公室");
       return;
     }
@@ -111,7 +111,8 @@ export default function UserCreateForm({
       student_scope: form.student_scope,
       detail_level: form.detail_level,
       m1_access: form.m1_access ? 1 : 0,
-      office_id: form.office_id ? Number(form.office_id) : null,
+      office_id: form.office_ids[0] ?? null,
+      office_ids: form.office_ids,
       is_assessor: form.is_assessor ? 1 : 0,
     });
     if (failure) {
@@ -171,19 +172,27 @@ export default function UserCreateForm({
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="noff">办公室{needsOffice ? "（必填）" : "（可选）"}</Label>
-          <select
-            id="noff"
-            className={CONTROL_CLASS}
-            value={form.office_id}
-            disabled={busy}
-            onChange={(event) => setForm((current) => ({ ...current, office_id: event.target.value }))}
-          >
-            <option value="">未绑定</option>
+          <span className="text-sm font-medium leading-none">办公室{needsOffice ? "（至少一个）" : "（可选）"}</span>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
             {locations.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
+              <label key={l.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-ink"
+                  checked={form.office_ids.includes(l.id)}
+                  disabled={busy}
+                  onChange={(event) => setForm((current) => ({
+                    ...current,
+                    office_ids: event.target.checked
+                      ? [...current.office_ids, l.id]
+                      : current.office_ids.filter((id) => id !== l.id),
+                  }))}
+                />
+                <span>{l.name}</span>
+              </label>
             ))}
-          </select>
+          </div>
+          <p className="text-xs text-mute">第一个勾选的办公室为主办公室；新增授权的办公室需要单独排班后才可预约。</p>
         </div>
 
         <label className="flex items-center gap-2 text-sm">

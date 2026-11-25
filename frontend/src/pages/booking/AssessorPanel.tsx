@@ -7,7 +7,12 @@ import { cn } from "@/lib/utils";
 import { addDays, md, todayKey, wdOf } from "./model";
 
 type Availability = Record<string, Record<string, boolean>>;
-type Avail = { time_slots: string[]; availability: Availability };
+type Avail = {
+  time_slots: string[];
+  availability: Availability;
+  offices?: { id: number; name: string }[];
+  office_id?: number | null;
+};
 type Cell = { day: number; slot: number };
 type Range = { from: Cell; to: Cell; open: boolean };
 
@@ -26,6 +31,7 @@ export default function AssessorPanel({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
   const [reload, setReload] = React.useState(0);
+  const [officeId, setOfficeId] = React.useState<number | null>(null);
   const [preview, setPreview] = React.useState<Range | null>(null);
   const gesture = React.useRef<{ pointer: number; range: Range } | null>(null);
   const keyboardAnchor = React.useRef<Cell | null>(null);
@@ -34,11 +40,17 @@ export default function AssessorPanel({ onClose }: { onClose: () => void }) {
 
   React.useEffect(() => {
     let active = true;
-    getJSON<Avail>("/api/assessor/availability?start=" + start + "&days=7")
-      .then((result) => { if (active) setData(result); })
+    const query = "/api/assessor/availability?start=" + start + "&days=7"
+      + (officeId == null ? "" : "&location_id=" + officeId);
+    getJSON<Avail>(query)
+      .then((result) => {
+        if (!active) return;
+        setData(result);
+        if (officeId == null && result.office_id != null) setOfficeId(result.office_id);
+      })
       .catch((e) => { if (active) setErr(errorText(e, "无法载入可约时段")); });
     return () => { active = false; };
-  }, [start, reload]);
+  }, [start, reload, officeId]);
 
   const cancel = React.useCallback(() => {
     const pointer = gesture.current?.pointer;
@@ -82,7 +94,7 @@ export default function AssessorPanel({ onClose }: { onClose: () => void }) {
     });
     const results = await Promise.allSettled(
       selected.map((payload) =>
-        postJSON<{ availability: Availability }>("/api/assessor/availability", payload),
+        postJSON<{ availability: Availability }>("/api/assessor/availability", { ...payload, location_id: officeId }),
       ),
     );
     const saved: Availability = {};
@@ -133,7 +145,32 @@ export default function AssessorPanel({ onClose }: { onClose: () => void }) {
           关闭
         </Button>
       </div>
-      <p className="mb-3 text-[12.5px] text-mute">点按一个格子，或按住拖选一段时段。松开后按起始格的状态统一开放或关闭。</p>
+      <p className="mb-3 text-[12.5px] text-mute">点按一个格子，或按住拖选一段时段。松开后按起始格的状态统一开放或关闭。新增授权的办公室需要先在这里开放时段。</p>
+      {data?.offices && data.offices.length > 1 ? (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[12.5px] text-mute">办公室</span>
+          {data.offices.map((office) => (
+            <button
+              key={office.id}
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (office.id === officeId) return;
+                cancel();
+                setData(null);
+                setErr("");
+                setOfficeId(office.id);
+              }}
+              className={cn(
+                "h-7 border px-2 text-[12.5px]",
+                office.id === officeId ? "border-ink bg-ink text-background" : "border-rule bg-background hover:bg-sunk",
+              )}
+            >
+              {office.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="mb-2 flex items-center gap-2">
         <Button variant="outline" size="sm" className="border-rule px-2 shadow-none" disabled={busy} onClick={() => changeWeek(-7)}>
           上一周

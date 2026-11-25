@@ -45,8 +45,11 @@ export function SlotPanel({
   const [err, setErr] = React.useState("");
   const [source, setSource] = React.useState("internal");
   const request = React.useRef<{ body: string; id: string } | null>(null);
-  const left = cap - slot.count;
+  const limit = slot.capacity ?? cap;
+  const left = limit - slot.count;
   const hidden = Math.max(0, slot.count - slot.bookings.length);
+  const availableNames = (slot.assessors || []).map((a) => a.display_name);
+  const assignedNames = slot.bookings.map((b) => b.assessor_name).filter(Boolean) as string[];
 
   React.useEffect(() => {
     setQ("");
@@ -126,8 +129,14 @@ export function SlotPanel({
         {md(slot.date)} {wdOf(slot.date)} {slot.time}
       </h3>
       <p className="mb-3 mt-1 text-[13px] text-mute">
-        {loc.name} · 已约 {slot.count} / {cap}
+        {loc.name} · 已约 {slot.count} / {limit}
       </p>
+      {availableNames.length || assignedNames.length ? (
+        <div className="mb-3 space-y-0.5 text-[12.5px] text-mute">
+          {availableNames.length ? <p>可约老师：{availableNames.join("、")}</p> : null}
+          {assignedNames.length ? <p>已分配：{assignedNames.join("、")}</p> : null}
+        </div>
+      ) : null}
       <div className="mb-3 flex flex-col gap-1.5">{seats}</div>
       {left <= 0 ? (
         <div className="bg-tint px-3 py-2 text-[13.5px]">这个时段已满。试试其他时段。</div>

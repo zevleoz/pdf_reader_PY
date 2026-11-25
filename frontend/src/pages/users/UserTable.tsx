@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import { ROLE_LABEL, ROW_CONTROL_CLASS, type Role, type UserRow } from "./model";
+import { ROLE_LABEL, ROW_CONTROL_CLASS, userOfficeIds, type Role, type UserRow } from "./model";
 
 type Props = {
   users: UserRow[];
@@ -11,7 +11,7 @@ type Props = {
   busyIds: ReadonlySet<number>;
   locations: { id: number; name: string }[];
   onRole: (user: UserRow, role: Role) => void;
-  onOffice: (user: UserRow, officeId: string) => void;
+  onOffice: (user: UserRow, officeIds: number[]) => void;
   onAssessor: (user: UserRow, checked: boolean) => void;
   onScope: (user: UserRow, scope: string) => void;
   onDetail: (user: UserRow, detail: string) => void;
@@ -151,18 +151,30 @@ export default function UserTable(props: Props) {
                 </select>
               </TableCell>
               <TableCell>
-                <select
-                  className={ROW_CONTROL_CLASS}
-                  value={user.office_id ?? ""}
-                  disabled={busy}
-                  aria-label={"办公室：" + user.username}
-                  onChange={(event) => onOffice(user, event.target.value)}
-                >
-                  <option value="">未绑定</option>
-                  {locations.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap gap-x-2 gap-y-1">
+                  {locations.map((l) => {
+                    const checked = userOfficeIds(user).includes(l.id);
+                    return (
+                      <label key={l.id} className={cn("flex items-center gap-1 whitespace-nowrap text-[12.5px]", busy && "text-mute")}>
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 accent-ink"
+                          checked={checked}
+                          disabled={busy}
+                          aria-label={l.name + "：" + user.username}
+                          onChange={(event) => onOffice(
+                            user,
+                            event.target.checked
+                              ? [...userOfficeIds(user), l.id]
+                              : userOfficeIds(user).filter((id) => id !== l.id),
+                          )}
+                        />
+                        <span>{l.name}</span>
+                      </label>
+                    );
+                  })}
+                  {userOfficeIds(user).length === 0 ? <span className="text-[12px] text-mute">未绑定</span> : null}
+                </div>
               </TableCell>
               <TableCell>
                 <Check

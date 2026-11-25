@@ -179,8 +179,37 @@ export default function Users() {
     void runRowMutation(user.id, { student_scope: scope }, PERM_OK);
   }
 
-  function changeOffice(user: UserRow, officeId: string) {
-    void runRowMutation(user.id, { office_id: officeId }, "办公室已更新");
+  async function changeOffice(user: UserRow, officeIds: number[]) {
+    if (busyRef.current.has(user.id)) return;
+    markBusy(user.id, true);
+    try {
+      const data = await putJSON<{
+        ok: boolean;
+        error?: string;
+        reassignments?: { booking_id: number; student_name: string; appointment_time: string }[];
+      }>("/api/users/" + user.id, {
+        office_ids: officeIds,
+        office_id: officeIds[0] ?? null,
+      });
+      if (!data.ok) {
+        setNotice({ kind: "error", text: data.error || "办公室更新失败" });
+      } else {
+        const pending = data.reassignments || [];
+        setNotice({
+          kind: "ok",
+          text: pending.length
+            ? `办公室已更新。${pending.length} 个未来预约需重新安排：` +
+              pending.slice(0, 3).map((item) => `${item.student_name} ${item.appointment_time.slice(5, 16).replace("T", " ")}`).join("、") +
+              (pending.length > 3 ? " 等" : "")
+            : "办公室已更新",
+        });
+      }
+      await loadList();
+    } catch (error) {
+      setNotice({ kind: "error", text: errorText(error, "办公室更新失败") });
+    } finally {
+      markBusy(user.id, false);
+    }
   }
 
   function changeAssessor(user: UserRow, checked: boolean) {

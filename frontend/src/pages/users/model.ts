@@ -13,6 +13,7 @@ export type UserRow = {
   is_active?: number;
   is_assessor?: number;
   office_id?: number | null;
+  office_ids?: number[];
 };
 
 export type ListResponse = { ok: boolean; users: UserRow[]; limited?: boolean; error?: string };
@@ -44,7 +45,13 @@ export type CreatePayload = {
   m1_access: number;
   is_assessor: number;
   office_id: number | null;
+  office_ids: number[];
 };
+
+export function userOfficeIds(user: UserRow): number[] {
+  if (user.office_ids && user.office_ids.length) return user.office_ids;
+  return user.office_id == null ? [] : [user.office_id];
+}
 
 export const ROLE_LABEL: Record<string, string> = { admin: "管理员", advisor: "顾问", viewer: "只读", front: "前台" };
 

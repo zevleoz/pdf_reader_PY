@@ -77,6 +77,7 @@ def api_users_create():
             m1_access=data.get("m1_access"),
             is_assessor=data.get("is_assessor") or 0,
             office_id=data.get("office_id"),
+            office_ids=data.get("office_ids"),
         )
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -105,6 +106,8 @@ def api_users_update(user_id):
         kwargs["is_assessor"] = 1 if data["is_assessor"] else 0
     if "office_id" in data:
         kwargs["office_id"] = data["office_id"]
+    if "office_ids" in data:
+        kwargs["office_ids"] = data["office_ids"]
     if "m1_admin" in data:
         kwargs["m1_admin"] = 0 if data["m1_admin"] is None else data["m1_admin"]
     # 防锁死：不能停用自己，也不能停用/降权最后一个 admin
@@ -113,6 +116,7 @@ def api_users_update(user_id):
     target = _db.get_user_by_id(user_id)
     if not target:
         return jsonify({"ok": False, "error": "用户不存在"}), 404
+    before_offices = set(_db.list_user_office_ids(user_id))
     losing_admin = target.get('role') == 'admin' and (
         kwargs.get('role') not in (None, 'admin') or kwargs.get('is_active') == 0)
     if losing_admin and _db.count_users_by_role('admin') <= 1:
@@ -122,7 +126,14 @@ def api_users_update(user_id):
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
     invalidate_session_user(user_id)
-    return jsonify({"ok": True, "updated": bool(ok)})
+    reassignments = []
+    if target.get("is_assessor") and ("office_ids" in data or "office_id" in data):
+        removed = before_offices - set(_db.list_user_office_ids(user_id))
+        for office_id in sorted(removed):
+            for item in _db.list_future_assignments_for_office(user_id, office_id):
+                item["office_id"] = office_id
+                reassignments.append(item)
+    return jsonify({"ok": True, "updated": bool(ok), "reassignments": reassignments})
 
 
 def _m1_manager_update(user_id, data):

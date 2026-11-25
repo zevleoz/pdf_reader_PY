@@ -1,11 +1,21 @@
 export type Loc = { id: number; name: string };
-export type SlotBooking = { id: number; student_name: string; student_code: string; status: string };
+export type SlotBooking = {
+  id: number;
+  student_name: string;
+  student_code: string;
+  status: string;
+  assessor_id?: number | null;
+  assessor_name?: string;
+};
+export type SlotAssessor = { id: number; display_name: string };
 export type Slot = {
   date: string;
   time: string;
   closed: boolean;
   past: boolean;
   count: number;
+  capacity?: number;
+  assessors?: SlotAssessor[];
   bookings: SlotBooking[];
 };
 export type Week = {
@@ -63,7 +73,8 @@ export function updatedText(iso: string | null | undefined): string {
 }
 
 export function bookable(s: Slot, cap: number): boolean {
-  return !s.past && !s.closed && s.count < cap;
+  const limit = s.capacity ?? cap;
+  return !s.past && !s.closed && s.count < limit;
 }
 
 export function nextOpen(slots: Slot[], cap: number, n: number): Slot[] {

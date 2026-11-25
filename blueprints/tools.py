@@ -717,9 +717,12 @@ def _slot_error(location_id: int, appt):
     if time_slot_str not in _db.TIME_SLOTS or appt.second or appt.microsecond:
         return _err("时间不在可预约时段内")
     booking_date = appt.date()
+    capacity = _db.effective_slot_capacity(location_id, appt, SLOT_CAPACITY)
+    if capacity <= 0:
+        return _err("该时段暂无可约老师，请选择其他时间", 409)
     booked = _db.get_slot_booking_counts(booking_date, location_id).get(time_slot_str, 0)
-    if booked >= SLOT_CAPACITY:
-        return _err("该时段已满（" + str(booked) + "/" + str(SLOT_CAPACITY) + "），请选择其他时间", 409)
+    if booked >= capacity:
+        return _err("该时段已满（" + str(booked) + "/" + str(capacity) + "），请选择其他时间", 409)
     avail_map = {e["time_slot"]: e["is_available"]
                  for e in _db.get_availability(booking_date, location_id)}
     if not avail_map.get(time_slot_str, True):
@@ -730,7 +733,11 @@ def _slot_error(location_id: int, appt):
 def _slot_race_error(e):
     if e.kind == "closed":
         return _err("该时段已关闭，请选择其他时间", 409)
-    return _err("该时段已满（" + str(e.booked) + "/" + str(SLOT_CAPACITY) + "），请选择其他时间", 409)
+    cap = getattr(e, "capacity", None)
+    cap = SLOT_CAPACITY if cap is None else cap
+    if cap <= 0:
+        return _err("该时段暂无可约老师，请选择其他时间", 409)
+    return _err("该时段已满（" + str(e.booked) + "/" + str(cap) + "），请选择其他时间", 409)
 
 
 def _parse_appt(data):
@@ -813,9 +820,8 @@ def _handoff_forbidden(booking: dict):
             return _err("该预约已取消", 403)
         if booking.get("appointment_date") != date.today().isoformat():
             return _err("前台只能处理当天的预约", 403)
-        db_user = _db.get_user_by_id(user.get("user_id") or 0) or {}
-        office = db_user.get("office_id")
-        if not office or booking.get("location_id") != office:
+        allowed = _db.list_user_office_ids(user.get("user_id") or 0)
+        if not allowed or booking.get("location_id") not in allowed:
             return _err("不属于当前办公室的预约", 403)
         return None
     return _err("无权访问该预约", 403)
@@ -991,14 +997,19 @@ def api_bookings_week():
             visible = here if scope is None else [
                 b for b in here if scope and (b.get("advisor_name") or "") == scope]
             slot_dt = datetime.combine(d, datetime.strptime(t, "%H:%M").time())
+            cell_capacity = _db.effective_slot_capacity(loc_id, slot_dt, SLOT_CAPACITY)
             cells.append({
                 "date": d.isoformat(),
                 "time": t,
                 "closed": not open_map.get(t, True),
                 "past": slot_dt < now,
                 "count": len(here),
+                "capacity": cell_capacity,
+                "assessors": _db.get_slot_assessors(loc_id, slot_dt),
                 "bookings": [{"id": b["id"], "student_name": b["student_name"],
-                              "student_code": b["student_code"], "status": b["status"]}
+                              "student_code": b["student_code"], "status": b["status"],
+                              "assessor_id": b.get("assessor_id"),
+                              "assessor_name": b.get("assessor_name") or ""}
                              for b in visible],
             })
     loc = _db.get_location(loc_id)
@@ -1087,11 +1098,12 @@ def api_handoff_bookings():
     role = user.get("role")
     day = date.today()
     loc_id = None
+    front_offices = []
     if role == "front":
-        db_user = _db.get_user_by_id(user.get("user_id") or 0) or {}
-        loc_id = db_user.get("office_id")
-        if not loc_id:
+        front_offices = _db.list_user_office_ids(user.get("user_id") or 0)
+        if not front_offices:
             return _err("当前账号未配置办公室", 403)
+        loc_id = front_offices[0]
     else:
         raw = (request.args.get("date") or "").strip()
         if raw:
@@ -1104,7 +1116,11 @@ def api_handoff_bookings():
             loc_id, bad = _resolve_location(raw_loc, active_only=False)
             if bad:
                 return bad
-    bookings = _db.get_bookings_for_date(day, loc_id)
+    if role == "front" and len(front_offices) > 1:
+        bookings = _db.get_bookings_for_date(day, None)
+        bookings = [b for b in bookings if b.get("location_id") in front_offices]
+    else:
+        bookings = _db.get_bookings_for_date(day, loc_id)
     scope = _advisor_scope()
     if role != "front" and scope is not None:
         bookings = [b for b in bookings if b.get("advisor_name") == scope]
@@ -1202,10 +1218,27 @@ def api_booking_assign(booking_id):
 @bp.route("/api/assessor/availability", methods=["GET", "POST"])
 @role_required('admin', 'advisor')
 def api_assessor_availability():
-    """测评师维护自己的可约时段。"""
+    """测评师维护自己在已授权办公室的可约时段。"""
     user = _db.get_user_by_id(current_user().get("user_id") or 0)
     if not user or not user.get("is_assessor"):
         return _err("当前账号不是测评师", 403)
+    office_ids = _db.list_user_office_ids(user["id"])
+    if not office_ids:
+        return _err("当前账号未配置办公室", 403)
+    offices = [{"id": l["id"], "name": l["name"]}
+               for l in _db.list_locations(active_only=False) if l["id"] in office_ids]
+
+    def pick_location(raw):
+        if raw in (None, ""):
+            return (office_ids[0] if len(office_ids) == 1 else None), None
+        try:
+            loc_id = int(raw)
+        except (TypeError, ValueError):
+            return None, _err("办公室参数错误")
+        if loc_id not in office_ids:
+            return None, _err("无权使用该办公室", 403)
+        return loc_id, None
+
     if request.method == "GET":
         raw = (request.args.get("start") or "").strip()
         try:
@@ -1216,13 +1249,19 @@ def api_assessor_availability():
             days = min(max(int(request.args.get("days") or 14), 1), 31)
         except ValueError:
             days = 14
+        loc_id, bad = pick_location(request.args.get("location_id"))
+        if bad:
+            return bad
         return jsonify({
             "ok": True,
             "start": start.isoformat(),
             "days": days,
             "time_slots": list(_db.TIME_SLOTS),
-            "office_id": user.get("office_id"),
-            "availability": _db.list_assessor_availability(user["id"], start, days),
+            "office_id": loc_id or user.get("office_id"),
+            "offices": offices,
+            "requires_office": len(offices) > 1,
+            "availability": _db.list_assessor_availability(
+                user["id"], start, days, loc_id) if loc_id else {},
         })
     data = request.get_json(force=True, silent=True) or {}
     try:
@@ -1232,13 +1271,17 @@ def api_assessor_availability():
     slots = data.get("slots") or []
     if not isinstance(slots, list):
         return _err("slots 格式错误")
-    loc_id = data.get("location_id") or user.get("office_id")
+    loc_id, bad = pick_location(data.get("location_id"))
+    if bad:
+        return bad
+    if loc_id is None:
+        return _err("请选择办公室")
     try:
         _db.set_assessor_availability(user["id"], loc_id, day, slots)
     except ValueError as e:
         return _err(str(e))
-    return jsonify({"ok": True, "date": day.isoformat(),
-                    "availability": _db.list_assessor_availability(user["id"], day, 1)})
+    return jsonify({"ok": True, "date": day.isoformat(), "office_id": loc_id,
+                    "availability": _db.list_assessor_availability(user["id"], day, 1, loc_id)})
 
 
 @bp.route("/api/availability")
@@ -1254,6 +1297,7 @@ def api_get_availability():
         date_val = date.fromisoformat(date_str)
     except ValueError:
         return jsonify({"ok": False, "error": "日期格式错误"}), 400
+    from datetime import datetime as _dt
     loc_id, bad = _resolve_location(request.args.get("loc"), active_only=True)
     if bad:
         return bad
@@ -1265,13 +1309,15 @@ def api_get_availability():
     for ts in _db.TIME_SLOTS:
         is_open = available_map.get(ts, True)  # Default: available
         booked = booking_counts.get(ts, 0)
-        is_av = is_open and booked < SLOT_CAPACITY
+        capacity = _db.effective_slot_capacity(
+            loc_id, _dt.combine(date_val, _dt.strptime(ts, "%H:%M").time()), SLOT_CAPACITY)
+        is_av = is_open and booked < capacity
         all_slots.append({
             "time_slot": ts,
             "is_available": is_av,
             "is_open": is_open,
             "booked_count": booked,
-            "capacity": SLOT_CAPACITY,
+            "capacity": capacity,
         })
     return jsonify({"ok": True, "date": date_str, "location_id": loc_id, "slots": all_slots})
 
@@ -1293,6 +1339,7 @@ def api_availability_month():
         "end": end.isoformat(),
         "data": range_data,
         "bookings": booking_counts,
+        "capacity": _db.slot_capacity_range(today, end, loc_id, SLOT_CAPACITY),
     })
 
 

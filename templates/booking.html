@@ -276,13 +276,14 @@
         return getJSON('/api/availability/month?loc=' + encodeURIComponent(S.locId)).then(function (r) {
           S.openDay = {};
           if (!r.ok) { return; }
-          var data = r.data.data || {}, booked = r.data.bookings || {};
+          var data = r.data.data || {}, booked = r.data.bookings || {}, caps = r.data.capacity || {};
           DAY_KEYS.forEach(function (k) {
             var rec = {};
             (data[k] || []).forEach(function (e) { rec[e.time_slot] = e.is_available; });
             S.openDay[k] = TIMES.some(function (t) {
               var open = rec[t] === undefined ? true : rec[t];
-              return open && ((booked[k] || {})[t] || 0) < CAP;
+              var cap = (caps[k] && caps[k][t] !== undefined) ? caps[k][t] : CAP;
+              return open && ((booked[k] || {})[t] || 0) < cap;
             });
           });
         }).catch(function () { S.openDay = {}; });

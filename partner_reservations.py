@@ -48,7 +48,9 @@ def get_availability(location_id: int, day: date) -> dict:
         "slots": [
             {
                 "appointment_time": _local_iso(datetime.combine(day, time.fromisoformat(slot))),
-                "is_available": availability.get(slot, True) and counts.get(slot, 0) < db.SLOT_CAPACITY,
+                "is_available": availability.get(slot, True) and counts.get(slot, 0) <
+                db.effective_slot_capacity(
+                    location_id, datetime.combine(day, time.fromisoformat(slot)), db.SLOT_CAPACITY),
             }
             for slot in db.TIME_SLOTS
         ],

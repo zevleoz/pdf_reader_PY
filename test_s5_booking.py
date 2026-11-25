@@ -295,12 +295,14 @@ def test_week_shape_and_location_updated_at(app, admin):
     c, d, sh = app.test_client(), _tomorrow(), _loc(SH)
     before = admin.get("/api/bookings/week", query_string={"loc": sh, "start": d.isoformat()}).get_json()
     assert len(before["slots"]) == 7 * 14 and before["location"]["id"] == sh
-    assert set(before["slots"][0]) == {"date", "time", "closed", "past", "count", "bookings"}
+    assert set(before["slots"][0]) == {"date", "time", "closed", "past", "count",
+                                       "capacity", "assessors", "bookings"}
     _public(c, d, loc=sh)
     after = admin.get("/api/bookings/week", query_string={"loc": sh, "start": d.isoformat()}).get_json()
     assert after["location"]["updated_at"] > before["location"]["updated_at"]
     cell = next(s for s in after["slots"] if s["date"] == d.isoformat() and s["time"] == "10:00")
-    assert cell["count"] == 1 and set(cell["bookings"][0]) == {"id", "student_name", "student_code", "status"}
+    assert cell["count"] == 1 and set(cell["bookings"][0]) == {
+        "id", "student_name", "student_code", "status", "assessor_id", "assessor_name"}
     # 另一办公室的更新时间不变
     bj = _loc(BJ)
     assert admin.get("/api/bookings/week", query_string={"loc": bj, "start": d.isoformat()}).get_json()["slots"][0]["count"] == 0

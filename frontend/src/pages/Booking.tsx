@@ -398,13 +398,15 @@ export default function Booking() {
   const slotBtn = (s: Slot) => {
     const key = slotKey(s.date, s.time);
     const open = isOpen(s);
-    const full = open && s.count >= cap && !edit;
+    const sCap = s.capacity ?? cap;
+    const full = open && s.count >= sCap && !edit;
     const on = sel?.date === s.date && sel?.time === s.time;
     const label = `${md(s.date)} ${s.time}`;
+    const names = (s.assessors || []).map((a) => a.display_name).join("、");
     if (s.past)
       return (
         <button key={key} disabled aria-label={label + " 不可预约"} className="flex h-7 cursor-not-allowed items-center justify-center gap-[3px] opacity-30">
-          <Dots n={s.count} cap={cap} />
+          <Dots n={s.count} cap={sCap} />
         </button>
       );
     if (!open)
@@ -426,7 +428,8 @@ export default function Booking() {
     return (
       <button
         key={key}
-        aria-label={`${label}，已约 ${s.count} 人，余 ${cap - s.count}`}
+        aria-label={`${label}，已约 ${s.count} 人，余 ${sCap - s.count}${names ? "，可约老师 " + names : ""}`}
+        title={names ? "可约老师：" + names : undefined}
         data-office-date={s.date}
         data-office-slot={s.time}
         className={cn(
@@ -439,7 +442,7 @@ export default function Booking() {
           else if (event.detail === 0) toggleDay(s);
         }}
       >
-        <Dots n={s.count} cap={cap} />
+        <Dots n={s.count} cap={sCap} />
       </button>
     );
   };
@@ -581,7 +584,8 @@ export default function Booking() {
                     const s = slotMap.get(slotKey(dayDate, t));
                     if (!s) return null;
                     const open = isOpen(s);
-                    const left = cap - s.count;
+                    const sCap = s.capacity ?? cap;
+                    const left = sCap - s.count;
                     const on = sel?.date === s.date && sel?.time === s.time;
                     const dis = s.past || (!edit && (!open || left <= 0));
                     return (
