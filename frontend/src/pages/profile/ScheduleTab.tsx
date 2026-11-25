@@ -25,7 +25,13 @@ type ScheduleResp = {
   can_assign: boolean;
   account: { exists: boolean; username: string; is_active: number };
 };
-type Candidate = { id: number; display_name: string; office_name: string; assigned: boolean };
+type Candidate = {
+  id: number;
+  display_name: string;
+  office_name: string;
+  assigned: boolean;
+  is_default: boolean;
+};
 
 const STATUS: Record<string, string> = {
   pending: "待到访",
@@ -82,6 +88,9 @@ export default function ScheduleTab() {
         "/api/booking/" + b.id + "/assessor-candidates",
       );
       setCands(r.candidates);
+      const current = r.candidates.find((c) => c.assigned);
+      const preferred = current || r.candidates.find((c) => c.is_default);
+      setChoice(preferred ? String(preferred.id) : "");
     } catch (e) {
       setCands([]);
       notify(errorText(e, "无法载入测评师"), "error");
@@ -180,7 +189,7 @@ export default function ScheduleTab() {
                     {cands.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.display_name} · {c.office_name}
-                        {c.assigned ? "（当前）" : ""}
+                        {c.assigned ? "（当前）" : c.is_default ? "（默认）" : ""}
                       </option>
                     ))}
                   </select>
@@ -201,7 +210,9 @@ export default function ScheduleTab() {
                     取消
                   </Button>
                   {cands.length === 0 ? (
-                    <span className="text-[12px] text-mute">该时段暂无同办公室可约测评师</span>
+                    <span className="text-[12px] text-mute">
+                      该时段暂无同办公室可约测评师；请检查当天排班或改约其他时间
+                    </span>
                   ) : null}
                 </div>
               ) : null}

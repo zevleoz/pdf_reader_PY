@@ -188,6 +188,14 @@ class AssessorOfficeSetting(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class OfficeDefaultAssessor(Base):
+    """Task K：办公室的默认测评师（显式按稳定用户 ID 配置，不按姓名或角色推断）。"""
+    __tablename__ = "office_default_assessors"
+    office_id = Column(Integer, primary_key=True)
+    assessor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Availability(Base):
     __tablename__ = "availability"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -324,6 +332,10 @@ def init_db() -> None:
         _ensure_task_h_schema()
     except Exception as e:
         print(f"[DB] 多办公室/排班迁移失败 (非致命): {e}")
+    try:
+        _ensure_task_k_schema()
+    except Exception as e:
+        print(f"[DB] 办公室默认测评师迁移失败 (非致命): {e}")
     try:
         ensure_locations()
     except Exception as e:
@@ -663,6 +675,13 @@ def _ensure_task_h_schema() -> None:
         conn.execute(text(
             "CREATE UNIQUE INDEX ux_assessor_availability_slot "
             "ON assessor_availability (assessor_id, location_id, date, time_slot)"))
+
+
+def _ensure_task_k_schema() -> None:
+    """Task K 幂等迁移：办公室默认测评师表（按稳定用户 ID 配置）。"""
+    insp = inspect(engine)
+    if "office_default_assessors" not in set(insp.get_table_names()):
+        OfficeDefaultAssessor.__table__.create(bind=engine)
 
 
 # ─── Student CRUD ───────────────────────────────────────────────
@@ -2054,8 +2073,55 @@ def get_slot_assessors(location_id: int, appt: datetime) -> List[Dict[str, Any]]
         return out
 
 
+def get_office_default_assessor(office_id: Optional[int]) -> Optional[int]:
+    """办公室显式配置的默认测评师用户 ID；未配置或旧库缺表时返回 None。"""
+    if office_id in (None, ""):
+        return None
+    try:
+        with Session(engine) as sess:
+            row = sess.get(OfficeDefaultAssessor, int(office_id))
+            return int(row.assessor_id) if row else None
+    except OperationalError:
+        return None
+
+
+def set_office_default_assessor(office_id: int, assessor_id: int) -> None:
+    """幂等配置某办公室的默认测评师。
+
+    只把该账号在该办公室的排班起点写为 legacy（无记录即开放），不改动其其他办公室，
+    也不改写任何已有预约的测评师。显示名变化不影响，因为只认稳定用户 ID。
+    """
+    with Session(engine) as sess:
+        office = sess.get(Location, int(office_id))
+        if not office or not office.active:
+            raise ValueError("办公室不存在或已停用")
+        user = sess.get(User, int(assessor_id))
+        if not user or not int(user.is_active or 0):
+            raise ValueError("该账号不存在或已停用")
+        if not int(user.is_assessor or 0) or user.role not in ("admin", "advisor"):
+            raise ValueError("该账号不是可用测评师，请先在用户管理启用测评师身份")
+        if not sess.get(UserOffice, (int(assessor_id), int(office_id))):
+            raise ValueError("该账号未获该办公室授权，请先在用户管理启用该办公室")
+        row = sess.get(OfficeDefaultAssessor, int(office_id))
+        if row:
+            row.assessor_id = int(assessor_id)
+            row.updated_at = datetime.utcnow()
+        else:
+            sess.add(OfficeDefaultAssessor(office_id=int(office_id), assessor_id=int(assessor_id)))
+        setting = sess.get(AssessorOfficeSetting, (int(assessor_id), int(office_id)))
+        if setting:
+            setting.mode = "legacy"
+        else:
+            sess.add(AssessorOfficeSetting(
+                assessor_id=int(assessor_id), office_id=int(office_id), mode="legacy"))
+        sess.commit()
+
+
 def get_assessor_candidates(booking: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """与预约同办公室、已获授权、该时段未关闭且未撞单的启用测评师。"""
+    """与预约同办公室、已获授权、该时段未关闭且未撞单的启用测评师。
+
+    配置了该办公室默认测评师时，其排在首位（is_default=True）；是否预选由前端决定。
+    """
     appt = datetime.fromisoformat(booking["appointment_time"])
     day, slot = appt.date(), appt.strftime("%H:%M")
     location_id = int(booking["location_id"] or 0)
@@ -2068,6 +2134,8 @@ def get_assessor_candidates(booking: Dict[str, Any]) -> List[Dict[str, Any]]:
         ).scalars().all()
         office = sess.get(Location, location_id)
         office_name = office.name if office else ""
+        default_row = sess.get(OfficeDefaultAssessor, location_id)
+        default_id = int(default_row.assessor_id) if default_row else None
         ids = [int(u.id) for u in users]
         authorized = {}
         if ids:
@@ -2102,7 +2170,10 @@ def get_assessor_candidates(booking: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "office_id": location_id,
                 "office_name": office_name or "",
                 "assigned": uid == int(booking.get("assessor_id") or 0),
+                "is_default": uid == default_id,
             })
+        out.sort(key=lambda c: (not c["assigned"], not c["is_default"],
+                                c["display_name"], c["id"]))
         return out
 
 
