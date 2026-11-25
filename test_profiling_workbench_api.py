@@ -232,3 +232,102 @@ def test_upcoming_cutoff_uses_beijing_wall_clock(env):
         _db.add_booking(name, now + timedelta(hours=delta), advisor_name="Mine")
     names = [u["student_name"] for u in fetch(admin(env))["upcoming"]]
     assert names == ["一小时后"]
+
+
+# ── Task J：我的学生 / 全部事项、待分配测评师 ──────────────────────────
+def mk_bound_admin(env, username="c6-bound-admin", advisor="Mine"):
+    uid = _db.create_user(username, "pw-123456", "admin", advisor_name=advisor)
+    app_utils._SESSION_USER_CACHE.clear()
+    return client(env, uid, "admin", advisor)
+
+
+def mk_assign_booking(sid, hours, location_id=None, assessor_id=None, status="pending"):
+    when = datetime.now() + timedelta(hours=hours)
+    bid = _db.add_booking("待分配", when, student_id=sid, location_id=location_id)
+    with _db.Session(_db.engine) as s:
+        s.execute(_db.Booking.__table__.update().where(_db.Booking.id == bid)
+                  .values(status=status, assessor_id=assessor_id))
+        s.commit()
+    return bid
+
+
+def test_bound_admin_defaults_to_mine_and_can_switch(env):
+    mine = mk_student("我的", advisor="Mine")
+    other = mk_student("别人的", advisor="Other")
+    qid = mk_questionnaire()
+    mk_pending(mine, qid)
+    mk_pending(other, qid)
+    c = mk_bound_admin(env)
+    body = fetch(c)
+    assert (body["mode"], body["can_switch"], body["bound_advisor"]) == ("mine", True, "Mine")
+    assert {i["student"]["id"] for i in body["queue"]} == {mine}
+    assert body["counts"]["done"] == 0
+    all_body = c.get(URL + "?mode=all").get_json()
+    assert all_body["mode"] == "all"
+    assert {i["student"]["id"] for i in all_body["queue"]} == {mine, other}
+
+
+def test_unbound_account_defaults_to_all_without_switch(env):
+    mk_student("甲", advisor="Mine")
+    mk_student("乙", advisor="Other")
+    body = fetch(admin(env))
+    assert (body["mode"], body["can_switch"], body["bound_advisor"]) == ("all", False, "")
+
+
+def test_own_scope_advisor_cannot_widen_with_mode_all(env):
+    mine = mk_student("我的", advisor="Mine")
+    other = mk_student("别人的", advisor="Other")
+    qid = mk_questionnaire()
+    mk_pending(mine, qid)
+    mk_pending(other, qid)
+    c = client(env, env.mine, "advisor", "Mine")
+    body = c.get(URL + "?mode=all").get_json()
+    assert (body["mode"], body["can_switch"]) == ("mine", False)
+    assert {i["student"]["id"] for i in body["queue"]} == {mine}
+
+
+def test_upcoming_uses_same_scope_and_student_ownership(env):
+    mine = mk_student("我的", advisor="Mine")
+    other = mk_student("别人的", advisor="Other")
+    mk_future_booking(mine, 2, advisor="Other", name="名下")   # 预约顾问写错也按学生归属
+    mk_future_booking(other, 3, advisor="Other", name="他人")
+    mk_future_booking(None, 4, advisor="Mine", name="未归属")
+    c = mk_bound_admin(env)
+    mine_names = [u["student_name"] for u in fetch(c)["upcoming"]]
+    assert mine_names == ["名下"]
+    all_names = [u["student_name"] for u in c.get(URL + "?mode=all").get_json()["upcoming"]]
+    assert all_names == ["名下", "他人", "未归属"]
+
+
+def test_pending_assignments_respect_scope_and_validity(env):
+    mine = mk_student("我的", advisor="Mine")
+    other = mk_student("别人的", advisor="Other")
+    valid = mk_assign_booking(mine, 3)
+    mk_assign_booking(mine, -2)                                   # 已过时
+    mk_assign_booking(mine, 5, status="cancelled")                # 已取消
+    mk_assign_booking(mine, 6, assessor_id=env.mine)              # 已分配
+    other_booking = mk_assign_booking(other, 7)                   # 他人名下
+    body = fetch(admin(env))
+    assert body["can_assign"] is True
+    assert [r["booking_id"] for r in body["pending_assignments"]] == [valid, other_booking]
+    assert body["pending_assignments"][0]["student_code"] == code_of(mine)
+    bound = fetch(mk_bound_admin(env))
+    assert [r["booking_id"] for r in bound["pending_assignments"]] == [valid]
+    advisor = client(env, env.mine, "advisor", "Mine")
+    denied = advisor.get(URL).get_json()
+    assert denied["can_assign"] is False and denied["pending_assignments"] == []
+
+
+def test_pending_assignments_follow_office(env):
+    mine = mk_student("我的", advisor="Mine")
+    with _db.Session(_db.engine) as s:
+        a = s.execute(_db.Location.__table__.insert().values(name="上海", active=1)).lastrowid
+        b = s.execute(_db.Location.__table__.insert().values(name="深圳", active=1)).lastrowid
+        s.commit()
+    in_sh = mk_assign_booking(mine, 2, location_id=a)
+    mk_assign_booking(mine, 3, location_id=b)
+    uid = _db.create_user("c6-sh-manager", "pw-123456", "admin", office_id=a)
+    app_utils._SESSION_USER_CACHE.clear()
+    body = client(env, uid, "admin").get(URL).get_json()
+    assert [r["booking_id"] for r in body["pending_assignments"]] == [in_sh]
+    assert body["pending_assignments"][0]["office_name"] == "上海"

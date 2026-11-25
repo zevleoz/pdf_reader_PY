@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { errorText, getJSON, postJSON } from "@/lib/api";
@@ -43,6 +43,9 @@ const SOURCE: Record<string, string> = {
 
 export default function ScheduleTab() {
   const { code, data, notify } = useProfile();
+  const [params] = useSearchParams();
+  const focusId = Number(params.get("booking") || 0);
+  const focusRef = React.useRef<HTMLDivElement | null>(null);
   const [body, setBody] = React.useState<ScheduleResp | null>(null);
   const [err, setErr] = React.useState("");
   const [picking, setPicking] = React.useState<number | null>(null);
@@ -65,6 +68,10 @@ export default function ScheduleTab() {
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  React.useEffect(() => {
+    if (body && focusId) focusRef.current?.scrollIntoView({ block: "center" });
+  }, [body, focusId]);
 
   async function openCandidates(b: Booking) {
     setPicking(b.id);
@@ -120,7 +127,14 @@ export default function ScheduleTab() {
       ) : (
         <div className="mt-1">
           {body.bookings.map((b) => (
-            <div key={b.id} className="border-b border-line py-3">
+            <div
+              key={b.id}
+              ref={b.id === focusId ? focusRef : undefined}
+              className={cn(
+                "border-b border-line py-3",
+                b.id === focusId && "bg-tint shadow-[-12px_0_0_hsl(var(--tint)),12px_0_0_hsl(var(--tint))]",
+              )}
+            >
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <b className="text-[15px]">
                   {b.appointment_date} {b.appointment_slot}

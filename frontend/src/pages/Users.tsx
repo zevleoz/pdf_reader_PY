@@ -171,7 +171,6 @@ export default function Users() {
 
   function changeRole(user: UserRow, role: Role) {
     const payload: Record<string, unknown> = { role };
-    if (role !== "advisor") payload.advisor_name = "";
     void runRowMutation(user.id, payload, "角色已更新");
   }
 
