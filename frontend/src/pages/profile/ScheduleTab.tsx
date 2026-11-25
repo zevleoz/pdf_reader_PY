@@ -35,6 +35,7 @@ const STATUS: Record<string, string> = {
 const SOURCE: Record<string, string> = {
   internal: "内部代约",
   parent: "家长预约",
+  partner: "合作平台预约",
   walk_in: "到店",
   referral: "转介绍",
   other: "其他",

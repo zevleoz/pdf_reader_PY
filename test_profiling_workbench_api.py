@@ -190,7 +190,7 @@ def test_upcoming_filters_sorts_and_caps(env):
     assert by_name["带编号"]["student_code"] == code_of(sid)
     assert by_name["a"]["student_code"] is None
     assert set(by_name["a"]) == {"booking_id", "student_name", "student_code",
-                                 "appointment_time", "advisor_name"}
+                                 "appointment_time", "advisor_name", "source"}
 
 
 def test_counts_equal_students_endpoint_counts(env):

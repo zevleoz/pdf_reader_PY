@@ -18,7 +18,7 @@ from typing import List, Optional, Dict, Any, Tuple
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, Date, DateTime,
-    ForeignKey, Index, select, insert, update, delete, func, event, inspect, text
+    ForeignKey, Index, UniqueConstraint, select, insert, update, delete, func, event, inspect, text
 )
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import declarative_base, Session
@@ -126,6 +126,30 @@ class Booking(Base):
         Index("ux_booking_invite", "invite_token", unique=True),
         Index("ux_booking_staff_request", "created_by", "staff_request_id", unique=True),
     )
+
+
+class PartnerStudent(Base):
+    __tablename__ = "partner_students"
+    partner_id = Column(String(128), primary_key=True)
+    external_student_id = Column(String(128), primary_key=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="SET NULL"),
+                        nullable=True, index=True)
+
+
+class PartnerReservation(Base):
+    __tablename__ = "partner_reservations"
+    id = Column(String(36), primary_key=True)
+    partner_id = Column(String(128), nullable=False)
+    external_reservation_id = Column(String(128), nullable=False)
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="SET NULL"),
+                        nullable=True, unique=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="SET NULL"),
+                        nullable=True, index=True)
+    request_digest = Column(String(64), nullable=False)
+    location_id = Column(Integer, nullable=False)
+    appointment_time = Column(DateTime, nullable=False)
+    confirmed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("partner_id", "external_reservation_id"),)
 
 
 class AssessorAvailability(Base):
@@ -1057,16 +1081,24 @@ class SlotUnavailable(Exception):
         self.kind, self.booked = kind, booked
 
 
-def _lock_and_check_slot(sess: Session, location_id: Optional[int],
-                         appt_time: datetime, capacity: Optional[int]) -> None:
-    """在写事务内检查容量与关闭状态，使检查与插入原子。capacity 为 None 则跳过。
-    SQLite：BEGIN IMMEDIATE 拿写锁；其他库：锁住办公室行。"""
-    if capacity is None or location_id is None:
-        return
-    if str(engine.url).startswith("sqlite"):
+def _lock_booking_location(sess: Session, location_id: int) -> None:
+    """Serialize slot writes for this office with all other booking entry points."""
+    if sess.bind.dialect.name == "sqlite":
         sess.connection().exec_driver_sql("BEGIN IMMEDIATE")
     else:
         sess.execute(select(Location.id).where(Location.id == location_id).with_for_update())
+
+
+def _lock_and_check_slot(sess: Session, location_id: Optional[int],
+                         appt_time: datetime, capacity: Optional[int]) -> None:
+    """Check slot capacity under the shared booking write lock when configured."""
+    if capacity is None or location_id is None:
+        return
+    _lock_booking_location(sess, location_id)
+    _check_slot(sess, location_id, appt_time, capacity)
+
+
+def _check_slot(sess: Session, location_id: int, appt_time: datetime, capacity: int) -> None:
     d, ts = appt_time.date(), appt_time.strftime("%H:%M")
     av = sess.execute(select(Availability.is_available).where(
         Availability.date == d, Availability.time_slot == ts,
@@ -1078,6 +1110,21 @@ def _lock_and_check_slot(sess: Session, location_id: Optional[int],
         Booking.appointment_time == appt_time)).scalar() or 0
     if booked >= capacity:
         raise SlotUnavailable("full", booked)
+
+
+def _insert_booking_student(sess: Session, **fields: Any) -> Student:
+    student = Student(student_code=next_student_code(sess), **fields)
+    sess.add(student)
+    sess.flush()
+    return student
+
+
+def _insert_booking(sess: Session, **fields: Any) -> Booking:
+    booking = Booking(status="pending", **fields)
+    sess.add(booking)
+    sess.flush()
+    _touch_location(sess, booking.location_id)
+    return booking
 
 
 def add_booking(student_name: str, appointment_time: datetime,
@@ -1095,14 +1142,13 @@ def add_booking(student_name: str, appointment_time: datetime,
     """Create a booking. Returns booking id. capacity 给定时原子检查容量/关闭，失败抛 SlotUnavailable。"""
     with Session(engine) as sess:
         _lock_and_check_slot(sess, location_id, appointment_time, capacity)
-        stmt = insert(Booking).values(
+        booking = _insert_booking(sess,
             location_id=location_id,
             student_name=student_name,
             student_email=student_email,
             student_phone=student_phone,
             student_id=student_id,
             appointment_time=appointment_time,
-            status="pending",
             notes=notes,
             advisor_name=advisor_name,
             school=school,
@@ -1113,10 +1159,9 @@ def add_booking(student_name: str, appointment_time: datetime,
             invite_token=invite_token,
             staff_request_id=staff_request_id,
         )
-        result = sess.execute(stmt)
-        _touch_location(sess, location_id)
+        booking_id = booking.id
         sess.commit()
-        return result.lastrowid
+        return booking_id
 
 
 def create_booking_with_student(student_name: str, appointment_time: datetime,
@@ -1156,24 +1201,21 @@ def create_booking_with_student(student_name: str, appointment_time: datetime,
                     sess.flush()
                     student_id = student.id
                 else:
-                    result = sess.execute(insert(Student).values(
-                        student_code=next_student_code(sess),
-                        name=student_name, advisor_name=advisor_name,
-                        school=school, single_parent=single_parent))
-                    sess.flush()
-                    student_id = result.lastrowid
+                    student = _insert_booking_student(
+                        sess, name=student_name, advisor_name=advisor_name,
+                        school=school, single_parent=single_parent,
+                    )
+                    student_id = student.id
 
                 # 2. Create booking linked to student
-                result = sess.execute(insert(Booking).values(
-                    student_name=student_name, student_id=student_id,
-                    appointment_time=appointment_time, status="pending",
-                    notes=notes, advisor_name=advisor_name,
+                booking = _insert_booking(
+                    sess, student_name=student_name, student_id=student_id,
+                    appointment_time=appointment_time, notes=notes, advisor_name=advisor_name,
                     school=school, single_parent=single_parent,
                     location_id=location_id, source=source,
                     requester_name=requester_name, created_by=created_by,
-                    invite_token=invite_token, staff_request_id=staff_request_id))
-                booking_id = result.lastrowid
-                _touch_location(sess, location_id)
+                    invite_token=invite_token, staff_request_id=staff_request_id)
+                booking_id = booking.id
                 sess.commit()
                 return student_id, booking_id
             except IntegrityError:
@@ -1439,6 +1481,8 @@ def get_location(location_id: int) -> Optional[Dict[str, Any]]:
 
 # ─── Availability CRUD ──────────────────────────────────────────
 
+SLOT_CAPACITY = 4
+BOOKING_MAX_DAYS_AHEAD = 29
 TIME_SLOTS = [
     "09:00", "09:30", "10:00", "10:30", "11:00",
     "13:00", "13:30", "14:00", "14:30", "15:00",
@@ -1483,15 +1527,19 @@ def _upsert_availability(sess: Session, date_val: date, time_slot: str,
         sess.execute(update(Availability).where(Availability.id == existing[0].id)
                      .values(is_available=av))
         return existing[0].id
-    result = sess.execute(insert(Availability).values(
-        date=date_val, time_slot=time_slot, is_available=av, location_id=location_id))
-    return result.lastrowid
+    entry = Availability(date=date_val, time_slot=time_slot,
+                         is_available=av, location_id=location_id)
+    sess.add(entry)
+    sess.flush()
+    return entry.id
 
 
 def set_availability(date_val: date, time_slot: str, is_available: bool,
                      location_id: Optional[int] = None) -> int:
     """Create or update an availability entry. Returns the id."""
     with Session(engine) as sess:
+        if location_id is not None:
+            _lock_booking_location(sess, location_id)
         rid = _upsert_availability(sess, date_val, time_slot, is_available, location_id)
         _touch_location(sess, location_id)
         sess.commit()
@@ -1504,6 +1552,8 @@ def batch_set_availability(date_val: date, slots: List[Dict[str, Any]],
     slots is a list of {"time_slot": "09:00", "is_available": True/False}
     """
     with Session(engine) as sess:
+        if location_id is not None:
+            _lock_booking_location(sess, location_id)
         for slot in slots:
             _upsert_availability(sess, date_val, slot["time_slot"],
                                  bool(slot.get("is_available", False)), location_id)
@@ -1518,6 +1568,7 @@ def bulk_set_availability(location_id: int,
     refused: List[Dict[str, str]] = []
     applied = False
     with Session(engine) as sess:
+        _lock_booking_location(sess, location_id)
         for ch in changes:
             d, t, want_open = ch["date"], ch["time"], bool(ch["open"])
             if not want_open:

@@ -1,0 +1,344 @@
+openapi: 3.1.0
+info:
+  title: Y4 Partner API
+  version: 1.0.0
+  description: Server-to-server booking and structured result delivery. All examples use fictional data.
+servers:
+  - url: https://institute.example/api/partners/v1/y4
+security:
+  - PartnerBearer: []
+paths:
+  /availability:
+    get:
+      operationId: getY4Availability
+      summary: List selectable times for an office and date
+      x-partner-scope: booking
+      parameters:
+        - name: location_id
+          in: query
+          required: true
+          schema: {type: integer, minimum: 1, maximum: 2147483647}
+        - name: date
+          in: query
+          required: true
+          description: Beijing calendar date from tomorrow through today plus 29 days.
+          schema: {type: string, format: date}
+      responses:
+        '200':
+          description: Times for the requested office and date
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [location_id, date, timezone, slots]
+                properties:
+                  location_id: {type: integer}
+                  date: {type: string, format: date}
+                  timezone: {const: Asia/Shanghai}
+                  slots:
+                    type: array
+                    items:
+                      type: object
+                      required: [appointment_time, is_available]
+                      properties:
+                        appointment_time: {type: string, format: date-time}
+                        is_available: {type: boolean}
+              example:
+                location_id: 1
+                date: '2026-12-08'
+                timezone: Asia/Shanghai
+                slots:
+                  - appointment_time: '2026-12-08T10:00:00+08:00'
+                    is_available: true
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404':
+          description: Office unavailable or unknown
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              example: {error: location_not_found}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /reservations:
+    post:
+      operationId: createY4Reservation
+      summary: Create or safely replay a reservation
+      x-partner-scope: booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [external_reservation_id, external_student_id, student_name, location_id, appointment_time]
+              properties:
+                external_reservation_id: {$ref: '#/components/schemas/ExternalID'}
+                external_student_id: {$ref: '#/components/schemas/ExternalID'}
+                student_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: Must be nonempty after trimming surrounding whitespace. Control characters are invalid.
+                location_id: {type: integer, minimum: 1, maximum: 2147483647}
+                appointment_time:
+                  type: string
+                  format: date-time
+                  description: Explicit offset required. Must match a returned slot in the booking window.
+            example:
+              external_reservation_id: orchard-demo-001
+              external_student_id: orchard-student-001
+              student_name: Demo Student
+              location_id: 1
+              appointment_time: '2026-12-08T10:00:00+08:00'
+      responses:
+        '200': {$ref: '#/components/responses/Reservation'}
+        '201': {$ref: '#/components/responses/Reservation'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404':
+          description: Office unavailable or unknown
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              example: {error: location_not_found}
+        '409':
+          description: The external ID already identifies a different request, the slot is full, or the mapped student is unavailable.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              examples:
+                differentRequest: {value: {error: reservation_conflict}}
+                slotFull: {value: {error: slot_unavailable}}
+                studentUnavailable: {value: {error: student_unavailable}}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /reservations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ReservationID'
+    get:
+      operationId: getY4Reservation
+      summary: Read the current state of a reservation
+      x-partner-scope: [booking, results]
+      description: Either scope is sufficient. The result version is included only with results scope.
+      responses:
+        '200':
+          description: Current reservation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Reservation'}
+              example:
+                id: 5702e7e5-ccee-464f-8f4a-4361f99a7823
+                external_reservation_id: orchard-demo-001
+                location_id: 1
+                appointment_time: '2026-12-08T10:00:00+08:00'
+                confirmed_at: '2026-11-25T01:15:00+00:00'
+                status: completed
+                current_result_version: d6494063e9784d838ccd3b44dd62624c
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/ReservationNotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /reservations/{id}/results/{version}:
+    get:
+      operationId: getY4Result
+      summary: Read a currently authorized result version
+      x-partner-scope: results
+      parameters:
+        - $ref: '#/components/parameters/ReservationID'
+        - name: version
+          in: path
+          required: true
+          description: Opaque version returned by discovery or a ready event.
+          schema: {$ref: '#/components/schemas/ResultVersion'}
+      responses:
+        '200':
+          description: Authorized fields for the requested result version
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, result]
+                properties:
+                  ok: {const: true}
+                  result:
+                    type: object
+                    required: [version, indicators]
+                    properties:
+                      version: {$ref: '#/components/schemas/ResultVersion'}
+                      assessment_date: {type: string, format: date}
+                      indicators:
+                        type: array
+                        items:
+                          type: object
+                          required: [code]
+                          anyOf:
+                            - required: [value]
+                            - required: [unit]
+                            - required: [grade]
+                          properties:
+                            code: {type: string}
+                            value: {type: [number, string]}
+                            unit: {type: string, minLength: 1}
+                            grade: {type: string, minLength: 1}
+              example:
+                ok: true
+                result:
+                  version: d6494063e9784d838ccd3b44dd62624c
+                  assessment_date: '2026-12-08'
+                  indicators:
+                    - code: DEMO_INDICATOR
+                      value: 42
+                      unit: points
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404':
+          description: Result version unavailable to this partner
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, code, error]
+                properties:
+                  ok: {const: false}
+                  code: {const: NOT_FOUND}
+                  error: {const: Result not found}
+              example: {ok: false, code: NOT_FOUND, error: Result not found}
+        '503': {$ref: '#/components/responses/Unavailable'}
+webhooks:
+  y4ResultReady:
+    post:
+      operationId: receiveY4ResultReady
+      summary: Receive notice that a result is ready to retrieve
+      description: Delivered over HTTPS to the partner's registered callback. Verify the signature over the raw request bytes and deduplicate event_id.
+      security: []
+      parameters:
+        - name: X-Y4-Event-Timestamp
+          in: header
+          required: true
+          schema: {type: string, pattern: '^[0-9]+$'}
+          description: Unix time in seconds.
+        - name: X-Y4-Event-Signature
+          in: header
+          required: true
+          schema: {type: string, pattern: '^sha256=[a-f0-9]{64}$'}
+          description: HMAC-SHA256 of timestamp, a literal period, and the raw UTF-8 body, joined as bytes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, event_id, reservation_id, external_reservation_id, version]
+              properties:
+                type: {const: y4.result.ready}
+                event_id: {type: string, pattern: '^[a-f0-9]{32}$'}
+                reservation_id: {type: string, format: uuid}
+                external_reservation_id: {$ref: '#/components/schemas/ExternalID'}
+                version: {$ref: '#/components/schemas/ResultVersion'}
+            example:
+              type: y4.result.ready
+              event_id: 4bfcc1d2807849009f4ab2e4d010ce30
+              reservation_id: 5702e7e5-ccee-464f-8f4a-4361f99a7823
+              external_reservation_id: orchard-demo-001
+              version: d6494063e9784d838ccd3b44dd62624c
+      responses:
+        '2XX':
+          description: Event acknowledged
+        default:
+          description: Delivery failed and may be retried
+components:
+  securitySchemes:
+    PartnerBearer:
+      type: http
+      scheme: bearer
+      description: Opaque partner service credential. Use HTTPS and keep the credential on your server.
+  parameters:
+    ReservationID:
+      name: id
+      in: path
+      required: true
+      description: Institute-issued reservation ID.
+      schema: {type: string, format: uuid}
+  schemas:
+    ExternalID:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: Opaque case-sensitive ID in the authenticated partner's namespace. Surrounding whitespace and control characters are invalid.
+    ResultVersion:
+      type: string
+      pattern: '^[a-f0-9]{32}$'
+      description: Opaque result version.
+    Reservation:
+      type: object
+      required: [id, external_reservation_id, location_id, appointment_time, confirmed_at, status]
+      properties:
+        id: {type: string, format: uuid}
+        external_reservation_id: {$ref: '#/components/schemas/ExternalID'}
+        location_id: {type: integer, minimum: 1, maximum: 2147483647}
+        appointment_time: {type: string, format: date-time}
+        confirmed_at: {type: string, format: date-time}
+        status: {type: string, enum: [pending, confirmed, cancelled, completed]}
+        current_result_version:
+          oneOf:
+            - $ref: '#/components/schemas/ResultVersion'
+            - type: 'null'
+          description: Included in reservation lookup with results scope. Null when there is no currently authorized version.
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: {type: string}
+  responses:
+    Reservation:
+      description: Current reservation
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Reservation'}
+          example:
+            id: 5702e7e5-ccee-464f-8f4a-4361f99a7823
+            external_reservation_id: orchard-demo-001
+            location_id: 1
+            appointment_time: '2026-12-08T10:00:00+08:00'
+            confirmed_at: '2026-11-25T01:15:00+00:00'
+            status: pending
+    ReservationNotFound:
+      description: Reservation unknown or unavailable to this partner
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: reservation_not_found}
+    BadRequest:
+      description: Invalid request or HTTPS required
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          examples:
+            invalidRequest: {value: {error: invalid_request}}
+            insecureTransport: {value: {error: https_required}}
+    Unauthorized:
+      description: Valid partner service credentials required
+      headers:
+        WWW-Authenticate:
+          schema: {type: string}
+          example: 'Bearer realm="y4-partners"'
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: partner_auth_required}
+    Forbidden:
+      description: Credential lacks the scope for this operation
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: partner_scope_required}
+    Unavailable:
+      description: Partner API temporarily unavailable
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: partner_api_unavailable}

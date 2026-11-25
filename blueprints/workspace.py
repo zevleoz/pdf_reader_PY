@@ -530,7 +530,7 @@ def _wb_upcoming(scope):
         return [{"booking_id": b.id, "student_name": b.student_name,
                  "student_code": code or None,
                  "appointment_time": b.appointment_time.isoformat(),
-                 "advisor_name": b.advisor_name or ""}
+                 "advisor_name": b.advisor_name or "", "source": b.source or ""}
                 for b, code in sess.execute(stmt).all()]
 
 

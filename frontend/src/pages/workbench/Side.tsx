@@ -44,7 +44,7 @@ export function UpcomingList({ rows, bookingsLink }: { rows: Upcoming[]; booking
             <>
               <span className="min-w-0">
                 <b className="font-semibold">{u.student_name}</b>
-                <small className="block text-[12.5px] leading-[1.3] text-mute">{"顾问 " + u.advisor_name}</small>
+                <small className="block text-[12.5px] leading-[1.3] text-mute">{u.source === "partner" ? "合作平台预约" : "顾问 " + u.advisor_name}</small>
               </span>
               <span className="ml-auto whitespace-nowrap text-right text-[13px] font-semibold">
                 {valid ? when.getMonth() + 1 + "/" + when.getDate() + " " + weekday(when) : ""}

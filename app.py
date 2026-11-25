@@ -88,6 +88,8 @@ def create_app() -> Flask:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     import m1.plan_store  # noqa: F401  发展计划的表须在 init_db 的 create_all 之前注册
     import m1.report_store  # noqa: F401  会后报告的表须在 init_db 的 create_all 之前注册
+    import partner_reservations  # noqa: F401
+    import partner_results  # noqa: F401
     _db.init_db()
 
     # static_folder=None：不注册 Flask 内置的 /output 静态路由（它会绕过鉴权、暴露
@@ -218,6 +220,8 @@ def create_app() -> Flask:
     from blueprints.m1 import bp as m1_bp
     from blueprints.m1_plan import bp as m1_plan_bp
     from blueprints.m1_report import bp as m1_report_bp
+    from blueprints.partner_reservations import bp as partner_reservations_bp
+    from blueprints.partner_results import bp as partner_results_bp
     from blueprints.questionnaires import bp as questionnaires_bp
     from blueprints.reports import bp as reports_bp
     from blueprints.students import bp as students_bp
@@ -228,8 +232,14 @@ def create_app() -> Flask:
     for _bp in (auth_bp, workspace_bp, students_bp, reports_bp,
                 growth_talk_bp, copilot_bp, questionnaires_bp,
                 insights_bp, m1_bp, m1_plan_bp, m1_report_bp, tools_bp, system_bp,
-                app_shell_bp, api_v1_bp):
+                app_shell_bp, api_v1_bp, partner_reservations_bp, partner_results_bp):
         app.register_blueprint(_bp)
+
+    @app.after_request
+    def _protect_partner_responses(response):
+        if request.path.startswith(("/api/partners/v1/", "/api/internal/partners/v1/")):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     return app
 

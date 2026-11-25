@@ -23,6 +23,7 @@ export type Upcoming = {
   student_code: string | null;
   appointment_time: string;
   advisor_name: string;
+  source: string;
 };
 export type WorkbenchData = {
   ok: boolean;

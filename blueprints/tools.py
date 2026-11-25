@@ -678,8 +678,8 @@ def booking_page():
 # ---------------------------------------------------------------------------
 # Booking helpers (offices, slot rules)
 # ---------------------------------------------------------------------------
-SLOT_CAPACITY = 4  # Max students per time slot per office
-BOOKING_MAX_DAYS_AHEAD = 29  # today+1 .. today+29
+SLOT_CAPACITY = _db.SLOT_CAPACITY
+BOOKING_MAX_DAYS_AHEAD = _db.BOOKING_MAX_DAYS_AHEAD
 
 
 def _err(msg: str, code: int = 400):
@@ -760,6 +760,8 @@ BOOKING_SOURCE_LABELS = {
 
 
 def _source_label(source: str) -> str:
+    if source == "partner":
+        return "合作平台预约"
     return BOOKING_SOURCE_LABELS.get(source or "", "家长预约")
 
 
