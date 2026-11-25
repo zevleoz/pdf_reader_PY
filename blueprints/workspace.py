@@ -513,19 +513,47 @@ def _wb_first_touch_updated(student_ids):
     return out
 
 
-def _wb_upcoming(scope):
+def _wb_now():
+    return datetime.now(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
+
+
+def _workbench_mode():
+    """工作台范围：``mine``（账号绑定的顾问名下）或 ``all``（账号可访问范围）。
+
+    先按账号权限确定可选范围，再按 mode 收窄：仅有名下学生权限的账号请求 all
+    也不会扩大范围；未绑定顾问的账号默认 all，且不显示个人切换。
+    """
+    from flask import request
+
+    bound = (session.get("advisor_name") or "").strip()
+    can_all = _advisor_scope() is None
+    requested = (request.args.get("mode") or "").strip()
+    if requested == "all" and can_all:
+        mode = "all"
+    elif requested == "mine" and bound:
+        mode = "mine"
+    else:
+        mode = "mine" if bound else "all"
+    return mode, bound, can_all
+
+
+def _wb_upcoming(mode, bound, scope):
+    """接下来的预约：已关联学生以学生归属为准；未关联的只在全范围出现。"""
     import db as _db
     from sqlalchemy import select
 
-    now = datetime.now(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
     stmt = (select(_db.Booking, _db.Student.student_code)
             .outerjoin(_db.Student, _db.Booking.student_id == _db.Student.id)
             .where(_db.Booking.status == "pending",
-                   _db.Booking.appointment_time >= now)
+                   _db.Booking.appointment_time >= _wb_now())
             .order_by(_db.Booking.appointment_time.asc(), _db.Booking.id.asc())
             .limit(_UPCOMING_LIMIT))
-    if scope is not None:
-        stmt = stmt.where(_db.Booking.advisor_name == scope)
+    if mode == "mine":
+        stmt = stmt.where(_db.Booking.student_id.isnot(None),
+                          _db.Student.advisor_name == bound)
+    elif scope is not None:
+        stmt = stmt.where(_db.Booking.student_id.isnot(None),
+                          _db.Student.advisor_name == scope)
     with _db.Session(_db.engine) as sess:
         return [{"booking_id": b.id, "student_name": b.student_name,
                  "student_code": code or None,
@@ -534,10 +562,73 @@ def _wb_upcoming(scope):
                 for b, code in sess.execute(stmt).all()]
 
 
+_WB_ASSIGN_LIMIT = 20
+
+
+def _wb_can_assign():
+    """是否可处理「待分配测评师」。
+
+    沿用档案预约接口现行判断（``api_profiling_student_schedule`` 的 ``can_assign``）。
+    多办公室与具名排班落地后，这里改为消费统一的「可以分配此预约」服务端判断。
+    """
+    return session.get("role") == "admin"
+
+
+def _wb_office_ids():
+    """账号被授权的办公室；多办公室权限落地后直接消费其服务端结果。"""
+    import db as _db
+
+    getter = getattr(_db, "list_user_office_ids", None)
+    uid = session.get("user_id")
+    if getter and uid:
+        try:
+            ids = [int(x) for x in getter(uid) if x not in (None, "")]
+        except (TypeError, ValueError):
+            ids = []
+        if ids:
+            return ids
+    office_id = session.get("office_id")
+    return [int(office_id)] if office_id not in (None, "") else []
+
+
+def _wb_pending_assignments(mode, bound, scope):
+    """待分配测评师：有效、待服务且尚未分配的预约，按预约时间从近到远。
+
+    已关联学生的预约按学生是否落在当前范围判断；无学生档案的预约不进入此组
+    （没有可直达的档案页）。办公室权限消费账号被授权的办公室。
+    """
+    import db as _db
+    from sqlalchemy import select
+
+    if not _wb_can_assign():
+        return []
+    stmt = (select(_db.Booking, _db.Student.student_code, _db.Location.name)
+            .join(_db.Student, _db.Booking.student_id == _db.Student.id)
+            .outerjoin(_db.Location, _db.Booking.location_id == _db.Location.id)
+            .where(_db.Booking.status == "pending",
+                   _db.Booking.appointment_time >= _wb_now(),
+                   _db.Booking.assessor_id.is_(None))
+            .order_by(_db.Booking.appointment_time.asc(), _db.Booking.id.asc())
+            .limit(_WB_ASSIGN_LIMIT))
+    if mode == "mine":
+        stmt = stmt.where(_db.Student.advisor_name == bound)
+    elif scope is not None:
+        stmt = stmt.where(_db.Student.advisor_name == scope)
+    office_ids = _wb_office_ids()
+    if office_ids:
+        stmt = stmt.where(_db.Booking.location_id.in_(office_ids))
+    with _db.Session(_db.engine) as sess:
+        return [{"booking_id": b.id, "student_code": code or None,
+                 "student_name": b.student_name,
+                 "office_name": office_name or "",
+                 "appointment_time": b.appointment_time.isoformat()}
+                for b, code, office_name in sess.execute(stmt).all()]
+
+
 @bp.route("/api/profiling/workbench")
 @login_required
 def api_profiling_workbench():
-    """S4-C6a：工作台数据（阶段计数、待处理队列、接下来的预约、生成作业）。"""
+    """工作台数据（我的/全部范围、阶段计数、待处理队列、接下来的预约、待分配测评师）。"""
     from flask import jsonify
     from sqlalchemy import select
     import db as _db
@@ -548,13 +639,17 @@ def api_profiling_workbench():
     scope = _advisor_scope()
     full = can_see_full()
     can_write = session.get("role") != "viewer"
+    mode, bound, can_all = _workbench_mode()
 
     stmt = visible_student_filter(select(
         _db.Student.id, _db.Student.student_code, _db.Student.name, _db.Student.created_at))
+    if mode == "mine":
+        stmt = stmt.where(_db.Student.advisor_name == bound)
     with _db.Session(_db.engine) as sess:
         rows = sess.execute(stmt).all()
     students = {r.id: {"id": r.id, "code": r.student_code or "", "name": r.name or "",
                        "created_at": r.created_at} for r in rows}
+    q_scope = bound if mode == "mine" else scope
     facts = ps.load_facts(students)
     prog = {sid: ps.build_progress(f) for sid, f in facts.items()}
 
@@ -576,7 +671,7 @@ def api_profiling_workbench():
 
     # flag：只给完整权限账号
     if full:
-        for f in _qs.list_open_flags(advisor_name=scope):
+        for f in _qs.list_open_flags(advisor_name=q_scope):
             if f.get("student_id") not in students:
                 continue
             queue.append({
@@ -590,7 +685,7 @@ def api_profiling_workbench():
 
     # confirm：待确认任务按学生分组，最早创建的组在前（不含 reason）
     groups = {}
-    for a in _qs.list_assignments("pending", advisor_name=scope, limit=100000):
+    for a in _qs.list_assignments("pending", advisor_name=q_scope, limit=100000):
         if a["student_id"] not in students:
             continue
         g = groups.setdefault(a["student_id"], {"assignments": [], "created_at": None})
@@ -636,8 +731,13 @@ def api_profiling_workbench():
     return jsonify({
         "ok": True,
         "permissions": {"can_write": can_write, "full": full},
+        "mode": mode,
+        "can_switch": bool(can_all and bound),
+        "bound_advisor": bound,
+        "can_assign": _wb_can_assign(),
         "counts": counts,
         "queue": queue,
-        "upcoming": _wb_upcoming(scope),
+        "upcoming": _wb_upcoming(mode, bound, scope),
+        "pending_assignments": _wb_pending_assignments(mode, bound, scope),
         "job": _generation_job() if session.get("role") != "viewer" else None,
     })

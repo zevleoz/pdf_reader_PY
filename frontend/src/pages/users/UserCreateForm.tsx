@@ -42,7 +42,7 @@ function applyRole(form: FormState, role: Role): FormState {
     detail_level: defaults.detail_level,
     m1_access: defaults.m1_access,
     is_assessor: role === "front" ? false : form.is_assessor,
-    advisor_name: student_scope === "own" ? form.advisor_name : "",
+    advisor_name: form.advisor_name,
   };
 }
 
@@ -62,7 +62,7 @@ export default function UserCreateForm({
   const isAdmin = form.role === "admin";
   const isViewer = form.role === "viewer";
   const isFront = form.role === "front";
-  const showAdvisor = form.student_scope === "own";
+  const showAdvisor = form.role === "admin" || form.role === "advisor";
   const needsOffice = isFront || form.is_assessor;
 
   function changeRole(role: Role) {
@@ -70,11 +70,7 @@ export default function UserCreateForm({
   }
 
   function changeScope(student_scope: string) {
-    setForm((current) => ({
-      ...current,
-      student_scope,
-      advisor_name: student_scope === "own" ? current.advisor_name : "",
-    }));
+    setForm((current) => ({ ...current, student_scope }));
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -199,7 +195,9 @@ export default function UserCreateForm({
 
         {showAdvisor ? (
           <div className="grid gap-1.5">
-            <Label htmlFor="na">绑定顾问（可见学生为名下学生时必填）</Label>
+            <Label htmlFor="na">
+              绑定顾问（{form.student_scope === "own" ? "名下学生范围必填" : "可选，工作台默认「我的学生」"}）
+            </Label>
             <Input
               id="na"
               value={form.advisor_name}

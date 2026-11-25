@@ -12,8 +12,8 @@ import { useGoLink } from "@/shell/useGoLink";
 
 import AssessorPanel from "./booking/AssessorPanel";
 import { PackageDialog, type Pkg } from "./workbench/Dialogs";
-import { weekday, type Notify, type QueueItem, type WorkbenchData } from "./workbench/model";
-import QueueList, { itemKey } from "./workbench/QueueList";
+import { weekday, type Notify, type QueueItem, type WorkbenchData, type WorkbenchMode } from "./workbench/model";
+import QueueList, { AssignList, itemKey } from "./workbench/QueueList";
 import { SideTitle, UpcomingList } from "./workbench/Side";
 
 function findLink(groups: { links: NavLink[] }[], key: string): NavLink | null {
@@ -31,6 +31,8 @@ export default function Workbench() {
   const go = useGoLink();
   const bookingsLink = React.useMemo(() => findLink(boot.nav, "tools.bookings"), [boot.nav]);
   const [state, setState] = React.useState<LoadState>({ status: "loading" });
+  const [mode, setMode] = React.useState<WorkbenchMode | null>(null);
+  const skipModeFetch = React.useRef(false);
   const [reload, setReload] = React.useState(0);
   const [removed, setRemoved] = React.useState<string[]>([]);
   const [pkg, setPkg] = React.useState<Pkg | null>(null);
@@ -45,12 +47,21 @@ export default function Workbench() {
   React.useEffect(() => () => window.clearTimeout(noticeTimer.current), []);
 
   React.useEffect(() => {
+    if (skipModeFetch.current) {
+      skipModeFetch.current = false;
+      return;
+    }
     let cancelled = false;
     setState({ status: "loading" });
     setRemoved([]);
-    getJSON<WorkbenchData>("/api/profiling/workbench")
+    getJSON<WorkbenchData>("/api/profiling/workbench" + (mode ? "?mode=" + mode : ""))
       .then((data) => {
-        if (!cancelled) setState({ status: "ready", data });
+        if (cancelled) return;
+        setState({ status: "ready", data });
+        if (mode === null) {
+          skipModeFetch.current = true;
+          setMode(data.mode);
+        }
       })
       .catch(() => {
         if (!cancelled) setState({ status: "error" });
@@ -58,13 +69,42 @@ export default function Workbench() {
     return () => {
       cancelled = true;
     };
-  }, [reload]);
+  }, [reload, mode]);
 
   const today = new Date();
   const todayText = today.getMonth() + 1 + " 月 " + today.getDate() + " 日 " + weekday(today);
   const data = state.status === "ready" ? state.data : null;
   const queue: QueueItem[] = data ? data.queue.filter((i) => !removed.includes(itemKey(i))) : [];
+  const pending = data?.pending_assignments ?? [];
+  const total = queue.length + pending.length;
   const canWrite = !!data?.permissions.can_write;
+
+  const modeSwitch = data ? (
+    data.can_switch ? (
+      <div role="group" aria-label="工作台范围" className="inline-flex border border-rule">
+        {([["mine", "我的学生"], ["all", "全部事项"]] as [WorkbenchMode, string][]).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={data.mode === key}
+            className={cn(
+              "min-h-8 px-3 text-[12.5px] font-semibold first:border-r first:border-rule",
+              data.mode === key ? "bg-ink text-white" : "text-mute hover:text-ink",
+            )}
+            onClick={() => {
+              if (data.mode !== key) setMode(key);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    ) : (
+      <p className="text-[12.5px] text-mute">
+        我的学生 · {data.bound_advisor}
+      </p>
+    )
+  ) : null;
 
   const actions = (
     <div className="flex flex-wrap gap-2">
@@ -103,7 +143,7 @@ export default function Workbench() {
     <div>
       <PageHeader
         title="工作台"
-        sub={data ? queue.length + " 件事等你处理 · " + todayText : todayText}
+        sub={data ? total + " 件事等你处理 · " + todayText : todayText}
         actions={data ? actions : undefined}
       />
 
@@ -123,22 +163,30 @@ export default function Workbench() {
         <>
           <div className="grid grid-cols-1 items-start gap-7 md:grid-cols-[minmax(0,1fr)_270px] lg:grid-cols-[minmax(0,1fr)_320px]">
             <section aria-label="待处理" className="min-w-0">
-              <SideTitle>待处理</SideTitle>
-              {queue.length === 0 ? (
-                <div className="px-4 py-11 text-center text-mute">
-                  <b className="mb-1 block text-base text-ink">今天的事都处理完了</b>
+              {modeSwitch ? <div className="mb-5">{modeSwitch}</div> : null}
+              {total === 0 ? (
+                <div className="border-t-2 border-rule px-4 py-11 text-center text-mute">
+                  <b className="mb-1 block text-base text-ink">当前范围没有待办</b>
                   新的任务会出现在这里。
                 </div>
               ) : (
-                <QueueList
-                  items={queue}
-                  canWrite={canWrite}
-                  full={data.permissions.full}
-                  bookingsLink={bookingsLink}
-                  onRemove={(item) => setRemoved((r) => [...r, itemKey(item)])}
-                  onPackage={setPkg}
-                  notify={notify}
-                />
+                <>
+                  <AssignList rows={pending} />
+                  <SideTitle>待处理</SideTitle>
+                  {queue.length === 0 ? (
+                    <p className="py-4 text-sm text-mute">当前范围内没有其他待办。</p>
+                  ) : (
+                    <QueueList
+                      items={queue}
+                      canWrite={canWrite}
+                      full={data.permissions.full}
+                      bookingsLink={bookingsLink}
+                      onRemove={(item) => setRemoved((r) => [...r, itemKey(item)])}
+                      onPackage={setPkg}
+                      notify={notify}
+                    />
+                  )}
+                </>
               )}
               <div className="mt-3 text-right">
                 <Link to="/questionnaires" className="text-[12.5px] font-semibold text-hl hover:underline">

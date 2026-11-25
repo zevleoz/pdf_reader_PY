@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 
 import { fmtDate } from "../profile/common";
 import { ConfirmDialog, type Pkg } from "./Dialogs";
-import type { Notify, QueueItem } from "./model";
+import type { Notify, PendingAssignment, QueueItem } from "./model";
+import { pad2, weekday } from "./model";
+import { SideTitle } from "./Side";
 
 const KIND_LABEL: Record<QueueItem["kind"], string> = {
   flag: "安全提醒",
@@ -18,6 +20,71 @@ const KIND_LABEL: Record<QueueItem["kind"], string> = {
   booking: "待预约",
   m1: "心有灵析",
 };
+
+/** 左栏按步骤分段；空组隐藏。问卷反馈（flag）排在同组 confirm 之前。 */
+const GROUPS: { key: string; label: string; kinds: QueueItem["kind"][] }[] = [
+  { key: "booking", label: "待预约", kinds: ["booking"] },
+  { key: "questionnaires", label: "补充问卷", kinds: ["flag", "confirm"] },
+  { key: "first_touch", label: "First Touch", kinds: ["first_touch"] },
+  { key: "six_am", label: "6AM", kinds: ["six_am"] },
+  { key: "m1", label: "心有灵析", kinds: ["m1"] },
+];
+
+function GroupTitle({ label, count }: { label: string; count: number }) {
+  return (
+    <h3 className="mt-5 flex items-baseline gap-1.5 border-t-2 border-rule pt-[9px] text-sm font-bold first:mt-0">
+      {label}
+      <span className="text-[12.5px] font-medium text-mute">· {count}</span>
+    </h3>
+  );
+}
+
+/* ---------------------------------------------------------- 待分配测评师 */
+export function AssignList({ rows }: { rows: PendingAssignment[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section aria-label="待分配测评师" className="mb-6">
+      <SideTitle right={<span className="text-[12.5px] font-medium text-mute">· {rows.length}</span>}>
+        待分配测评师
+      </SideTitle>
+      {rows.map((r) => {
+        const profile = r.student_code
+          ? "/students/" + encodeURIComponent(r.student_code) + "?tab=schedule&booking=" + r.booking_id
+          : null;
+        const when = new Date(r.appointment_time);
+        const valid = !isNaN(when.getTime());
+        return (
+          <div
+            key={r.booking_id}
+            className="grid items-center gap-x-3 gap-y-1 border-b border-line py-[11px] md:grid-cols-[minmax(0,1fr)_auto_auto]"
+          >
+            <div className="min-w-0">
+              {profile ? (
+                <Link to={profile} className="font-bold hover:underline">
+                  {r.student_name || "—"}
+                </Link>
+              ) : (
+                <b>{r.student_name || "—"}</b>
+              )}
+              <small className="block text-[12.5px] leading-[1.3] text-mute">{r.office_name || "未填办公室"}</small>
+            </div>
+            <span className="whitespace-nowrap text-[12.5px] text-mute">
+              {valid
+                ? when.getMonth() + 1 + "/" + when.getDate() + " " + weekday(when) + " " +
+                  pad2(when.getHours()) + ":" + pad2(when.getMinutes())
+                : ""}
+            </span>
+            {profile ? (
+              <Link to={profile} className="text-[12.5px] font-semibold text-hl hover:underline">
+                分配
+              </Link>
+            ) : null}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
 
 export function itemKey(item: QueueItem): string {
   switch (item.kind) {
@@ -182,29 +249,40 @@ export default function QueueList({
     }
   }
 
+  function renderRow(item: QueueItem) {
+    const alert = item.kind === "flag";
+    return (
+      <div
+        key={itemKey(item)}
+        className={cn(
+          "grid items-center gap-x-3 gap-y-1 border-b border-line py-[11px] md:grid-cols-[92px_minmax(0,1fr)_auto]",
+          alert && "bg-tint shadow-[-12px_0_0_hsl(var(--tint)),12px_0_0_hsl(var(--tint))]",
+        )}
+      >
+        <span className={cn("text-[12.5px] font-medium text-mute", alert && "font-bold text-hl")}>
+          {KIND_LABEL[item.kind]}
+        </span>
+        <div className="min-w-0">
+          <Link to={"/students/" + encodeURIComponent(item.student.code)} className="font-bold hover:underline">
+            {item.student.name || "—"}
+          </Link>
+          <small className="block text-[12.5px] leading-[1.3] text-mute">{detailOf(item)}</small>
+        </div>
+        <div className="flex flex-wrap gap-1.5 md:justify-end">{actionOf(item)}</div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      {items.map((item) => {
-        const alert = item.kind === "flag";
+      {GROUPS.map((g) => {
+        const rows = items.filter((i) => g.kinds.includes(i.kind));
+        if (rows.length === 0) return null;
         return (
-          <div
-            key={itemKey(item)}
-            className={cn(
-              "grid items-center gap-x-3 gap-y-1 border-b border-line py-[11px] md:grid-cols-[92px_minmax(0,1fr)_auto]",
-              alert && "bg-tint shadow-[-12px_0_0_hsl(var(--tint)),12px_0_0_hsl(var(--tint))]",
-            )}
-          >
-            <span className={cn("text-[12.5px] font-medium text-mute", alert && "font-bold text-hl")}>
-              {KIND_LABEL[item.kind]}
-            </span>
-            <div className="min-w-0">
-              <Link to={"/students/" + encodeURIComponent(item.student.code)} className="font-bold hover:underline">
-                {item.student.name || "—"}
-              </Link>
-              <small className="block text-[12.5px] leading-[1.3] text-mute">{detailOf(item)}</small>
-            </div>
-            <div className="flex flex-wrap gap-1.5 md:justify-end">{actionOf(item)}</div>
-          </div>
+          <section key={g.key} aria-label={g.label}>
+            <GroupTitle label={g.label} count={rows.length} />
+            {rows.map(renderRow)}
+          </section>
         );
       })}
       {confirming ? (

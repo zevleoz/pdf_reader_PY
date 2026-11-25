@@ -25,12 +25,25 @@ export type Upcoming = {
   advisor_name: string;
   source: string;
 };
+export type PendingAssignment = {
+  booking_id: number;
+  student_code: string | null;
+  student_name: string;
+  office_name: string;
+  appointment_time: string;
+};
+export type WorkbenchMode = "mine" | "all";
 export type WorkbenchData = {
   ok: boolean;
   permissions: { can_write: boolean; full: boolean };
+  mode: WorkbenchMode;
+  can_switch: boolean;
+  bound_advisor: string;
+  can_assign: boolean;
   counts: Record<"booking" | "y4_report" | "interpretation" | "six_am" | "done", number>;
   queue: QueueItem[];
   upcoming: Upcoming[];
+  pending_assignments: PendingAssignment[];
   job: Job | null;
 };
 export type Notify = (text: string, kind?: "ok" | "error") => void;
