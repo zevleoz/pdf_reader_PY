@@ -166,7 +166,9 @@ export default function Workbench() {
               {modeSwitch ? <div className="mb-5">{modeSwitch}</div> : null}
               {total === 0 ? (
                 <div className="border-t-2 border-rule px-4 py-11 text-center text-mute">
-                  <b className="mb-1 block text-base text-ink">当前范围没有待办</b>
+                  <b className="mb-1 block text-base text-ink">
+                    {data.mode === "mine" ? "我的学生暂无待办" : "当前范围没有待办"}
+                  </b>
                   新的任务会出现在这里。
                 </div>
               ) : (
