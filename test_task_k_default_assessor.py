@@ -200,6 +200,36 @@ def test_empty_candidate_state_is_reproducible_and_actionable(world):
     assert _db.get_assessor_candidates(_db.get_booking_detail(booking_id)) == []
 
 
+def test_grant_access_restores_capacity_for_unconfigured_admin(world):
+    """线上历史账号未开测评师、未授权办公室时，--grant-access 应一步恢复可约。"""
+    day = date.today() + timedelta(days=1)
+    _db.update_user(world["bj_only"], is_active=0)
+    plain = _db.create_user("plainadmin", "pw", "admin", display_name="主管理员",
+                            is_assessor=0, office_id=None)
+    before = _db.slot_capacity_range(day, day, world["bj"])
+    assert max(before.get(day.isoformat(), {"x": 0}).values(), default=0) == 0
+
+    result = _db.set_office_default_assessor(world["bj"], plain, grant_access=True)
+    assert result["granted_assessor"] is True and result["granted_office"] is True
+    assert _db.get_user_by_id(plain)["is_assessor"] == 1
+    assert world["bj"] in _db.list_user_office_ids(plain)
+    assert _db.get_office_default_assessor(world["bj"]) == plain
+    assert _db.assessor_office_mode(plain, world["bj"]) == "legacy"
+    after = _db.slot_capacity_range(day, day, world["bj"])
+    assert max(after[day.isoformat()].values()) > 0
+
+    booking = {"id": 88888, "assessor_id": None, "location_id": world["bj"],
+               "appointment_time": f"{day.isoformat()}T10:00:00"}
+    rows = _db.get_assessor_candidates(booking)
+    plain_rows = [row for row in rows if row["id"] == plain]
+    assert plain_rows and plain_rows[0]["is_default"] is True
+
+    # 已满权限的账号再次执行不应重复报错或改变其他办公室
+    again = _db.set_office_default_assessor(world["sh"], world["jeff"], grant_access=True)
+    assert again["granted_assessor"] is False
+    assert _db.assessor_office_mode(world["jeff"], world["sz"]) == "explicit"
+
+
 def test_default_assessor_config_is_idempotent_and_validated(world):
     _db._ensure_task_k_schema()
     _db._ensure_task_k_schema()  # 可重复执行

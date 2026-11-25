@@ -2085,11 +2085,15 @@ def get_office_default_assessor(office_id: Optional[int]) -> Optional[int]:
         return None
 
 
-def set_office_default_assessor(office_id: int, assessor_id: int) -> None:
+def set_office_default_assessor(office_id: int, assessor_id: int,
+                                grant_access: bool = False) -> Dict[str, Any]:
     """幂等配置某办公室的默认测评师。
 
     只把该账号在该办公室的排班起点写为 legacy（无记录即开放），不改动其其他办公室，
     也不改写任何已有预约的测评师。显示名变化不影响，因为只认稳定用户 ID。
+
+    grant_access=True 时，额外启用该账号的测评师身份并授予该办公室，用于线上首次部署
+    或历史账号尚未配置权限的情况；授权动作只针对显式传入的账号和办公室。
     """
     with Session(engine) as sess:
         office = sess.get(Location, int(office_id))
@@ -2098,10 +2102,29 @@ def set_office_default_assessor(office_id: int, assessor_id: int) -> None:
         user = sess.get(User, int(assessor_id))
         if not user or not int(user.is_active or 0):
             raise ValueError("该账号不存在或已停用")
-        if not int(user.is_assessor or 0) or user.role not in ("admin", "advisor"):
-            raise ValueError("该账号不是可用测评师，请先在用户管理启用测评师身份")
-        if not sess.get(UserOffice, (int(assessor_id), int(office_id))):
-            raise ValueError("该账号未获该办公室授权，请先在用户管理启用该办公室")
+        if user.role not in ("admin", "advisor"):
+            raise ValueError("只有管理员或顾问账号可以配置为测评师")
+        granted_assessor = False
+        granted_office = False
+        if grant_access:
+            if not int(user.is_assessor or 0):
+                user.is_assessor = 1
+                granted_assessor = True
+            link = sess.get(UserOffice, (int(assessor_id), int(office_id)))
+            if not link:
+                has_office = sess.scalar(
+                    select(func.count()).select_from(UserOffice)
+                    .where(UserOffice.user_id == int(assessor_id))) or 0
+                sess.add(UserOffice(user_id=int(assessor_id), office_id=int(office_id),
+                                    is_default=0 if has_office else 1))
+                granted_office = True
+            if not user.office_id:
+                user.office_id = int(office_id)
+        else:
+            if not int(user.is_assessor or 0):
+                raise ValueError("该账号不是可用测评师，请先在用户管理启用测评师身份")
+            if not sess.get(UserOffice, (int(assessor_id), int(office_id))):
+                raise ValueError("该账号未获该办公室授权，请先在用户管理启用该办公室")
         row = sess.get(OfficeDefaultAssessor, int(office_id))
         if row:
             row.assessor_id = int(assessor_id)
@@ -2115,6 +2138,9 @@ def set_office_default_assessor(office_id: int, assessor_id: int) -> None:
             sess.add(AssessorOfficeSetting(
                 assessor_id=int(assessor_id), office_id=int(office_id), mode="legacy"))
         sess.commit()
+        return {"office_id": int(office_id), "assessor_id": int(assessor_id),
+                "granted_assessor": granted_assessor, "granted_office": granted_office,
+                "mode": "legacy"}
 
 
 def get_assessor_candidates(booking: Dict[str, Any]) -> List[Dict[str, Any]]:
