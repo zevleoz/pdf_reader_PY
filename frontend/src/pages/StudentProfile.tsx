@@ -14,12 +14,11 @@ import { recordRecent } from "@/lib/recent";
 import PageHeader from "@/shell/PageHeader";
 
 import { ProfileCtx, ResourceCache, type Notify, type OpenFlag, type PageData } from "./profile/common";
-import FilesTab from "./profile/FilesTab";
 import FirstTouchTab from "./profile/FirstTouchTab";
 import { NextBox } from "./profile/NextStep";
 import OverviewTab from "./profile/OverviewTab";
 import QuestionnaireTab from "./profile/QuestionnaireTab";
-import ReportsTab from "./profile/ReportsTab";
+import ReportFilesTab from "./profile/ReportFilesTab";
 import ScheduleTab from "./profile/ScheduleTab";
 import SixAmTab from "./profile/SixAmTab";
 import Y4Tab from "./profile/Y4Tab";
@@ -31,8 +30,7 @@ const TABS: { key: string; label: string }[] = [
   { key: "questionnaires", label: "问卷" },
   { key: "six_am", label: "6AM" },
   { key: "first_touch", label: "First Touch" },
-  { key: "reports", label: "报告交付" },
-  { key: "files", label: "文件" },
+  { key: "report_files", label: "报告与文件" },
 ];
 const TAB_KEYS = TABS.map((t) => t.key);
 
@@ -236,7 +234,9 @@ function Tracker({ progress }: { progress: Progress }) {
 export default function StudentProfile() {
   const params = useParams();
   const code = params.code || "";
-  const [tab, setTab] = useTab(TAB_KEYS, "overview");
+  // 旧书签 ?tab=files / ?tab=reports 统一落到「报告与文件」，地址栏保留原参数。
+  const [rawTab, setTab] = useTab([...TAB_KEYS, "files", "reports"], "overview");
+  const tab = rawTab === "files" || rawTab === "reports" ? "report_files" : rawTab;
   const [state, setState] = React.useState<LoadState>({ status: "loading" });
   const [reload, setReload] = React.useState(0);
   const [visited, setVisited] = React.useState<string[]>([tab]);
@@ -507,14 +507,9 @@ export default function StudentProfile() {
               <FirstTouchTab />
             </TabsContent>
           ) : null}
-          {visited.includes("reports") ? (
-            <TabsContent value="reports" forceMount className="mt-0 data-[state=inactive]:hidden">
-              {tab === "reports" ? <ReportsTab /> : null}
-            </TabsContent>
-          ) : null}
-          {visited.includes("files") ? (
-            <TabsContent value="files" forceMount className="mt-0 data-[state=inactive]:hidden">
-              <FilesTab />
+          {visited.includes("report_files") ? (
+            <TabsContent value="report_files" forceMount className="mt-0 data-[state=inactive]:hidden">
+              <ReportFilesTab />
             </TabsContent>
           ) : null}
         </Tabs>
