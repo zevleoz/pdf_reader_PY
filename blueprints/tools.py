@@ -734,7 +734,7 @@ def _slot_error(location_id: int, appt, *, public=False):
     booking_date = appt.date()
     capacity = _db.effective_slot_capacity(location_id, appt, SLOT_CAPACITY)
     if capacity <= 0:
-        return _err("该时段暂无可约老师，请选择其他时间", 409)
+        return _err("该时段已关闭，请选择其他时间", 409)
     booked = _db.get_slot_booking_counts(booking_date, location_id).get(time_slot_str, 0)
     if booked >= capacity:
         if public:
@@ -753,7 +753,7 @@ def _slot_race_error(e, *, public=False):
     cap = getattr(e, "capacity", None)
     cap = SLOT_CAPACITY if cap is None else cap
     if cap <= 0:
-        return _err("该时段暂无可约老师，请选择其他时间", 409)
+        return _err("该时段已关闭，请选择其他时间", 409)
     if public:
         return _err("该时段已满，请选择其他时间", 409)
     return _err(f"该时段已满（{e.booked}/{cap}），请选择其他时间", 409)
@@ -1354,9 +1354,9 @@ def api_get_availability():
     all_slots = []
     available_map = {e["time_slot"]: e["is_available"] for e in entries}
     for ts in _db.TIME_SLOTS:
-        is_open = available_map.get(ts, True)  # Default: available
-        booked = booking_counts.get(ts, 0)
         capacity = capacities.get(ts, SLOT_CAPACITY)
+        is_open = available_map.get(ts, True) and capacity > 0
+        booked = booking_counts.get(ts, 0)
         is_av = is_open and booked < capacity
         all_slots.append({
             "time_slot": ts,

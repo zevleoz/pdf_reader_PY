@@ -146,7 +146,7 @@ export default function AssessorPanel({ onClose, onSaved }: { onClose: () => voi
           关闭
         </Button>
       </div>
-      <p className="mb-3 text-[12.5px] text-mute">点按一个格子，或按住拖选一段时段。松开后按起始格的状态统一开放或关闭。新增授权的办公室需要先在这里开放时段。</p>
+      <p className="mb-3 text-[12.5px] text-mute">点按一个格子，或按住拖选一段时段。松开后按起始格的状态统一开放或关闭。时段默认可约，请标记你无法到场的时段。</p>
       {data?.offices && data.offices.length > 1 ? (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-[12.5px] text-mute">办公室</span>

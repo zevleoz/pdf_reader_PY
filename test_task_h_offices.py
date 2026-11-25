@@ -76,7 +76,7 @@ def candidate_ids(client, booking_id):
     return {item["id"] for item in data["candidates"]}
 
 
-def test_user_offices_and_schedule_defaults_are_distinct(world):
+def test_all_authorized_offices_default_open(world):
     assert set(_db.list_user_office_ids(world["chen"])) == {world["sh"], world["sz"]}
     assert _db.assessor_office_mode(world["chen"], world["sh"]) == "legacy"
     assert _db.assessor_office_mode(world["chen"], world["sz"]) == "explicit"
@@ -86,7 +86,7 @@ def test_user_offices_and_schedule_defaults_are_distinct(world):
     sh_map = _db.list_assessor_availability(world["chen"], day, 1, world["sh"])
     sz_map = _db.list_assessor_availability(world["chen"], day, 1, world["sz"])
     assert sh_map[day.isoformat()]["10:00"] is True   # 旧办公室默认开放
-    assert sz_map[day.isoformat()]["10:00"] is False  # 新授权办公室默认关闭
+    assert sz_map[day.isoformat()]["10:00"] is True
 
 
 def test_candidates_follow_office_authorization_and_immediate_conflict(world):
@@ -97,7 +97,7 @@ def test_candidates_follow_office_authorization_and_immediate_conflict(world):
                                   [{"time_slot": "10:00", "is_available": True}])
     sz_booking = staff_booking(client, world["sz"], "深圳同学").get_json()["booking_id"]
 
-    # 未排班的时段：新授权办公室默认关闭，不进入候选
+    # 老师明确标记此时段不可约，退出候选。
     _db.set_assessor_availability(world["chen"], world["sz"], day,
                                   [{"time_slot": "10:00", "is_available": False}])
     assert world["chen"] not in candidate_ids(client, sz_booking)
@@ -108,15 +108,15 @@ def test_candidates_follow_office_authorization_and_immediate_conflict(world):
     assert world["chen"] in candidate_ids(client, sz_booking)
 
     sh_booking = staff_booking(client, world["sh"], "上海同学").get_json()["booking_id"]
-    # Chen is currently the only way to honor the Shenzhen booking.
-    assert world["chen"] not in candidate_ids(client, sh_booking)
-    assert client.post(f"/api/booking/{sh_booking}/assign",
-                       json={"assessor_id": world["chen"]}).status_code == 409
+    # Pending bookings do not reserve a teacher's time.
+    assert world["chen"] in candidate_ids(client, sh_booking)
     assigned = client.post(f"/api/booking/{sz_booking}/assign",
                            json={"assessor_id": world["chen"]})
     assert assigned.status_code == 200, assigned.get_json()
     assert world["chen"] not in candidate_ids(client, sh_booking)
     assert world["zhou"] in candidate_ids(client, sh_booking)
+    assert client.post(f"/api/booking/{sh_booking}/assign",
+                       json={"assessor_id": world["chen"]}).status_code == 409
 
 
 def test_assessor_cannot_edit_unauthorized_office(world):
@@ -148,10 +148,10 @@ def test_multi_office_assessor_must_pick_office(world):
     picked = client.get(f"/api/assessor/availability?location_id={world['sz']}").get_json()
     assert picked["office_id"] == world["sz"]
     day = date.today().isoformat()
-    assert picked["availability"][day]["10:00"] is False
+    assert picked["availability"][day]["10:00"] is True
 
 
-def test_public_capacity_counts_named_staff_without_leaking_names(world):
+def test_public_capacity_uses_office_limit_without_leaking_names(world):
     client = world["app"].test_client()
     login(client, world["admin"])
     day = date.today() + timedelta(days=1)
@@ -162,11 +162,50 @@ def test_public_capacity_counts_named_staff_without_leaking_names(world):
     body = str(public)
     assert "北京老师" not in body and "assessor" not in body
 
-    first = staff_booking(client, world["bj"], "甲同学", day=day)
-    assert first.status_code == 200, first.get_json()
-    second = staff_booking(client, world["bj"], "乙同学", day=day)
-    assert second.status_code == 409
-    assert "1/1" in second.get_json()["error"]
+    for index in range(_db.SLOT_CAPACITY):
+        booking = staff_booking(client, world["bj"], f"办公室预约{index}", day=day)
+        assert booking.status_code == 200, booking.get_json()
+    full = staff_booking(client, world["bj"], "办公室超额预约", day=day)
+    assert full.status_code == 409
+    assert f"{_db.SLOT_CAPACITY}/{_db.SLOT_CAPACITY}" in full.get_json()["error"]
+
+
+def test_only_unanimous_explicit_declines_close_a_slot(world):
+    client = world["app"].test_client()
+    login(client, world["admin"])
+    day = date.today() + timedelta(days=1)
+    sh = world["sh"]
+    url = f"/api/availability?date={day}&loc={sh}"
+
+    def get_slot():
+        return next(slot for slot in client.get(url).json["slots"] if slot["time_slot"] == "10:00")
+
+    for teacher in ("chen", "zhou"):
+        _db.set_assessor_availability(world[teacher], sh, day, [{"time_slot": "10:00", "is_available": False}])
+    assert get_slot()["is_available"] is True
+
+    _db.set_assessor_availability(world["admin"], sh, day, [{"time_slot": "10:00", "is_available": False}])
+    assert get_slot() == {"time_slot": "10:00", "is_available": False, "is_open": False}
+    assert staff_booking(client, sh, "时段已关闭", day=day).status_code == 409
+    appt = datetime.fromisoformat(f"{day}T10:00")
+    with pytest.raises(_db.SlotUnavailable) as conflict:
+        _db.create_booking_with_student("原子检查", appt, location_id=sh, capacity=_db.SLOT_CAPACITY)
+    assert conflict.value.kind == "closed"
+
+    _db.set_assessor_availability(world["zhou"], sh, day, [{"time_slot": "10:00", "is_available": True}])
+    assert get_slot()["is_available"] is True
+
+
+def test_office_without_teacher_accepts_unassigned_booking(world):
+    _db.update_user(world["admin"], is_assessor=0)
+    _db.update_user(world["a_bj"], is_active=0)
+    client = world["app"].test_client()
+    login(client, world["admin"])
+    created = staff_booking(client, world["bj"], "后续分配测评师")
+    assert created.status_code == 200
+    booking_id = created.json["booking_id"]
+    assert _db.get_booking_detail(booking_id)["assessor_id"] is None
+    assert candidate_ids(client, booking_id) == set()
 
 
 def test_revoke_office_lists_future_assignments_and_blocks_new_ones(world):
@@ -185,7 +224,7 @@ def test_revoke_office_lists_future_assignments_and_blocks_new_ones(world):
     assert _db.list_user_office_ids(world["chen"]) == [world["sh"]]
     assert any(item["booking_id"] == booking for item in body["reassignments"])
 
-    assert staff_booking(client, world["sz"], "撤权后同学", slot="13:00").status_code == 409
+    assert staff_booking(client, world["sz"], "撤权后同学", slot="13:00").status_code == 200
     assert world["chen"] not in candidate_ids(client, booking)
     denied = client.post(f"/api/booking/{booking}/assign", json={"assessor_id": world["chen"]})
     assert denied.status_code == 400
@@ -214,6 +253,8 @@ def test_front_desk_sees_all_authorized_offices(world):
 def test_last_capacity_race_only_one_succeeds_and_cancel_releases(world):
     appt = datetime.combine(date.today() + timedelta(days=1),
                             datetime.strptime("15:00", "%H:%M").time())
+    for i in range(_db.SLOT_CAPACITY - 1):
+        _db.add_booking(f"已预约{i}", appt, location_id=world["bj"], capacity=_db.SLOT_CAPACITY)
     barrier = Barrier(2)
 
     def attempt(name):
@@ -235,7 +276,7 @@ def test_last_capacity_race_only_one_succeeds_and_cancel_releases(world):
             _db.Booking.location_id == world["bj"],
             _db.Booking.appointment_time == appt,
             _db.Booking.status != "cancelled")).scalar()
-    assert total == 1
+    assert total == _db.SLOT_CAPACITY
 
     _db.update_booking_status(booked[0], "cancelled")
     _, released = _db.create_booking_with_student(
@@ -280,7 +321,7 @@ def test_migration_backfills_legacy_single_office_idempotently(tmp_path, monkeyp
     assert "location_id" in index_sql
 
 
-def test_public_and_partner_race_cannot_double_count_a_teacher(world, monkeypatch):
+def test_public_and_partner_can_book_different_offices_at_same_time(world, monkeypatch):
     import hashlib
     import json
 
@@ -322,9 +363,7 @@ def test_public_and_partner_race_cannot_double_count_a_teacher(world, monkeypatc
     with ThreadPoolExecutor(max_workers=2) as pool:
         requests = [pool.submit(public_booking), pool.submit(partner_booking)]
         replies = [reply.result(timeout=10) for reply in requests]
-    assert sum(response.status_code == 409 for response in replies) == 1, [r.json for r in replies]
-    assert sum(response.status_code in (200, 201) for response in replies) == 1
-    assert replies[0].status_code != 409 or "/" not in replies[0].json["error"]
+    assert [response.status_code for response in replies] == [200, 201], [r.json for r in replies]
 
 
 def test_scoped_admin_cannot_edit_or_assign_outside_office(world):

@@ -203,7 +203,7 @@ export default function Booking() {
   const emptyMessage = failed ? "无法读取最近时段"
     : !upcoming ? "正在读取时段…"
     : openUpcoming.length === 0 ? "未来两周暂无开放时段"
-    : openUpcoming.every((s) => s.capacity === 0) ? "未来两周暂无可用测评师，请检查排班"
+    : openUpcoming.every((s) => s.capacity === 0) ? "未来两周的开放时段均已被老师标记为不可约"
     : "未来两周暂无空位";
 
   function pickSlot(s: { date: string; time: string }) {
@@ -407,7 +407,7 @@ export default function Booking() {
     const open = isOpen(s);
     const sCap = s.capacity ?? cap;
     const full = !bookable(s, cap) && !edit;
-    const noAssessor = sCap === 0;
+    const teachersUnavailable = sCap === 0;
     const on = sel?.date === s.date && sel?.time === s.time;
     const label = `${md(s.date)} ${s.time}`;
     const names = (s.assessors || []).map((a) => a.display_name).join("、");
@@ -436,10 +436,10 @@ export default function Booking() {
     return (
       <button
         key={key}
-        disabled={!edit && noAssessor}
-        aria-label={noAssessor ? label + " 暂无可用测评师"
+        disabled={!edit && teachersUnavailable && s.count === 0}
+        aria-label={teachersUnavailable ? label + " 所有老师均标记不可约"
           : `${label}，已约 ${s.count} 人，余 ${Math.max(0, sCap - s.count)}${names ? "，可约老师 " + names : ""}`}
-        title={noAssessor ? "暂无可用测评师" : names ? "可约老师：" + names : undefined}
+        title={teachersUnavailable ? "所有老师均标记不可约" : names ? "可约老师：" + names : undefined}
         data-office-date={s.date}
         data-office-slot={s.time}
         className={cn(
@@ -452,7 +452,9 @@ export default function Booking() {
           else if (event.detail === 0) toggleDay(s);
         }}
       >
-        {noAssessor ? <span className="text-xs text-mute">—</span> : <Dots n={s.count} cap={sCap} />}
+        {teachersUnavailable && s.count === 0
+          ? <span className="text-xs text-mute">—</span>
+          : <Dots n={s.count} cap={Math.max(sCap, s.count)} />}
       </button>
     );
   };
@@ -596,7 +598,7 @@ export default function Booking() {
                     const sCap = s.capacity ?? cap;
                     const left = sCap - s.count;
                     const on = sel?.date === s.date && sel?.time === s.time;
-                    const dis = s.past || (!edit && (!open || left <= 0));
+                    const dis = s.past || (!edit && (!open || (left <= 0 && s.count === 0)));
                     return (
                       <button
                         key={t}
@@ -616,7 +618,7 @@ export default function Booking() {
                         }}
                       >
                         {t}
-                        <small className="text-[11.5px] font-normal opacity-70">{!open ? "未开放" : sCap === 0 ? "暂无测评师" : "余 " + Math.max(0, left)}</small>
+                        <small className="text-[11.5px] font-normal opacity-70">{!open ? "未开放" : sCap === 0 ? "老师均不可约" : "余 " + Math.max(0, left)}</small>
                       </button>
                     );
                   })}

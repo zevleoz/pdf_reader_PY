@@ -175,11 +175,7 @@ class UserOffice(Base):
 
 
 class AssessorOfficeSetting(Base):
-    """Task H：测评师在某办公室的排班起点。
-
-    mode=legacy：迁移自原单办公室账号，延续“无记录即开放”的旧规则。
-    mode=explicit：新授权的办公室，未明确排班前一律不可约，避免授权后自动出现在两地。
-    """
+    """保留历史授权来源及默认测评师配置标记。"""
     __tablename__ = "assessor_office_settings"
     assessor_id = Column(Integer, primary_key=True)
     office_id = Column(Integer, primary_key=True)
@@ -1204,10 +1200,10 @@ def _check_slot(sess: Session, location_id: int, appt_time: datetime, capacity: 
     booked = sess.execute(select(func.count(Booking.id)).where(
         Booking.location_id == location_id, Booking.status != "cancelled",
         Booking.appointment_time == appt_time)).scalar() or 0
-    schedule = _staffing_snapshot(sess, d, d)
-    effective = _slot_capacity(schedule, location_id, appt_time, capacity)
-    if booked >= effective:
-        raise SlotUnavailable("full", booked, effective)
+    if (d, ts) in _unanimous_assessor_closures(sess, d, d, location_id):
+        raise SlotUnavailable("closed")
+    if booked >= capacity:
+        raise SlotUnavailable("full", booked, capacity)
 
 
 def _insert_booking_student(sess: Session, **fields: Any) -> Student:
@@ -1909,109 +1905,35 @@ def _authorized_assessor_ids(sess: Session, location_id: int) -> List[int]:
     return [int(r[0]) for r in rows]
 
 
-def _assessor_office_slot_state(sess: Session, assessor_ids: List[int],
-                                location_id: int, day: date, slot: str):
-    """返回 (默认可约的 id 集合, 明确记录 map{(id): bool})。"""
-    explicit_default = set()
-    for aid in assessor_ids:
-        setting = sess.get(AssessorOfficeSetting, (aid, int(location_id)))
-        if setting and setting.mode == "legacy":
-            explicit_default.add(aid)
-    rows = sess.execute(select(AssessorAvailability).where(
-        AssessorAvailability.assessor_id.in_(assessor_ids or [-1]),
-        AssessorAvailability.location_id == int(location_id),
-        AssessorAvailability.date == day,
-        AssessorAvailability.time_slot == slot)).scalars().all()
-    record = {int(r.assessor_id): bool(r.is_available) for r in rows}
-    return explicit_default, record
+def _assessor_declines(sess: Session, assessor_ids: List[int], location_id: int,
+                       start: date, end: date):
+    return sess.execute(select(AssessorAvailability.date, AssessorAvailability.time_slot,
+                               AssessorAvailability.assessor_id).where(
+        AssessorAvailability.assessor_id.in_(assessor_ids),
+        AssessorAvailability.location_id == location_id,
+        AssessorAvailability.date.between(start, end),
+        AssessorAvailability.is_available == 0))
 
 
 def _assessor_ids_available(sess: Session, location_id: int, appt: datetime) -> List[int]:
-    """该办公室该时刻有人可承接的测评师（不限是否已被分配；每人只贡献一份容量）。"""
     ids = _authorized_assessor_ids(sess, location_id)
     if not ids:
         return []
     day, slot = appt.date(), appt.strftime("%H:%M")
-    legacy_default, record = _assessor_office_slot_state(sess, ids, location_id, day, slot)
-    out = []
-    for aid in ids:
-        if aid in record:
-            if record[aid]:
-                out.append(aid)
-        elif aid in legacy_default:
-            out.append(aid)
-    return out
+    declined = {aid for _, time_slot, aid in _assessor_declines(sess, ids, location_id, day, day)
+                if time_slot == slot}
+    return [aid for aid in ids if aid not in declined]
 
 
-def _staffing_snapshot(sess: Session, start: date, end: date):
-    """Load cross-office staff, explicit exceptions and occupancy once for a date range."""
-    modes = {(uid, office): mode for uid, office, mode in sess.execute(select(
-        AssessorOfficeSetting.assessor_id, AssessorOfficeSetting.office_id, AssessorOfficeSetting.mode
-    ))}
-    staff = defaultdict(list)
-    for user, office in sess.execute(select(UserOffice.user_id, UserOffice.office_id).join(
-        User, User.id == UserOffice.user_id
-    ).where(User.is_assessor == 1, User.is_active == 1, User.role.in_(("admin", "advisor")))):
-        staff[office].append(user)
-    for _, office in modes:
-        # A staffed office stays staffed when its last authorization is revoked.
-        staff.setdefault(office, [])
-    exceptions = {(user, office, day, slot): bool(open_) for user, office, day, slot, open_
-                  in sess.execute(select(
-        AssessorAvailability.assessor_id, AssessorAvailability.location_id, AssessorAvailability.date,
-        AssessorAvailability.time_slot, AssessorAvailability.is_available,
-    ).where(AssessorAvailability.date.between(start, end)))}
-    bookings = defaultdict(list)
-    for uid, office, at, assessor in sess.execute(select(
-        Booking.id, Booking.location_id, Booking.appointment_time, Booking.assessor_id,
-    ).where(Booking.appointment_time >= datetime.combine(start, datetime.min.time()),
-            Booking.appointment_time < datetime.combine(end + timedelta(days=1), datetime.min.time()),
-            Booking.status != "cancelled")):
-        bookings[at].append((uid, office, assessor))
-    return modes, staff, exceptions, bookings
-
-
-def _slot_options(schedule, at):
-    modes, staff, exceptions, _ = schedule
-    day, time_slot = at.date(), at.strftime("%H:%M")
-    return {
-        office: [user for user in users if exceptions.get(
-            (user, office, day, time_slot), modes.get((user, office)) == "legacy")]
-        for office, users in staff.items()
-    }
-
-
-def _staffing_match(options, bookings):
-    """Find a maximum assignment for unassigned bookings while fixed allocations stay pinned."""
-    busy = {assessor for _, _, assessor in bookings if assessor is not None}
-    matched = {}
-
-    def place(office, visited):
-        for assessor in options[office]:
-            if assessor in busy or assessor in visited:
-                continue
-            visited.add(assessor)
-            if assessor not in matched or place(matched[assessor], visited):
-                matched[assessor] = office
-                return True
-        return False
-
-    for _, office, assessor in bookings:
-        if assessor is None and office in options:
-            place(office, set())
-    return matched, place
-
-
-def _slot_capacity(schedule, location_id, at, hard_cap):
-    if location_id not in schedule[1]:
-        return hard_cap
-    bookings = schedule[3].get(at, ())
-    booked = sum(office == location_id for _, office, _ in bookings)
-    _, place = _staffing_match(_slot_options(schedule, at), bookings)
-    capacity = min(booked, hard_cap)
-    while capacity < hard_cap and place(location_id, set()):
-        capacity += 1
-    return capacity
+def _unanimous_assessor_closures(sess: Session, start: date, end: date, location_id: int):
+    """Only an explicit decline by every eligible teacher closes an office slot."""
+    ids = _authorized_assessor_ids(sess, location_id)
+    if not ids:
+        return set()
+    declines = defaultdict(set)
+    for day, slot, assessor in _assessor_declines(sess, ids, location_id, start, end):
+        declines[day, slot].add(assessor)
+    return {cell for cell, teachers in declines.items() if len(teachers) == len(ids)}
 
 
 def effective_slot_capacity(location_id: Optional[int], appt: datetime,
@@ -2019,38 +1941,21 @@ def effective_slot_capacity(location_id: Optional[int], appt: datetime,
     cap = int(hard_cap if hard_cap is not None else SLOT_CAPACITY)
     if location_id is None:
         return cap
+    day, slot = appt.date(), appt.strftime("%H:%M")
     with Session(engine) as sess:
-        return _slot_capacity(_staffing_snapshot(sess, appt.date(), appt.date()), location_id, appt, cap)
+        return 0 if (day, slot) in _unanimous_assessor_closures(sess, day, day, location_id) else cap
 
 
 def slot_capacity_range(start: date, end: date, location_id: int,
                         hard_cap: Optional[int] = None) -> Dict[str, Dict[str, int]]:
-    """Capacity including pending reservations that compete for assessors in other offices."""
+    """Office capacity is independent of assigned assessors and unassigned bookings."""
     cap = int(hard_cap if hard_cap is not None else SLOT_CAPACITY)
     with Session(engine) as sess:
-        schedule = _staffing_snapshot(sess, start, end)
-    if location_id not in schedule[1]:
-        return {}
-    out = {}
-    for offset in range((end - start).days + 1):
-        day = start + timedelta(days=offset)
-        out[day.isoformat()] = {
-            slot: _slot_capacity(schedule, location_id,
-                                 datetime.fromisoformat(f"{day}T{slot}"), cap)
-            for slot in TIME_SLOTS
-        }
-    return out
-
-
-def _can_pin_assessor(options, bookings, booking_id, assessor_id):
-    if any(other != booking_id and chosen == assessor_id for other, _, chosen in bookings):
-        return False
-    before, _ = _staffing_match(options, bookings)
-    updated = [(other, office, assessor_id if other == booking_id else chosen)
-               for other, office, chosen in bookings]
-    after, _ = _staffing_match(options, updated)
-    was_unassigned = any(other == booking_id and chosen is None for other, _, chosen in bookings)
-    return len(after) + was_unassigned >= len(before)
+        closed = _unanimous_assessor_closures(sess, start, end, location_id)
+    return {
+        day.isoformat(): {slot: 0 if (day, slot) in closed else cap for slot in TIME_SLOTS}
+        for day in (start + timedelta(days=i) for i in range((end - start).days + 1))
+    }
 
 
 def get_slot_assessors(location_id: int, appt: datetime) -> List[Dict[str, Any]]:
@@ -2089,7 +1994,7 @@ def set_office_default_assessor(office_id: int, assessor_id: int,
                                 grant_access: bool = False) -> Dict[str, Any]:
     """幂等配置某办公室的默认测评师。
 
-    只把该账号在该办公室的排班起点写为 legacy（无记录即开放），不改动其其他办公室，
+    只把该账号在该办公室标记为默认测评师，不改动其其他办公室，
     也不改写任何已有预约的测评师。显示名变化不影响，因为只认稳定用户 ID。
 
     grant_access=True 时，额外启用该账号的测评师身份并授予该办公室，用于线上首次部署
@@ -2149,45 +2054,24 @@ def get_assessor_candidates(booking: Dict[str, Any]) -> List[Dict[str, Any]]:
     配置了该办公室默认测评师时，其排在首位（is_default=True）；是否预选由前端决定。
     """
     appt = datetime.fromisoformat(booking["appointment_time"])
-    day, slot = appt.date(), appt.strftime("%H:%M")
     location_id = int(booking["location_id"] or 0)
     with Session(engine) as sess:
-        users = sess.execute(
-            select(User)
-            .where(User.is_assessor == 1, User.is_active == 1,
-                   User.role.in_(("admin", "advisor")))
-            .order_by(User.display_name, User.id)
-        ).scalars().all()
+        ids = _assessor_ids_available(sess, location_id, appt)
+        users = sess.execute(select(User).where(User.id.in_(ids))).scalars().all()
         office = sess.get(Location, location_id)
         office_name = office.name if office else ""
         default_row = sess.get(OfficeDefaultAssessor, location_id)
         default_id = int(default_row.assessor_id) if default_row else None
-        ids = [int(u.id) for u in users]
-        authorized = {}
-        if ids:
-            for uid, oid in sess.execute(select(UserOffice.user_id, UserOffice.office_id)
-                                         .where(UserOffice.user_id.in_(ids))).all():
-                authorized.setdefault(int(uid), set()).add(int(oid))
-        legacy_default, record = _assessor_office_slot_state(sess, ids, location_id, day, slot)
         busy = {r[0] for r in sess.execute(
             select(Booking.assessor_id).where(
                 Booking.assessor_id.isnot(None),
                 Booking.status != "cancelled",
                 Booking.appointment_time == appt,
                 Booking.id != booking["id"])).all()}
-        capacity = _staffing_snapshot(sess, day, day)
-        options, bookings = _slot_options(capacity, appt), capacity[3].get(appt, ())
         out = []
         for u in users:
             uid = int(u.id)
-            if location_id not in authorized.get(uid, set()):
-                continue
-            if uid in record:
-                if not record[uid]:
-                    continue
-            elif uid not in legacy_default:
-                continue
-            if uid in busy or not _can_pin_assessor(options, bookings, booking["id"], uid):
+            if uid in busy:
                 continue
             out.append({
                 "id": uid,
@@ -2222,15 +2106,12 @@ def assign_booking_assessor(booking_id: int, assessor_id: int) -> None:
         if not allowed:
             raise ValueError("测评师不属于该办公室")
         day, slot = booking.appointment_time.date(), booking.appointment_time.strftime("%H:%M")
-        setting = sess.get(AssessorOfficeSetting, (int(assessor_id), location_id))
         row = sess.execute(select(AssessorAvailability.is_available).where(
             AssessorAvailability.assessor_id == int(assessor_id),
             AssessorAvailability.location_id == location_id,
             AssessorAvailability.date == day,
             AssessorAvailability.time_slot == slot)).first()
         if row is not None and not row[0]:
-            raise ValueError("该测评师此时间不可约")
-        if row is None and not (setting and setting.mode == "legacy"):
             raise ValueError("该测评师此时间不可约")
         conflict = sess.execute(select(Booking.id).where(
             Booking.assessor_id == int(assessor_id),
@@ -2239,11 +2120,6 @@ def assign_booking_assessor(booking_id: int, assessor_id: int) -> None:
             Booking.id != int(booking_id))).first()
         if conflict:
             raise ValueError("该测评师在此时间已有其他预约")
-        capacity = _staffing_snapshot(sess, day, day)
-        appt = booking.appointment_time
-        if not _can_pin_assessor(_slot_options(capacity, appt), capacity[3].get(appt, ()),
-                                 booking.id, int(assessor_id)):
-            raise ValueError("该测评师已有其他预约占位，请选择其他老师")
         booking.assessor_id = int(assessor_id)
         booking.assigned_at = datetime.utcnow()
         try:
@@ -2257,7 +2133,7 @@ def list_assessor_availability(assessor_id: int, start: date, days: int = 14,
                                location_id: Optional[int] = None) -> Dict[str, Dict[str, bool]]:
     """测评师 [start, start+days) 的可约状态。
 
-    指定办公室时按该办公室的排班起点补齐默认值（legacy 默认开放，explicit 默认关闭）；
+    指定办公室时，未标记不可约的时段默认开放；
     未指定时沿用旧行为，只返回已有记录。
     """
     end = start + timedelta(days=days - 1)
@@ -2274,13 +2150,12 @@ def list_assessor_availability(assessor_id: int, start: date, days: int = 14,
             record.setdefault(r.date.isoformat(), {})[r.time_slot] = bool(r.is_available)
         if location_id in (None, ""):
             return record
-        default_open = _assessor_office_available_defaults(sess, int(assessor_id), int(location_id))
         out: Dict[str, Dict[str, bool]] = {}
         for offset in range(days):
             d = start + timedelta(days=offset)
             values = dict(record.get(d.isoformat(), {}))
             for slot in TIME_SLOTS:
-                values.setdefault(slot, default_open)
+                values.setdefault(slot, True)
             out[d.isoformat()] = values
         return out
 
@@ -3835,7 +3710,7 @@ def set_user_offices(user_id: int, office_ids, primary_id=None) -> List[int]:
             for oid in cleaned:
                 setting = sess.get(AssessorOfficeSetting, (int(user_id), oid))
                 if oid not in before:
-                    # 新授权办公室从明确排班开始：清掉未来遗留的可约记录，设为“未排班即不可约”。
+                    # 新授权办公室清理旧授权留下的未来排班记录。
                     sess.execute(delete(AssessorAvailability).where(
                         AssessorAvailability.assessor_id == int(user_id),
                         AssessorAvailability.location_id == oid,
@@ -3868,16 +3743,10 @@ def list_future_assignments_for_office(assessor_id: int, office_id: int) -> List
 
 
 def assessor_office_mode(assessor_id: int, office_id: int) -> str:
-    """legacy（旧单办公室，默认开放）/ explicit（新授权，默认关闭）。"""
+    """返回已有排班设置标记，供迁移与默认测评师配置使用。"""
     with Session(engine) as sess:
         row = sess.get(AssessorOfficeSetting, (int(assessor_id), int(office_id)))
         return row.mode if row else "explicit"
-
-
-def _assessor_office_available_defaults(sess: Session, assessor_id: int,
-                                        office_id: int) -> bool:
-    setting = sess.get(AssessorOfficeSetting, (int(assessor_id), int(office_id)))
-    return bool(setting and setting.mode == "legacy")
 
 
 def _row_to_user_dict(u: "User") -> Dict[str, Any]:

@@ -34,7 +34,7 @@ def world(tmp_path, monkeypatch):
     inactive = _db.create_user("resting", "pw", "advisor", display_name="休假老师",
                                is_assessor=1, office_id=sh)
     _db.update_user(inactive, is_active=0)
-    # 第二个办公室为 explicit：未排班时默认关闭
+    # 第二个办公室保留 explicit 授权来源标记
     explicit = _db.create_user("newoffice", "pw", "advisor", display_name="新授权老师",
                                is_assessor=1, office_ids=[sz, sh])
     bj_only = _db.create_user("beijing", "pw", "advisor", display_name="北京老师",
@@ -93,8 +93,8 @@ def test_filter_step_that_empties_candidates_is_identifiable(world):
     # 2) 办公室授权过滤
     assert world["bj_only"] not in ids
 
-    # 3) 排班默认值：explicit 且无记录 → 排除
-    assert world["explicit"] not in ids
+    # 3) 新授权老师未主动标记不可约，默认进入候选。
+    assert world["explicit"] in ids
 
     # 3b) 明确关闭 → 排除
     _db.set_assessor_availability(world["jeff"], world["sh"], day,
@@ -200,14 +200,14 @@ def test_empty_candidate_state_is_reproducible_and_actionable(world):
     assert _db.get_assessor_candidates(_db.get_booking_detail(booking_id)) == []
 
 
-def test_grant_access_restores_capacity_for_unconfigured_admin(world):
-    """线上历史账号未开测评师、未授权办公室时，--grant-access 应一步恢复可约。"""
+def test_grant_access_adds_default_candidate_without_changing_capacity(world):
+    """授权使历史管理员成为候选，办公室容量独立。"""
     day = date.today() + timedelta(days=1)
     _db.update_user(world["bj_only"], is_active=0)
     plain = _db.create_user("plainadmin", "pw", "admin", display_name="主管理员",
                             is_assessor=0, office_id=None)
     before = _db.slot_capacity_range(day, day, world["bj"])
-    assert max(before.get(day.isoformat(), {"x": 0}).values(), default=0) == 0
+    assert before[day.isoformat()]["10:00"] == _db.SLOT_CAPACITY
 
     result = _db.set_office_default_assessor(world["bj"], plain, grant_access=True)
     assert result["granted_assessor"] is True and result["granted_office"] is True
@@ -216,7 +216,7 @@ def test_grant_access_restores_capacity_for_unconfigured_admin(world):
     assert _db.get_office_default_assessor(world["bj"]) == plain
     assert _db.assessor_office_mode(plain, world["bj"]) == "legacy"
     after = _db.slot_capacity_range(day, day, world["bj"])
-    assert max(after[day.isoformat()].values()) > 0
+    assert after == before
 
     booking = {"id": 88888, "assessor_id": None, "location_id": world["bj"],
                "appointment_time": f"{day.isoformat()}T10:00:00"}
