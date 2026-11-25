@@ -267,6 +267,52 @@ def test_bound_admin_defaults_to_mine_and_can_switch(env):
     assert {i["student"]["id"] for i in all_body["queue"]} == {mine, other}
 
 
+def test_primary_admin_defaults_to_all_even_if_bound(env, monkeypatch):
+    mine = mk_student("我的", advisor="Mine")
+    other = mk_student("别人的", advisor="Other")
+    qid = mk_questionnaire()
+    mk_pending(mine, qid)
+    mk_pending(other, qid)
+    mk_future_booking(mine, 2, advisor="Mine", name="我的预约")
+    mk_future_booking(other, 3, advisor="Other", name="他人预约")
+    uid = _db.create_user("c6-primary", "pw-123456", "admin", advisor_name="Mine")
+    monkeypatch.setenv("WORKBENCH_PRIMARY_ADMIN_USER_ID", str(uid))
+    app_utils._SESSION_USER_CACHE.clear()
+    c = client(env, uid, "admin", "Mine")
+    body = fetch(c)
+    assert (body["mode"], body["can_switch"], body["bound_advisor"]) == ("all", True, "Mine")
+    assert {i["student"]["id"] for i in body["queue"]} == {mine, other}
+    assert [u["student_name"] for u in body["upcoming"]] == ["我的预约", "他人预约"]
+    mine_body = c.get(URL + "?mode=mine").get_json()
+    assert mine_body["mode"] == "mine"
+    assert {i["student"]["id"] for i in mine_body["queue"]} == {mine}
+    assert [u["student_name"] for u in mine_body["upcoming"]] == ["我的预约"]
+
+
+def test_primary_admin_config_does_not_widen_scoped_account(env, monkeypatch):
+    mine = mk_student("我的", advisor="Mine")
+    mk_student("别人的", advisor="Other")
+    uid = _db.create_user("c6-primary-own", "pw-123456", "advisor", advisor_name="Mine")
+    monkeypatch.setenv("WORKBENCH_PRIMARY_ADMIN_USER_ID", str(uid))
+    app_utils._SESSION_USER_CACHE.clear()
+    body = client(env, uid, "advisor", "Mine").get(URL + "?mode=all").get_json()
+    assert (body["mode"], body["can_switch"]) == ("mine", False)
+    assert {i["student"]["id"] for i in body["queue"]} <= {mine}
+
+
+def test_bound_admin_outside_primary_config_keeps_mine(env, monkeypatch):
+    monkeypatch.delenv("WORKBENCH_PRIMARY_ADMIN_USER_ID", raising=False)
+    mine = mk_student("我的", advisor="Mine")
+    other = mk_student("别人的", advisor="Other")
+    qid = mk_questionnaire()
+    mk_pending(mine, qid)
+    mk_pending(other, qid)
+    c = mk_bound_admin(env, username="c6-jsn", advisor="Mine")
+    body = fetch(c)
+    assert (body["mode"], body["can_switch"]) == ("mine", True)
+    assert {i["student"]["id"] for i in body["queue"]} == {mine}
+
+
 def test_unbound_account_defaults_to_all_without_switch(env):
     mk_student("甲", advisor="Mine")
     mk_student("乙", advisor="Other")
