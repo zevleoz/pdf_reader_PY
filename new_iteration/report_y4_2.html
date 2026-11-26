@@ -37,13 +37,22 @@ footer { position:absolute; inset:auto 14mm 9mm; border-top:1px solid #e2e8de; p
 .itemrow p { font-size:9pt; color:#545951; overflow-wrap:anywhere }
 .measure { display:grid; grid-template-columns:1fr 9mm; align-items:center; gap:2mm; text-align:right }
 .track { height:1.5mm }
-.cover { background:#eff5e9 }
-.cover header { border-bottom-color:#407b1d }
-.cover .cover-title { position:absolute; top:83mm; left:18mm; right:18mm }
-.cover .series { color:#407b1d; font-size:27pt; font-weight:800 }
-.cover h1 { font-size:41pt; margin:0 }
-.cover .student { position:absolute; left:18mm; right:18mm; top:180mm; border-top:1px solid #407b1d; padding-top:6mm }
-.cover .student strong { display:block; font-size:23pt; overflow-wrap:anywhere }
+/* 封面：与 Y4 评测报告封面同一版式，仅替换文案 */
+.cover { padding:0; background:radial-gradient(ellipse 95% 75% at 66% 40%, #B00607 0%, #A40405 48%, #820303 100%); color:#FFF }
+.cover-logo { position:absolute; top:10mm; left:12mm; display:flex; align-items:center; gap:4mm }
+.cover-logo img { height:12.5mm; display:block }
+.cover-logo .txt .l1 { font-size:14.5pt; font-weight:700; letter-spacing:1px; line-height:1.1 }
+.cover-logo .txt .l2 { font-size:6.5pt; letter-spacing:2.2px; opacity:.9; margin-top:1mm }
+.cover-title { position:absolute; top:72mm; left:12mm }
+.cover-title .y4 { font-size:64pt; font-weight:800; letter-spacing:2px; line-height:1 }
+.cover-title .cn { font-size:25pt; font-weight:700; letter-spacing:4px; margin-top:7mm }
+.cover-title .en { font-size:9pt; letter-spacing:3.5px; margin-top:2.5mm; opacity:.9; text-transform:uppercase; color:#FFF }
+.cover-title .rule { width:14mm; height:3px; background:#FFF; margin-top:6mm }
+.cover-student { position:absolute; top:168mm; left:12mm }
+.cover-student .name { font-size:24pt; font-weight:700; letter-spacing:1px }
+.cover-student .meta { font-size:11pt; margin-top:4mm; line-height:1.9; opacity:.95 }
+.cover-date { position:absolute; bottom:14mm; left:12mm; font-size:10pt; letter-spacing:1px; opacity:.95 }
+.cover-art { position:absolute; top:0; right:0; width:175mm; height:297mm; pointer-events:none }
 </style>
 </head>
 <body>
@@ -79,14 +88,77 @@ footer { position:absolute; inset:auto 14mm 9mm; border-top:1px solid #e2e8de; p
 {% endmacro %}
 
 <div class="page cover">
-  {{ head() }}
-  <div class="cover-title"><div class="series">Y4-2</div>{{ title("学习力报告", "Learning Ability Report") }}</div>
-  <div class="student">
-    {% if student.name %}<strong>{{ student.name }}</strong>{% endif %}
-    {% if student.grade %}<p>{{ student.grade }}</p>{% endif %}
-    {% if student.test_date %}<p>测评日期 {{ student.test_date }}</p>{% endif %}
+  <svg class="cover-art" viewBox="0 0 700 1190" preserveAspectRatio="xMaxYMid slice">
+    <defs>
+      <filter id="softArc" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="7"/>
+      </filter>
+      <clipPath id="coverClip"><circle cx="445" cy="490" r="148"/></clipPath>
+    </defs>
+    <g stroke="#FFFFFF" fill="none">
+      <circle cx="445" cy="490" r="150" stroke-opacity="0.55" stroke-width="1.5"/>
+      <circle cx="445" cy="490" r="205" stroke-opacity="0.35" stroke-width="1.2"/>
+      <circle cx="445" cy="490" r="265" stroke-opacity="0.28" stroke-width="1.2"/>
+      <circle cx="445" cy="490" r="330" stroke-opacity="0.22" stroke-width="1.2"/>
+      <circle cx="445" cy="490" r="400" stroke-opacity="0.16" stroke-width="1.2"/>
+      <circle cx="445" cy="490" r="475" stroke-opacity="0.12" stroke-width="1.2"/>
+    </g>
+    <g stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="1">
+      {% for a in range(0, 360, 15) %}
+      <line x1="{{ '%.1f' % (445 + 150 * cos(a)) }}" y1="{{ '%.1f' % (490 + 150 * sin(a)) }}"
+            x2="{{ '%.1f' % (445 + 470 * cos(a)) }}" y2="{{ '%.1f' % (490 + 470 * sin(a)) }}"/>
+      {% endfor %}
+    </g>
+    <g filter="url(#softArc)" stroke="#FFFFFF" fill="none" stroke-linecap="round">
+      <path d="M {{ 445 + 330 * cos(-52) }} {{ 490 + 330 * sin(-52) }} A 330 330 0 0 1 {{ 445 + 330 * cos(38) }} {{ 490 + 330 * sin(38) }}"
+            stroke-opacity="0.22" stroke-width="58"/>
+      <path d="M {{ 445 + 415 * cos(152) }} {{ 490 + 415 * sin(152) }} A 415 415 0 0 1 {{ 445 + 415 * cos(196) }} {{ 490 + 415 * sin(196) }}"
+            stroke-opacity="0.18" stroke-width="58"/>
+      <path d="M {{ 445 + 405 * cos(68) }} {{ 490 + 405 * sin(68) }} A 405 405 0 0 1 {{ 445 + 405 * cos(92) }} {{ 490 + 405 * sin(92) }}"
+            stroke-opacity="0.18" stroke-width="58"/>
+    </g>
+    <circle cx="445" cy="490" r="150" fill="#FFFFFF" fill-opacity="0.22"/>
+    <g clip-path="url(#coverClip)" fill="#8E0404" fill-opacity="0.8">
+      <circle cx="445" cy="452" r="56"/>
+      <path d="M445 514 C 378 514 350 566 346 660 L 544 660 C 540 566 512 514 445 514 Z"/>
+    </g>
+    <g fill="#FFFFFF">
+      <circle cx="{{ 445 + 205 * cos(-30) }}" cy="{{ 490 + 205 * sin(-30) }}" r="6" fill-opacity="0.75"/>
+      <circle cx="{{ 445 + 205 * cos(55) }}" cy="{{ 490 + 205 * sin(55) }}" r="4.5" fill-opacity="0.55"/>
+      <circle cx="{{ 445 + 265 * cos(125) }}" cy="{{ 490 + 265 * sin(125) }}" r="6" fill-opacity="0.65"/>
+      <circle cx="{{ 445 + 265 * cos(-80) }}" cy="{{ 490 + 265 * sin(-80) }}" r="4" fill-opacity="0.5"/>
+      <circle cx="{{ 445 + 330 * cos(180) }}" cy="{{ 490 + 330 * sin(180) }}" r="6" fill-opacity="0.6"/>
+      <circle cx="{{ 445 + 330 * cos(-15) }}" cy="{{ 490 + 330 * sin(-15) }}" r="4.5" fill-opacity="0.55"/>
+      <circle cx="{{ 445 + 400 * cos(100) }}" cy="{{ 490 + 400 * sin(100) }}" r="5.5" fill-opacity="0.5"/>
+      <circle cx="{{ 445 + 400 * cos(-120) }}" cy="{{ 490 + 400 * sin(-120) }}" r="4" fill-opacity="0.45"/>
+      <circle cx="{{ 445 + 475 * cos(20) }}" cy="{{ 490 + 475 * sin(20) }}" r="5" fill-opacity="0.4"/>
+      <circle cx="{{ 445 + 475 * cos(-160) }}" cy="{{ 490 + 475 * sin(-160) }}" r="4" fill-opacity="0.38"/>
+    </g>
+    <g stroke="#FFFFFF" stroke-width="2" stroke-opacity="0.38" fill="none" stroke-linecap="round">
+      <path d="M 194 300 h 12 M 200 294 v 12"/>
+      <path d="M 574 196 h 12 M 580 190 v 12"/>
+      <path d="M 604 694 h 12 M 610 688 v 12"/>
+      <path d="M 164 714 h 12 M 170 708 v 12"/>
+    </g>
+  </svg>
+  <div class="cover-logo">
+    <img src="branding/logo_crest_white.png" alt="">
+    <div class="txt">
+      <div class="l1">凭远APP·ARK</div>
+      <div class="l2">WORK HARD · DREAM BIG</div>
+    </div>
   </div>
-  {{ foot() }}
+  <div class="cover-title">
+    <div class="y4">Y4-2</div>
+    <div class="cn">学习力报告</div>
+    <div class="en">Y4-2 Learning Ability Report</div>
+    <div class="rule"></div>
+  </div>
+  <div class="cover-student">
+    {% if student.name %}<div class="name">{{ student.name }}</div>{% endif %}
+    <div class="meta">{% if student.school %}{{ student.school }}<br>{% endif %}{% if student.grade %}{{ student.grade }}{% endif %}</div>
+  </div>
+  {% if student.test_date %}<div class="cover-date">测评时间：{{ student.test_date }}</div>{% endif %}
 </div>
 
 {% if 'P1' in pages %}

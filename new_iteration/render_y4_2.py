@@ -12,6 +12,7 @@ new_iteration/render_y4_2.py — Y4-2 学习力报告（只用 B3 数据）
 """
 from __future__ import annotations
 
+import math
 import shutil
 import subprocess
 import sys
@@ -353,6 +354,7 @@ def build_context(raw: dict) -> dict:
     return {
         "student": {
             "name": student.get("name") or "",
+            "school": student.get("school") or "",
             "grade": student.get("grade") or "",
             "test_date": student.get("test_date") or "",
         },
@@ -376,8 +378,12 @@ def build_context(raw: dict) -> dict:
 # ---------------------------------------------------------------- 渲染
 
 def _env() -> Environment:
-    return Environment(loader=FileSystemLoader(str(HERE)),
-                       autoescape=select_autoescape(default=True, default_for_string=True))
+    env = Environment(loader=FileSystemLoader(str(HERE)),
+                      autoescape=select_autoescape(default=True, default_for_string=True))
+    # 封面装饰线与同心圆几何（与 report_v2.html 封面一致）
+    env.globals["cos"] = lambda deg: math.cos(math.radians(deg))
+    env.globals["sin"] = lambda deg: math.sin(math.radians(deg))
+    return env
 
 
 def render_html(raw: dict, out_html) -> str:
