@@ -37,16 +37,16 @@ FREQ_LABELS = {"T1": "高频使用", "T2": "较常使用", "T3": "有时使用",
 PCT_SEGMENTS = [("T5", 0, 20, "<20"), ("T4", 20, 40, "20–39"), ("T3", 40, 70, "40–69"),
                 ("T2", 70, 90, "70–89"), ("T1", 90, 100, "≥90")]
 # 0–10 分档（左到右 T5..T1）
-SCORE_SEGMENTS = [("T5", 0, 3, "1–2"), ("T4", 3, 5, "3–4"), ("T3", 5, 7, "5–6"),
-                  ("T2", 7, 9, "7–8"), ("T1", 9, 10, "9–10")]
+SCORE_SEGMENTS = [("T5", 0.5, 2.5, "1–2"), ("T4", 2.5, 4.5, "3–4"), ("T3", 4.5, 6.5, "5–6"),
+                  ("T2", 6.5, 8.5, "7–8"), ("T1", 8.5, 10.5, "9–10")]
 
 EF_CODES = (("063", "抑制控制"), ("064", "工作记忆"), ("065", "认知灵活性"))
 MOTIVATION_QUADS = {"tl": "内驱型", "tr": "双高型", "bl": "低动机型", "br": "外驱型"}
 METHOD_QUADS = {"tl": "深度理解型", "tr": "双高整合型", "bl": "低策略型", "br": "表层任务型"}
 
 # 分页预算（mm）：一页可放的明细高度
-ROW_H, ROW_H_WRAP, GROUP_H = 7.4, 10.8, 9.0
-PAGE_CAP_MM = 205.0
+ROW_H, ROW_H_WRAP, GROUP_H = 12.5, 16, 9.0
+PAGE_CAP_MM = 158.0
 INLINE_CAP_MM = 70.0
 STAGE_LETTERS = ("P", "D", "C", "A")
 
@@ -78,13 +78,13 @@ def _fmt(v: Optional[float], one: bool = True) -> str:
 
 
 def tier_score(score: float) -> str:
-    if score < 3:
+    if score < 2.5:
         return "T5"
-    if score < 5:
+    if score < 4.5:
         return "T4"
-    if score < 7:
+    if score < 6.5:
         return "T3"
-    if score < 9:
+    if score < 8.5:
         return "T2"
     return "T1"
 
@@ -128,8 +128,8 @@ def _segments(kind: str) -> List[dict]:
 
 
 def _marker_left(v: float, kind: str) -> float:
-    top = 100.0 if kind == "pct" else 10.0
-    return max(0.0, min(100.0, v / top * 100.0))
+    position = v if kind == "pct" else (v - 0.5) * 10
+    return max(0.0, min(100.0, position))
 
 
 # ---------------------------------------------------------------- 各页数据
@@ -173,7 +173,7 @@ def _item_row(name: str, desc: str, score: Optional[float]) -> dict:
     t = tier_score(score) if score is not None else ""
     return {"name": name, "desc": desc, "txt": _fmt(score), "cells": _cells(score),
             "color": TIER_COLORS.get(t, "#C9C9C4"), "word": FREQ_LABELS.get(t, "—"),
-            "h": ROW_H_WRAP if len(desc) > 34 else ROW_H}
+            "h": ROW_H_WRAP if len(desc) > 44 else ROW_H}
 
 
 def _group_items(entries: List[dict], key: str) -> List[dict]:
@@ -322,17 +322,33 @@ def build_context(raw: dict) -> dict:
         pages.append("P1")
     if ef:
         pages.append("P2")
-    if quads:
+    if b3 and any(value is not None for value in (*m_scores, *q_scores)):
         pages.append("P3")
-    if p_dims:
-        pages.append("P4")
-    for i in range(len(practice_pages)):
-        pages.append("P5" if i == 0 else f"P5{chr(97 + i)}")
-    has_p6 = bool(stages or exec_groups)
+    for i in range(max(len(practice_pages), int(bool(p_dims or s134)))):
+        pages.append(f"P{4 + i}" if i < 2 else f"P5{chr(96 + i)}")
+    has_p6 = bool(stages or exec_groups or s135)
     if has_p6:
         pages.append("P6")
-        for i in range(len(exec_pages)):
-            pages.append("P6b" if i == 0 else f"P6{chr(98 + i)}")
+        for i in range(1, len(exec_pages)):
+            pages.append(f"P6{chr(97 + i)}")
+
+    practice_scores = {d["name"].replace("多元", "多样"): d["txt"]
+                       for group in practice_groups for d in group["dims"]}
+    exec_scores = {stage["name"]: stage["dims"] for stage in stages}
+    comparisons = [
+        {"title": title, "rows": [
+            {"name": label, "score": _fmt(score), "peer": _fmt(peer),
+             "fill": _marker_left(score * 10, "pct") if score is not None else 0,
+             "mark": _marker_left(peer * 10, "pct") if peer is not None else None}
+            for label, code, peer_code in codes
+            for score, peer in [(_num(vals.get(code)), _num(vals.get(peer_code)))]
+            if score is not None
+        ]}
+        for title, codes in (
+            ("学习动机", (("深层动机", "066", "128"), ("表面动机", "067", "129"))),
+            ("学习方法与策略", (("深层方法与策略", "069", "131"), ("表面方法与策略", "070", "132"))),
+        )
+    ]
 
     return {
         "student": {
@@ -352,6 +368,7 @@ def build_context(raw: dict) -> dict:
         "exec_title_en": f"{len(e_items)} Practices in Detail",
         "has_p6": has_p6,
         "pages": pages,
+        "comparisons": comparisons, "practice_scores": practice_scores, "exec_scores": exec_scores,
         "tier_colors": TIER_COLORS,
     }
 
@@ -370,6 +387,8 @@ def render_html(raw: dict, out_html) -> str:
     dst = out.parent / "branding"
     dst.mkdir(parents=True, exist_ok=True)
     src = HERE / "branding"
+    if not src.is_dir():
+        src = HERE.parent / "branding"
     if src.is_dir():
         for asset in src.iterdir():
             target = dst / asset.name

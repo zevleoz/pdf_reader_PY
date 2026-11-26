@@ -58,7 +58,7 @@ def test_new_b3_pages_and_no_p7():
     assert sum(len(g["rows"]) for p in ctx["exec_pages"] for g in p) == 17
 
 
-def test_peer_dot_only_with_both_averages():
+def test_peer_markers_use_each_available_average():
     ctx = render_y4_2.build_context(_raw())
     assert all(q["peer"] for q in ctx["quads"]) and ctx["quads_peer"]
     vals = {k: v for k, v in VALUES.items() if k not in ("128", "129")}
@@ -69,14 +69,20 @@ def test_peer_dot_only_with_both_averages():
     ctx = render_y4_2.build_context(_raw(vals))
     assert not ctx["quads_peer"]
     html = render_y4_2._env().get_template(render_y4_2.TEMPLATE_NAME).render(**ctx)
-    assert "同龄均值" not in html
+    assert "同龄均值　6.4" in html
+    assert "同龄均值　6.1" in html
+    assert "同龄均值　5.8" not in html
+    assert "同龄均值　5.2" not in html
 
 
 def test_html_has_data_labels_and_footer():
     ctx = render_y4_2.build_context(_raw())
     html = render_y4_2._env().get_template(render_y4_2.TEMPLATE_NAME).render(**ctx)
-    assert html.count("数据来源：B3 核心学习能力报告") == 7
-    assert "双高型" in html and "深度理解型" in html and "主动回忆" in html
+    assert html.count("数据来源：B3 核心学习能力报告") == 8
+    assert 'class="page cover"' in html and "林同学" in html
+    assert "学习动机与学习方法" in html and "主动回忆" in html
+    assert [band["width"] for band in ctx["score_segments"]] == [20] * 5
+    assert [band["width"] for band in ctx["ef_segments"]] == [20, 20, 30, 20, 10]
     assert "习惯清单" not in html
 
 
@@ -201,10 +207,10 @@ def _chrome_ok():
         render_v2.find_chrome()
     except RuntimeError:
         return False
-    return os.path.isdir(os.path.join(BASE, "new_iteration", "branding"))
+    return os.path.isfile(os.path.join(BASE, "branding", "logo_inline.png"))
 
 
-@pytest.mark.skipif(not _chrome_ok(), reason="需要 Chrome 与 new_iteration/branding")
+@pytest.mark.skipif(not _chrome_ok(), reason="需要 Chrome 与 branding")
 def test_route_real_pdf(client, env):
     resp = client.post(f"/api/reports/{env['b3']}/y4-2")
     assert resp.status_code == 200
