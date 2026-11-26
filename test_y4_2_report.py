@@ -78,7 +78,7 @@ def test_peer_markers_use_each_available_average():
 def test_html_has_data_labels_and_footer():
     ctx = render_y4_2.build_context(_raw())
     html = render_y4_2._env().get_template(render_y4_2.TEMPLATE_NAME).render(**ctx)
-    assert html.count("数据来源：B3 核心学习能力报告") == 7
+    assert "数据来源" not in html
     assert 'class="page cover"' in html and "林同学" in html
     assert "Y4-2" in html and "学习力报告" in html and "Learning Ability Report" in html
     assert "学习动机与学习方法" in html and "主动回忆" in html

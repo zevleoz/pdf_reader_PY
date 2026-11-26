@@ -15,7 +15,6 @@ h1 { margin:8mm 0 0; font-size:25pt; line-height:1.25 }
 .en { margin:1.4mm 0 5mm; font-size:8.5pt; letter-spacing:2px; text-transform:uppercase; color:#60665b }
 h2 { font-size:12pt; margin:5mm 0 2mm }
 p { margin:1mm 0 0 }
-footer { position:absolute; inset:auto 14mm 9mm; border-top:1px solid #e2e8de; padding-top:2mm; color:#60665b; font-size:8pt }
 .summary { border:1px solid #dce7d7; border-radius:3mm; background:#fafcf8; padding:4mm 5mm; margin:2mm 0 4mm }
 .row { display:flex; align-items:baseline; justify-content:space-between; gap:3mm }
 .big { font-size:23pt; font-weight:800 }
@@ -59,7 +58,6 @@ footer { position:absolute; inset:auto 14mm 9mm; border-top:1px solid #e2e8de; p
 {% macro head() %}
 <header><span>学习力　|　Y4-2 学习力报告</span><img src="branding/logo_inline.png" alt="凭远 APP·ARK"></header>
 {% endmacro %}
-{% macro foot() %}<footer>数据来源：B3 核心学习能力报告</footer>{% endmacro %}
 {% macro title(text, english) %}<h1>{{ text }}</h1><div class="en">{{ english }}</div>{% endmacro %}
 {% macro scale(s, segments, unit) %}
 <div class="row"><span class="big">{{ s.txt }}<small>{{ unit }}</small></span><span class="tb">{{ s.tier }}　{{ s.label }}</span></div>
@@ -174,7 +172,6 @@ footer { position:absolute; inset:auto 14mm 9mm; border-top:1px solid #e2e8de; p
     <h2>执行功能 · 同龄百分位</h2>
     <div class="grid3">{% for e in ef %}<div class="summary"><b>{{ e.name }}</b><p class="big">{{ e.txt }}</p></div>{% endfor %}</div>
   {% endif %}
-  {{ foot() }}
 </div>
 {% endif %}
 
@@ -185,7 +182,6 @@ footer { position:absolute; inset:auto 14mm 9mm; border-top:1px solid #e2e8de; p
   {% for e in ef %}
     <h2>{{ e.name }}</h2><div class="summary"><p>{{ descriptions[e.name] }}</p>{{ scale(e, ef_segments, " 百分位") }}</div>
   {% endfor %}
-  {{ foot() }}
 </div>
 {% endif %}
 
@@ -201,7 +197,6 @@ footer { position:absolute; inset:auto 14mm 9mm; border-top:1px solid #e2e8de; p
       </div>
     {% endfor %}
   {% endfor %}
-  {{ foot() }}
 </div>
 {% endif %}
 
@@ -214,7 +209,6 @@ footer { position:absolute; inset:auto 14mm 9mm; border-top:1px solid #e2e8de; p
     <h2>{{ group.name }}</h2>
     {% for dim in group.dims %}<div class="row"><span>{{ dim.name }}</span><b>{{ dim.txt }}</b></div>{% endfor %}
   {% endfor %}{% endif %}
-  {{ foot() }}
 </div>
 {% endfor %}
 
@@ -227,7 +221,6 @@ footer { position:absolute; inset:auto 14mm 9mm; border-top:1px solid #e2e8de; p
     <h2>{{ name }}</h2>
     {% for dim in dims %}<div class="row"><span>{{ dim.name }}</span><b>{{ dim.txt }}</b></div>{% endfor %}
   {% endfor %}{% endif %}
-  {{ foot() }}
 </div>
 {% endfor %}
 </body>
